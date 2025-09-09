@@ -128,7 +128,8 @@ function AppContent() {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      const response = await fetch('https://transcription-app-861t.onrender.com/transcribe', {
+      // UPDATED BACKEND URL
+      const response = await fetch('https://typemywordz-backend-api.onrender.com/transcribe', {
         method: 'POST',
         body: formData,
       });
@@ -154,7 +155,8 @@ function AppContent() {
 
   const checkJobStatus = async (jobId) => {
     try {
-      const response = await fetch(`https://transcription-app-861t.onrender.com/status/${jobId}`);
+      // UPDATED BACKEND URL
+      const response = await fetch(`https://typemywordz-backend-api.onrender.com/status/${jobId}`);
       const result = await response.json();
       
       setStatus(result.status);
