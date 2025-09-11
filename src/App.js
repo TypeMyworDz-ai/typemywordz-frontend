@@ -975,20 +975,8 @@ function AppContent() {
       </footer>
       {/* NEW: Copied Message Animation */}
       {copiedMessageVisible && (
-        <div style={{
-          position: 'fixed',
-          bottom: '20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          backgroundColor: 'rgba(40, 167, 69, 0.9)',
-          color: 'white',
-          padding: '10px 20px',
-          borderRadius: '5px',
-          zIndex: 1000,
-          animation: 'fadeInOut 2s forwards'
-        }}>
+        <div className="copied-message-animation"> {/* <--- CHANGED TO CLASSNAME */}
           Copied to clipboard!
-          {/* REMOVED THE <style> TAG HERE */}
         </div>
       )}
     </div>
