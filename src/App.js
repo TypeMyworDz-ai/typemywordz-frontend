@@ -38,16 +38,21 @@ const formatTime = (seconds) => {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
-const simulateProgress = (setter, intervalTime, maxProgress) => { 
+// Simulate progress, now with an option for an indefinite animation for transcription
+const simulateProgress = (setter, intervalTime, maxProgress = 100) => { 
   setter(0);
   const interval = setInterval(() => {
     setter(prev => {
-      const newProgress = prev + Math.random() * 10; 
-      if (newProgress >= maxProgress) {
+      // If maxProgress is 100, simulate a near-complete upload
+      if (maxProgress === 100 && prev >= 95) { 
         clearInterval(interval);
-        return maxProgress; 
+        return prev;
+      } 
+      // For indefinite progress (e.g., transcription), just keep moving
+      if (maxProgress === -1) { 
+        return (prev + (Math.random() * 5 + 1)) % 100; // Keep it moving
       }
-      return newProgress;
+      return prev + Math.random() * 10; 
     });
   }, intervalTime);
   return interval; 
@@ -60,7 +65,7 @@ function AppContent() {
   const [transcription, setTranscription] = useState('');
   const [isUploading, setIsUploading] = useState(false); // Controls button disabled state
   const [uploadProgress, setUploadProgress] = useState(0); // For upload bar percentage
-  const [transcriptionProgress, setTranscriptionProgress] = useState(0); // For transcription bar percentage
+  const [transcriptionProgress, setTranscriptionProgress] = useState(0); // For transcription bar percentage (can be indefinite)
   const [showLogin, setShowLogin] = useState(true);
   const [currentView, setCurrentView] = useState('transcribe');
   const [audioDuration, setAudioDuration] = useState(0);
@@ -72,6 +77,8 @@ function AppContent() {
   const recordedAudioBlobRef = useRef(null); 
   const [message, setMessage] = useState(''); // For MessageModal
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false); // For clipboard animation
+
+  const abortControllerRef = useRef(null); // For canceling fetch requests
   
   const { currentUser, logout, userProfile, refreshUserProfile } = useAuth();
 
@@ -96,6 +103,11 @@ function AppContent() {
     if (audioPlayerRef.current) {
       audioPlayerRef.current.src = '';
       audioPlayerRef.current.load();
+    }
+    // Abort any ongoing fetch request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
   }, []);
 
@@ -163,6 +175,14 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
+
+  const handleCancelUpload = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    resetTranscriptionProcessUI();
+    showMessage("Upload / Transcription cancelled.");
+  }, [resetTranscriptionProcessUI, showMessage]);
   const handleTranscriptionComplete = useCallback(async (transcriptionText) => {
     try {
       const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
@@ -184,38 +204,56 @@ function AppContent() {
 
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
     try {
-      // Use the environment variable for the backend URL
-      const response = await fetch(`${BACKEND_URL}/status/${jobId}`);
+      abortControllerRef.current = new AbortController(); // Create new AbortController for this polling
+      const response = await fetch(`${BACKEND_URL}/status/${jobId}`, { signal: abortControllerRef.current.signal });
       const result = await response.json();
       
-      if (result.status === 'completed') {
+      if (response.ok && result.status === 'completed') {
         setTranscription(result.transcription);
         clearInterval(transcriptionInterval); 
         setTranscriptionProgress(100); // Set to 100% on completion
         setStatus('completed'); 
         await handleTranscriptionComplete(result.transcription);
         setIsUploading(false); 
-      } else if (result.status === 'failed') {
+      } else if (response.ok && result.status === 'failed') {
         showMessage('Transcription failed: ' + result.error);
         clearInterval(transcriptionInterval); 
         setTranscriptionProgress(0);
         setStatus('failed'); 
         setIsUploading(false); 
-      } else if (result.status === 'processing') {
-        setTimeout(() => checkJobStatus(jobId, transcriptionInterval), 2000);
+      } else {
+        // Only continue polling if status is still processing or upload_complete
+        if (result.status === 'processing' || result.status === 'upload_complete') {
+          setTimeout(() => checkJobStatus(jobId, transcriptionInterval), 2000);
+        } else {
+          // Handle unexpected status or non-ok response from status check
+          const errorDetail = result.detail || `Unexpected status: ${result.status} or HTTP error! status: ${response.status}`;
+          showMessage('Status check failed: ' + errorDetail);
+          clearInterval(transcriptionInterval); 
+          setTranscriptionProgress(0);
+          setStatus('failed'); 
+          setIsUploading(false); 
+        }
       }
     } catch (error) {
-      console.error('Status check failed:', error);
-      clearInterval(transcriptionInterval); 
-      setTranscriptionProgress(0);
-      setStatus('failed'); 
-      setIsUploading(false); 
+      if (error.name === 'AbortError') {
+        console.log('Fetch aborted by user.');
+        // UI reset already handled by handleCancelUpload
+      } else {
+        console.error('Status check failed:', error);
+        clearInterval(transcriptionInterval); 
+        setTranscriptionProgress(0);
+        setStatus('failed'); 
+        setIsUploading(false); 
+        showMessage('Status check failed: ' + error.message);
+      }
+    } finally {
+      abortControllerRef.current = null; // Clear controller after request completes or aborts
     }
   }, [handleTranscriptionComplete, showMessage]); // Added handleTranscriptionComplete dependency
 
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
-      // This should ideally not happen due to useEffect trigger logic
       showMessage('Please select a file first');
       return;
     }
@@ -231,17 +269,18 @@ function AppContent() {
     }
 
     setIsUploading(true); // Disable button
-    const uploadInterval = simulateProgress(setUploadProgress, 200, 99); // Simulate upload up to 99%
+    const uploadInterval = simulateProgress(setUploadProgress, 200, 100); // Simulate upload to 100%
     setStatus('uploading'); // Set status to uploading
+    abortControllerRef.current = new AbortController(); // Initialize AbortController for upload
 
     try {
-      const formData = new FormData(); 
+      const formData = new FormData(); // <--- ADDED THIS DECLARATION
       formData.append('file', selectedFile);
 
-      // Use the environment variable for the backend URL
       const response = await fetch(`${BACKEND_URL}/transcribe`, {
         method: 'POST',
         body: formData,
+        signal: abortControllerRef.current.signal // Attach signal to fetch request
       });
 
       const result = await response.json();
@@ -251,18 +290,16 @@ function AppContent() {
         setUploadProgress(100); // Ensure upload is 100%
         setStatus('upload_complete'); // Set status to upload_complete
         
-        // Start transcription progress after a short delay
-        setTimeout(() => {
-          setStatus('processing'); // Now switch status to processing
-          setJobId(result.job_id);
-          const transcriptionInterval = simulateProgress(setTranscriptionProgress, 1000, 99); // Simulate transcription up to 99%
-          checkJobStatus(result.job_id, transcriptionInterval); 
-        }, 500); // Short delay to show 'Upload Complete!'
+        // Immediately transition to processing and start polling
+        setStatus('processing'); // Now switch status to processing
+        setJobId(result.job_id);
+        // Start indefinite progress animation for transcription
+        const transcriptionInterval = simulateProgress(setTranscriptionProgress, 500, -1); 
+        checkJobStatus(result.job_id, transcriptionInterval); 
         
       } else {
-        // Log the full error from the backend for debugging
         console.error("Backend upload failed response:", result);
-        showMessage('Upload failed: ' + (result.detail || "Unknown error"));
+        showMessage('Upload failed: ' + (result.detail || `HTTP error! status: ${response.status}`));
         clearInterval(uploadInterval);
         setUploadProgress(0);
         setTranscriptionProgress(0);
@@ -270,13 +307,20 @@ function AppContent() {
         setIsUploading(false); 
       }
     } catch (error) {
-      console.error("Fetch error during upload:", error);
-      showMessage('Upload failed: ' + error.message);
-      clearInterval(uploadInterval);
-      setUploadProgress(0);
-      setTranscriptionProgress(0);
-      setStatus('failed'); 
-      setIsUploading(false); 
+      if (error.name === 'AbortError') {
+        console.log('Upload aborted by user.');
+        // UI reset already handled by handleCancelUpload
+      } else {
+        console.error("Fetch error during upload:", error);
+        showMessage('Upload failed: ' + error.message);
+        clearInterval(uploadInterval);
+        setUploadProgress(0);
+        setTranscriptionProgress(0);
+        setStatus('failed'); 
+        setIsUploading(false); 
+      }
+    } finally {
+      abortControllerRef.current = null; // Clear controller after request completes or aborts
     }
   }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus]); // Added checkJobStatus dependency
 
@@ -747,11 +791,10 @@ function AppContent() {
                     overflow: 'hidden',
                     marginBottom: '10px'
                   }}>
-                    <div style={{
+                    <div className="progress-bar-indeterminate" style={{
                       backgroundColor: '#6c5ce7', // Purple color for transcription progress
                       height: '100%',
-                      width: `${transcriptionProgress}%`,
-                      transition: 'width 0.3s ease',
+                      width: '100%', // Fixed width for animation
                       borderRadius: '10px'
                     }}></div>
                   </div>
@@ -761,25 +804,45 @@ function AppContent() {
                 </div>
               )}
 
-              {/* This button is now only for manual trigger if instant upload is not desired, but mostly disabled */}
-              {status === 'idle' && !isUploading && selectedFile && ( // Only show if file selected and ready for manual start
-                <button
-                  onClick={handleUpload}
-                  disabled={!selectedFile || isUploading}
-                  style={{
-                    padding: '15px 30px',
-                    fontSize: '18px',
-                    backgroundColor: (!selectedFile || isUploading) ? '#6c757d' : '#6c5ce7',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '25px',
-                    cursor: (!selectedFile || isUploading) ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 5px 15px rgba(108, 92, 231, 0.4)'
-                  }}
-                >
-                  {isUploading ? '⏳ Processing...' : '🚀 Start Transcription'}
-                </button>
-              )}
+              {/* Action Button: Start Transcription or Cancel */}
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
+                {status === 'idle' && !isUploading && selectedFile && (
+                  <button
+                    onClick={handleUpload}
+                    disabled={!selectedFile || isUploading}
+                    style={{
+                      padding: '15px 30px',
+                      fontSize: '18px',
+                      backgroundColor: (!selectedFile || isUploading) ? '#6c757d' : '#6c5ce7',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '25px',
+                      cursor: (!selectedFile || isUploading) ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 5px 15px rgba(108, 92, 231, 0.4)'
+                    }}
+                  >
+                    🚀 Start Transcription
+                  </button>
+                )}
+
+                {(status === 'uploading' || status === 'upload_complete' || status === 'processing') && (
+                  <button
+                    onClick={handleCancelUpload}
+                    style={{
+                      padding: '15px 30px',
+                      fontSize: '18px',
+                      backgroundColor: '#dc3545', // Red for cancel
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '25px',
+                      cursor: 'pointer',
+                      boxShadow: '0 5px 15px rgba(220, 53, 69, 0.4)'
+                    }}
+                  >
+                    ❌ Cancel
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -900,17 +963,15 @@ function AppContent() {
         </main>
       )}
       {/* Footer for main app interface */}
-      {currentView !== 'login' && currentView !== 'signup' && (
-        <footer style={{ 
-          textAlign: 'center', 
-          padding: '20px', 
-          color: 'rgba(255, 255, 255, 0.7)', 
-          fontSize: '0.9rem',
-          marginTop: 'auto' /* Push footer to bottom */
-        }}>
-          &copy; {new Date().getFullYear()} TypeMyworDz, Inc.
-        </footer>
-      )}
+      <footer style={{ 
+        textAlign: 'center', 
+        padding: '20px', 
+        color: 'rgba(255, 255, 255, 0.7)', 
+        fontSize: '0.9rem',
+        marginTop: 'auto' /* Push footer to bottom */
+      }}>
+        &copy; {new Date().getFullYear()} TypeMyworDz, Inc.
+      </footer>
       {/* NEW: Copied Message Animation */}
       {copiedMessageVisible && (
         <div style={{
@@ -926,14 +987,7 @@ function AppContent() {
           animation: 'fadeInOut 2s forwards'
         }}>
           Copied to clipboard!
-          <style>{`
-            @keyframes fadeInOut {
-              0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
-              20% { opacity: 1; transform: translateX(-50%) translateY(0); }
-              80% { opacity: 1; transform: translateX(-50%) translateY(0); }
-              100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
-            }
-          `}</style>
+          {/* REMOVED THE <style> TAG HERE */}
         </div>
       )}
     </div>
@@ -950,4 +1004,3 @@ function App() {
 }
 
 export default App;
-// This is a dummy change to force a Vercel redeploy
