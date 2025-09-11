@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
@@ -7,14 +7,60 @@ import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile } from './userService';
 
+// Configuration
+// Use the environment variable for the backend URL
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+
+// Message Modal Component - Centralized for all general alerts (not for clipboard)
+const MessageModal = ({ message, onClose }) => {
+  if (!message) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+      <div className="bg-white p-8 rounded-xl shadow-2xl text-center max-w-sm w-full transform transition-all duration-300 scale-100">
+        <h3 className="text-xl font-bold mb-4 text-purple-600">Notification</h3>
+        <p className="text-gray-700 mb-6">{message}</p>
+        <button
+          onClick={onClose}
+          className="bg-purple-600 text-white px-6 py-2 rounded-full font-bold shadow-lg hover:bg-purple-700 transition-colors duration-200"
+        >
+          OK
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Utility functions (moved outside AppContent for clarity and reusability if needed)
+const formatTime = (seconds) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
+const simulateProgress = (setter, intervalTime, maxProgress) => { 
+  setter(0);
+  const interval = setInterval(() => {
+    setter(prev => {
+      const newProgress = prev + Math.random() * 10; 
+      if (newProgress >= maxProgress) {
+        clearInterval(interval);
+        return maxProgress; 
+      }
+      return newProgress;
+    });
+  }, intervalTime);
+  return interval; 
+};
 // Main App Content (your transcription service)
 function AppContent() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [jobId, setJobId] = useState(null);
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState('idle'); // 'idle', 'uploading', 'upload_complete', 'processing', 'completed', 'failed'
   const [transcription, setTranscription] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false); // Controls button disabled state
+  const [uploadProgress, setUploadProgress] = useState(0); // For upload bar percentage
+  const [transcriptionProgress, setTranscriptionProgress] = useState(0); // For transcription bar percentage
   const [showLogin, setShowLogin] = useState(true);
   const [currentView, setCurrentView] = useState('transcribe');
   const [audioDuration, setAudioDuration] = useState(0);
@@ -22,6 +68,10 @@ function AppContent() {
   const [recordingTime, setRecordingTime] = useState(0);
   const mediaRecorderRef = useRef(null);
   const recordingIntervalRef = useRef(null);
+  const audioPlayerRef = useRef(null); 
+  const recordedAudioBlobRef = useRef(null); 
+  const [message, setMessage] = useState(''); // For MessageModal
+  const [copiedMessageVisible, setCopiedMessageVisible] = useState(false); // For clipboard animation
   
   const { currentUser, logout, userProfile, refreshUserProfile } = useAuth();
 
@@ -29,18 +79,38 @@ function AppContent() {
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
   const isAdmin = ADMIN_EMAILS.includes(currentUser?.email);
 
-  const handleFileSelect = (event) => {
-    const file = event.target.files[0];
-    setSelectedFile(file);
-    
+  // MessageModal controls
+  const showMessage = useCallback((msg) => setMessage(msg), []);
+  const clearMessage = useCallback(() => setMessage(''), []);
+
+  const resetTranscriptionProcessUI = useCallback(() => { 
+    setSelectedFile(null);
     setJobId(null);
-    setStatus('');
+    setStatus('idle'); 
     setTranscription('');
     setAudioDuration(0);
+    setIsUploading(false);
     setUploadProgress(0);
+    setTranscriptionProgress(0); 
+    recordedAudioBlobRef.current = null;
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.src = '';
+      audioPlayerRef.current.load();
+    }
+  }, []);
 
-    if (file && file.type.startsWith('audio/')) {
-      const audio = document.createElement('audio');
+  const handleFileSelect = useCallback((event) => {
+    resetTranscriptionProcessUI(); 
+    const file = event.target.files[0];
+    setSelectedFile(file); // This will trigger the useEffect to call handleUpload
+    
+    if (file && (file.type.startsWith('audio/') || file.type.startsWith('video/'))) { 
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.src = URL.createObjectURL(file);
+        audioPlayerRef.current.load();
+      }
+
+      const audio = new Audio(); 
       audio.preload = 'metadata';
       audio.onloadedmetadata = () => {
         setAudioDuration(audio.duration);
@@ -48,9 +118,10 @@ function AppContent() {
       };
       audio.src = URL.createObjectURL(file);
     }
-  };
+  }, [resetTranscriptionProcessUI]);
 
-  const startRecording = async () => {
+  const startRecording = useCallback(async () => {
+    resetTranscriptionProcessUI(); 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorderRef.current = new MediaRecorder(stream);
@@ -62,9 +133,15 @@ function AppContent() {
 
       mediaRecorderRef.current.onstop = () => {
         const blob = new Blob(chunks, { type: 'audio/wav' });
+        recordedAudioBlobRef.current = blob; 
         const file = new File([blob], `recording-${Date.now()}.wav`, { type: 'audio/wav' });
-        setSelectedFile(file);
+        setSelectedFile(file); // This will trigger the useEffect to call handleUpload
         stream.getTracks().forEach(track => track.stop());
+
+        if (audioPlayerRef.current) {
+          audioPlayerRef.current.src = URL.createObjectURL(file);
+          audioPlayerRef.current.load();
+        }
       };
 
       mediaRecorderRef.current.start();
@@ -75,106 +152,18 @@ function AppContent() {
         setRecordingTime(prev => prev + 1);
       }, 1000);
     } catch (error) {
-      alert('Could not access microphone: ' + error.message);
+      showMessage('Could not access microphone: ' + error.message);
     }
-  };
+  }, [resetTranscriptionProcessUI, showMessage]);
 
-  const stopRecording = () => {
+  const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       clearInterval(recordingIntervalRef.current);
     }
-  };
-
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const simulateProgress = () => {
-    setUploadProgress(0);
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 90) {
-          clearInterval(interval);
-          return prev;
-        }
-        return prev + Math.random() * 10;
-      });
-    }, 200);
-  };
-
-  const handleUpload = async () => {
-    if (!selectedFile) {
-      alert('Please select a file first');
-      return;
-    }
-
-    const estimatedDuration = audioDuration || 60;
-    const canTranscribe = await canUserTranscribe(currentUser.uid, estimatedDuration);
-    
-    if (!canTranscribe) {
-      alert('You have exceeded your monthly transcription limit! Please upgrade your plan or wait until next month.');
-      setCurrentView('dashboard');
-      return;
-    }
-
-    setIsUploading(true);
-    simulateProgress();
-    
-    try {
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-
-      // UPDATED BACKEND URL
-      const response = await fetch('https://typemywordz-backend-api.onrender.com/transcribe', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const result = await response.json();
-      
-      if (response.ok) {
-        setJobId(result.job_id);
-        setStatus(result.status);
-        setUploadProgress(100);
-        checkJobStatus(result.job_id);
-      } else {
-        alert('Upload failed: ' + result.detail);
-        setUploadProgress(0);
-      }
-    } catch (error) {
-      alert('Upload failed: ' + error.message);
-      setUploadProgress(0);
-    }
-    
-    setIsUploading(false);
-  };
-
-  const checkJobStatus = async (jobId) => {
-    try {
-      // UPDATED BACKEND URL
-      const response = await fetch(`https://typemywordz-backend-api.onrender.com/status/${jobId}`);
-      const result = await response.json();
-      
-      setStatus(result.status);
-      
-      if (result.status === 'completed') {
-        setTranscription(result.transcription);
-        await handleTranscriptionComplete(result.transcription);
-      } else if (result.status === 'failed') {
-        alert('Transcription failed: ' + result.error);
-      } else if (result.status === 'processing') {
-        setTimeout(() => checkJobStatus(jobId), 2000);
-      }
-    } catch (error) {
-      console.error('Status check failed:', error);
-    }
-  };
-
-  const handleTranscriptionComplete = async (transcriptionText) => {
+  }, [isRecording]);
+  const handleTranscriptionComplete = useCallback(async (transcriptionText) => {
     try {
       const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
       
@@ -186,18 +175,125 @@ function AppContent() {
       });
       
       await refreshUserProfile();
-      console.log('Usage updated successfully');
+      showMessage('Usage updated successfully!');
     } catch (error) {
       console.error('Error updating usage:', error);
+      showMessage('Failed to save transcription or update usage.');
     }
-  };
+  }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage]);
 
-  const copyToClipboard = () => {
+  const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
+    try {
+      // Use the environment variable for the backend URL
+      const response = await fetch(`${BACKEND_URL}/status/${jobId}`);
+      const result = await response.json();
+      
+      if (result.status === 'completed') {
+        setTranscription(result.transcription);
+        clearInterval(transcriptionInterval); 
+        setTranscriptionProgress(100); // Set to 100% on completion
+        setStatus('completed'); 
+        await handleTranscriptionComplete(result.transcription);
+        setIsUploading(false); 
+      } else if (result.status === 'failed') {
+        showMessage('Transcription failed: ' + result.error);
+        clearInterval(transcriptionInterval); 
+        setTranscriptionProgress(0);
+        setStatus('failed'); 
+        setIsUploading(false); 
+      } else if (result.status === 'processing') {
+        setTimeout(() => checkJobStatus(jobId, transcriptionInterval), 2000);
+      }
+    } catch (error) {
+      console.error('Status check failed:', error);
+      clearInterval(transcriptionInterval); 
+      setTranscriptionProgress(0);
+      setStatus('failed'); 
+      setIsUploading(false); 
+    }
+  }, [handleTranscriptionComplete, showMessage]); // Added handleTranscriptionComplete dependency
+
+  const handleUpload = useCallback(async () => {
+    if (!selectedFile) {
+      // This should ideally not happen due to useEffect trigger logic
+      showMessage('Please select a file first');
+      return;
+    }
+
+    const estimatedDuration = audioDuration || 60;
+    const canTranscribe = await canUserTranscribe(currentUser.uid, estimatedDuration);
+    
+    if (!canTranscribe) {
+      showMessage('You have exceeded your monthly transcription limit! Please upgrade your plan or wait until next month.');
+      setCurrentView('dashboard');
+      resetTranscriptionProcessUI(); 
+      return;
+    }
+
+    setIsUploading(true); // Disable button
+    const uploadInterval = simulateProgress(setUploadProgress, 200, 99); // Simulate upload up to 99%
+    setStatus('uploading'); // Set status to uploading
+
+    try {
+      const formData = new FormData(); 
+      formData.append('file', selectedFile);
+
+      // Use the environment variable for the backend URL
+      const response = await fetch(`${BACKEND_URL}/transcribe`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        clearInterval(uploadInterval); 
+        setUploadProgress(100); // Ensure upload is 100%
+        setStatus('upload_complete'); // Set status to upload_complete
+        
+        // Start transcription progress after a short delay
+        setTimeout(() => {
+          setStatus('processing'); // Now switch status to processing
+          setJobId(result.job_id);
+          const transcriptionInterval = simulateProgress(setTranscriptionProgress, 1000, 99); // Simulate transcription up to 99%
+          checkJobStatus(result.job_id, transcriptionInterval); 
+        }, 500); // Short delay to show 'Upload Complete!'
+        
+      } else {
+        // Log the full error from the backend for debugging
+        console.error("Backend upload failed response:", result);
+        showMessage('Upload failed: ' + (result.detail || "Unknown error"));
+        clearInterval(uploadInterval);
+        setUploadProgress(0);
+        setTranscriptionProgress(0);
+        setStatus('failed'); 
+        setIsUploading(false); 
+      }
+    } catch (error) {
+      console.error("Fetch error during upload:", error);
+      showMessage('Upload failed: ' + error.message);
+      clearInterval(uploadInterval);
+      setUploadProgress(0);
+      setTranscriptionProgress(0);
+      setStatus('failed'); 
+      setIsUploading(false); 
+    }
+  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus]); // Added checkJobStatus dependency
+
+  // Effect to trigger upload automatically when a file is selected or recording stops
+  useEffect(() => {
+    if (selectedFile && status === 'idle' && !isRecording && !isUploading) {
+      handleUpload();
+    }
+  }, [selectedFile, status, isRecording, isUploading, handleUpload]);
+
+  const copyToClipboard = useCallback(() => { 
     navigator.clipboard.writeText(transcription);
-    alert('Transcription copied to clipboard!');
-  };
+    setCopiedMessageVisible(true); // Show the fading message
+    setTimeout(() => setCopiedMessageVisible(false), 2000); // Hide after 2 seconds
+  }, [transcription]); // Removed showMessage as it's for general alerts
 
-  const downloadAsWord = () => {
+  const downloadAsWord = useCallback(() => { 
     const blob = new Blob([transcription], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -205,9 +301,9 @@ function AppContent() {
     a.download = 'transcription.doc';
     a.click();
     URL.revokeObjectURL(url);
-  };
+  }, [transcription]);
 
-  const downloadAsTXT = () => {
+  const downloadAsTXT = useCallback(() => { 
     const blob = new Blob([transcription], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -215,27 +311,39 @@ function AppContent() {
     a.download = 'transcription.txt';
     a.click();
     URL.revokeObjectURL(url);
-  };
+  }, [transcription]);
 
-  const handleLogout = async () => {
+  const downloadRecordedAudio = useCallback(() => { 
+    if (recordedAudioBlobRef.current) {
+      const url = URL.createObjectURL(recordedAudioBlobRef.current);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `recording-${Date.now()}.wav`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      showMessage('No recorded audio available to download.');
+    }
+  }, [showMessage]);
+
+  const handleLogout = useCallback(async () => {
     try {
       await logout();
     } catch (error) {
-      alert('Failed to log out');
+      showMessage('Failed to log out');
     }
-  };
+  }, [logout, showMessage]);
 
-  // NEW FUNCTION: Create missing admin profile
-  const createMissingProfile = async () => {
+  const createMissingProfile = useCallback(async () => {
     try {
       await createUserProfile(currentUser.uid, currentUser.email);
-      alert('Profile created successfully! Refreshing page...');
+      showMessage('Profile created successfully! Refreshing page...');
       window.location.reload();
     } catch (error) {
       console.error('Error creating profile:', error);
-      alert('Error creating profile: ' + error.message);
+      showMessage('Error creating profile: ' + error.message);
     }
-  };
+  }, [currentUser?.uid, currentUser?.email, showMessage]);
   // Show login/signup forms if user is not logged in
   if (!currentUser) {
     return (
@@ -275,45 +383,6 @@ function AppContent() {
         </header>
         
         <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          marginBottom: '30px' 
-        }}>
-          <button
-            onClick={() => setShowLogin(true)}
-            style={{
-              padding: '12px 30px',
-              margin: '0 10px',
-              backgroundColor: showLogin ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)',
-              color: 'white',
-              border: '2px solid rgba(255,255,255,0.3)',
-              borderRadius: '25px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              backdropFilter: 'blur(10px)'
-            }}
-          >
-            Login
-          </button>
-          <button
-            onClick={() => setShowLogin(false)}
-            style={{
-              padding: '12px 30px',
-              margin: '0 10px',
-              backgroundColor: !showLogin ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)',
-              color: 'white',
-              border: '2px solid rgba(255,255,255,0.3)',
-              borderRadius: '25px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              backdropFilter: 'blur(10px)'
-            }}
-          >
-            Sign Up
-          </button>
-        </div>
-        
-        <div style={{ 
           flex: 1, 
           display: 'flex', 
           justifyContent: 'center', 
@@ -322,6 +391,16 @@ function AppContent() {
         }}>
           {showLogin ? <Login /> : <Signup />}
         </div>
+        <MessageModal message={message} onClose={clearMessage} />
+        {/* Footer for login/signup page */}
+        <footer style={{ 
+          textAlign: 'center', 
+          padding: '20px', 
+          color: 'rgba(255, 255, 255, 0.7)', 
+          fontSize: '0.9rem' 
+        }}>
+          &copy; {new Date().getFullYear()} TypeMyworDz, Inc.
+        </footer>
       </div>
     );
   }
@@ -330,8 +409,12 @@ function AppContent() {
   return (
     <div style={{ 
       minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
       background: (currentView === 'dashboard' || currentView === 'admin') ? '#f8f9fa' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
     }}>
+      <MessageModal message={message} onClose={clearMessage} />
+
       {currentView === 'transcribe' && (
         <header style={{ 
           textAlign: 'center', 
@@ -353,13 +436,6 @@ function AppContent() {
           }}>
             You Talk, We Type
           </p>
-          <p style={{ 
-            fontSize: '1rem', 
-            margin: '0 0 20px 0',
-            opacity: '0.8'
-          }}>
-            Speech to Text AI • Simple, Accurate, Powerful
-          </p>
           
           <div style={{ 
             display: 'flex', 
@@ -370,7 +446,7 @@ function AppContent() {
             fontSize: '14px',
             opacity: '0.9'
           }}>
-            <span>Logged in as: {currentUser.email}</span>
+            <span>Logged in as: {userProfile?.name || currentUser.email}</span>
             {userProfile && (
               <span>Usage: {userProfile.monthlyMinutes}/{userProfile.plan === 'business' ? '∞' : '30'} min</span>
             )}
@@ -476,6 +552,7 @@ function AppContent() {
         <Dashboard />
       ) : (
         <main style={{ 
+          flex: 1, /* Allow main content to grow */
           padding: '0 20px 40px',
           maxWidth: '800px', 
           margin: '0 auto'
@@ -561,6 +638,26 @@ function AppContent() {
               >
                 {isRecording ? '⏹️ Stop Recording' : '🎤 Start Recording'}
               </button>
+
+              {/* Download Recorded Audio Button */}
+              {recordedAudioBlobRef.current && !isRecording && (
+                <button
+                  onClick={downloadRecordedAudio}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#007bff',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '5px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    marginTop: '15px',
+                    marginLeft: '10px'
+                  }}
+                >
+                  📥 Download Recording
+                </button>
+              )}
             </div>
 
             <div style={{
@@ -601,7 +698,16 @@ function AppContent() {
                 )}
               </div>
 
-              {isUploading && uploadProgress > 0 && (
+              {/* NEW: Audio Player */}
+              {selectedFile && (
+                <div style={{ marginBottom: '20px' }}>
+                  <audio ref={audioPlayerRef} controls style={{ width: '100%' }}>
+                    Your browser does not support the audio element.
+                  </audio>
+                </div>
+              )}
+              {/* NEW: Upload Progress Bar (only visible while uploading) */}
+              {status === 'uploading' && uploadProgress > 0 && uploadProgress <= 100 && ( 
                 <div style={{ marginBottom: '20px' }}>
                   <div style={{
                     backgroundColor: '#e9ecef',
@@ -624,27 +730,61 @@ function AppContent() {
                 </div>
               )}
 
-              <button
-                onClick={handleUpload}
-                disabled={!selectedFile || isUploading}
-                style={{
-                  padding: '15px 30px',
-                  fontSize: '18px',
-                  backgroundColor: (!selectedFile || isUploading) ? '#6c757d' : '#6c5ce7',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '25px',
-                  cursor: (!selectedFile || isUploading) ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 5px 15px rgba(108, 92, 231, 0.4)'
-                }}
-              >
-                {isUploading ? '⏳ Processing...' : '🚀 Start Transcription'}
-              </button>
+              {/* NEW: Upload Complete message (shows when upload is 100% and transcription starts) */}
+              {status === 'upload_complete' && ( 
+                <div style={{ marginBottom: '20px', textAlign: 'center', color: '#27ae60', fontWeight: 'bold' }}>
+                  ✅ Upload Complete!
+                </div>
+              )}
+
+              {/* NEW: Transcription Progress Bar (appears immediately after upload_complete) */}
+              {status === 'processing' && ( 
+                <div style={{ marginBottom: '20px' }}>
+                  <div style={{
+                    backgroundColor: '#e9ecef',
+                    height: '20px',
+                    borderRadius: '10px',
+                    overflow: 'hidden',
+                    marginBottom: '10px'
+                  }}>
+                    <div style={{
+                      backgroundColor: '#6c5ce7', // Purple color for transcription progress
+                      height: '100%',
+                      width: `${transcriptionProgress}%`,
+                      transition: 'width 0.3s ease',
+                      borderRadius: '10px'
+                    }}></div>
+                  </div>
+                  <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
+                    Transcribing...
+                  </div>
+                </div>
+              )}
+
+              {/* This button is now only for manual trigger if instant upload is not desired, but mostly disabled */}
+              {status === 'idle' && !isUploading && selectedFile && ( // Only show if file selected and ready for manual start
+                <button
+                  onClick={handleUpload}
+                  disabled={!selectedFile || isUploading}
+                  style={{
+                    padding: '15px 30px',
+                    fontSize: '18px',
+                    backgroundColor: (!selectedFile || isUploading) ? '#6c757d' : '#6c5ce7',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '25px',
+                    cursor: (!selectedFile || isUploading) ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 5px 15px rgba(108, 92, 231, 0.4)'
+                  }}
+                >
+                  {isUploading ? '⏳ Processing...' : '🚀 Start Transcription'}
+                </button>
+              )}
             </div>
           </div>
 
           {/* Status Section */}
-          {status && (
+          {status && status !== 'uploading' && status !== 'processing' && status !== 'upload_complete' && ( // Only show status section for completed/failed
             <div style={{
               backgroundColor: status === 'completed' ? 'rgba(212, 237, 218, 0.95)' : 'rgba(255, 243, 205, 0.95)',
               border: `2px solid ${status === 'completed' ? '#27ae60' : '#f39c12'}`,
@@ -657,11 +797,11 @@ function AppContent() {
                 color: status === 'completed' ? '#27ae60' : '#f39c12',
                 margin: '0'
               }}>
-                {status === 'completed' ? '✅ Status: Completed!' : `⏳ Status: ${status}`}
+                {status === 'completed' ? '✅ Transcription Completed!' : `❌ Status: ${status}`}
               </h3>
-              {status === 'processing' && (
+              {status === 'failed' && ( // Only show error message for failed status
                 <p style={{ margin: '10px 0 0 0', color: '#666' }}>
-                  Processing your file... This may take a few minutes.
+                  An error occurred during transcription. Please try again.
                 </p>
               )}
             </div>
@@ -759,11 +899,48 @@ function AppContent() {
           )}
         </main>
       )}
+      {/* Footer for main app interface */}
+      {currentView !== 'login' && currentView !== 'signup' && (
+        <footer style={{ 
+          textAlign: 'center', 
+          padding: '20px', 
+          color: 'rgba(255, 255, 255, 0.7)', 
+          fontSize: '0.9rem',
+          marginTop: 'auto' /* Push footer to bottom */
+        }}>
+          &copy; {new Date().getFullYear()} TypeMyworDz, Inc.
+        </footer>
+      )}
+      {/* NEW: Copied Message Animation */}
+      {copiedMessageVisible && (
+        <div style={{
+          position: 'fixed',
+          bottom: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: 'rgba(40, 167, 69, 0.9)',
+          color: 'white',
+          padding: '10px 20px',
+          borderRadius: '5px',
+          zIndex: 1000,
+          animation: 'fadeInOut 2s forwards'
+        }}>
+          Copied to clipboard!
+          <style>{`
+            @keyframes fadeInOut {
+              0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+              20% { opacity: 1; transform: translateX(-50%) translateY(0); }
+              80% { opacity: 1; transform: translateX(-50%) translateY(0); }
+              100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            }
+          `}</style>
+        </div>
+      )}
     </div>
   );
 }
 
-// Main App Component
+// Main App Component with AuthProvider
 function App() {
   return (
     <AuthProvider>
