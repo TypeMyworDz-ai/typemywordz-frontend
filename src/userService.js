@@ -1,13 +1,13 @@
 // src/userService.js
 
-import { db } from './firebase';
+import { db } from './firebase'; // Assuming 'db' is initialized and exported from firebase.js
 import { 
   doc, 
   setDoc, 
   getDoc, 
   updateDoc, 
   collection, 
-  addDoc, 
+  addDoc, // Add this import for addDoc
   query, 
   where, 
   getDocs,
@@ -95,7 +95,7 @@ export const getUserProfile = async (userId) => {
       return null;
     }
   } catch (error) {
-    console.error('Error getting user profile:', error);
+    console.error('Error getting user profile::', error);
     throw error;
   }
 };
@@ -131,7 +131,7 @@ export const updateUserUsage = async (userId, durationSeconds) => {
       };
     }
   } catch (error) {
-    console.error('Error updating user usage:', error);
+    console.error('Error updating user usage::', error);
     throw error;
   }
 };
@@ -140,7 +140,10 @@ export const updateUserUsage = async (userId, durationSeconds) => {
 export const canUserTranscribe = async (userId, estimatedDurationSeconds) => {
   try {
     const userProfile = await getUserProfile(userId);
-    if (!userProfile) return false;
+    if (!userProfile) {
+        console.error('User profile not found for canUserTranscribe check.');
+        throw new Error('User profile not found.');
+    }
     
     // Admin override - unlimited access for admin emails
     if (ADMIN_EMAILS.includes(userProfile.email)) {
@@ -161,7 +164,7 @@ export const canUserTranscribe = async (userId, estimatedDurationSeconds) => {
     
     return !wouldExceedLimit;
   } catch (error) {
-    console.error('Error checking user limits:', error);
+    console.error('Error checking user limits::', error);
     // Re-throw the error so App.js can catch and display it
     throw error; 
   }
@@ -170,7 +173,7 @@ export const canUserTranscribe = async (userId, estimatedDurationSeconds) => {
 // Save transcription record
 export const saveTranscription = async (userId, transcriptionData) => {
   try {
-    const transcriptionRef = collection(db, 'transcriptions');
+    const transcriptionsCollectionRef = collection(db, 'transcriptions');
     const transcriptionRecord = {
       userId: userId,
       fileName: transcriptionData.fileName,
@@ -180,11 +183,11 @@ export const saveTranscription = async (userId, transcriptionData) => {
       createdAt: serverTimestamp()
     };
     
-    await addDoc(transcriptionRef, transcriptionRecord);
+    const docRef = await addDoc(transcriptionsCollectionRef, transcriptionRecord); // <--- FIXED: docRef is now correctly assigned
     console.log('Transcription saved with ID:', docRef.id);
     return docRef.id;
   } catch (error) {
-    console.error('Error saving transcription:', error);
+    console.error('Error saving transcription::', error);
     throw error;
   }
 };
@@ -203,7 +206,7 @@ export const getUserTranscriptions = async (userId) => {
     
     return transcriptions;
   } catch (error) {
-    console.error('Error getting transcriptions:', error);
+    console.error('Error getting transcriptions::', error);
     throw error;
   }
 };
@@ -220,7 +223,7 @@ export const upgradeUserPlan = async (userId, newPlan) => {
     console.log(`User plan upgraded to ${newPlan}`);
     return true;
   } catch (error) {
-    console.error('Error upgrading user plan:', error);
+    console.error('Error upgrading user plan::', error);
     throw error;
   }
 };
