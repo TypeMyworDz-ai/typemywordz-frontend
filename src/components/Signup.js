@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Signup = () => {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -12,11 +13,24 @@ const Signup = () => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const { signup, signInWithGoogle } = useAuth();
 
+  // NEW: Allowed email domains for signup
+  const ALLOWED_DOMAINS = ['gmail.com', 'outlook.com', 'hotmail.com', 'live.com']; // Add/remove as needed
+
+  const validateEmailDomain = (userEmail) => {
+    const domain = userEmail.split('@')[1];
+    return ALLOWED_DOMAINS.includes(domain);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!email || !password || !confirmPassword) {
+    if (!name || !email || !password || !confirmPassword) {
       setError('Please fill in all fields');
+      return;
+    }
+
+    if (!validateEmailDomain(email)) { // NEW: Validate email domain
+      setError(`Only emails from allowed domains (${ALLOWED_DOMAINS.join(', ')}) are accepted.`);
       return;
     }
 
@@ -33,8 +47,7 @@ const Signup = () => {
     try {
       setError('');
       setLoading(true);
-      await signup(email, password);
-      // Silent signup - no popup needed
+      await signup(email, password, name);
     } catch (error) {
       setError('Failed to create account: ' + error.message);
     }
@@ -46,10 +59,18 @@ const Signup = () => {
     try {
       setError('');
       setGoogleLoading(true);
-      await signInWithGoogle();
-      // Silent Google sign-in - no popup needed
+      const userCredential = await signInWithGoogle();
+      const userEmail = userCredential.user.email;
+
+      if (!validateEmailDomain(userEmail)) { // NEW: Validate Google email domain
+        // If Google email is not allowed, sign out immediately
+        await userCredential.user.delete(); // Delete the Firebase Auth user if not allowed
+        setError(`Google Sign-In failed: Only emails from allowed domains (${ALLOWED_DOMAINS.join(', ')}) are accepted.`);
+        setGoogleLoading(false);
+        return;
+      }
+      // If allowed, the rest of the sign-in/profile creation continues as normal in AuthContext
     } catch (error) {
-      // Handle the popup closed error more gracefully
       if (error.code === 'auth/popup-closed-by-user') {
         setError('Sign-in was cancelled. Please try again.');
       } else {
@@ -150,6 +171,22 @@ const Signup = () => {
       </div>
       
       <form onSubmit={handleSubmit}>
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Name:</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px',
+              borderRadius: '5px',
+              border: '1px solid #ccc',
+              fontSize: '16px'
+            }}
+            placeholder="Enter your name"
+          />
+        </div>
         <div style={{ marginBottom: '20px' }}>
           <label style={{ display: 'block', marginBottom: '5px' }}>Email:</label>
           <input

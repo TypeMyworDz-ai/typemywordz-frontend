@@ -29,14 +29,14 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   // Function to create new user account
-  const signup = async (email, password) => {
+  const signup = async (email, password, name) => { // Added name parameter
     try {
       // Create Firebase auth account
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
-      // Create user profile in Firestore
-      await createUserProfile(user.uid, email);
+      // Create user profile in Firestore with name
+      await createUserProfile(user.uid, email, name); // Pass name to createUserProfile
       
       return userCredential;
     } catch (error) {
@@ -55,7 +55,7 @@ export const AuthProvider = ({ children }) => {
       // Check if user profile exists, if not create it
       const existingProfile = await getUserProfile(user.uid);
       if (!existingProfile) {
-        await createUserProfile(user.uid, user.email);
+        await createUserProfile(user.uid, user.email, user.displayName || user.email.split('@')[0]); // Pass Google Display Name
       }
       
       return userCredential;
@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }) => {
 
   // Function to log out user
   const logout = () => {
-    setUserProfile(null); // Clear user profile data
+    setUserProfile(null); 
     return signOut(auth);
   };
 
@@ -94,7 +94,6 @@ export const AuthProvider = ({ children }) => {
       setCurrentUser(user);
       
       if (user) {
-        // User is logged in, get their profile data
         try {
           const profile = await getUserProfile(user.uid);
           setUserProfile(profile);
@@ -103,14 +102,12 @@ export const AuthProvider = ({ children }) => {
           setUserProfile(null);
         }
       } else {
-        // User is logged out
         setUserProfile(null);
       }
       
       setLoading(false);
     });
 
-    // Cleanup function
     return unsubscribe;
   }, []);
 
@@ -122,7 +119,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     signInWithGoogle,
-    refreshUserProfile
+    refreshUserProfile,
   };
 
   return (

@@ -5,9 +5,9 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// Your Firebase configuration
+// Paste your config from Firebase console
 const firebaseConfig = {
-  apiKey: "AIzaSyBjt0S_qKV7tM2VQ3o-6I-29NhL1TCzr1I",
+  apiKey: "AIzaSyBjt0S_qKV7tM2VQ3o-6I-29NhL1TCzr1I", // Your actual values here
   authDomain: "typemywordz-d7344.firebaseapp.com",
   projectId: "typemywordz-d7344",
   storageBucket: "typemywordz-d7344.firebasestorage.app",

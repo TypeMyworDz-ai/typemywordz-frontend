@@ -54,13 +54,17 @@ export const PLAN_LIMITS = {
   }
 };
 
+// NEW: Max audio duration for all users (5 minutes)
+export const MAX_AUDIO_DURATION_SECONDS = 5 * 60; 
+
 // Create user profile when they sign up
-export const createUserProfile = async (userId, email) => {
+export const createUserProfile = async (userId, email, name = '') => { 
   try {
     const userRef = doc(db, 'users', userId);
     const userData = {
       uid: userId,
       email: email,
+      name: name, // Store user's name
       plan: 'free',
       monthlyMinutes: 0,
       totalMinutes: 0,
@@ -143,6 +147,11 @@ export const canUserTranscribe = async (userId, estimatedDurationSeconds) => {
       console.log('Admin access granted for:', userProfile.email);
       return true;
     }
+
+    // NEW: Enforce 5-minute audio duration limit
+    if (estimatedDurationSeconds > MAX_AUDIO_DURATION_SECONDS) {
+        throw new Error(`Audio exceeds ${MAX_AUDIO_DURATION_SECONDS / 60} minutes limit.`);
+    }
     
     const planLimits = PLAN_LIMITS[userProfile.plan];
     if (planLimits.monthlyMinutes === -1) return true; // unlimited
@@ -153,7 +162,8 @@ export const canUserTranscribe = async (userId, estimatedDurationSeconds) => {
     return !wouldExceedLimit;
   } catch (error) {
     console.error('Error checking user limits:', error);
-    return false;
+    // Re-throw the error so App.js can catch and display it
+    throw error; 
   }
 };
 
@@ -170,7 +180,7 @@ export const saveTranscription = async (userId, transcriptionData) => {
       createdAt: serverTimestamp()
     };
     
-    const docRef = await addDoc(transcriptionRef, transcriptionRecord);
+    await addDoc(transcriptionRef, transcriptionRecord);
     console.log('Transcription saved with ID:', docRef.id);
     return docRef.id;
   } catch (error) {
