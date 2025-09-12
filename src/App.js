@@ -167,7 +167,7 @@ function AppContent() {
       const formData = new FormData(); 
       formData.append('file', selectedFile);
 
-      const response = await fetch('http://localhost:8000/transcribe', {
+      const response = await fetch('https://web-production-5eab.up.railway.app/transcribe', {
         method: 'POST',
         body: formData,
       });
@@ -207,7 +207,7 @@ function AppContent() {
 
   const checkJobStatus = async (jobId, transcriptionInterval) => { 
     try {
-      const response = await fetch(`http://localhost:8000/status/${jobId}`);
+      const response = await fetch(`https://web-production-5eab.up.railway.app/status/${jobId}`);
       const result = await response.json();
       
       if (result.status === 'completed') {
