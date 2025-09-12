@@ -9,7 +9,7 @@ import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfil
 
 // Configuration
 // Use the environment variable for the backend URL
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
 
 // Message Modal Component - Centralized for all general alerts (not for clipboard)
 const MessageModal = ({ message, onClose }) => {
