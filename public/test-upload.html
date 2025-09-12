@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Upload Test</title>
+</head>
+<body>
+    <h1>Direct Upload Test</h1>
+    <form action="https://web-production-5eab.up.railway.app/transcribe" method="POST" enctype="multipart/form-data">
+        <input type="file" name="file" accept="audio/*,video/*" required>
+        <button type="submit">Upload and Transcribe</button>
+    </form>
+    <p>This bypasses all JavaScript and CSP restrictions.</p>
+</body>
+</html>
