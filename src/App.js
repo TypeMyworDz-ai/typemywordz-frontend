@@ -319,7 +319,7 @@ function AppContent() {
                 checkJobStatus(result.job_id, transcriptionInterval); 
             } else {
                 console.error("Backend upload failed response:", result);
-                showMessage('Upload failed: ' + (result.detail || `HTTP error! Status: ${response.status}`)); // response.status won't be available here directly
+                showMessage('Upload failed: ' + (result.detail || `HTTP error! Status: UNKNOWN`)); // response.status won't be available here directly
                 clearInterval(uploadInterval);
                 setUploadProgress(0);
                 setTranscriptionProgress(0);
@@ -783,8 +783,7 @@ function AppContent() {
                       backgroundColor: '#007bff',
                       height: '100%',
                       width: `${uploadProgress}%`,
-                      transition: 'width 0.3s ease',
-                      borderRadius: '10px'
+                      transition: 'width 0.3s ease'
                     }}></div>
                   </div>
                   <div style={{ color: '#007bff', fontSize: '14px' }}>
