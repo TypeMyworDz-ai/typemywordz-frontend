@@ -229,7 +229,7 @@ function AppContent() {
           setTimeout(() => checkJobStatus(jobId, transcriptionInterval), 2000);
         } else {
           // Handle unexpected status or non-ok response from status check
-          const errorDetail = result.detail || `Unexpected status: ${result.status} or HTTP error! status: ${response.status}`;
+          const errorDetail = result.detail || `Unexpected status: ${result.status} or HTTP error! Status: UNKNOWN`;
           showMessage('Status check failed: ' + errorDetail);
           clearInterval(transcriptionInterval); 
           setTranscriptionProgress(0);
@@ -279,7 +279,7 @@ function AppContent() {
     const iframe = document.createElement('iframe');
     iframe.name = 'upload_iframe';
     iframe.id = 'upload_iframe';
-    iframe.style.display = 'none';
+    iframe.style.display = 'none'; // Ensure it's hidden
     document.body.appendChild(iframe);
 
     // Create a form and submit it to the iframe
@@ -288,7 +288,9 @@ function AppContent() {
     form.method = 'POST';
     form.enctype = 'multipart/form-data';
     form.target = 'upload_iframe'; // Target the hidden iframe
+    form.style.display = 'none'; // Ensure the form is hidden
 
+    // Create a new FileInput element with the selected file
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.name = 'file';
@@ -335,8 +337,9 @@ function AppContent() {
             setStatus('failed'); 
             setIsUploading(false); 
         } finally {
-            document.body.removeChild(iframe);
-            document.body.removeChild(form);
+            // Clean up the iframe and form
+            if (iframe.parentNode) document.body.removeChild(iframe);
+            if (form.parentNode) document.body.removeChild(form);
         }
     };
 
