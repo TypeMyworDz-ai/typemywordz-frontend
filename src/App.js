@@ -79,7 +79,8 @@ function AppContent() {
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false); // For clipboard animation
 
   const abortControllerRef = useRef(null); // For canceling fetch requests
-  
+  const uploadFormRef = useRef(null); // Ref for the hidden form
+
   const { currentUser, logout, userProfile, refreshUserProfile } = useAuth();
 
   // Admin emails
@@ -183,6 +184,7 @@ function AppContent() {
     resetTranscriptionProcessUI();
     showMessage("Upload / Transcription cancelled.");
   }, [resetTranscriptionProcessUI, showMessage]);
+
   const handleTranscriptionComplete = useCallback(async (transcriptionText) => {
     try {
       const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
@@ -252,6 +254,7 @@ function AppContent() {
     }
   }, [handleTranscriptionComplete, showMessage]); // Added handleTranscriptionComplete dependency
 
+  // Modified handleUpload to use a hidden iframe for submission
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
@@ -271,57 +274,73 @@ function AppContent() {
     setIsUploading(true); // Disable button
     const uploadInterval = simulateProgress(setUploadProgress, 200, 100); // Simulate upload to 100%
     setStatus('uploading'); // Set status to uploading
-    abortControllerRef.current = new AbortController(); // Initialize AbortController for upload
 
-    try {
-      const formData = new FormData(); // <--- ADDED THIS DECLARATION
-      formData.append('file', selectedFile);
+    // Create a hidden iframe
+    const iframe = document.createElement('iframe');
+    iframe.name = 'upload_iframe';
+    iframe.id = 'upload_iframe';
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
 
-      const response = await fetch(`${BACKEND_URL}/transcribe`, {
-        method: 'POST',
-        body: formData,
-        signal: abortControllerRef.current.signal // Attach signal to fetch request
-      });
+    // Create a form and submit it to the iframe
+    const form = document.createElement('form');
+    form.action = `${BACKEND_URL}/transcribe`;
+    form.method = 'POST';
+    form.enctype = 'multipart/form-data';
+    form.target = 'upload_iframe'; // Target the hidden iframe
 
-      const result = await response.json();
-      
-      if (response.ok) {
-        clearInterval(uploadInterval); 
-        setUploadProgress(100); // Ensure upload is 100%
-        setStatus('upload_complete'); // Set status to upload_complete
-        
-        // Immediately transition to processing and start polling
-        setStatus('processing'); // Now switch status to processing
-        setJobId(result.job_id);
-        // Start indefinite progress animation for transcription
-        const transcriptionInterval = simulateProgress(setTranscriptionProgress, 500, -1); 
-        checkJobStatus(result.job_id, transcriptionInterval); 
-        
-      } else {
-        console.error("Backend upload failed response:", result);
-        showMessage('Upload failed: ' + (result.detail || `HTTP error! status: ${response.status}`));
-        clearInterval(uploadInterval);
-        setUploadProgress(0);
-        setTranscriptionProgress(0);
-        setStatus('failed'); 
-        setIsUploading(false); 
-      }
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        console.log('Upload aborted by user.');
-        // UI reset already handled by handleCancelUpload
-      } else {
-        console.error("Fetch error during upload:", error);
-        showMessage('Upload failed: ' + error.message);
-        clearInterval(uploadInterval);
-        setUploadProgress(0);
-        setTranscriptionProgress(0);
-        setStatus('failed'); 
-        setIsUploading(false); 
-      }
-    } finally {
-      abortControllerRef.current = null; // Clear controller after request completes or aborts
-    }
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.name = 'file';
+    // Create a DataTransfer object and add the file
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(selectedFile);
+    fileInput.files = dataTransfer.files;
+
+    form.appendChild(fileInput);
+    document.body.appendChild(form);
+
+    // Listen for the iframe's load event to get the response
+    iframe.onload = () => {
+        try {
+            const responseText = iframe.contentDocument.body.innerText;
+            const result = JSON.parse(responseText);
+
+            if (result.job_id) {
+                clearInterval(uploadInterval); 
+                setUploadProgress(100); // Ensure upload is 100%
+                setStatus('upload_complete'); // Set status to upload_complete
+                
+                // Immediately transition to processing and start polling
+                setStatus('processing'); // Now switch status to processing
+                setJobId(result.job_id);
+                // Start indefinite progress animation for transcription
+                const transcriptionInterval = simulateProgress(setTranscriptionProgress, 500, -1); 
+                checkJobStatus(result.job_id, transcriptionInterval); 
+            } else {
+                console.error("Backend upload failed response:", result);
+                showMessage('Upload failed: ' + (result.detail || `HTTP error! Status: ${response.status}`)); // response.status won't be available here directly
+                clearInterval(uploadInterval);
+                setUploadProgress(0);
+                setTranscriptionProgress(0);
+                setStatus('failed'); 
+                setIsUploading(false); 
+            }
+        } catch (error) {
+            console.error("Error parsing iframe response or unexpected iframe content:", error);
+            showMessage('Upload failed: Could not process server response.');
+            clearInterval(uploadInterval);
+            setUploadProgress(0);
+            setTranscriptionProgress(0);
+            setStatus('failed'); 
+            setIsUploading(false); 
+        } finally {
+            document.body.removeChild(iframe);
+            document.body.removeChild(form);
+        }
+    };
+
+    form.submit(); // Submit the form
   }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus]); // Added checkJobStatus dependency
 
   // Effect to trigger upload automatically when a file is selected or recording stops
@@ -581,7 +600,7 @@ function AppContent() {
               borderRadius: '25px',
               cursor: 'pointer',
               fontSize: '16px',
-              boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
+              boxShadow: '0 4px 15px rgba(220, 53, 69, 0.4)'
             }}
           >
             👑 Admin
