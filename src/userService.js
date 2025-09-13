@@ -27,7 +27,7 @@ export const createUserProfile = async (uid, email, name = '') => {
       email,
       name,
       plan: userPlan, // Set plan based on admin status
-      monthlyMinutes: 0,
+      monthlyMinutes: 0, // Ensure monthlyMinutes is initialized to 0
       createdAt: new Date(),
       lastAccessed: new Date(),
     });
@@ -54,6 +54,9 @@ export const getUserProfile = async (uid) => {
   const docSnap = await getDoc(getUserProfileRef(uid));
   if (docSnap.exists()) {
     const profileData = docSnap.data();
+    // Ensure monthlyMinutes is always a number, default to 0
+    profileData.monthlyMinutes = profileData.monthlyMinutes !== undefined && profileData.monthlyMinutes !== null && !isNaN(profileData.monthlyMinutes) ? profileData.monthlyMinutes : 0;
+
     // Ensure admin accounts always return business plan
     if (ADMIN_EMAILS.includes(profileData.email) && profileData.plan !== 'business') {
       // This ensures the frontend sees 'business' immediately even if DB is not updated yet
@@ -67,7 +70,10 @@ export const getUserProfile = async (uid) => {
 // Check if user can transcribe based on limits
 export const canUserTranscribe = async (uid, estimatedDuration) => {
   const userProfile = await getUserProfile(uid);
-  if (!userProfile) return false;
+  if (!userProfile) {
+    console.warn("canUserTranscribe: User profile not found for uid:", uid);
+    return false; // Should not happen if createUserProfile is called on signup/login
+  }
 
   if (userProfile.plan === 'business') {
     return true; // Business plan has unlimited transcription
@@ -83,7 +89,10 @@ export const canUserTranscribe = async (uid, estimatedDuration) => {
     userProfile.monthlyMinutes = 0; // Update local object for current check
   }
 
-  return (userProfile.monthlyMinutes || 0) + estimatedDuration <= 30; // Free tier limit is 30 minutes
+  // Ensure monthlyMinutes is treated as a number, default to 0
+  const currentMonthlyMinutes = userProfile.monthlyMinutes !== undefined && userProfile.monthlyMinutes !== null && !isNaN(userProfile.monthlyMinutes) ? userProfile.monthlyMinutes : 0;
+  
+  return currentMonthlyMinutes + estimatedDuration <= 30; // Free tier limit is 30 minutes
 };
 
 // Update user usage after transcription
