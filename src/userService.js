@@ -4,6 +4,9 @@ import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, limi
 const USERS_COLLECTION = 'users';
 const TRANSCRIPTIONS_COLLECTION = 'transcriptions'; // New collection for transcriptions
 
+// Admin emails - define here for consistent access
+const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
+
 // Helper to get user profile document reference
 const getUserProfileRef = (uid) => doc(db, USERS_COLLECTION, uid);
 
@@ -15,22 +18,34 @@ export const createUserProfile = async (uid, email, name = '') => {
   const userRef = getUserProfileRef(uid);
   const docSnap = await getDoc(userRef);
 
+  // Determine plan based on admin email
+  const userPlan = ADMIN_EMAILS.includes(email) ? 'business' : 'free';
+
   if (!docSnap.exists()) {
     await setDoc(userRef, {
       uid,
       email,
       name,
-      plan: 'free', // Default to free plan
+      plan: userPlan, // Set plan based on admin status
       monthlyMinutes: 0,
       createdAt: new Date(),
       lastAccessed: new Date(),
     });
-    console.log("User profile created for:", email);
+    console.log("User profile created for:", email, "with plan:", userPlan);
   } else {
-    await updateDoc(userRef, {
-      lastAccessed: new Date(),
-    });
-    console.log("User profile updated for:", email);
+    // If profile exists, ensure admin accounts always have business plan
+    if (ADMIN_EMAILS.includes(email) && docSnap.data().plan !== 'business') {
+      await updateDoc(userRef, {
+        plan: 'business', // Upgrade to business if admin and not already
+        lastAccessed: new Date(),
+      });
+      console.log("Admin user profile updated to business plan:", email);
+    } else {
+      await updateDoc(userRef, {
+        lastAccessed: new Date(),
+      });
+      console.log("User profile updated for:", email);
+    }
   }
 };
 
@@ -38,7 +53,13 @@ export const createUserProfile = async (uid, email, name = '') => {
 export const getUserProfile = async (uid) => {
   const docSnap = await getDoc(getUserProfileRef(uid));
   if (docSnap.exists()) {
-    return docSnap.data();
+    const profileData = docSnap.data();
+    // Ensure admin accounts always return business plan
+    if (ADMIN_EMAILS.includes(profileData.email) && profileData.plan !== 'business') {
+      // This ensures the frontend sees 'business' immediately even if DB is not updated yet
+      return { ...profileData, plan: 'business' };
+    }
+    return profileData;
   }
   return null;
 };
@@ -53,15 +74,16 @@ export const canUserTranscribe = async (uid, estimatedDuration) => {
   }
 
   const currentMonth = new Date().getMonth();
-  const lastUpdatedMonth = userProfile.lastAccessed ? userProfile.lastAccessed.toDate().getMonth() : -1;
+  const lastAccessedDate = userProfile.lastAccessed ? userProfile.lastAccessed.toDate() : new Date(0); // Default to epoch for safety
+  const lastUpdatedMonth = lastAccessedDate.getMonth();
 
   // Reset monthlyMinutes if new month
   if (currentMonth !== lastUpdatedMonth) {
     await updateDoc(getUserProfileRef(uid), { monthlyMinutes: 0, lastAccessed: new Date() });
-    userProfile.monthlyMinutes = 0;
+    userProfile.monthlyMinutes = 0; // Update local object for current check
   }
 
-  return userProfile.monthlyMinutes + estimatedDuration <= 30; // Free tier limit is 30 minutes
+  return (userProfile.monthlyMinutes || 0) + estimatedDuration <= 30; // Free tier limit is 30 minutes
 };
 
 // Update user usage after transcription
@@ -75,8 +97,7 @@ export const updateUserUsage = async (uid, duration) => {
       lastAccessed: new Date(),
     });
   } else if (userProfile && userProfile.plan === 'business') {
-    // For business plan, we might still log usage but not enforce limits here.
-    // Or, simply update lastAccessed.
+    // For business plan (admins), we don't update monthlyMinutes for limits
     await updateDoc(userRef, {
       lastAccessed: new Date(),
     });
