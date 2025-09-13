@@ -45,7 +45,8 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
     setter(prev => {
       // If maxProgress is 100, simulate a near-complete upload
       if (maxProgress === 100 && prev >= 95) { 
-        clearInterval(interval);
+        // Changed: We no longer clear interval here for upload,
+        // it will be cleared when upload_complete status is set.
         return prev;
       } 
       // For indefinite progress (e.g., transcription), just keep moving
@@ -846,7 +847,7 @@ function AppContent() {
                       boxShadow: '0 5px 15px rgba(220, 53, 69, 0.4)'
                     }}
                   >
-                    ❌ Cancel
+                    {status === 'uploading' ? '⬆️ Uploading/Cancel' : '✍️ Transcribing/Cancel'}
                   </button>
                 )}
               </div>
