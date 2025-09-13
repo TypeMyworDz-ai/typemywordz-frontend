@@ -609,7 +609,7 @@ function AppContent() {
           margin: '0 auto'
         }}>
           {/* Usage Warning */}
-          {userProfile && userProfile.plan === 'free' && minutesLeft < 5 && ( // Show warning if less than 5 minutes left
+          {userProfile && userProfile.plan === 'free' && minutesLeft !== 'Unlimited' && minutesLeft < 5 && ( // Show warning if less than 5 minutes left
             <div style={{
               backgroundColor: 'rgba(255, 243, 205, 0.95)',
               color: '#856404',
@@ -776,7 +776,7 @@ function AppContent() {
                     }}></div>
                   </div>
                   <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
-                    Transcribing...
+                    Transcription in Progress...
                   </div>
                 </div>
               )}

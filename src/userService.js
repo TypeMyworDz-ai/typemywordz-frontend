@@ -1,229 +1,127 @@
-// src/userService.js
+import { db } from './firebase';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, limit, getDocs, deleteDoc } from 'firebase/firestore';
 
-import { db } from './firebase'; // Assuming 'db' is initialized and exported from firebase.js
-import { 
-  doc, 
-  setDoc, 
-  getDoc, 
-  updateDoc, 
-  collection, 
-  addDoc, // Add this import for addDoc
-  query, 
-  where, 
-  getDocs,
-  serverTimestamp 
-} from 'firebase/firestore';
+const USERS_COLLECTION = 'users';
+const TRANSCRIPTIONS_COLLECTION = 'transcriptions'; // New collection for transcriptions
 
-// Admin emails with unlimited access
-const ADMIN_EMAILS = [
-  'typemywordz@gmail.com',
-  'gracenyaitara@gmail.com'
-];
+// Helper to get user profile document reference
+const getUserProfileRef = (uid) => doc(db, USERS_COLLECTION, uid);
 
-// Get current billing cycle (YYYY-MM format)
-const getCurrentBillingCycle = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-};
+// Helper to get user transcriptions collection reference
+const getUserTranscriptionsCollectionRef = (uid) => collection(db, USERS_COLLECTION, uid, TRANSCRIPTIONS_COLLECTION);
 
-// Plan limits and features
-export const PLAN_LIMITS = {
-  free: { 
-    monthlyMinutes: 30, 
-    features: ['basic_transcription'],
-    price: 0,
-    name: 'Free Plan'
-  },
-  starter: { 
-    monthlyMinutes: 300, 
-    features: ['basic_transcription', 'download_formats'],
-    price: 9.99,
-    name: 'Starter Plan'
-  },
-  pro: { 
-    monthlyMinutes: 1200, 
-    features: ['basic_transcription', 'download_formats', 'priority_processing'],
-    price: 19.99,
-    name: 'Pro Plan'
-  },
-  business: { 
-    monthlyMinutes: -1, // unlimited
-    features: ['all'],
-    price: 49.99,
-    name: 'Business Plan'
-  }
-};
+// Create or update user profile
+export const createUserProfile = async (uid, email, name = '') => {
+  const userRef = getUserProfileRef(uid);
+  const docSnap = await getDoc(userRef);
 
-// NEW: Max audio duration for all users (5 minutes)
-export const MAX_AUDIO_DURATION_SECONDS = 5 * 60; 
-
-// Create user profile when they sign up
-export const createUserProfile = async (userId, email, name = '') => { 
-  try {
-    const userRef = doc(db, 'users', userId);
-    const userData = {
-      uid: userId,
-      email: email,
-      name: name, // Store user's name
-      plan: 'free',
+  if (!docSnap.exists()) {
+    await setDoc(userRef, {
+      uid,
+      email,
+      name,
+      plan: 'free', // Default to free plan
       monthlyMinutes: 0,
-      totalMinutes: 0,
-      createdAt: serverTimestamp(),
-      lastActive: serverTimestamp(),
-      billingCycle: getCurrentBillingCycle()
-    };
-    
-    await setDoc(userRef, userData);
-    console.log('User profile created successfully');
-    return userData;
-  } catch (error) {
-    console.error('Error creating user profile:', error);
-    throw error;
-  }
-};
-
-// Get user profile data
-export const getUserProfile = async (userId) => {
-  try {
-    const userRef = doc(db, 'users', userId);
-    const userSnap = await getDoc(userRef);
-    
-    if (userSnap.exists()) {
-      return userSnap.data();
-    } else {
-      console.log('No user profile found');
-      return null;
-    }
-  } catch (error) {
-    console.error('Error getting user profile::', error);
-    throw error;
-  }
-};
-
-// Update user's monthly usage
-export const updateUserUsage = async (userId, durationSeconds) => {
-  try {
-    const userRef = doc(db, 'users', userId);
-    const userSnap = await getDoc(userRef);
-    
-    if (userSnap.exists()) {
-      const userData = userSnap.data();
-      const durationMinutes = Math.ceil(durationSeconds / 60);
-      
-      // Check if we need to reset monthly usage (new billing cycle)
-      const currentCycle = getCurrentBillingCycle();
-      const shouldReset = userData.billingCycle !== currentCycle;
-      
-      const newMonthlyMinutes = shouldReset ? durationMinutes : userData.monthlyMinutes + durationMinutes;
-      const newTotalMinutes = userData.totalMinutes + durationMinutes;
-      
-      await updateDoc(userRef, {
-        monthlyMinutes: newMonthlyMinutes,
-        totalMinutes: newTotalMinutes,
-        lastActive: serverTimestamp(),
-        billingCycle: currentCycle
-      });
-      
-      return {
-        monthlyMinutes: newMonthlyMinutes,
-        totalMinutes: newTotalMinutes,
-        plan: userData.plan
-      };
-    }
-  } catch (error) {
-    console.error('Error updating user usage::', error);
-    throw error;
-  }
-};
-
-// Check if user can transcribe (within limits)
-export const canUserTranscribe = async (userId, estimatedDurationSeconds) => {
-  try {
-    const userProfile = await getUserProfile(userId);
-    if (!userProfile) {
-        console.error('User profile not found for canUserTranscribe check.');
-        throw new Error('User profile not found.');
-    }
-    
-    // Admin override - unlimited access for admin emails
-    if (ADMIN_EMAILS.includes(userProfile.email)) {
-      console.log('Admin access granted for:', userProfile.email);
-      return true;
-    }
-
-    // NEW: Enforce 5-minute audio duration limit
-    if (estimatedDurationSeconds > MAX_AUDIO_DURATION_SECONDS) {
-        throw new Error(`Audio exceeds ${MAX_AUDIO_DURATION_SECONDS / 60} minutes limit.`);
-    }
-    
-    const planLimits = PLAN_LIMITS[userProfile.plan];
-    if (planLimits.monthlyMinutes === -1) return true; // unlimited
-    
-    const estimatedMinutes = Math.ceil(estimatedDurationSeconds / 60);
-    const wouldExceedLimit = userProfile.monthlyMinutes + estimatedMinutes > planLimits.monthlyMinutes;
-    
-    return !wouldExceedLimit;
-  } catch (error) {
-    console.error('Error checking user limits::', error);
-    // Re-throw the error so App.js can catch and display it
-    throw error; 
-  }
-};
-
-// Save transcription record
-export const saveTranscription = async (userId, transcriptionData) => {
-  try {
-    const transcriptionsCollectionRef = collection(db, 'transcriptions');
-    const transcriptionRecord = {
-      userId: userId,
-      fileName: transcriptionData.fileName,
-      duration: transcriptionData.duration,
-      transcriptionText: transcriptionData.text,
-      status: 'completed',
-      createdAt: serverTimestamp()
-    };
-    
-    const docRef = await addDoc(transcriptionsCollectionRef, transcriptionRecord); // <--- FIXED: docRef is now correctly assigned
-    console.log('Transcription saved with ID:', docRef.id);
-    return docRef.id;
-  } catch (error) {
-    console.error('Error saving transcription::', error);
-    throw error;
-  }
-};
-
-// Get user's transcription history
-export const getUserTranscriptions = async (userId) => {
-  try {
-    const transcriptionsRef = collection(db, 'transcriptions');
-    const q = query(transcriptionsRef, where('userId', '==', userId));
-    const querySnapshot = await getDocs(q);
-    
-    const transcriptions = [];
-    querySnapshot.forEach((doc) => {
-      transcriptions.push({ id: doc.id, ...doc.data() });
+      createdAt: new Date(),
+      lastAccessed: new Date(),
     });
-    
-    return transcriptions;
-  } catch (error) {
-    console.error('Error getting transcriptions::', error);
-    throw error;
-  }
-};
-
-// Upgrade user plan
-export const upgradeUserPlan = async (userId, newPlan) => {
-  try {
-    const userRef = doc(db, 'users', userId);
+    console.log("User profile created for:", email);
+  } else {
     await updateDoc(userRef, {
-      plan: newPlan,
-      lastActive: serverTimestamp()
+      lastAccessed: new Date(),
     });
-    
-    console.log(`User plan upgraded to ${newPlan}`);
-    return true;
-  } catch (error) {
-    console.error('Error upgrading user plan::', error);
-    throw error;
+    console.log("User profile updated for:", email);
   }
 };
+
+// Get user profile
+export const getUserProfile = async (uid) => {
+  const docSnap = await getDoc(getUserProfileRef(uid));
+  if (docSnap.exists()) {
+    return docSnap.data();
+  }
+  return null;
+};
+
+// Check if user can transcribe based on limits
+export const canUserTranscribe = async (uid, estimatedDuration) => {
+  const userProfile = await getUserProfile(uid);
+  if (!userProfile) return false;
+
+  if (userProfile.plan === 'business') {
+    return true; // Business plan has unlimited transcription
+  }
+
+  const currentMonth = new Date().getMonth();
+  const lastUpdatedMonth = userProfile.lastAccessed ? userProfile.lastAccessed.toDate().getMonth() : -1;
+
+  // Reset monthlyMinutes if new month
+  if (currentMonth !== lastUpdatedMonth) {
+    await updateDoc(getUserProfileRef(uid), { monthlyMinutes: 0, lastAccessed: new Date() });
+    userProfile.monthlyMinutes = 0;
+  }
+
+  return userProfile.monthlyMinutes + estimatedDuration <= 30; // Free tier limit is 30 minutes
+};
+
+// Update user usage after transcription
+export const updateUserUsage = async (uid, duration) => {
+  const userRef = getUserProfileRef(uid);
+  const userProfile = await getUserProfile(uid);
+
+  if (userProfile && userProfile.plan === 'free') {
+    await updateDoc(userRef, {
+      monthlyMinutes: (userProfile.monthlyMinutes || 0) + duration,
+      lastAccessed: new Date(),
+    });
+  } else if (userProfile && userProfile.plan === 'business') {
+    // For business plan, we might still log usage but not enforce limits here.
+    // Or, simply update lastAccessed.
+    await updateDoc(userRef, {
+      lastAccessed: new Date(),
+    });
+  }
+};
+
+// Save transcription to Firestore
+export const saveTranscription = async (uid, transcriptionData) => {
+  const transcriptionsCollectionRef = getUserTranscriptionsCollectionRef(uid);
+  const newTranscriptionRef = doc(transcriptionsCollectionRef); // Let Firestore generate ID
+
+  await setDoc(newTranscriptionRef, {
+    ...transcriptionData,
+    userId: uid,
+    createdAt: new Date(),
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // Expires in 24 hours
+  });
+  console.log("Transcription saved with ID:", newTranscriptionRef.id);
+  return newTranscriptionRef.id;
+};
+
+// Fetch user's transcriptions (for Dashboard)
+export const fetchUserTranscriptions = async (uid) => {
+  const transcriptionsCollectionRef = getUserTranscriptionsCollectionRef(uid);
+  // Query for active transcriptions, ordered by creation date
+  const q = query(
+    transcriptionsCollectionRef,
+    where("expiresAt", ">", new Date()), // Only fetch non-expired transcriptions
+    orderBy("expiresAt", "desc") // Order by expiry to show newer first (or createdAt)
+  );
+  const querySnapshot = await getDocs(q);
+  const transcriptions = [];
+  querySnapshot.forEach((doc) => {
+    transcriptions.push({ id: doc.id, ...doc.data() });
+  });
+  return transcriptions;
+};
+
+// Delete a specific transcription
+export const deleteTranscription = async (uid, transcriptionId) => {
+  const transcriptionRef = doc(db, USERS_COLLECTION, uid, TRANSCRIPTIONS_COLLECTION, transcriptionId);
+  await deleteDoc(transcriptionRef);
+  console.log("Transcription deleted:", transcriptionId);
+};
+
+// NOTE: For automatic 24-hour deletion, you would typically use Firebase Cloud Functions
+// triggered by a scheduled job or by document creation/update. This client-side code
+// only sets the 'expiresAt' field and filters based on it.
