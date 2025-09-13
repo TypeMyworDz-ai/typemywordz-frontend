@@ -50,7 +50,6 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   }, intervalTime);
   return interval; 
 };
-
 function AppContent() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [jobId, setJobId] = useState(null);
@@ -73,14 +72,13 @@ function AppContent() {
 
   const abortControllerRef = useRef(null);
 
-  const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithMicrosoft } = useAuth();
+  const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithMicrosoft, profileLoading } = useAuth();
 
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
   const isAdmin = ADMIN_EMAILS.includes(currentUser?.email);
 
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
-
   const resetTranscriptionProcessUI = useCallback(() => { 
     setSelectedFile(null);
     setJobId(null);
@@ -193,7 +191,6 @@ function AppContent() {
       showMessage('Failed to save transcription or update usage.');
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef]);
-
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
     try {
       abortControllerRef.current = new AbortController();
@@ -247,9 +244,9 @@ function AppContent() {
       return;
     }
 
-    // Ensure userProfile is loaded before checking canUserTranscribe
-    if (!userProfile) {
-      showMessage('User profile not loaded. Please try logging in again.');
+    // Wait for profile to be fully loaded
+    if (profileLoading || !userProfile) {
+      showMessage('Loading user profile... Please wait.');
       return;
     }
 
@@ -308,19 +305,17 @@ function AppContent() {
     } finally {
       abortControllerRef.current = null;
     }
-  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile]); // Added userProfile dependency
+  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile, profileLoading]);
 
   useEffect(() => {
-    if (selectedFile && status === 'idle' && !isRecording && !isUploading) {
-      // Delay handleUpload slightly to ensure userProfile is fully propagated
+    if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
+      // Only trigger handleUpload when profile is fully loaded
       const timer = setTimeout(() => {
-        if (userProfile) { // Ensure userProfile exists before calling handleUpload
-          handleUpload();
-        }
-      }, 100); // Small delay
+        handleUpload();
+      }, 200); // Slightly longer delay to ensure everything is ready
       return () => clearTimeout(timer);
     }
-  }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile]); // Added userProfile dependency
+  }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile, profileLoading]);
 
   const copyToClipboard = useCallback(() => { 
     navigator.clipboard.writeText(transcription);
@@ -379,7 +374,6 @@ function AppContent() {
       showMessage('Error creating profile: ' + error.message);
     }
   }, [currentUser?.uid, currentUser?.email, showMessage]);
-  
   if (!currentUser) {
     return (
       <div style={{ 
@@ -442,7 +436,6 @@ function AppContent() {
   const monthlyLimit = userProfile?.plan === 'business' ? Infinity : 30;
   const minutesUsed = userProfile?.monthlyMinutes !== undefined && userProfile?.monthlyMinutes !== null && !isNaN(userProfile?.monthlyMinutes) ? userProfile.monthlyMinutes : 0;
   const minutesLeft = monthlyLimit === Infinity ? 'Unlimited' : Math.max(0, monthlyLimit - minutesUsed);
-
   return (
     <div style={{ 
       minHeight: '100vh',
@@ -521,6 +514,21 @@ function AppContent() {
             )}
           </div>
         </header>
+      )}
+
+      {/* Profile Loading Indicator */}
+      {profileLoading && (
+        <div style={{
+          textAlign: 'center',
+          padding: '20px',
+          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+          margin: '20px',
+          borderRadius: '10px'
+        }}>
+          <div style={{ color: '#6c5ce7', fontSize: '16px' }}>
+            🔄 Loading your profile...
+          </div>
+        </div>
       )}
 
       {/* Navigation Tabs */}
@@ -808,7 +816,6 @@ function AppContent() {
               </div>
             </div>
           </div>
-
           {/* Status Section */}
           {/* Modified: Only show status section for 'completed' or 'failed' statuses */}
           {status && (status === 'completed' || status === 'failed') && (
