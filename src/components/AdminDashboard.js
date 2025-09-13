@@ -1,12 +1,6 @@
 // src/components/AdminDashboard.js
 
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { getUserTranscriptions, PLAN_LIMITS } from '../userService';
-import { collection, getDocs, query, orderBy, where } from 'firebase/firestore';
-import { db } from '../firebase';
-
-const AdminDashboard = () => {
+import React, { useState, useEffect } => {
   const { currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [transcriptions, setTranscriptions] = useState([]);
@@ -73,8 +67,9 @@ const AdminDashboard = () => {
       // Plan distribution
       planDistribution[user.plan] = (planDistribution[user.plan] || 0) + 1;
       
-      // Revenue calculation
-      const planPrice = PLAN_LIMITS[user.plan]?.price || 0;
+      // Revenue calculation (assuming a simple model for now)
+      // For now, let's set a placeholder price for admin display
+      const planPrice = user.plan === 'business' ? 20 : 0; // Placeholder price for business plan
       totalRevenue += planPrice;
       
       // Recent signups (last 7 days)
@@ -103,8 +98,8 @@ const AdminDashboard = () => {
       ...users.map(user => [
         user.email,
         user.plan,
-        user.monthlyMinutes,
-        user.totalMinutes,
+        user.monthlyMinutes || 0, // Default to 0 if null/undefined
+        user.totalMinutes || 0, // Default to 0 if null/undefined
         formatDate(user.createdAt),
         formatDate(user.lastActive)
       ].join(','))
@@ -219,8 +214,7 @@ const AdminDashboard = () => {
             backgroundColor: 'white', 
             padding: '20px', 
             borderRadius: '10px',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-            textAlign: 'center'
+            boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
           }}>
             <h3 style={{ color: '#ffc107', margin: '0 0 10px 0' }}>🆕 New Users (7 days)</h3>
             <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
@@ -325,7 +319,7 @@ const AdminDashboard = () => {
                     </span>
                   </td>
                   <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
-                    {user.monthlyMinutes || 0} / {PLAN_LIMITS[user.plan]?.monthlyMinutes === -1 ? '∞' : PLAN_LIMITS[user.plan]?.monthlyMinutes || 30}
+                    {user.monthlyMinutes || 0} / {user.plan === 'business' ? 'Unlimited' : 30}
                   </td>
                   <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
                     {user.totalMinutes || 0}
