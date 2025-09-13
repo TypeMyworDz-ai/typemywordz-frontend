@@ -1,6 +1,12 @@
 // src/components/AdminDashboard.js
 
-import React, { useState, useEffect } => {
+import React, { useState, useEffect, useCallback } from 'react'; // Corrected import
+import { useAuth } from '../contexts/AuthContext';
+import { fetchUserTranscriptions, deleteTranscription } from '../userService'; 
+import { collection, getDocs, query, orderBy, where } from 'firebase/firestore';
+import { db } from '../firebase';
+
+const AdminDashboard = () => {
   const { currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [transcriptions, setTranscriptions] = useState([]);
