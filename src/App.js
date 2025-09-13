@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import Login from './components/Login'; // Keep Login import for now
-import Signup from './components/Signup'; // Keep Signup import for now
-import Dashboard from './components/Dashboard'; // Ensure this import is correct
+import Login from './components/Login';
+import Signup from './components/Signup';
+import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile } from './userService';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'; // Import Router components
 
 // Configuration
 // Use the environment variable for the backend URL
@@ -238,14 +239,13 @@ function AppContent() {
     } catch (error) {
       if (error.name === 'AbortError') {
         console.log('Fetch aborted by user.');
-        // UI reset already handled by handleCancelUpload
       } else {
-        console.error('Status check failed:', error);
-        clearInterval(transcriptionInterval); 
+        console.error("Fetch error during upload:", error);
+        showMessage('Upload failed: ' + error.message);
+        setUploadProgress(0);
         setTranscriptionProgress(0);
         setStatus('failed'); 
         setIsUploading(false); 
-        showMessage('Status check failed: ' + error.message);
       }
     } finally {
       abortControllerRef.current = null; // Clear controller after request completes or aborts
@@ -327,7 +327,6 @@ function AppContent() {
     navigator.clipboard.writeText(transcription);
     setCopiedMessageVisible(true); // Show the fading message
     setTimeout(() => setCopiedMessageVisible(false), 2000); // Hide after 2 seconds
-    // No need to stop audio here
   }, [transcription]);
 
   const downloadAsWord = useCallback(() => { 
@@ -956,7 +955,9 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <Router> {/* Wrap AppContent with Router */}
+        <AppContent />
+      </Router>
     </AuthProvider>
   );
 }
