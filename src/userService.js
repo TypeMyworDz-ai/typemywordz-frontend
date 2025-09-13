@@ -69,30 +69,37 @@ export const getUserProfile = async (uid) => {
 
 // Check if user can transcribe based on limits
 export const canUserTranscribe = async (uid, estimatedDuration) => {
-  const userProfile = await getUserProfile(uid);
-  if (!userProfile) {
-    console.warn("canUserTranscribe: User profile not found for uid:", uid);
-    return false; // Should not happen if createUserProfile is called on signup/login
+  try {
+    console.log("🔍 canUserTranscribe called with:", { uid, estimatedDuration });
+    
+    const userProfile = await getUserProfile(uid);
+    console.log("👤 User profile retrieved:", userProfile);
+    
+    if (!userProfile) {
+      console.warn("❌ canUserTranscribe: User profile not found for uid:", uid);
+      return false;
+    }
+
+    if (userProfile.plan === 'business') {
+      console.log("✅ Business plan user - unlimited transcription");
+      return true;
+    }
+
+    // NEW LOGIC: Free users can only transcribe files up to 5 minutes
+    const maxDurationForFreeUsers = 5 * 60; // 5 minutes in seconds
+    
+    if (estimatedDuration > maxDurationForFreeUsers) {
+      console.log("❌ File too long for free user:", { estimatedDuration, maxAllowed: maxDurationForFreeUsers });
+      return false;
+    }
+
+    console.log("✅ File duration acceptable for free user:", { estimatedDuration, maxAllowed: maxDurationForFreeUsers });
+    return true;
+    
+  } catch (error) {
+    console.error("❌ Error in canUserTranscribe:", error);
+    return false;
   }
-
-  if (userProfile.plan === 'business') {
-    return true; // Business plan has unlimited transcription
-  }
-
-  const currentMonth = new Date().getMonth();
-  const lastAccessedDate = userProfile.lastAccessed ? userProfile.lastAccessed.toDate() : new Date(0); // Default to epoch for safety
-  const lastUpdatedMonth = lastAccessedDate.getMonth();
-
-  // Reset monthlyMinutes if new month
-  if (currentMonth !== lastUpdatedMonth) {
-    await updateDoc(getUserProfileRef(uid), { monthlyMinutes: 0, lastAccessed: new Date() });
-    userProfile.monthlyMinutes = 0; // Update local object for current check
-  }
-
-  // Ensure monthlyMinutes is treated as a number, default to 0
-  const currentMonthlyMinutes = userProfile.monthlyMinutes !== undefined && userProfile.monthlyMinutes !== null && !isNaN(userProfile.monthlyMinutes) ? userProfile.monthlyMinutes : 0;
-  
-  return currentMonthlyMinutes + estimatedDuration <= 30; // Free tier limit is 30 minutes
 };
 
 // Update user usage after transcription
