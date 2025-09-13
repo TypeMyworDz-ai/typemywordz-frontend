@@ -43,12 +43,6 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   setter(0);
   const interval = setInterval(() => {
     setter(prev => {
-      // If maxProgress is 100, simulate a near-complete upload
-      if (maxProgress === 100 && prev >= 95) { 
-        // Changed: We no longer clear interval here for upload,
-        // it will be cleared when upload_complete status is set.
-        return prev;
-      } 
       // For indefinite progress (e.g., transcription), just keep moving
       if (maxProgress === -1) { 
         return (prev + (Math.random() * 5 + 1)) % 100; // Keep it moving
@@ -62,10 +56,10 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
 function AppContent() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [jobId, setJobId] = useState(null);
-  const [status, setStatus] = useState('idle'); // 'idle', 'uploading', 'upload_complete', 'processing', 'completed', 'failed'
+  const [status, setStatus] = useState('idle'); // 'idle', 'processing', 'completed', 'failed'
   const [transcription, setTranscription] = useState('');
   const [isUploading, setIsUploading] = useState(false); // Controls button disabled state
-  const [uploadProgress, setUploadProgress] = useState(0); // For upload bar percentage
+  const [uploadProgress, setUploadProgress] = useState(0); // For upload bar percentage - now used only for internal sim
   const [transcriptionProgress, setTranscriptionProgress] = useState(0); // For transcription bar percentage (can be indefinite)
   const [showLogin, setShowLogin] = useState(true);
   const [currentView, setCurrentView] = useState('transcribe');
@@ -99,7 +93,7 @@ function AppContent() {
     setTranscription('');
     setAudioDuration(0);
     setIsUploading(false);
-    setUploadProgress(0);
+    setUploadProgress(0); // Reset upload progress
     setTranscriptionProgress(0); 
     recordedAudioBlobRef.current = null;
     if (audioPlayerRef.current) {
@@ -225,8 +219,8 @@ function AppContent() {
         setStatus('failed'); 
         setIsUploading(false); 
       } else {
-        // Only continue polling if status is still processing or upload_complete
-        if (result.status === 'processing' || result.status === 'upload_complete') {
+        // Only continue polling if status is still processing 
+        if (result.status === 'processing') { // Simplified status check
           setTimeout(() => checkJobStatus(jobId, transcriptionInterval), 2000);
         } else {
           // Handle unexpected status or non-ok response from status check
@@ -273,8 +267,8 @@ function AppContent() {
     }
 
     setIsUploading(true); // Disable button
-    const uploadInterval = simulateProgress(setUploadProgress, 200, 100); // Simulate upload to 100%
-    setStatus('uploading'); // Set status to uploading
+    // Removed: const uploadInterval = simulateProgress(setUploadProgress, 200, 100); // Simulate upload to 100%
+    setStatus('processing'); // Immediately set status to processing
     abortControllerRef.current = new AbortController(); // Initialize AbortController for upload
 
     try {
@@ -294,12 +288,12 @@ function AppContent() {
       const result = await response.json();
       
       if (response.ok) {
-        clearInterval(uploadInterval); 
+        // Removed: clearInterval(uploadInterval); 
         setUploadProgress(100); // Ensure upload is 100%
-        setStatus('upload_complete'); // Set status to upload_complete
+        // Removed: setStatus('upload_complete'); // No longer need this status
         
         // Immediately transition to processing and start polling
-        setStatus('processing'); // Now switch status to processing
+        setStatus('processing'); // Ensure status is processing
         setJobId(result.job_id);
         // Start indefinite progress animation for transcription
         const transcriptionInterval = simulateProgress(setTranscriptionProgress, 500, -1); 
@@ -308,7 +302,7 @@ function AppContent() {
       } else {
         console.error("Backend upload failed response:", result);
         showMessage('Upload failed: ' + (result.detail || `HTTP error! Status: ${response.status}`));
-        clearInterval(uploadInterval);
+        // Removed: clearInterval(uploadInterval);
         setUploadProgress(0);
         setTranscriptionProgress(0);
         setStatus('failed'); 
@@ -321,7 +315,7 @@ function AppContent() {
       } else {
         console.error("Fetch error during upload:", error);
         showMessage('Upload failed: ' + error.message);
-        clearInterval(uploadInterval);
+        // Removed: clearInterval(uploadInterval);
         setUploadProgress(0);
         setTranscriptionProgress(0);
         setStatus('failed'); 
@@ -457,6 +451,11 @@ function AppContent() {
     );
   }
 
+  // Calculate remaining minutes robustly
+  const monthlyLimit = userProfile?.plan === 'business' ? Infinity : 30;
+  const minutesUsed = userProfile?.monthlyMinutes !== undefined && userProfile?.monthlyMinutes !== null && !isNaN(userProfile?.monthlyMinutes) ? userProfile.monthlyMinutes : 0;
+  const minutesLeft = monthlyLimit === Infinity ? 'Unlimited' : Math.max(0, monthlyLimit - minutesUsed);
+
   // Show main app interface if user is logged in
   return (
     <div style={{ 
@@ -500,7 +499,7 @@ function AppContent() {
           }}>
             <span>Logged in as: {userProfile?.name || currentUser.email}</span>
             {userProfile && (
-              <span>Usage: {userProfile.monthlyMinutes !== undefined && userProfile.monthlyMinutes !== null && !isNaN(userProfile.monthlyMinutes) ? userProfile.monthlyMinutes : 0}/{userProfile.plan === 'business' ? 'Unlimited' : '30'} min</span>
+              <span>Usage: {minutesUsed}/{monthlyLimit === Infinity ? 'Unlimited' : monthlyLimit} min</span>
             )}
             <button
               onClick={handleLogout}
@@ -610,7 +609,7 @@ function AppContent() {
           margin: '0 auto'
         }}>
           {/* Usage Warning */}
-          {userProfile && userProfile.plan === 'free' && (userProfile.monthlyMinutes === undefined || userProfile.monthlyMinutes === null || userProfile.monthlyMinutes >= 25) && (
+          {userProfile && userProfile.plan === 'free' && minutesLeft < 5 && ( // Show warning if less than 5 minutes left
             <div style={{
               backgroundColor: 'rgba(255, 243, 205, 0.95)',
               color: '#856404',
@@ -620,7 +619,7 @@ function AppContent() {
               textAlign: 'center',
               backdropFilter: 'blur(10px)'
             }}>
-              ⚡ You're running low on minutes! You have {30 - (userProfile.monthlyMinutes !== undefined && userProfile.monthlyMinutes !== null && !isNaN(userProfile.monthlyMinutes) ? userProfile.monthlyMinutes : 0)} minutes left this month.
+              ⚡ You're running low on minutes! You have {minutesLeft} minutes left this month.
               <button 
                 onClick={() => setCurrentView('dashboard')}
                 style={{
@@ -758,39 +757,9 @@ function AppContent() {
                   </audio>
                 </div>
               )}
-              {/* NEW: Upload Progress Bar (only visible while uploading) */}
-              {status === 'uploading' && uploadProgress > 0 && uploadProgress <= 100 && ( 
-                <div style={{ marginBottom: '20px' }}>
-                  <div style={{
-                    backgroundColor: '#e9ecef',
-                    height: '20px',
-                    borderRadius: '10px',
-                    overflow: 'hidden',
-                    marginBottom: '10px'
-                  }}>
-                    <div style={{
-                      backgroundColor: '#007bff',
-                      height: '100%',
-                      width: `${uploadProgress}%`,
-                      transition: 'width 0.3s ease'
-                    }}></div>
-                  </div>
-                  <div style={{ color: '#007bff', fontSize: '14px' }}>
-                    {/* Conditional text for upload progress */}
-                    {uploadProgress < 100 ? `Uploading: ${Math.round(uploadProgress)}%` : 'Starting Transcription...'}
-                  </div>
-                </div>
-              )}
-
-              {/* NEW: Upload Complete message (shows when upload is 100% and transcription starts) */}
-              {status === 'upload_complete' && ( 
-                <div style={{ marginBottom: '20px', textAlign: 'center', color: '#27ae60', fontWeight: 'bold' }}>
-                  ✅ Upload Complete! Starting Transcription...
-                </div>
-              )}
-
-              {/* NEW: Transcription Progress Bar (appears immediately after upload_complete) */}
-              {status === 'processing' && ( 
+              
+              {/* Transcription Progress Bar (appears immediately after upload_complete/processing) */}
+              {(status === 'processing' || status === 'uploading') && ( // Show for both uploading and processing
                 <div style={{ marginBottom: '20px' }}>
                   <div style={{
                     backgroundColor: '#e9ecef',
@@ -833,7 +802,7 @@ function AppContent() {
                   </button>
                 )}
 
-                {(status === 'uploading' || status === 'upload_complete' || status === 'processing') && (
+                {(status === 'uploading' || status === 'processing') && ( // Show for both uploading and processing
                   <button
                     onClick={handleCancelUpload}
                     style={{
@@ -847,7 +816,7 @@ function AppContent() {
                       boxShadow: '0 5px 15px rgba(220, 53, 69, 0.4)'
                     }}
                   >
-                    {status === 'uploading' ? '⬆️ Uploading/Cancel' : '✍️ Transcribing/Cancel'}
+                    ❌ Cancel Transcribing
                   </button>
                 )}
               </div>
