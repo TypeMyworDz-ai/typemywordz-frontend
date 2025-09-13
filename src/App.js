@@ -688,7 +688,7 @@ function AppContent() {
                 }}
               >
                 {isRecording ? '⏹️ Stop Recording' : '🎤 Start Recording'}
-              &lt;/button>
+              </button>
 
               {/* Download Recorded Audio Button */}
               {recordedAudioBlobRef.current && !isRecording && (
@@ -752,7 +752,7 @@ function AppContent() {
               {/* NEW: Audio Player - Always visible if selectedFile */}
               {selectedFile && (
                 <div style={{ marginBottom: '20px' }}>
-                  <audio ref={audioPlayerRef} controls style={{ width: '100%' }}>
+                  <audio ref={audioPlayerRef} controls style={{ width: '100%' }} src={URL.createObjectURL(selectedFile)}>
                     Your browser does not support the audio element.
                   </audio>
                 </div>
@@ -956,7 +956,7 @@ function AppContent() {
                 border: '1px solid #dee2e6'
               }}>
                 {transcription}
-              &lt;/div>
+              </div>
               
               <div style={{ 
                 marginTop: '15px', 
