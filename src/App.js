@@ -499,7 +499,7 @@ function AppContent() {
           }}>
             <span>Logged in as: {userProfile?.name || currentUser.email}</span>
             {userProfile && (
-              <span>Usage: {userProfile.monthlyMinutes}/{userProfile.plan === 'business' ? '∞' : '30'} min</span>
+              <span>Usage: {userProfile.monthlyMinutes !== undefined && userProfile.monthlyMinutes !== null ? userProfile.monthlyMinutes : 0}/{userProfile.plan === 'business' ? 'Unlimited' : '30'} min</span>
             )}
             <button
               onClick={handleLogout}
@@ -609,7 +609,7 @@ function AppContent() {
           margin: '0 auto'
         }}>
           {/* Usage Warning */}
-          {userProfile && userProfile.plan === 'free' && userProfile.monthlyMinutes >= 25 && (
+          {userProfile && userProfile.plan === 'free' && (userProfile.monthlyMinutes === undefined || userProfile.monthlyMinutes === null || userProfile.monthlyMinutes >= 25) && (
             <div style={{
               backgroundColor: 'rgba(255, 243, 205, 0.95)',
               color: '#856404',
@@ -619,7 +619,7 @@ function AppContent() {
               textAlign: 'center',
               backdropFilter: 'blur(10px)'
             }}>
-              ⚡ You're running low on minutes! You have {30 - userProfile.monthlyMinutes} minutes left this month.
+              ⚡ You're running low on minutes! You have {30 - (userProfile.monthlyMinutes || 0)} minutes left this month.
               <button 
                 onClick={() => setCurrentView('dashboard')}
                 style={{
@@ -688,7 +688,7 @@ function AppContent() {
                 }}
               >
                 {isRecording ? '⏹️ Stop Recording' : '🎤 Start Recording'}
-              </button>
+              &lt;/button>
 
               {/* Download Recorded Audio Button */}
               {recordedAudioBlobRef.current && !isRecording && (
@@ -749,7 +749,7 @@ function AppContent() {
                 )}
               </div>
 
-              {/* NEW: Audio Player */}
+              {/* NEW: Audio Player - Always visible if selectedFile */}
               {selectedFile && (
                 <div style={{ marginBottom: '20px' }}>
                   <audio ref={audioPlayerRef} controls style={{ width: '100%' }}>
@@ -956,7 +956,7 @@ function AppContent() {
                 border: '1px solid #dee2e6'
               }}>
                 {transcription}
-              </div>
+              &lt;/div>
               
               <div style={{ 
                 marginTop: '15px', 
