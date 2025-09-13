@@ -1,231 +1,155 @@
-// src/components/Dashboard.js
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { PLAN_LIMITS, getUserProfile } from '../userService';
+import { fetchUserTranscriptions, deleteTranscription } from '../userService';
 
 const Dashboard = () => {
-  const { currentUser } = useAuth();
-  const [userProfile, setUserProfile] = useState(null);
+  const { currentUser, userProfile, refreshUserProfile } = useAuth();
+  const [transcriptions, setTranscriptions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [selectedTranscription, setSelectedTranscription] = useState(null);
+
+  const loadTranscriptions = useCallback(async () => {
+    if (currentUser?.uid) {
+      setLoading(true);
+      setError('');
+      try {
+        const fetchedTranscriptions = await fetchUserTranscriptions(currentUser.uid);
+        // Sort by createdAt descending to show newest first
+        fetchedTranscriptions.sort((a, b) => b.createdAt.toDate().getTime() - a.createdAt.toDate().getTime());
+        setTranscriptions(fetchedTranscriptions);
+      } catch (err) {
+        console.error("Error fetching transcriptions:", err);
+        setError("Failed to load transcriptions. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    }
+  }, [currentUser?.uid]);
 
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (currentUser) {
-        try {
-          const profile = await getUserProfile(currentUser.uid);
-          setUserProfile(profile);
-        } catch (error) {
-          console.error('Error fetching user profile:', error);
-        } finally {
-          setLoading(false);
-        }
+    loadTranscriptions();
+  }, [loadTranscriptions]);
+
+  const handleDelete = useCallback(async (transcriptionId) => {
+    if (window.confirm("Are you sure you want to delete this transcription?")) {
+      try {
+        await deleteTranscription(currentUser.uid, transcriptionId);
+        loadTranscriptions(); // Refresh the list after deletion
+      } catch (err) {
+        console.error("Error deleting transcription:", err);
+        setError("Failed to delete transcription. Please try again.");
       }
-    };
+    }
+  }, [currentUser?.uid, loadTranscriptions]);
 
-    fetchUserProfile();
-  }, [currentUser]);
+  const handleCopy = useCallback((text) => {
+    navigator.clipboard.writeText(text);
+    alert('Transcription copied to clipboard!');
+  }, []);
 
-  if (loading || !userProfile) {
-    return (
-      <div style={{ textAlign: 'center', padding: '50px' }}>
-        <p>Loading your dashboard...</p>
-      </div>
-    );
+  const handleDownload = useCallback((text, fileName, type) => {
+    const blob = new Blob([text], { type: type === 'word' ? 'application/msword' : 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${fileName.split('.')[0] || 'transcription'}.${type === 'word' ? 'doc' : 'txt'}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const handleViewDetails = useCallback((transcription) => {
+    setSelectedTranscription(transcription);
+  }, []);
+
+  const handleCloseDetails = useCallback(() => {
+    setSelectedTranscription(null);
+  }, []);
+
+  if (!currentUser) {
+    return <div className="text-center p-8 text-gray-600">Please log in to view your dashboard.</div>;
   }
 
-  const currentPlan = PLAN_LIMITS[userProfile.plan];
-  const usagePercentage = currentPlan.monthlyMinutes === -1 
-    ? 0 
-    : Math.min((userProfile.monthlyMinutes / currentPlan.monthlyMinutes) * 100, 100);
+  if (loading) {
+    return <div className="text-center p-8 text-gray-600">Loading transcriptions...</div>;
+  }
 
-  const isNearLimit = usagePercentage > 80;
-  const isOverLimit = usagePercentage >= 100;
+  if (error) {
+    return <div className="text-center p-8 text-red-600">Error: {error}</div>;
+  }
 
   return (
-    <div style={{ 
-      maxWidth: '800px', 
-      margin: '20px auto', 
-      padding: '20px',
-      fontFamily: 'Arial, sans-serif'
-    }}>
-      {/* Header */}
-      <div style={{ 
-        textAlign: 'center', 
-        marginBottom: '30px',
-        padding: '20px',
-        backgroundColor: '#f8f9fa',
-        borderRadius: '10px'
-      }}>
-        <h2 style={{ margin: '0 0 10px 0', color: '#333' }}>
-          Welcome to your Dashboard!
-        </h2>
-        <p style={{ margin: '0', color: '#666' }}>
-          {currentUser.email}
-        </p>
-      </div>
+    <div className="container mx-auto p-4">
+      <h2 className="text-3xl font-bold text-center text-purple-700 mb-8">Your Transcription History</h2>
 
-      {/* Current Plan Card */}
-      <div style={{ 
-        border: '2px solid #007bff', 
-        borderRadius: '10px', 
-        padding: '20px', 
-        marginBottom: '20px',
-        backgroundColor: 'white'
-      }}>
-        <h3 style={{ margin: '0 0 15px 0', color: '#007bff' }}>
-          Current Plan: {currentPlan.name}
-        </h3>
-        <p style={{ margin: '0 0 10px 0', fontSize: '18px' }}>
-          <strong>
-            {currentPlan.monthlyMinutes === -1 
-              ? 'Unlimited minutes' 
-              : `${currentPlan.monthlyMinutes} minutes per month`
-            }
-          </strong>
-        </p>
-        <p style={{ margin: '0', color: '#666' }}>
-          Price: {currentPlan.price === 0 ? 'Free' : `$${currentPlan.price}/month`}
-        </p>
-      </div>
-
-      {/* Usage Meter */}
-      <div style={{ 
-        border: '1px solid #ddd', 
-        borderRadius: '10px', 
-        padding: '20px', 
-        marginBottom: '20px',
-        backgroundColor: 'white'
-      }}>
-        <h3 style={{ margin: '0 0 15px 0', color: '#333' }}>
-          This Month's Usage
-        </h3>
-        
-        <div style={{ marginBottom: '15px' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            marginBottom: '5px' 
-          }}>
-            <span>Minutes Used:</span>
-            <span>
-              <strong>
-                {userProfile.monthlyMinutes} / {
-                  currentPlan.monthlyMinutes === -1 
-                    ? '∞' 
-                    : currentPlan.monthlyMinutes
-                }
-              </strong>
-            </span>
-          </div>
-          
-          {/* Progress Bar */}
-          {currentPlan.monthlyMinutes !== -1 && (
-            <div style={{ 
-              width: '100%', 
-              height: '20px', 
-              backgroundColor: '#e9ecef', 
-              borderRadius: '10px',
-              overflow: 'hidden'
-            }}>
-              <div style={{ 
-                width: `${Math.min(usagePercentage, 100)}%`, 
-                height: '100%', 
-                backgroundColor: isOverLimit ? '#dc3545' : isNearLimit ? '#ffc107' : '#28a745',
-                transition: 'width 0.3s ease'
-              }} />
+      {transcriptions.length === 0 ? (
+        <p className="text-center text-gray-600">You have no past transcriptions. Start transcribing!</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {transcriptions.map((transcription) => (
+            <div key={transcription.id} className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200">
+              <h3 className="text-xl font-semibold text-gray-800 mb-2 truncate">{transcription.fileName}</h3>
+              <p className="text-sm text-gray-600 mb-1">
+                Duration: {transcription.duration ? `${Math.round(transcription.duration / 60)} min` : 'N/A'}
+              </p>
+              <p className="text-sm text-gray-600 mb-4">
+                Transcribed: {transcription.createdAt?.toDate().toLocaleString()}
+              </p>
+              <div className="flex justify-between items-center">
+                <button
+                  onClick={() => handleViewDetails(transcription)}
+                  className="bg-blue-500 text-white px-4 py-2 rounded-full text-sm hover:bg-blue-600"
+                >
+                  View Transcript
+                </button>
+                <button
+                  onClick={() => handleDelete(transcription.id)}
+                  className="bg-red-500 text-white px-4 py-2 rounded-full text-sm hover:bg-red-600"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
-          )}
+          ))}
         </div>
+      )}
 
-        {/* Usage Warnings */}
-        {isOverLimit && (
-          <div style={{ 
-            backgroundColor: '#f8d7da', 
-            color: '#721c24', 
-            padding: '10px', 
-            borderRadius: '5px',
-            marginTop: '10px'
-          }}>
-            ⚠️ You've exceeded your monthly limit! Upgrade to continue transcribing.
-          </div>
-        )}
-        
-        {isNearLimit && !isOverLimit && (
-          <div style={{ 
-            backgroundColor: '#fff3cd', 
-            color: '#856404', 
-            padding: '10px', 
-            borderRadius: '5px',
-            marginTop: '10px'
-          }}>
-            ⚡ You're running low on minutes! Consider upgrading soon.
-          </div>
-        )}
-
-        <p style={{ margin: '10px 0 0 0', color: '#666', fontSize: '14px' }}>
-          Total minutes transcribed: <strong>{userProfile.totalMinutes}</strong>
-        </p>
-      </div>
-
-      {/* Upgrade Options */}
-      {userProfile.plan !== 'business' && (
-        <div style={{ 
-          border: '1px solid #28a745', 
-          borderRadius: '10px', 
-          padding: '20px', 
-          backgroundColor: '#f8fff9'
-        }}>
-          <h3 style={{ margin: '0 0 15px 0', color: '#28a745' }}>
-            🚀 Upgrade Your Plan
-          </h3>
-          
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-            gap: '15px' 
-          }}>
-            {Object.entries(PLAN_LIMITS).map(([planKey, plan]) => {
-              if (planKey === userProfile.plan) return null;
-              
-              return (
-                <div key={planKey} style={{ 
-                  border: '1px solid #ddd', 
-                  borderRadius: '8px', 
-                  padding: '15px',
-                  backgroundColor: 'white',
-                  textAlign: 'center'
-                }}>
-                  <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>
-                    {plan.name}
-                  </h4>
-                  <p style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold' }}>
-                    {plan.price === 0 ? 'Free' : `$${plan.price}/month`}
-                  </p>
-                  <p style={{ margin: '0 0 15px 0', color: '#666' }}>
-                    {plan.monthlyMinutes === -1 
-                      ? 'Unlimited minutes' 
-                      : `${plan.monthlyMinutes} minutes/month`
-                    }
-                  </p>
-                  <button
-                    style={{
-                      width: '100%',
-                      padding: '8px 16px',
-                      backgroundColor: '#007bff',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '5px',
-                      cursor: 'pointer',
-                      fontSize: '14px'
-                    }}
-                    onClick={() => alert(`Upgrade to ${plan.name} coming soon!`)}
-                  >
-                    Upgrade Now
-                  </button>
-                </div>
-              );
-            })}
+      {selectedTranscription && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+          <div className="bg-white p-8 rounded-xl shadow-2xl max-w-2xl w-full transform transition-all duration-300 scale-100">
+            <h3 className="text-2xl font-bold mb-4 text-purple-600">{selectedTranscription.fileName}</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Transcribed: {selectedTranscription.createdAt?.toDate().toLocaleString()}
+            </p>
+            <div className="bg-gray-100 p-4 rounded-md mb-6 max-h-96 overflow-y-auto">
+              <p className="text-gray-800 whitespace-pre-wrap">{selectedTranscription.text}</p>
+            </div>
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => handleCopy(selectedTranscription.text)}
+                className="bg-green-500 text-white px-4 py-2 rounded-full hover:bg-green-600"
+              >
+                Copy
+              </button>
+              <button
+                onClick={() => handleDownload(selectedTranscription.text, selectedTranscription.fileName, 'word')}
+                className="bg-blue-500 text-white px-4 py-2 rounded-full hover:bg-blue-600"
+              >
+                Download .doc
+              </button>
+              <button
+                onClick={() => handleDownload(selectedTranscription.text, selectedTranscription.fileName, 'txt')}
+                className="bg-gray-500 text-white px-4 py-2 rounded-full hover:bg-gray-600"
+              >
+                Download .txt
+              </button>
+              <button
+                onClick={handleCloseDetails}
+                className="bg-purple-600 text-white px-4 py-2 rounded-full hover:bg-purple-700"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
