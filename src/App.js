@@ -60,7 +60,7 @@ function AppContent() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [transcriptionProgress, setTranscriptionProgress] = useState(0);
   const [showLogin, setShowLogin] = useState(true);
-  const [currentView, setCurrentView] = useState('transcribe');
+  const [currentView, setCurrentView] = useState('transcribe'); // Added 'pricing' as possible view
   const [audioDuration, setAudioDuration] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -260,7 +260,7 @@ function AppContent() {
       const fileDurationMinutes = Math.floor(estimatedDuration / 60);
       const fileDurationSeconds = estimatedDuration % 60;
       showMessage(`Audio file is ${fileDurationMinutes}:${fileDurationSeconds.toString().padStart(2, '0')} long. Free users can only transcribe files up to 5 minutes. Please upgrade your plan for longer files.`);
-      setCurrentView('dashboard');
+      setCurrentView('pricing');
       resetTranscriptionProcessUI(); 
       return;
     }
@@ -380,6 +380,10 @@ function AppContent() {
     }
   }, [currentUser?.uid, currentUser?.email, showMessage]);
 
+  const handleUpgradeClick = useCallback(() => {
+    showMessage('Upgrade functionality will be implemented soon. Please contact support for now.');
+  }, [showMessage]);
+
   if (!currentUser) {
     return (
       <div style={{ 
@@ -443,7 +447,7 @@ function AppContent() {
       minHeight: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      background: (currentView === 'dashboard' || currentView === 'admin') ? '#f8f9fa' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+      background: (currentView === 'dashboard' || currentView === 'admin' || currentView === 'pricing') ? '#f8f9fa' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
     }}>
       <MessageModal message={message} onClose={clearMessage} />
 
@@ -539,7 +543,7 @@ function AppContent() {
       <div style={{ 
         textAlign: 'center', 
         padding: currentView === 'transcribe' ? '0 20px 40px' : '20px',
-        backgroundColor: (currentView === 'dashboard' || currentView === 'admin') ? 'white' : 'transparent'
+        backgroundColor: (currentView === 'dashboard' || currentView === 'admin' || currentView === 'pricing') ? 'white' : 'transparent'
       }}>
         <button
           onClick={() => setCurrentView('transcribe')}
@@ -573,6 +577,22 @@ function AppContent() {
         >
           📊 Dashboard
         </button>
+        <button
+          onClick={() => setCurrentView('pricing')}
+          style={{
+            padding: '12px 25px',
+            margin: '0 10px',
+            backgroundColor: currentView === 'pricing' ? '#28a745' : '#6c757d',
+            color: 'white',
+            border: 'none',
+            borderRadius: '25px',
+            cursor: 'pointer',
+            fontSize: '16px',
+            boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)'
+          }}
+        >
+          💰 Pricing
+        </button>
         {/* Admin Tab - Only visible to admins */}
         {isAdmin && (
           <button
@@ -593,9 +613,317 @@ function AppContent() {
           </button>
         )}
       </div>
+      {/* Show Different Views */}
+      {currentView === 'pricing' ? (
+        <div style={{ 
+          padding: '40px 20px', 
+          textAlign: 'center', 
+          maxWidth: '1000px', 
+          margin: '0 auto',
+          backgroundColor: '#f8f9fa',
+          minHeight: '70vh'
+        }}>
+          <h1 style={{ 
+            color: '#6c5ce7', 
+            marginBottom: '20px',
+            fontSize: '2.5rem'
+          }}>
+            Choose Your Plan
+          </h1>
+          <p style={{
+            color: '#666',
+            fontSize: '1.2rem',
+            marginBottom: '40px'
+          }}>
+            Unlock the full potential of TypeMyworDz with our flexible pricing plans
+          </p>
+          
+          <div style={{ 
+            display: 'flex', 
+            gap: '30px', 
+            justifyContent: 'center', 
+            flexWrap: 'wrap' 
+          }}>
+            {/* Free Plan */}
+            <div style={{
+              backgroundColor: 'white',
+              padding: '40px 30px',
+              borderRadius: '20px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+              maxWidth: '350px',
+              width: '100%',
+              border: '2px solid #e9ecef',
+              position: 'relative'
+            }}>
+              <div style={{
+                backgroundColor: '#6c757d',
+                color: 'white',
+                padding: '8px 20px',
+                borderRadius: '20px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                marginBottom: '20px',
+                display: 'inline-block'
+              }}>
+                CURRENT PLAN
+              </div>
+              <h3 style={{ 
+                color: '#6c757d',
+                fontSize: '1.8rem',
+                margin: '0 0 10px 0'
+              }}>
+                Free Plan
+              </h3>
+              <div style={{ marginBottom: '30px' }}>
+                <span style={{ 
+                  fontSize: '3rem',
+                  fontWeight: 'bold',
+                  color: '#6c5ce7'
+                }}>
+                  $0
+                </span>
+                <span style={{ 
+                  color: '#666',
+                  fontSize: '1.2rem'
+                }}>
+                  /month
+                </span>
+              </div>
+              <ul style={{ 
+                textAlign: 'left', 
+                color: '#666', 
+                lineHeight: '2.5',
+                listStyle: 'none',
+                padding: '0',
+                marginBottom: '40px'
+              }}>
+                <li>✅ Up to 5 minutes per audio file</li>
+                <li>✅ Basic transcription accuracy</li>
+                <li>✅ Download as TXT/Word</li>
+                <li>✅ 24-hour file storage</li>
+                <li>❌ No long audio support</li>
+                <li>❌ No priority processing</li>
+              </ul>
+              <button style={{
+                width: '100%',
+                padding: '15px',
+                backgroundColor: '#6c757d',
+                color: 'white',
+                border: 'none',
+                borderRadius: '10px',
+                cursor: 'not-allowed',
+                fontSize: '16px',
+                fontWeight: 'bold'
+              }}>
+                Current Plan
+              </button>
+            </div>
 
-      {/* Show Dashboard, Admin, or Transcription Interface */}
-      {currentView === 'admin' ? (
+            {/* Pro Plan */}
+            <div style={{
+              backgroundColor: 'white',
+              padding: '40px 30px',
+              borderRadius: '20px',
+              boxShadow: '0 15px 40px rgba(40, 167, 69, 0.2)',
+              maxWidth: '350px',
+              width: '100%',
+              border: '3px solid #28a745',
+              position: 'relative',
+              transform: 'scale(1.05)'
+            }}>
+              <div style={{
+                backgroundColor: '#28a745',
+                color: 'white',
+                padding: '8px 20px',
+                borderRadius: '20px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                marginBottom: '20px',
+                display: 'inline-block'
+              }}>
+                MOST POPULAR
+              </div>
+              <h3 style={{ 
+                color: '#28a745',
+                fontSize: '1.8rem',
+                margin: '0 0 10px 0'
+              }}>
+                Pro Plan
+              </h3>
+              <div style={{ marginBottom: '30px' }}>
+                <span style={{ 
+                  fontSize: '3rem',
+                  fontWeight: 'bold',
+                  color: '#6c5ce7'
+                }}>
+                  $9.99
+                </span>
+                <span style={{ 
+                  color: '#666',
+                  fontSize: '1.2rem'
+                }}>
+                  /month
+                </span>
+              </div>
+              <ul style={{ 
+                textAlign: 'left', 
+                color: '#666', 
+                lineHeight: '2.5',
+                listStyle: 'none',
+                padding: '0',
+                marginBottom: '40px'
+              }}>
+                <li>✅ Unlimited audio length</li>
+                <li>✅ High accuracy transcription</li>
+                <li>✅ Priority processing</li>
+                <li>✅ Advanced export options</li>
+                <li>✅ 7-day file storage</li>
+                <li>✅ Email support</li>
+              </ul>
+              <button 
+                onClick={handleUpgradeClick}
+                style={{
+                  width: '100%',
+                  padding: '15px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  transition: 'background-color 0.3s ease'
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#218838'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#28a745'}
+              >
+                Upgrade Now
+              </button>
+            </div>
+
+            {/* Business Plan */}
+            <div style={{
+              backgroundColor: 'white',
+              padding: '40px 30px',
+              borderRadius: '20px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+              maxWidth: '350px',
+              width: '100%',
+              border: '2px solid #6c5ce7'
+            }}>
+              <div style={{
+                backgroundColor: '#6c5ce7',
+                color: 'white',
+                padding: '8px 20px',
+                borderRadius: '20px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                marginBottom: '20px',
+                display: 'inline-block'
+              }}>
+                FOR TEAMS
+              </div>
+              <h3 style={{ 
+                color: '#6c5ce7',
+                fontSize: '1.8rem',
+                margin: '0 0 10px 0'
+              }}>
+                Business Plan
+              </h3>
+              <div style={{ marginBottom: '30px' }}>
+                <span style={{ 
+                  fontSize: '3rem',
+                  fontWeight: 'bold',
+                  color: '#6c5ce7'
+                }}>
+                  $29.99
+                </span>
+                <span style={{ 
+                  color: '#666',
+                  fontSize: '1.2rem'
+                }}>
+                  /month
+                </span>
+              </div>
+              <ul style={{ 
+                textAlign: 'left', 
+                color: '#666', 
+                lineHeight: '2.5',
+                listStyle: 'none',
+                padding: '0',
+                marginBottom: '40px'
+              }}>
+                <li>✅ Everything in Pro</li>
+                <li>✅ Unlimited transcriptions</li>
+                <li>✅ Team collaboration</li>
+                <li>✅ API access</li>
+                <li>✅ 30-day file storage</li>
+                <li>✅ Priority support</li>
+              </ul>
+              <button 
+                onClick={handleUpgradeClick}
+                style={{
+                  width: '100%',
+                  padding: '15px',
+                  backgroundColor: '#6c5ce7',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  transition: 'background-color 0.3s ease'
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#5a52d5'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#6c5ce7'}
+              >
+                Contact Sales
+              </button>
+            </div>
+          </div>
+
+          <div style={{
+            marginTop: '60px',
+            padding: '30px',
+            backgroundColor: 'white',
+            borderRadius: '15px',
+            boxShadow: '0 5px 15px rgba(0,0,0,0.1)'
+          }}>
+            <h3 style={{ color: '#6c5ce7', marginBottom: '20px' }}>
+              🔒 All plans include:
+            </h3>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+              gap: '20px',
+              textAlign: 'left',
+              color: '#666'
+            }}>
+              <div>✅ Secure file processing</div>
+              <div>✅ Multiple file formats supported</div>
+              <div>✅ Fast processing times</div>
+              <div>✅ Easy-to-use interface</div>
+              <div>✅ Mobile-friendly design</div>
+              <div>✅ Regular updates</div>
+            </div>
+          </div>
+
+          <div style={{
+            marginTop: '40px',
+            padding: '20px',
+            backgroundColor: '#e3f2fd',
+            borderRadius: '10px',
+            border: '1px solid #2196f3'
+          }}>
+            <p style={{ margin: '0', color: '#1976d2', fontSize: '16px' }}>
+              💡 <strong>Need help choosing?</strong> Contact our support team at{' '}
+              <a href="mailto:support@typemywordz.com" style={{ color: '#1976d2', textDecoration: 'underline' }}>
+                support@typemywordz.com
+              </a>
+            </p>
+          </div>
+        </div>
+      ) : currentView === 'admin' ? (
         <AdminDashboard />
       ) : currentView === 'dashboard' ? (
         <Dashboard />
@@ -619,7 +947,7 @@ function AppContent() {
             }}>
               🎵 Transcribe up to 5mins of audio. For long audios{' '}
               <button 
-                onClick={() => setCurrentView('dashboard')}
+                onClick={() => setCurrentView('pricing')}
                 style={{
                   backgroundColor: 'transparent',
                   color: '#007bff',
@@ -820,6 +1148,7 @@ function AppContent() {
               </div>
             </div>
           </div>
+
           {/* Status Section */}
           {status && (status === 'completed' || status === 'failed') && (
             <div style={{
