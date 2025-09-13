@@ -6,13 +6,12 @@ import Signup from './components/Signup';
 import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile } from './userService';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'; // Import Router components
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 // Configuration
-// Use the environment variable for the backend URL
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
 
-// Message Modal Component - Centralized for all general alerts (not for clipboard)
+// Message Modal Component
 const MessageModal = ({ message, onClose }) => {
   if (!message) return null;
   
@@ -32,36 +31,34 @@ const MessageModal = ({ message, onClose }) => {
   );
 };
 
-// Utility functions (moved outside AppContent for clarity and reusability if needed)
+// Utility functions
 const formatTime = (seconds) => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
-// Simulate progress, now with an option for an indefinite animation for transcription
 const simulateProgress = (setter, intervalTime, maxProgress = 100) => { 
   setter(0);
   const interval = setInterval(() => {
     setter(prev => {
-      // For indefinite progress (e.g., transcription), just keep moving
       if (maxProgress === -1) { 
-        return (prev + (Math.random() * 5 + 1)) % 100; // Keep it moving
+        return (prev + (Math.random() * 5 + 1)) % 100;
       }
       return prev + Math.random() * 10; 
     });
   }, intervalTime);
   return interval; 
 };
-// Main App Content (your transcription service)
+
 function AppContent() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [jobId, setJobId] = useState(null);
   const [status, setStatus] = useState('idle'); // 'idle', 'processing', 'completed', 'failed'
   const [transcription, setTranscription] = useState('');
-  const [isUploading, setIsUploading] = useState(false); // Controls button disabled state
-  const [uploadProgress, setUploadProgress] = useState(0); // For upload bar percentage - now used only for internal sim
-  const [transcriptionProgress, setTranscriptionProgress] = useState(0); // For transcription bar percentage (can be indefinite)
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [transcriptionProgress, setTranscriptionProgress] = useState(0);
   const [showLogin, setShowLogin] = useState(true);
   const [currentView, setCurrentView] = useState('transcribe');
   const [audioDuration, setAudioDuration] = useState(0);
@@ -71,19 +68,16 @@ function AppContent() {
   const recordingIntervalRef = useRef(null);
   const audioPlayerRef = useRef(null); 
   const recordedAudioBlobRef = useRef(null); 
-  const [message, setMessage] = useState(''); // For MessageModal
-  const [copiedMessageVisible, setCopiedMessageVisible] = useState(false); // For clipboard animation
+  const [message, setMessage] = useState('');
+  const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
 
-  const abortControllerRef = useRef(null); // For canceling fetch requests
-  const uploadFormRef = useRef(null); // Ref for the hidden form
+  const abortControllerRef = useRef(null);
 
-  const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithMicrosoft } = useAuth(); // Added signInWithMicrosoft
+  const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithMicrosoft } = useAuth();
 
-  // Admin emails
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
   const isAdmin = ADMIN_EMAILS.includes(currentUser?.email);
 
-  // MessageModal controls
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
 
@@ -94,14 +88,13 @@ function AppContent() {
     setTranscription('');
     setAudioDuration(0);
     setIsUploading(false);
-    setUploadProgress(0); // Reset upload progress
+    setUploadProgress(0);
     setTranscriptionProgress(0); 
     recordedAudioBlobRef.current = null;
     if (audioPlayerRef.current) {
       audioPlayerRef.current.src = '';
       audioPlayerRef.current.load();
     }
-    // Abort any ongoing fetch request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -111,7 +104,7 @@ function AppContent() {
   const handleFileSelect = useCallback((event) => {
     resetTranscriptionProcessUI(); 
     const file = event.target.files[0];
-    setSelectedFile(file); // This will trigger the useEffect to call handleUpload
+    setSelectedFile(file);
     
     if (file && (file.type.startsWith('audio/') || file.type.startsWith('video/'))) { 
       if (audioPlayerRef.current) {
@@ -144,7 +137,7 @@ function AppContent() {
         const blob = new Blob(chunks, { type: 'audio/wav' });
         recordedAudioBlobRef.current = blob; 
         const file = new File([blob], `recording-${Date.now()}.wav`, { type: 'audio/wav' });
-        setSelectedFile(file); // This will trigger the useEffect to call handleUpload
+        setSelectedFile(file);
         stream.getTracks().forEach(track => track.stop());
 
         if (audioPlayerRef.current) {
@@ -186,17 +179,15 @@ function AppContent() {
       const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
       
       await updateUserUsage(currentUser.uid, estimatedDuration);
-      // Pass audioUrl to saveTranscription for Dashboard playback
       const audioUrl = selectedFile ? URL.createObjectURL(selectedFile) : (recordedAudioBlobRef.current ? URL.createObjectURL(recordedAudioBlobRef.current) : null);
       await saveTranscription(currentUser.uid, {
         fileName: selectedFile.name,
         duration: estimatedDuration,
         text: transcriptionText,
-        audioUrl: audioUrl // Save the audio URL
+        audioUrl: audioUrl
       });
       
       await refreshUserProfile();
-      // Removed: showMessage('Usage updated successfully!');
     } catch (error) {
       console.error('Error updating usage:', error);
       showMessage('Failed to save transcription or update usage.');
@@ -205,14 +196,14 @@ function AppContent() {
 
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
     try {
-      abortControllerRef.current = new AbortController(); // Create new AbortController for this polling
+      abortControllerRef.current = new AbortController();
       const response = await fetch(`${BACKEND_URL}/status/${jobId}`, { signal: abortControllerRef.current.signal });
       const result = await response.json();
       
       if (response.ok && result.status === 'completed') {
         setTranscription(result.transcription);
         clearInterval(transcriptionInterval); 
-        setTranscriptionProgress(100); // Set to 100% on completion
+        setTranscriptionProgress(100);
         setStatus('completed'); 
         await handleTranscriptionComplete(result.transcription);
         setIsUploading(false); 
@@ -223,11 +214,9 @@ function AppContent() {
         setStatus('failed'); 
         setIsUploading(false); 
       } else {
-        // Only continue polling if status is still processing 
-        if (result.status === 'processing') { // Simplified status check
+        if (result.status === 'processing') {
           setTimeout(() => checkJobStatus(jobId, transcriptionInterval), 2000);
         } else {
-          // Handle unexpected status or non-ok response from status check
           const errorDetail = result.detail || `Unexpected status: ${result.status} or HTTP error! Status: UNKNOWN`;
           showMessage('Status check failed: ' + errorDetail);
           clearInterval(transcriptionInterval); 
@@ -240,22 +229,27 @@ function AppContent() {
       if (error.name === 'AbortError') {
         console.log('Fetch aborted by user.');
       } else {
-        console.error("Fetch error during upload:", error);
-        showMessage('Upload failed: ' + error.message);
-        setUploadProgress(0);
+        console.error('Status check failed:', error);
+        clearInterval(transcriptionInterval); 
         setTranscriptionProgress(0);
         setStatus('failed'); 
         setIsUploading(false); 
+        showMessage('Status check failed: ' + error.message);
       }
     } finally {
-      abortControllerRef.current = null; // Clear controller after request completes or aborts
+      abortControllerRef.current = null;
     }
-  }, [handleTranscriptionComplete, showMessage]); // Added handleTranscriptionComplete dependency
+  }, [handleTranscriptionComplete, showMessage]);
 
-  // Modified handleUpload to use standard fetch API with explicit Content-Type header
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
+      return;
+    }
+
+    // Ensure userProfile is loaded before checking canUserTranscribe
+    if (!userProfile) {
+      showMessage('User profile not loaded. Please try logging in again.');
       return;
     }
 
@@ -269,9 +263,9 @@ function AppContent() {
       return;
     }
 
-    setIsUploading(true); // Disable button
-    setStatus('processing'); // Immediately set status to processing
-    abortControllerRef.current = new AbortController(); // Initialize AbortController for upload
+    setIsUploading(true);
+    setStatus('processing');
+    abortControllerRef.current = new AbortController();
 
     try {
       const formData = new FormData();
@@ -280,14 +274,14 @@ function AppContent() {
       const response = await fetch(`${BACKEND_URL}/transcribe`, {
         method: 'POST',
         body: formData,
-        signal: abortControllerRef.current.signal // Attach signal to fetch request
+        signal: abortControllerRef.current.signal
       });
 
       const result = await response.json();
       
       if (response.ok) {
-        setUploadProgress(100); // Ensure upload is 100%
-        setStatus('processing'); // Ensure status is processing
+        setUploadProgress(100);
+        setStatus('processing');
         setJobId(result.job_id);
         const transcriptionInterval = simulateProgress(setTranscriptionProgress, 500, -1); 
         checkJobStatus(result.job_id, transcriptionInterval); 
@@ -312,21 +306,26 @@ function AppContent() {
         setIsUploading(false); 
       }
     } finally {
-      abortControllerRef.current = null; // Clear controller after request completes or aborts
+      abortControllerRef.current = null;
     }
-  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus]); // Added checkJobStatus dependency
+  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile]); // Added userProfile dependency
 
-  // Effect to trigger upload automatically when a file is selected or recording stops
   useEffect(() => {
     if (selectedFile && status === 'idle' && !isRecording && !isUploading) {
-      handleUpload();
+      // Delay handleUpload slightly to ensure userProfile is fully propagated
+      const timer = setTimeout(() => {
+        if (userProfile) { // Ensure userProfile exists before calling handleUpload
+          handleUpload();
+        }
+      }, 100); // Small delay
+      return () => clearTimeout(timer);
     }
-  }, [selectedFile, status, isRecording, isUploading, handleUpload]);
+  }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile]); // Added userProfile dependency
 
   const copyToClipboard = useCallback(() => { 
     navigator.clipboard.writeText(transcription);
-    setCopiedMessageVisible(true); // Show the fading message
-    setTimeout(() => setCopiedMessageVisible(false), 2000); // Hide after 2 seconds
+    setCopiedMessageVisible(true);
+    setTimeout(() => setCopiedMessageVisible(false), 2000);
   }, [transcription]);
 
   const downloadAsWord = useCallback(() => { 
@@ -380,7 +379,7 @@ function AppContent() {
       showMessage('Error creating profile: ' + error.message);
     }
   }, [currentUser?.uid, currentUser?.email, showMessage]);
-  // Show login/signup forms if user is not logged in
+  
   if (!currentUser) {
     return (
       <div style={{ 
@@ -425,11 +424,9 @@ function AppContent() {
           alignItems: 'flex-start',
           padding: '0 20px'
         }}>
-          {/* Modified: Only Google/Microsoft Login */}
           <Login />
         </div>
         <MessageModal message={message} onClose={clearMessage} />
-        {/* Footer for login/signup page */}
         <footer style={{ 
           textAlign: 'center', 
           padding: '20px', 
@@ -442,12 +439,10 @@ function AppContent() {
     );
   }
 
-  // Calculate remaining minutes robustly
   const monthlyLimit = userProfile?.plan === 'business' ? Infinity : 30;
   const minutesUsed = userProfile?.monthlyMinutes !== undefined && userProfile?.monthlyMinutes !== null && !isNaN(userProfile?.monthlyMinutes) ? userProfile.monthlyMinutes : 0;
   const minutesLeft = monthlyLimit === Infinity ? 'Unlimited' : Math.max(0, monthlyLimit - minutesUsed);
 
-  // Show main app interface if user is logged in
   return (
     <div style={{ 
       minHeight: '100vh',
