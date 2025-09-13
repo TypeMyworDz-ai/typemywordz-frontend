@@ -136,6 +136,13 @@ export const fetchUserTranscriptions = async (uid) => {
   return transcriptions;
 };
 
+// Update a specific transcription
+export const updateTranscription = async (uid, transcriptionId, newData) => {
+  const transcriptionRef = doc(db, USERS_COLLECTION, uid, TRANSCRIPTIONS_COLLECTION, transcriptionId);
+  await updateDoc(transcriptionRef, newData);
+  console.log("Transcription updated:", transcriptionId);
+};
+
 // Delete a specific transcription
 export const deleteTranscription = async (uid, transcriptionId) => {
   const transcriptionRef = doc(db, USERS_COLLECTION, uid, TRANSCRIPTIONS_COLLECTION, transcriptionId);

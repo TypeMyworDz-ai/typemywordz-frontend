@@ -1,13 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchUserTranscriptions, deleteTranscription } from '../userService';
+import { fetchUserTranscriptions, deleteTranscription, updateTranscription } from '../userService';
 
 const Dashboard = () => {
-  const { currentUser, userProfile, refreshUserProfile } = useAuth();
+  const { currentUser } = useAuth();
   const [transcriptions, setTranscriptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedTranscription, setSelectedTranscription] = useState(null);
+  const [editableTranscriptionText, setEditableTranscriptionText] = useState('');
+  const audioPlayerRef = useRef(null); // Ref for audio player in modal
+  const [copiedMessageVisible, setCopiedMessageVisible] = useState(false); // For subtle copied message
 
   const loadTranscriptions = useCallback(async () => {
     if (currentUser?.uid) {
@@ -36,16 +39,21 @@ const Dashboard = () => {
       try {
         await deleteTranscription(currentUser.uid, transcriptionId);
         loadTranscriptions(); // Refresh the list after deletion
+        if (selectedTranscription && selectedTranscription.id === transcriptionId) {
+          setSelectedTranscription(null); // Close modal if deleted
+        }
       } catch (err) {
         console.error("Error deleting transcription:", err);
         setError("Failed to delete transcription. Please try again.");
       }
     }
-  }, [currentUser?.uid, loadTranscriptions]);
+  }, [currentUser?.uid, loadTranscriptions, selectedTranscription]);
 
   const handleCopy = useCallback((text) => {
     navigator.clipboard.writeText(text);
-    alert('Transcription copied to clipboard!');
+    setCopiedMessageVisible(true); // Show subtle message
+    setTimeout(() => setCopiedMessageVisible(false), 2000); // Hide after 2 seconds
+    // Removed alert to prevent audio interruption
   }, []);
 
   const handleDownload = useCallback((text, fileName, type) => {
@@ -60,11 +68,31 @@ const Dashboard = () => {
 
   const handleViewDetails = useCallback((transcription) => {
     setSelectedTranscription(transcription);
+    setEditableTranscriptionText(transcription.text); // Initialize editable text
   }, []);
 
   const handleCloseDetails = useCallback(() => {
     setSelectedTranscription(null);
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause(); // Pause audio when closing modal
+      audioPlayerRef.current.currentTime = 0;
+    }
+    setCopiedMessageVisible(false); // Hide copied message on close
   }, []);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (selectedTranscription && currentUser?.uid) {
+      try {
+        await updateTranscription(currentUser.uid, selectedTranscription.id, { text: editableTranscriptionText });
+        alert('Transcription updated successfully!'); // Use alert for saving
+        loadTranscriptions(); // Refresh list to show updated text
+        handleCloseDetails(); // Close modal after saving
+      } catch (err) {
+        console.error("Error saving transcription edits:", err);
+        setError("Failed to save edits. Please try again.");
+      }
+    }
+  }, [selectedTranscription, currentUser?.uid, editableTranscriptionText, loadTranscriptions, handleCloseDetails]);
 
   if (!currentUser) {
     return <div className="text-center p-8 text-gray-600">Please log in to view your dashboard.</div>;
@@ -121,24 +149,48 @@ const Dashboard = () => {
             <p className="text-sm text-gray-600 mb-4">
               Transcribed: {selectedTranscription.createdAt?.toDate().toLocaleString()}
             </p>
+            
+            {/* Audio Player for Playback */}
+            {/* The audio source should be the original uploaded audio. This is not stored in Firestore directly. */}
+            {/* For now, we assume selectedTranscription.file (a Blob/File object) might be available from the client-side state */}
+            {/* In a real app, you'd likely store audio URLs in Firestore and fetch them here */}
+            {selectedTranscription.file && ( // Only show if file is present in state
+              <div className="mb-4">
+                <audio ref={audioPlayerRef} controls style={{ width: '100%' }} src={URL.createObjectURL(selectedTranscription.file)}></audio>
+              </div>
+            )}
+
+
+            {/* Editable Transcription */}
             <div className="bg-gray-100 p-4 rounded-md mb-6 max-h-96 overflow-y-auto">
-              <p className="text-gray-800 whitespace-pre-wrap">{selectedTranscription.text}</p>
+              <textarea
+                className="w-full h-full p-2 border rounded-md resize-none"
+                value={editableTranscriptionText}
+                onChange={(e) => setEditableTranscriptionText(e.target.value)}
+                rows={10}
+              ></textarea>
             </div>
             <div className="flex justify-end gap-4">
               <button
-                onClick={() => handleCopy(selectedTranscription.text)}
+                onClick={handleSaveEdit}
+                className="bg-green-500 text-white px-4 py-2 rounded-full hover:bg-green-600"
+              >
+                Save Edits
+              </button>
+              <button
+                onClick={() => handleCopy(editableTranscriptionText)} // Copy editable text
                 className="bg-green-500 text-white px-4 py-2 rounded-full hover:bg-green-600"
               >
                 Copy
               </button>
               <button
-                onClick={() => handleDownload(selectedTranscription.text, selectedTranscription.fileName, 'word')}
+                onClick={() => handleDownload(editableTranscriptionText, selectedTranscription.fileName, 'word')}
                 className="bg-blue-500 text-white px-4 py-2 rounded-full hover:bg-blue-600"
               >
                 Download .doc
               </button>
               <button
-                onClick={() => handleDownload(selectedTranscription.text, selectedTranscription.fileName, 'txt')}
+                onClick={() => handleDownload(editableTranscriptionText, selectedTranscription.fileName, 'txt')}
                 className="bg-gray-500 text-white px-4 py-2 rounded-full hover:bg-gray-600"
               >
                 Download .txt
@@ -151,6 +203,11 @@ const Dashboard = () => {
               </button>
             </div>
           </div>
+          {copiedMessageVisible && (
+            <div className="copied-message-animation fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg z-50">
+              Copied to clipboard!
+            </div>
+          )}
         </div>
       )}
     </div>

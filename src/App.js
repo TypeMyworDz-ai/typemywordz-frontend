@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import Login from './components/Login';
-import Signup from './components/Signup';
+import Login from './components/Login'; // Keep Login import for now
+import Signup from './components/Signup'; // Keep Signup import for now
 import Dashboard from './components/Dashboard'; // Ensure this import is correct
 import AdminDashboard from './components/AdminDashboard';
 import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile } from './userService';
@@ -76,7 +76,7 @@ function AppContent() {
   const abortControllerRef = useRef(null); // For canceling fetch requests
   const uploadFormRef = useRef(null); // Ref for the hidden form
 
-  const { currentUser, logout, userProfile, refreshUserProfile } = useAuth();
+  const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithMicrosoft } = useAuth(); // Added signInWithMicrosoft
 
   // Admin emails
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
@@ -185,10 +185,13 @@ function AppContent() {
       const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
       
       await updateUserUsage(currentUser.uid, estimatedDuration);
+      // Pass audioUrl to saveTranscription for Dashboard playback
+      const audioUrl = selectedFile ? URL.createObjectURL(selectedFile) : (recordedAudioBlobRef.current ? URL.createObjectURL(recordedAudioBlobRef.current) : null);
       await saveTranscription(currentUser.uid, {
         fileName: selectedFile.name,
         duration: estimatedDuration,
-        text: transcriptionText
+        text: transcriptionText,
+        audioUrl: audioUrl // Save the audio URL
       });
       
       await refreshUserProfile();
@@ -197,7 +200,7 @@ function AppContent() {
       console.error('Error updating usage:', error);
       showMessage('Failed to save transcription or update usage.');
     }
-  }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage]);
+  }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef]);
 
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
     try {
@@ -324,7 +327,8 @@ function AppContent() {
     navigator.clipboard.writeText(transcription);
     setCopiedMessageVisible(true); // Show the fading message
     setTimeout(() => setCopiedMessageVisible(false), 2000); // Hide after 2 seconds
-  }, [transcription]); // Removed showMessage as it's for general alerts
+    // No need to stop audio here
+  }, [transcription]);
 
   const downloadAsWord = useCallback(() => { 
     const blob = new Blob([transcription], { type: 'application/msword' });
@@ -422,7 +426,8 @@ function AppContent() {
           alignItems: 'flex-start',
           padding: '0 20px'
         }}>
-          {showLogin ? <Login /> : <Signup />}
+          {/* Modified: Only Google/Microsoft Login */}
+          <Login />
         </div>
         <MessageModal message={message} onClose={clearMessage} />
         {/* Footer for login/signup page */}
