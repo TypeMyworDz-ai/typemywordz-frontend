@@ -50,6 +50,7 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   }, intervalTime);
   return interval; 
 };
+
 function AppContent() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [jobId, setJobId] = useState(null);
@@ -79,6 +80,7 @@ function AppContent() {
 
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
+
   const resetTranscriptionProcessUI = useCallback(() => { 
     setSelectedFile(null);
     setJobId(null);
@@ -254,7 +256,10 @@ function AppContent() {
     const canTranscribe = await canUserTranscribe(currentUser.uid, estimatedDuration);
     
     if (!canTranscribe) {
-      showMessage('You have exceeded your monthly transcription limit! Please upgrade your plan or wait until next month.');
+      const maxDuration = 5 * 60; // 5 minutes in seconds
+      const fileDurationMinutes = Math.floor(estimatedDuration / 60);
+      const fileDurationSeconds = estimatedDuration % 60;
+      showMessage(`Audio file is ${fileDurationMinutes}:${fileDurationSeconds.toString().padStart(2, '0')} long. Free users can only transcribe files up to 5 minutes. Please upgrade your plan for longer files.`);
       setCurrentView('dashboard');
       resetTranscriptionProcessUI(); 
       return;
@@ -374,6 +379,7 @@ function AppContent() {
       showMessage('Error creating profile: ' + error.message);
     }
   }, [currentUser?.uid, currentUser?.email, showMessage]);
+
   if (!currentUser) {
     return (
       <div style={{ 
@@ -432,10 +438,6 @@ function AppContent() {
       </div>
     );
   }
-
-  const monthlyLimit = userProfile?.plan === 'business' ? Infinity : 30;
-  const minutesUsed = userProfile?.monthlyMinutes !== undefined && userProfile?.monthlyMinutes !== null && !isNaN(userProfile?.monthlyMinutes) ? userProfile.monthlyMinutes : 0;
-  const minutesLeft = monthlyLimit === Infinity ? 'Unlimited' : Math.max(0, monthlyLimit - minutesUsed);
   return (
     <div style={{ 
       minHeight: '100vh',
@@ -477,8 +479,10 @@ function AppContent() {
             opacity: '0.9'
           }}>
             <span>Logged in as: {userProfile?.name || currentUser.email}</span>
-            {userProfile && (
-              <span>Usage: {minutesUsed}/{monthlyLimit === Infinity ? 'Unlimited' : monthlyLimit} min</span>
+            {userProfile && userProfile.plan === 'business' ? (
+              <span>Plan: Unlimited Transcription</span>
+            ) : (
+              <span>Plan: Free (Up to 5min per audio)</span>
             )}
             <button
               onClick={handleLogout}
@@ -597,13 +601,13 @@ function AppContent() {
         <Dashboard />
       ) : (
         <main style={{ 
-          flex: 1, /* Allow main content to grow */
+          flex: 1,
           padding: '0 20px 40px',
           maxWidth: '800px', 
           margin: '0 auto'
         }}>
-          {/* Usage Warning */}
-          {userProfile && userProfile.plan === 'free' && minutesLeft !== 'Unlimited' && minutesLeft < 5 && ( // Show warning if less than 5 minutes left
+          {/* Updated Usage Information Banner */}
+          {userProfile && userProfile.plan === 'free' && (
             <div style={{
               backgroundColor: 'rgba(255, 243, 205, 0.95)',
               color: '#856404',
@@ -613,23 +617,23 @@ function AppContent() {
               textAlign: 'center',
               backdropFilter: 'blur(10px)'
             }}>
-              ⚡ You're running low on minutes! You have {minutesLeft} minutes left this month.
+              🎵 Transcribe up to 5mins of audio. For long audios{' '}
               <button 
                 onClick={() => setCurrentView('dashboard')}
                 style={{
-                  marginLeft: '10px',
-                  padding: '5px 10px',
-                  backgroundColor: '#007bff',
-                  color: 'white',
+                  backgroundColor: 'transparent',
+                  color: '#007bff',
                   border: 'none',
-                  borderRadius: '3px',
-                  cursor: 'pointer'
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
                 }}
               >
-                Upgrade Now
+                Upgrade
               </button>
             </div>
           )}
+          
           {/* Record Audio Section */}
           <div style={{
             backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -743,7 +747,7 @@ function AppContent() {
                 )}
               </div>
 
-              {/* NEW: Audio Player - Always visible if selectedFile */}
+              {/* Audio Player */}
               {selectedFile && (
                 <div style={{ marginBottom: '20px' }}>
                   <audio ref={audioPlayerRef} controls style={{ width: '100%' }} src={URL.createObjectURL(selectedFile)}>
@@ -752,8 +756,8 @@ function AppContent() {
                 </div>
               )}
               
-              {/* Transcription Progress Bar (appears immediately after upload_complete/processing) */}
-              {(status === 'processing' || status === 'uploading') && ( // Show for both uploading and processing
+              {/* Transcription Progress Bar */}
+              {(status === 'processing' || status === 'uploading') && (
                 <div style={{ marginBottom: '20px' }}>
                   <div style={{
                     backgroundColor: '#e9ecef',
@@ -763,9 +767,9 @@ function AppContent() {
                     marginBottom: '10px'
                   }}>
                     <div className="progress-bar-indeterminate" style={{
-                      backgroundColor: '#6c5ce7', // Purple color for transcription progress
+                      backgroundColor: '#6c5ce7',
                       height: '100%',
-                      width: '100%', // Fixed width for animation
+                      width: '100%',
                       borderRadius: '10px'
                     }}></div>
                   </div>
@@ -775,7 +779,7 @@ function AppContent() {
                 </div>
               )}
 
-              {/* Action Button: Start Transcription or Cancel */}
+              {/* Action Buttons */}
               <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
                 {status === 'idle' && !isUploading && selectedFile && (
                   <button
@@ -796,13 +800,13 @@ function AppContent() {
                   </button>
                 )}
 
-                {(status === 'uploading' || status === 'processing') && ( // Show for both uploading and processing
+                {(status === 'uploading' || status === 'processing') && (
                   <button
                     onClick={handleCancelUpload}
                     style={{
                       padding: '15px 30px',
                       fontSize: '18px',
-                      backgroundColor: '#dc3545', // Red for cancel
+                      backgroundColor: '#dc3545',
                       color: 'white',
                       border: 'none',
                       borderRadius: '25px',
@@ -817,7 +821,6 @@ function AppContent() {
             </div>
           </div>
           {/* Status Section */}
-          {/* Modified: Only show status section for 'completed' or 'failed' statuses */}
           {status && (status === 'completed' || status === 'failed') && (
             <div style={{
               backgroundColor: status === 'completed' ? 'rgba(212, 237, 218, 0.95)' : 'rgba(255, 243, 205, 0.95)',
@@ -833,7 +836,7 @@ function AppContent() {
               }}>
                 {status === 'completed' ? '✅ Transcription Completed!' : `❌ Status: ${status}`}
               </h3>
-              {status === 'failed' && ( // Only show error message for failed status
+              {status === 'failed' && (
                 <p style={{ margin: '10px 0 0 0', color: '#666' }}>
                   An error occurred during transcription. Please try again.
                 </p>
@@ -939,13 +942,13 @@ function AppContent() {
         padding: '20px', 
         color: 'rgba(255, 255, 255, 0.7)', 
         fontSize: '0.9rem',
-        marginTop: 'auto' /* Push footer to bottom */
+        marginTop: 'auto'
       }}>
         &copy; {new Date().getFullYear()} TypeMyworDz, Inc.
       </footer>
-      {/* NEW: Copied Message Animation */}
+      {/* Copied Message Animation */}
       {copiedMessageVisible && (
-        <div className="copied-message-animation"> {/* <--- CHANGED TO CLASSNAME */}
+        <div className="copied-message-animation">
           Copied to clipboard!
         </div>
       )}
@@ -957,7 +960,7 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <Router> {/* Wrap AppContent with Router */}
+      <Router>
         <AppContent />
       </Router>
     </AuthProvider>
