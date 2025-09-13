@@ -499,7 +499,7 @@ function AppContent() {
           }}>
             <span>Logged in as: {userProfile?.name || currentUser.email}</span>
             {userProfile && (
-              <span>Usage: {userProfile.monthlyMinutes !== undefined && userProfile.monthlyMinutes !== null ? userProfile.monthlyMinutes : 0}/{userProfile.plan === 'business' ? 'Unlimited' : '30'} min</span>
+              <span>Usage: {userProfile.monthlyMinutes !== undefined && userProfile.monthlyMinutes !== null && !isNaN(userProfile.monthlyMinutes) ? userProfile.monthlyMinutes : 0}/{userProfile.plan === 'business' ? 'Unlimited' : '30'} min</span>
             )}
             <button
               onClick={handleLogout}
@@ -619,7 +619,7 @@ function AppContent() {
               textAlign: 'center',
               backdropFilter: 'blur(10px)'
             }}>
-              ⚡ You're running low on minutes! You have {30 - (userProfile.monthlyMinutes || 0)} minutes left this month.
+              ⚡ You're running low on minutes! You have {30 - (userProfile.monthlyMinutes !== undefined && userProfile.monthlyMinutes !== null && !isNaN(userProfile.monthlyMinutes) ? userProfile.monthlyMinutes : 0)} minutes left this month.
               <button 
                 onClick={() => setCurrentView('dashboard')}
                 style={{
