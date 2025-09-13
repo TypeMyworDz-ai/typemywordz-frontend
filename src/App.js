@@ -197,7 +197,7 @@ function AppContent() {
       });
       
       await refreshUserProfile();
-      showMessage('Usage updated successfully!');
+      // Removed: showMessage('Usage updated successfully!');
     } catch (error) {
       console.error('Error updating usage:', error);
       showMessage('Failed to save transcription or update usage.');
@@ -854,7 +854,8 @@ function AppContent() {
           </div>
 
           {/* Status Section */}
-          {status && status !== 'uploading' && status !== 'processing' && status !== 'upload_complete' && ( // Only show status section for completed/failed
+          {/* Modified: Only show status section for 'completed' or 'failed' statuses */}
+          {status && (status === 'completed' || status === 'failed') && (
             <div style={{
               backgroundColor: status === 'completed' ? 'rgba(212, 237, 218, 0.95)' : 'rgba(255, 243, 205, 0.95)',
               border: `2px solid ${status === 'completed' ? '#27ae60' : '#f39c12'}`,
