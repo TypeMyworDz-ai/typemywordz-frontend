@@ -3,7 +3,7 @@ import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
 import Signup from './components/Signup';
-import Dashboard from './components/Dashboard';
+import Dashboard from './components/Dashboard'; // Ensure this import is correct
 import AdminDashboard from './components/AdminDashboard';
 import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile } from './userService';
 
@@ -267,7 +267,6 @@ function AppContent() {
     }
 
     setIsUploading(true); // Disable button
-    // Removed: const uploadInterval = simulateProgress(setUploadProgress, 200, 100); // Simulate upload to 100%
     setStatus('processing'); // Immediately set status to processing
     abortControllerRef.current = new AbortController(); // Initialize AbortController for upload
 
@@ -278,31 +277,21 @@ function AppContent() {
       const response = await fetch(`${BACKEND_URL}/transcribe`, {
         method: 'POST',
         body: formData,
-        // Do NOT set Content-Type header when sending FormData, browser sets it automatically
-        // headers: {
-        //   'Content-Type': 'multipart/form-data' // This caused issues before
-        // },
         signal: abortControllerRef.current.signal // Attach signal to fetch request
       });
 
       const result = await response.json();
       
       if (response.ok) {
-        // Removed: clearInterval(uploadInterval); 
         setUploadProgress(100); // Ensure upload is 100%
-        // Removed: setStatus('upload_complete'); // No longer need this status
-        
-        // Immediately transition to processing and start polling
         setStatus('processing'); // Ensure status is processing
         setJobId(result.job_id);
-        // Start indefinite progress animation for transcription
         const transcriptionInterval = simulateProgress(setTranscriptionProgress, 500, -1); 
         checkJobStatus(result.job_id, transcriptionInterval); 
         
       } else {
         console.error("Backend upload failed response:", result);
         showMessage('Upload failed: ' + (result.detail || `HTTP error! Status: ${response.status}`));
-        // Removed: clearInterval(uploadInterval);
         setUploadProgress(0);
         setTranscriptionProgress(0);
         setStatus('failed'); 
@@ -311,11 +300,9 @@ function AppContent() {
     } catch (error) {
       if (error.name === 'AbortError') {
         console.log('Upload aborted by user.');
-        // UI reset already handled by handleCancelUpload
       } else {
         console.error("Fetch error during upload:", error);
         showMessage('Upload failed: ' + error.message);
-        // Removed: clearInterval(uploadInterval);
         setUploadProgress(0);
         setTranscriptionProgress(0);
         setStatus('failed'); 
