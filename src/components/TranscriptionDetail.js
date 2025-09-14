@@ -18,6 +18,15 @@ const TranscriptionDetail = () => {
   const [audioDuration, setAudioDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
+  // Helper function to safely convert date
+  const convertToDate = (dateValue) => {
+    if (!dateValue) return new Date();
+    if (dateValue.toDate && typeof dateValue.toDate === 'function') {
+      return dateValue.toDate();
+    }
+    return new Date(dateValue);
+  };
+
   useEffect(() => {
     if (transcription) {
       setEditableText(transcription.text || '');
@@ -161,7 +170,7 @@ const TranscriptionDetail = () => {
           </div>
           <h1 className="text-3xl font-bold text-gray-800 mb-2">{transcription.fileName}</h1>
           <p className="text-gray-600">
-            Transcribed on {transcription.createdAt?.toDate().toLocaleString()}
+            Transcribed on {convertToDate(transcription.createdAt).toLocaleString()}
           </p>
         </div>
 
@@ -279,7 +288,7 @@ const TranscriptionDetail = () => {
             </button>
             <button
               onClick={() => handleDownload('word')}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:blue-700 transition-colors"
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
             >
               Download .doc
             </button>
