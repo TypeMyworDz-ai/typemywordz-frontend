@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { updateTranscription, deleteTranscription } from '../userService';
+import RichTextEditor from './RichTextEditor';
 
 const TranscriptionDetail = () => {
   const { id } = useParams();
@@ -98,13 +99,14 @@ const TranscriptionDetail = () => {
     }
   }, []);
 
-  const handleSave = async () => {
+  const handleSave = async (newText) => {
     if (!currentUser?.uid || !transcription) return;
     
     setSaving(true);
     try {
-      await updateTranscription(currentUser.uid, transcription.id, { text: editableText });
-      setTranscription({ ...transcription, text: editableText });
+      await updateTranscription(currentUser.uid, transcription.id, { text: newText });
+      setTranscription({ ...transcription, text: newText });
+      setEditableText(newText);
       setIsEditing(false);
       alert('Transcription saved successfully!');
     } catch (error) {
@@ -113,6 +115,11 @@ const TranscriptionDetail = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditableText(transcription?.text || '');
   };
 
   const handleDelete = async () => {
@@ -236,463 +243,66 @@ const TranscriptionDetail = () => {
     boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
     padding: '24px'
   };
-  if (!transcription) {
-    return (
-      <div style={containerStyle}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: '50vh'
-        }}>
+          {/* Display Area */}
           <div style={{
-            textAlign: 'center',
-            padding: '32px',
-            background: 'white',
-            borderRadius: '12px',
-            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+            background: '#f9fafb',
+            borderRadius: '8px',
+            padding: '20px',
+            minHeight: '400px',
+            border: '2px solid #e5e7eb',
+            boxSizing: 'border-box',
+            overflowY: 'auto'
           }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
-              Transcription Not Found
-            </h2>
-            <button 
-              onClick={() => navigate('/dashboard')}
-              style={{
-                background: '#7c3aed',
-                color: 'white',
-                padding: '12px 24px',
-                borderRadius: '8px',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '16px'
-              }}
-            >
-              Back to Dashboard
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const createdDate = convertToDate(transcription.createdAt);
-
-  return (
-    <div style={containerStyle}>
-      {/* Header */}
-      <div style={headerStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-          <button
-            onClick={() => navigate('/dashboard')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              color: '#7c3aed',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '16px'
-            }}
-          >
-            <svg style={{ width: '20px', height: '20px', marginRight: '8px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Back to Dashboard
-          </button>
-          <button
-            onClick={handleDelete}
-            style={{
-              background: '#ef4444',
-              color: 'white',
-              padding: '8px 16px',
-              borderRadius: '8px',
-              border: 'none',
-              cursor: 'pointer'
-            }}
-          >
-            Delete
-          </button>
-        </div>
-        <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>
-          {transcription.fileName || 'Untitled'}
-        </h1>
-        <p style={{ color: '#6b7280' }}>
-          Transcribed on {formatDate(createdDate)}
-        </p>
-      </div>
-
-      {/* Main Content */}
-      <div style={mainContentStyle}>
-        {/* Audio Player */}
-        <div style={audioPlayerStyle}>
-          <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
-            Audio Player
-          </h2>
-          
-          <audio
-            ref={audioRef}
-            src={transcription.audioUrl}
-            preload="metadata"
-            crossOrigin="anonymous"
-          />
-          
-          {audioError ? (
-            <div style={{ textAlign: 'center', padding: '24px' }}>
+            {editableText ? (
+              <p style={{
+                color: '#1f2937',
+                whiteSpace: 'pre-wrap',
+                fontSize: '16px',
+                lineHeight: '1.6',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                margin: 0
+              }}>
+                {editableText}
+              </p>
+            ) : (
               <div style={{
-                width: '64px',
-                height: '64px',
-                margin: '0 auto 12px',
-                background: '#fee2e2',
-                borderRadius: '50%',
+                height: '100%',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                minHeight: '300px'
               }}>
-                <svg style={{ width: '32px', height: '32px', color: '#ef4444' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <p style={{ fontSize: '14px', color: '#ef4444', fontWeight: '500' }}>Audio file not found</p>
-              <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Check if the file exists</p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Progress Bar */}
-              <div>
-                <div 
-                  onClick={handleSeek}
-                  style={{
-                    background: '#e5e7eb',
-                    borderRadius: '9999px',
-                    height: '8px',
-                    cursor: 'pointer',
-                    position: 'relative',
-                    marginBottom: '8px'
-                  }}
-                >
-                  <div 
-                    style={{
-                      background: '#7c3aed',
-                      height: '8px',
-                      borderRadius: '9999px',
-                      width: `${audioDuration > 0 ? (audioCurrentTime / audioDuration) * 100 : 0}%`,
-                      transition: 'width 0.2s'
-                    }}
-                  />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#6b7280' }}>
-                  <span>{formatTime(audioCurrentTime)}</span>
-                  <span>{formatTime(audioDuration)}</span>
+                <div style={{ textAlign: 'center' }}>
+                  <svg style={{ 
+                    width: '64px', 
+                    height: '64px', 
+                    margin: '0 auto 16px', 
+                    color: '#d1d5db' 
+                  }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p style={{ color: '#6b7280', fontSize: '18px', marginBottom: '8px' }}>
+                    No transcription text available
+                  </p>
+                  <p style={{ color: '#9ca3af', fontSize: '14px' }}>
+                    Click "Edit with Rich Text Editor" to add content
+                  </p>
                 </div>
               </div>
-
-              {/* Play Controls */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-                <button
-                  onClick={() => skipTime(-10)}
-                  disabled={audioError}
-                  style={{
-                    padding: '8px',
-                    background: '#f3f4f6',
-                    borderRadius: '50%',
-                    border: 'none',
-                    cursor: 'pointer',
-                    opacity: audioError ? 0.5 : 1
-                  }}
-                  title="Rewind 10s"
-                >
-                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
-                  </svg>
-                </button>
-                
-                <button
-                  onClick={togglePlayPause}
-                  disabled={isLoading || audioError}
-                  style={{
-                    padding: '12px',
-                    background: '#7c3aed',
-                    color: 'white',
-                    borderRadius: '50%',
-                    border: 'none',
-                    cursor: 'pointer',
-                    opacity: (isLoading || audioError) ? 0.5 : 1
-                  }}
-                >
-                  {isLoading ? (
-                    <div style={{
-                      width: '20px',
-                      height: '20px',
-                      border: '2px solid white',
-                      borderTop: '2px solid transparent',
-                      borderRadius: '50%',
-                      animation: 'spin 1s linear infinite'
-                    }} />
-                  ) : isPlaying ? (
-                    <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" />
-                    </svg>
-                  ) : (
-                    <svg style={{ width: '20px', height: '20px' }} fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
-                  )}
-                </button>
-                
-                <button
-                  onClick={() => skipTime(10)}
-                  disabled={audioError}
-                  style={{
-                    padding: '8px',
-                    background: '#f3f4f6',
-                    borderRadius: '50%',
-                    border: 'none',
-                    cursor: 'pointer',
-                    opacity: audioError ? 0.5 : 1
-                  }}
-                  title="Forward 10s"
-                >
-                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4z" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Speed Control */}
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: '500', color: '#374151', display: 'block', marginBottom: '8px' }}>
-                  Speed
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4px' }}>
-                  {[0.75, 1, 1.25, 1.5, 1.75, 2].map((speed) => (
-                    <button
-                      key={speed}
-                      onClick={() => changePlaybackRate(speed)}
-                      disabled={audioError}
-                      style={{
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        border: 'none',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        background: playbackRate === speed ? '#7c3aed' : '#f3f4f6',
-                        color: playbackRate === speed ? 'white' : '#374151',
-                        opacity: audioError ? 0.5 : 1
-                      }}
-                    >
-                      {speed}x
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Volume Control */}
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: '500', color: '#374151', display: 'block', marginBottom: '8px' }}>
-                  Volume
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <svg style={{ width: '12px', height: '12px', color: '#9ca3af' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M9 12a1 1 0 01-.707-.293L6.586 10H4a1 1 0 01-1-1V8a1 1 0 011-1h2.586l1.707-1.707A1 1 0 019 6v6z" />
-                  </svg>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={volume}
-                    onChange={(e) => changeVolume(parseFloat(e.target.value))}
-                    disabled={audioError}
-                    style={{
-                      flex: 1,
-                      height: '4px',
-                      background: '#e5e7eb',
-                      borderRadius: '2px',
-                      outline: 'none',
-                      opacity: audioError ? 0.5 : 1,
-                      cursor: 'pointer'
-                    }}
-                  />
-                  <span style={{ fontSize: '12px', color: '#6b7280', width: '32px' }}>
-                    {Math.round(volume * 100)}%
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        {/* Text Editor */}
-        <div style={textEditorStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1f2937' }}>
-              Transcription
-            </h2>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              {isEditing ? (
-                <>
-                  <button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    style={{
-                      background: '#10b981',
-                      color: 'white',
-                      padding: '8px 24px',
-                      borderRadius: '8px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      opacity: isSaving ? 0.5 : 1
-                    }}
-                  >
-                    {isSaving && (
-                      <div style={{
-                        width: '16px',
-                        height: '16px',
-                        border: '2px solid white',
-                        borderTop: '2px solid transparent',
-                        borderRadius: '50%',
-                        animation: 'spin 1s linear infinite'
-                      }} />
-                    )}
-                    <span>{isSaving ? 'Saving...' : 'Save Changes'}</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsEditing(false);
-                      setEditableText(transcription.text || '');
-                    }}
-                    style={{
-                      background: '#6b7280',
-                      color: 'white',
-                      padding: '8px 24px',
-                      borderRadius: '8px',
-                      border: 'none',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => setIsEditing(true)}
-                  style={{
-                    background: '#3b82f6',
-                    color: 'white',
-                    padding: '8px 24px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}
-                >
-                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  <span>Edit Transcription</span>
-                </button>
-              )}
-            </div>
+            )}
           </div>
 
-          {/* Large Text Editor Area */}
-          {isEditing ? (
-            <div>
-              <textarea
-                value={editableText}
-                onChange={(e) => setEditableText(e.target.value)}
-                style={{
-                  width: '100%',
-                  height: '500px',
-                  padding: '20px',
-                  border: '2px solid #d1d5db',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  lineHeight: '1.6',
-                  fontFamily: 'system-ui, -apple-system, sans-serif',
-                  resize: 'vertical',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-                placeholder="Start typing your transcription here..."
-                onFocus={(e) => e.target.style.borderColor = '#7c3aed'}
-                onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-              />
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                fontSize: '14px', 
-                color: '#6b7280',
-                marginTop: '8px'
-              }}>
-                <span>{editableText.length} characters</span>
-                <span>Use Ctrl+S to save quickly</span>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <div style={{
-                background: '#f9fafb',
-                borderRadius: '8px',
-                padding: '20px',
-                height: '500px',
-                overflowY: 'auto',
-                border: '2px solid #e5e7eb',
-                boxSizing: 'border-box'
-              }}>
-                {editableText ? (
-                  <p style={{
-                    color: '#1f2937',
-                    whiteSpace: 'pre-wrap',
-                    fontSize: '16px',
-                    lineHeight: '1.6',
-                    fontFamily: 'system-ui, -apple-system, sans-serif',
-                    margin: 0
-                  }}>
-                    {editableText}
-                  </p>
-                ) : (
-                  <div style={{
-                    height: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <div style={{ textAlign: 'center' }}>
-                      <svg style={{ 
-                        width: '64px', 
-                        height: '64px', 
-                        margin: '0 auto 16px', 
-                        color: '#d1d5db' 
-                      }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <p style={{ color: '#6b7280', fontSize: '18px', marginBottom: '8px' }}>
-                        No transcription text available
-                      </p>
-                      <p style={{ color: '#9ca3af', fontSize: '14px' }}>
-                        Click "Edit Transcription" to add content
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-              {editableText && (
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  fontSize: '14px', 
-                  color: '#6b7280',
-                  marginTop: '8px'
-                }}>
-                  <span>{editableText.length} characters</span>
-                  <span>Click Edit to modify this transcription</span>
-                </div>
-              )}
+          {editableText && (
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              fontSize: '14px', 
+              color: '#6b7280',
+              marginTop: '12px',
+              marginBottom: '24px'
+            }}>
+              <span>{editableText.length} characters</span>
+              <span>Click edit to modify with rich text features</span>
             </div>
           )}
 
@@ -769,7 +379,6 @@ const TranscriptionDetail = () => {
           </div>
         </div>
       </div>
-
       {/* Add CSS animation for spin */}
       <style>{`
         @keyframes spin {
