@@ -20,14 +20,32 @@ const TranscriptionDetail = () => {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [volume, setVolume] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [audioError, setAudioError] = useState(false);
 
   // Helper function to safely convert date
   const convertToDate = (dateValue) => {
-    if (!dateValue) return new Date();
-    if (dateValue.toDate && typeof dateValue.toDate === 'function') {
-      return dateValue.toDate();
+    if (!dateValue) return null;
+    try {
+      if (dateValue.toDate && typeof dateValue.toDate === 'function') {
+        return dateValue.toDate();
+      }
+      if (dateValue.seconds) {
+        return new Date(dateValue.seconds * 1000);
+      }
+      return new Date(dateValue);
+    } catch (error) {
+      console.error('Date conversion error:', error);
+      return null;
     }
-    return new Date(dateValue);
+  };
+
+  const formatDate = (date) => {
+    if (!date) return 'Unknown date';
+    try {
+      return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString();
+    } catch (error) {
+      return 'Unknown date';
+    }
   };
 
   useEffect(() => {
@@ -40,14 +58,22 @@ const TranscriptionDetail = () => {
     const audio = audioRef.current;
     if (audio) {
       const updateTime = () => setAudioCurrentTime(audio.currentTime);
-      const updateDuration = () => setAudioDuration(audio.duration);
+      const updateDuration = () => {
+        if (!isNaN(audio.duration)) {
+          setAudioDuration(audio.duration);
+        }
+      };
       const handlePlay = () => setIsPlaying(true);
       const handlePause = () => setIsPlaying(false);
       const handleLoadStart = () => setIsLoading(true);
-      const handleCanPlay = () => setIsLoading(false);
-      const handleError = () => {
+      const handleCanPlay = () => {
         setIsLoading(false);
-        console.error('Audio loading error');
+        setAudioError(false);
+      };
+      const handleError = (e) => {
+        setIsLoading(false);
+        setAudioError(true);
+        console.error('Audio loading error:', e);
       };
 
       audio.addEventListener('timeupdate', updateTime);
@@ -113,14 +139,14 @@ const TranscriptionDetail = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${transcription.fileName.split('.')[0]}.${format === 'word' ? 'doc' : 'txt'}`;
+    a.download = `${transcription.fileName?.split('.')[0] || 'transcription'}.${format === 'word' ? 'doc' : 'txt'}`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const togglePlayPause = () => {
     const audio = audioRef.current;
-    if (audio) {
+    if (audio && !audioError) {
       if (isPlaying) {
         audio.pause();
       } else {
@@ -131,7 +157,7 @@ const TranscriptionDetail = () => {
 
   const handleSeek = (e) => {
     const audio = audioRef.current;
-    if (audio && audioDuration) {
+    if (audio && audioDuration && !audioError) {
       const rect = e.currentTarget.getBoundingClientRect();
       const percent = (e.clientX - rect.left) / rect.width;
       audio.currentTime = percent * audioDuration;
@@ -140,14 +166,14 @@ const TranscriptionDetail = () => {
 
   const skipTime = (seconds) => {
     const audio = audioRef.current;
-    if (audio) {
+    if (audio && !audioError) {
       audio.currentTime = Math.max(0, Math.min(audio.currentTime + seconds, audioDuration));
     }
   };
 
   const changePlaybackRate = (rate) => {
     const audio = audioRef.current;
-    if (audio) {
+    if (audio && !audioError) {
       audio.playbackRate = rate;
       setPlaybackRate(rate);
     }
@@ -162,7 +188,7 @@ const TranscriptionDetail = () => {
   };
 
   const formatTime = (seconds) => {
-    if (isNaN(seconds)) return '0:00';
+    if (isNaN(seconds) || seconds === 0) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -182,6 +208,8 @@ const TranscriptionDetail = () => {
       </div>
     );
   }
+
+  const createdDate = convertToDate(transcription.createdAt);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
@@ -205,13 +233,13 @@ const TranscriptionDetail = () => {
               Delete
             </button>
           </div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">{transcription.fileName}</h1>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">{transcription.fileName || 'Untitled'}</h1>
           <p className="text-gray-600">
-            Transcribed on {convertToDate(transcription.createdAt).toLocaleDateString()} at {convertToDate(transcription.createdAt).toLocaleTimeString()}
+            Transcribed on {formatDate(createdDate)}
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
           {/* Audio Player */}
           <div className="bg-white rounded-xl shadow-lg p-6">
             <h2 className="text-xl font-bold text-gray-800 mb-6">Audio Player</h2>
@@ -219,112 +247,127 @@ const TranscriptionDetail = () => {
             {/* Hidden audio element */}
             <audio
               ref={audioRef}
-              src={transcription.audioUrl || (transcription.file ? URL.createObjectURL(transcription.file) : '')}
+              src={transcription.audioUrl}
               preload="metadata"
+              crossOrigin="anonymous"
             />
             
-            {/* Main Controls */}
-            <div className="space-y-6">
-              {/* Progress Bar */}
-              <div className="space-y-2">
-                <div 
-                  className="bg-gray-200 rounded-full h-3 cursor-pointer relative overflow-hidden"
-                  onClick={handleSeek}
-                >
+            {audioError ? (
+              <div className="text-center py-8">
+                <div className="text-red-500 mb-4">
+                  <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-sm">Audio file could not be loaded</p>
+                  <p className="text-xs text-gray-500 mt-1">Please check if the audio file exists</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Progress Bar */}
+                <div className="space-y-2">
                   <div 
-                    className="bg-purple-600 h-3 rounded-full transition-all duration-200 relative"
-                    style={{ width: `${(audioCurrentTime / audioDuration) * 100 || 0}%` }}
+                    className="bg-gray-200 rounded-full h-3 cursor-pointer relative overflow-hidden"
+                    onClick={handleSeek}
                   >
-                    <div className="absolute right-0 top-0 w-4 h-4 bg-white border-2 border-purple-600 rounded-full transform translate-x-1/2 -translate-y-0.5"></div>
+                    <div 
+                      className="bg-purple-600 h-3 rounded-full transition-all duration-200 relative"
+                      style={{ width: `${audioDuration > 0 ? (audioCurrentTime / audioDuration) * 100 : 0}%` }}
+                    >
+                      <div className="absolute right-0 top-0 w-4 h-4 bg-white border-2 border-purple-600 rounded-full transform translate-x-1/2 -translate-y-0.5"></div>
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>{formatTime(audioCurrentTime)}</span>
+                    <span>{formatTime(audioDuration)}</span>
                   </div>
                 </div>
-                <div className="flex justify-between text-sm text-gray-600">
-                  <span>{formatTime(audioCurrentTime)}</span>
-                  <span>{formatTime(audioDuration)}</span>
-                </div>
-              </div>
 
-              {/* Play Controls */}
-              <div className="flex items-center justify-center space-x-4">
-                <button
-                  onClick={() => skipTime(-10)}
-                  className="bg-gray-100 hover:bg-gray-200 p-3 rounded-full transition-colors"
-                  title="Rewind 10s"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.334 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
-                  </svg>
-                </button>
-                
-                <button
-                  onClick={togglePlayPause}
-                  disabled={isLoading}
-                  className="bg-purple-600 text-white p-4 rounded-full hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isLoading ? (
-                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  ) : isPlaying ? (
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                {/* Play Controls */}
+                <div className="flex items-center justify-center space-x-4">
+                  <button
+                    onClick={() => skipTime(-10)}
+                    disabled={audioError}
+                    className="bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed p-3 rounded-full transition-colors"
+                    title="Rewind 10s"
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8zm-1.1 11h-.85v-3.26l-1.01.31v-.69l1.77-.63h.09V16zm2.25 0h-.85v-1.34c0-.28.05-.52.14-.73.1-.2.25-.37.44-.49.2-.12.43-.18.71-.18.27 0 .5.06.69.18.19.12.34.29.44.49.1.21.15.45.15.73V16h-.85v-1.34c0-.17-.03-.3-.08-.39-.05-.09-.12-.16-.21-.2-.09-.04-.19-.06-.31-.06s-.22.02-.31.06c-.09.04-.16.11-.21.2-.05.09-.08.22-.08.39V16z"/>
                     </svg>
-                  ) : (
-                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z"/>
+                  </button>
+                  
+                  <button
+                    onClick={togglePlayPause}
+                    disabled={isLoading || audioError}
+                    className="bg-purple-600 text-white p-4 rounded-full hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? (
+                      <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    ) : isPlaying ? (
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z"/>
+                      </svg>
+                    )}
+                  </button>
+                  
+                  <button
+                    onClick={() => skipTime(10)}
+                    disabled={audioError}
+                    className="bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed p-3 rounded-full transition-colors"
+                    title="Forward 10s"
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12.01 19V5l5 5-5 5v-4c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8zm1.1-11h.85v3.26l1.01-.31v.69l-1.77.63h-.09V8zm-2.25 0h.85v1.34c0 .28-.05.52-.14.73-.1.2-.25.37-.44.49-.2.12-.43.18-.71.18-.27 0-.5-.06-.69-.18-.19-.12-.34-.29-.44-.49-.1-.21-.15-.45-.15-.73V8h.85v1.34c0 .17.03.3.08.39.05.09.12.16.21.2.09.04.19.06.31.06s.22-.02.31-.06c.09-.04.16-.11.21-.2.05-.09.08-.22.08-.39V8z"/>
                     </svg>
-                  )}
-                </button>
-                
-                <button
-                  onClick={() => skipTime(10)}
-                  className="bg-gray-100 hover:bg-gray-200 p-3 rounded-full transition-colors"
-                  title="Forward 10s"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4zM19.933 12.8a1 1 0 000-1.6l-5.333-4A1 1 0 0013 8v8a1 1 0 001.6.8l5.333-4z" />
-                  </svg>
-                </button>
-              </div>
+                  </button>
+                </div>
 
-              {/* Speed Control */}
-              <div className="space-y-3">
-                <label className="text-sm font-medium text-gray-700">Playback Speed</label>
-                <div className="flex flex-wrap gap-2">
-                  {[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
-                    <button
-                      key={speed}
-                      onClick={() => changePlaybackRate(speed)}
-                      className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-                        playbackRate === speed
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      {speed}x
-                    </button>
-                  ))}
+                {/* Speed Control */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-gray-700">Playback Speed</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
+                      <button
+                        key={speed}
+                        onClick={() => changePlaybackRate(speed)}
+                        disabled={audioError}
+                        className={`px-3 py-1 rounded-lg text-sm transition-colors disabled:opacity-50 ${
+                          playbackRate === speed
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {speed}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Volume Control */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-gray-700">Volume</label>
+                  <div className="flex items-center space-x-3">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M9 12a1 1 0 01-.707-.293L6.586 10H4a1 1 0 01-1-1V8a1 1 0 011-1h2.586l1.707-1.707A1 1 0 019 6v6z" />
+                    </svg>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={volume}
+                      onChange={(e) => changeVolume(parseFloat(e.target.value))}
+                      disabled={audioError}
+                      className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
+                    />
+                    <span className="text-sm text-gray-600 w-8">{Math.round(volume * 100)}%</span>
+                  </div>
                 </div>
               </div>
-
-              {/* Volume Control */}
-              <div className="space-y-3">
-                <label className="text-sm font-medium text-gray-700">Volume</label>
-                <div className="flex items-center space-x-3">
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M9 12a1 1 0 01-.707-.293L6.586 10H4a1 1 0 01-1-1V8a1 1 0 011-1h2.586l1.707-1.707A1 1 0 019 6v6z" />
-                  </svg>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={volume}
-                    onChange={(e) => changeVolume(parseFloat(e.target.value))}
-                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                  />
-                  <span className="text-sm text-gray-600 w-8">{Math.round(volume * 100)}%</span>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Text Editor */}
@@ -373,7 +416,7 @@ const TranscriptionDetail = () => {
             ) : (
               <div className="bg-gray-50 rounded-lg p-4 h-96 overflow-y-auto">
                 <p className="text-gray-800 whitespace-pre-wrap font-mono text-sm leading-relaxed">
-                  {editableText || 'No transcription text available.'}
+                  {editableText || 'No transcription text available. Click Edit to add content.'}
                 </p>
               </div>
             )}
