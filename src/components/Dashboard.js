@@ -83,7 +83,7 @@ const Dashboard = () => {
 
   const handleViewDetails = useCallback((transcription) => {
     setSelectedTranscription(transcription);
-    setEditableTranscriptionText(transcription.transcriptionText); // Correctly use transcriptionText
+    setEditableTranscriptionText(transcription.transcriptionText || ''); // Correctly use transcriptionText
   }, []);
 
   const handleCloseDetails = useCallback(() => {
@@ -198,7 +198,6 @@ const Dashboard = () => {
             {/* For now, we assume selectedTranscription.file (a Blob/File object) might be available from the client-side state */}
             {/* Since this is a history, you'd typically have stored the audio file URL in Firestore */}
             {/* As a placeholder, we'll hide it for now if no direct file object is present */}
-            {/* You'll need to modify userService.js and saveTranscription to store an audioUrl if you want playback here */}
             {selectedTranscription.audioUrl ? (
               <div className="mb-4">
                 <audio ref={audioPlayerRef} controls className="w-full" src={selectedTranscription.audioUrl}></audio>
