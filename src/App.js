@@ -623,7 +623,6 @@ function AppContent() {
               </button>
             )}
           </div>
-
           {/* Show Different Views */}
           {currentView === 'pricing' ? (
             <div style={{ 
@@ -648,6 +647,7 @@ function AppContent() {
               }}>
                 Unlock the full potential of TypeMyworDz with our flexible pricing plans
               </p>
+              
               <div style={{ 
                 display: 'flex', 
                 gap: '30px', 
@@ -1241,7 +1241,25 @@ function AppContent() {
                     color: '#27ae60',
                     fontSize: '14px'
                   }}>
-                    ✅ Check your Dashboard for your transcripts history.
+                    ✅ Check your{' '}
+                    <button
+                      onClick={() => setCurrentView('dashboard')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#007bff',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 'bold',
+                        padding: 0
+                      }}
+                      onMouseEnter={(e) => e.target.style.color = '#0056b3'}
+                      onMouseLeave={(e) => e.target.style.color = '#007bff'}
+                    >
+                      Dashboard
+                    </button>
+                    {' '}for your transcripts history.
                   </div>
                 </div>
               )}
