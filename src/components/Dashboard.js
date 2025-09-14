@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchUserTranscriptions, deleteTranscription } from '../userService';
+import { fetchUserTranscriptions, deleteTranscription, updateTranscription } from '../userService';
 import { useNavigate } from 'react-router-dom';
+import RichTextEditor from './RichTextEditor';
 
 const Dashboard = () => {
   const { currentUser } = useAuth();
@@ -11,6 +12,9 @@ const Dashboard = () => {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('newest');
+  const [editingId, setEditingId] = useState(null);
+  const [editingText, setEditingText] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const loadTranscriptions = useCallback(async () => {
     if (currentUser?.uid) {
@@ -46,8 +50,48 @@ const Dashboard = () => {
     }
   }, [currentUser?.uid, loadTranscriptions]);
 
+  const handleEdit = useCallback((transcription, e) => {
+    e.stopPropagation();
+    setEditingId(transcription.id);
+    setEditingText(transcription.text || '');
+  }, []);
+
+  const handleSaveEdit = useCallback(async (newText) => {
+    if (!editingId || !currentUser?.uid) return;
+    
+    setIsSaving(true);
+    try {
+      await updateTranscription(currentUser.uid, editingId, { text: newText });
+      
+      // Update local state
+      setTranscriptions(prev => 
+        prev.map(t => 
+          t.id === editingId 
+            ? { ...t, text: newText }
+            : t
+        )
+      );
+      
+      setEditingId(null);
+      setEditingText('');
+    } catch (err) {
+      console.error("Error updating transcription:", err);
+      setError("Failed to save transcription. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [editingId, currentUser?.uid]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingId(null);
+    setEditingText('');
+  }, []);
+
   const handleTranscriptionClick = (transcription) => {
-    navigate(`/transcription/${transcription.id}`, { state: { transcription } });
+    // Only navigate if not editing
+    if (editingId !== transcription.id) {
+      navigate(`/transcription/${transcription.id}`, { state: { transcription } });
+    }
   };
 
   const filteredTranscriptions = transcriptions.filter(transcription =>
@@ -223,6 +267,40 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
+
+        {/* Rich Text Editor Modal */}
+        {editingId && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem'
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '0.5rem',
+              boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              width: '100%',
+              overflow: 'hidden'
+            }}>
+              <RichTextEditor
+                initialText={editingText}
+                onSave={handleSaveEdit}
+                onCancel={handleCancelEdit}
+                isSaving={isSaving}
+              />
+            </div>
+          </div>
+        )}
         {/* Transcriptions List */}
         {sortedTranscriptions.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
@@ -245,7 +323,7 @@ const Dashboard = () => {
             </button>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem' }}>
             {sortedTranscriptions.map((transcription) => (
               <div
                 key={transcription.id}
@@ -255,11 +333,22 @@ const Dashboard = () => {
                   borderRadius: '0.5rem', 
                   boxShadow: '0 1px 3px rgba(0,0,0,0.1)', 
                   border: '1px solid #e5e7eb',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
+                  cursor: editingId === transcription.id ? 'default' : 'pointer',
+                  transition: 'all 0.2s',
+                  opacity: editingId && editingId !== transcription.id ? 0.5 : 1
                 }}
-                onMouseEnter={(e) => e.target.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'}
-                onMouseLeave={(e) => e.target.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)'}
+                onMouseEnter={(e) => {
+                  if (editingId !== transcription.id) {
+                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (editingId !== transcription.id) {
+                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }
+                }}
               >
                 <div style={{ padding: '1.5rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
@@ -282,29 +371,65 @@ const Dashboard = () => {
                         </div>
                       </div>
                     </div>
-                    <button
-                      onClick={(e) => handleDelete(transcription.id, e)}
-                      style={{ 
-                        color: '#9ca3af', 
-                        padding: '0.25rem',
-                        border: 'none',
-                        background: 'none',
-                        cursor: 'pointer',
-                        borderRadius: '0.25rem'
-                      }}
-                      onMouseEnter={(e) => e.target.style.color = '#ef4444'}
-                      onMouseLeave={(e) => e.target.style.color = '#9ca3af'}
-                    >
-                      <svg style={{ width: '1.25rem', height: '1.25rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        onClick={(e) => handleEdit(transcription, e)}
+                        style={{ 
+                          color: '#3b82f6', 
+                          padding: '0.5rem',
+                          border: 'none',
+                          background: 'none',
+                          cursor: 'pointer',
+                          borderRadius: '0.25rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.25rem'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.backgroundColor = '#eff6ff';
+                          e.target.style.color = '#1d4ed8';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.backgroundColor = 'transparent';
+                          e.target.style.color = '#3b82f6';
+                        }}
+                        title="Edit transcription"
+                      >
+                        <svg style={{ width: '1rem', height: '1rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => handleDelete(transcription.id, e)}
+                        style={{ 
+                          color: '#9ca3af', 
+                          padding: '0.5rem',
+                          border: 'none',
+                          background: 'none',
+                          cursor: 'pointer',
+                          borderRadius: '0.25rem'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.backgroundColor = '#fef2f2';
+                          e.target.style.color = '#ef4444';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.backgroundColor = 'transparent';
+                          e.target.style.color = '#9ca3af';
+                        }}
+                        title="Delete transcription"
+                      >
+                        <svg style={{ width: '1.25rem', height: '1.25rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
 
                   <div style={{ backgroundColor: '#f9fafb', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem' }}>
                     <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
                       {transcription.text ? 
-                        transcription.text.substring(0, 120) + (transcription.text.length > 120 ? '...' : '') :
+                        transcription.text.substring(0, 150) + (transcription.text.length > 150 ? '...' : '') :
                         'No transcription text available'
                       }
                     </p>
@@ -312,7 +437,10 @@ const Dashboard = () => {
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.75rem', color: '#6b7280' }}>
-                      Click to edit
+                      <svg style={{ width: '0.75rem', height: '0.75rem', marginRight: '0.25rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Click to edit with rich text editor
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#3b82f6', fontWeight: '500' }}>
                       Open →
@@ -323,6 +451,14 @@ const Dashboard = () => {
             ))}
           </div>
         )}
+        
+        {/* CSS for animations */}
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     </div>
   );
