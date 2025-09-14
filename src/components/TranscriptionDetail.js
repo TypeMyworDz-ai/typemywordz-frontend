@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { updateTranscription, deleteTranscription } from '../userService';
-import RichTextEditor from './RichTextEditor';
 
 const TranscriptionDetail = () => {
   const { id } = useParams();
@@ -10,6 +9,7 @@ const TranscriptionDetail = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const audioRef = useRef(null);
+  const editorRef = useRef(null); // Ref for the contentEditable div
   
   const [transcription, setTranscription] = useState(state?.transcription || null);
   const [editableText, setEditableText] = useState(transcription?.text || '');
@@ -52,6 +52,9 @@ const TranscriptionDetail = () => {
   useEffect(() => {
     if (transcription) {
       setEditableText(transcription.text || '');
+      if (editorRef.current) {
+        editorRef.current.innerHTML = transcription.text || '';
+      }
     }
   }, [transcription]);
 
@@ -99,14 +102,19 @@ const TranscriptionDetail = () => {
     }
   }, []);
 
-  const handleSave = async (newText) => {
+  const handleEditorInput = () => {
+    if (editorRef.current) {
+      setEditableText(editorRef.current.innerHTML);
+    }
+  };
+
+  const handleSave = async () => {
     if (!currentUser?.uid || !transcription) return;
     
     setSaving(true);
     try {
-      await updateTranscription(currentUser.uid, transcription.id, { text: newText });
-      setTranscription({ ...transcription, text: newText });
-      setEditableText(newText);
+      await updateTranscription(currentUser.uid, transcription.id, { text: editableText });
+      setTranscription({ ...transcription, text: editableText });
       setIsEditing(false);
       alert('Transcription saved successfully!');
     } catch (error) {
@@ -120,6 +128,9 @@ const TranscriptionDetail = () => {
   const handleCancelEdit = () => {
     setIsEditing(false);
     setEditableText(transcription?.text || '');
+    if (editorRef.current) {
+      editorRef.current.innerHTML = transcription?.text || '';
+    }
   };
 
   const handleDelete = async () => {
@@ -135,12 +146,14 @@ const TranscriptionDetail = () => {
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(editableText);
+    const textToCopy = editorRef.current ? editorRef.current.textContent : editableText;
+    navigator.clipboard.writeText(textToCopy);
     alert('Transcription copied to clipboard!');
   };
 
   const handleDownload = (format) => {
-    const blob = new Blob([editableText], { 
+    const textToDownload = editorRef.current ? editorRef.current.textContent : editableText;
+    const blob = new Blob([textToDownload], { 
       type: format === 'word' ? 'application/msword' : 'text/plain' 
     });
     const url = URL.createObjectURL(blob);
@@ -237,11 +250,38 @@ const TranscriptionDetail = () => {
     top: '20px'
   };
 
-  const textEditorStyle = {
+  const textEditorContainerStyle = { // Renamed from textEditorStyle to avoid confusion with the actual editor
     background: 'white',
     borderRadius: '12px',
     boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
     padding: '24px'
+  };
+
+  // Function to handle text case transformation
+  const transformCase = (type) => {
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const selectedText = range.toString();
+      
+      if (selectedText) {
+        let transformedText;
+        switch (type) {
+          case 'upper':
+            transformedText = selectedText.toUpperCase();
+            break;
+          case 'lower':
+            transformedText = selectedText.toLowerCase();
+            break;
+          default:
+            return;
+        }
+        
+        range.deleteContents();
+        range.insertNode(document.createTextNode(transformedText));
+        handleEditorInput(); // Update state after modification
+      }
+    }
   };
   if (!transcription) {
     return (
@@ -327,40 +367,6 @@ const TranscriptionDetail = () => {
           Transcribed on {formatDate(createdDate)}
         </p>
       </div>
-
-      {/* Rich Text Editor Modal */}
-      {isEditing && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.75)',
-          zIndex: 1000,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1rem'
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '0.5rem',
-            boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
-            maxWidth: '95vw',
-            maxHeight: '95vh',
-            width: '100%',
-            overflow: 'hidden'
-          }}>
-            <RichTextEditor
-              initialText={editableText}
-              onSave={handleSave}
-              onCancel={handleCancelEdit}
-              isSaving={isSaving}
-            />
-          </div>
-        </div>
-      )}
 
       {/* Main Content */}
       <div style={mainContentStyle}>
@@ -563,84 +569,309 @@ const TranscriptionDetail = () => {
           )}
         </div>
         {/* Text Editor */}
-        <div style={textEditorStyle}>
+        <div style={textEditorContainerStyle}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
             <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1f2937' }}>
               Transcription
             </h2>
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button
-                onClick={() => setIsEditing(true)}
-                style={{
-                  background: '#3b82f6',
-                  color: 'white',
-                  padding: '10px 20px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-              >
-                <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                <span>Edit with Rich Text Editor</span>
-              </button>
+              {isEditing ? (
+                <>
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    style={{
+                      background: '#10b981',
+                      color: 'white',
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      opacity: isSaving ? 0.7 : 1
+                    }}
+                  >
+                    {isSaving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                  <button
+                    onClick={handleCancelEdit}
+                    style={{
+                      background: '#6b7280',
+                      color: 'white',
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  style={{
+                    background: '#3b82f6',
+                    color: 'white',
+                    padding: '10px 20px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '14px',
+                    fontWeight: '500'
+                  }}
+                >
+                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  <span>Edit</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Display Area */}
-          <div style={{
-            background: '#f9fafb',
-            borderRadius: '8px',
-            padding: '20px',
-            minHeight: '400px',
-            border: '2px solid #e5e7eb',
-            boxSizing: 'border-box',
-            overflowY: 'auto'
-          }}>
-            {editableText ? (
-              <p style={{
-                color: '#1f2937',
-                whiteSpace: 'pre-wrap',
+          {/* Formatting Toolbar - Only show when editing */}
+          {isEditing && (
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '8px',
+              padding: '12px',
+              backgroundColor: '#f8f9fa',
+              borderRadius: '8px',
+              marginBottom: '16px',
+              border: '1px solid #e9ecef'
+            }}>
+              {/* Text Formatting */}
+              <button
+                onClick={() => document.execCommand('bold')}
+                style={{
+                  padding: '6px 10px',
+                  border: '1px solid #d1d5db',
+                  backgroundColor: 'white',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold'
+                }}
+                title="Bold"
+              >
+                B
+              </button>
+              
+              <button
+                onClick={() => document.execCommand('italic')}
+                style={{
+                  padding: '6px 10px',
+                  border: '1px solid #d1d5db',
+                  backgroundColor: 'white',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontStyle: 'italic'
+                }}
+                title="Italic"
+              >
+                I
+              </button>
+              
+              <button
+                onClick={() => document.execCommand('underline')}
+                style={{
+                  padding: '6px 10px',
+                  border: '1px solid #d1d5db',
+                  backgroundColor: 'white',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  textDecoration: 'underline'
+                }}
+                title="Underline"
+              >
+                U
+              </button>
+
+              <div style={{ width: '1px', backgroundColor: '#d1d5db', margin: '4px 8px' }}></div>
+
+              {/* Font Size */}
+              <select
+                onChange={(e) => document.execCommand('fontSize', false, e.target.value)}
+                style={{
+                  padding: '4px 8px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  backgroundColor: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="">Size</option>
+                <option value="1">Small</option>
+                <option value="3">Normal</option>
+                <option value="5">Large</option>
+                <option value="7">Extra Large</option>
+              </select>
+
+              {/* Text Color */}
+              <input
+                type="color"
+                onChange={(e) => document.execCommand('foreColor', false, e.target.value)}
+                title="Text Color"
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              />
+
+              <div style={{ width: '1px', backgroundColor: '#d1d5db', margin: '4px 8px' }}></div>
+
+              {/* Lists */}
+              <button
+                onClick={() => document.execCommand('insertUnorderedList')}
+                style={{
+                  padding: '6px 10px',
+                  border: '1px solid #d1d5db',
+                  backgroundColor: 'white',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+                title="Bullet List"
+              >
+                • List
+              </button>
+              
+              <button
+                onClick={() => document.execCommand('insertOrderedList')}
+                style={{
+                  padding: '6px 10px',
+                  border: '1px solid #d1d5db',
+                  backgroundColor: 'white',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+                title="Numbered List"
+              >
+                1. List
+              </button>
+
+              <div style={{ width: '1px', backgroundColor: '#d1d5db', margin: '4px 8px' }}></div>
+
+              {/* Text Case */}
+              <button
+                onClick={() => transformCase('upper')}
+                style={{
+                  padding: '6px 8px',
+                  border: '1px solid #d1d5db',
+                  backgroundColor: 'white',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '10px',
+                  fontWeight: 'bold'
+                }}
+                title="UPPERCASE"
+              >
+                AA
+              </button>
+              
+              <button
+                onClick={() => transformCase('lower')}
+                style={{
+                  padding: '6px 8px',
+                  border: '1px solid #d1d5db',
+                  backgroundColor: 'white',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '10px'
+                }}
+                title="lowercase"
+              >
+                aa
+              </button>
+            </div>
+          )}
+
+          {/* Text Editor Area */}
+          {isEditing ? (
+            <div
+              ref={editorRef}
+              contentEditable
+              suppressContentEditableWarning={true}
+              onInput={handleEditorInput}
+              style={{
+                width: '100%',
+                minHeight: '400px',
+                padding: '20px',
+                border: '2px solid #d1d5db',
+                borderRadius: '8px',
                 fontSize: '16px',
                 lineHeight: '1.6',
                 fontFamily: 'system-ui, -apple-system, sans-serif',
-                margin: 0
-              }}>
-                {editableText}
-              </p>
-            ) : (
-              <div style={{
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '300px'
-              }}>
-                <div style={{ textAlign: 'center' }}>
-                  <svg style={{ 
-                    width: '64px', 
-                    height: '64px', 
-                    margin: '0 auto 16px', 
-                    color: '#d1d5db' 
-                  }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <p style={{ color: '#6b7280', fontSize: '18px', marginBottom: '8px' }}>
-                    No transcription text available
-                  </p>
-                  <p style={{ color: '#9ca3af', fontSize: '14px' }}>
-                    Click "Edit with Rich Text Editor" to add content
-                  </p>
+                outline: 'none',
+                backgroundColor: 'white',
+                overflowY: 'auto'
+              }}
+              dangerouslySetInnerHTML={{ __html: editableText }}
+            />
+          ) : (
+            <div style={{
+              background: '#f9fafb',
+              borderRadius: '8px',
+              padding: '20px',
+              minHeight: '400px',
+              border: '2px solid #e5e7eb',
+              boxSizing: 'border-box',
+              overflowY: 'auto'
+            }}>
+              {editableText ? (
+                <div 
+                  style={{
+                    color: '#1f2937',
+                    fontSize: '16px',
+                    lineHeight: '1.6',
+                    fontFamily: 'system-ui, -apple-system, sans-serif',
+                    margin: 0
+                  }}
+                  dangerouslySetInnerHTML={{ __html: editableText }}
+                />
+              ) : (
+                <div style={{
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: '300px'
+                }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <svg style={{ 
+                      width: '64px', 
+                      height: '64px', 
+                      margin: '0 auto 16px', 
+                      color: '#d1d5db' 
+                    }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p style={{ color: '#6b7280', fontSize: '18px', marginBottom: '8px' }}>
+                      No transcription text available
+                    </p>
+                    <p style={{ color: '#9ca3af', fontSize: '14px' }}>
+                      Click "Edit" to add and format content
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {editableText && (
             <div style={{ 
@@ -651,8 +882,8 @@ const TranscriptionDetail = () => {
               marginTop: '12px',
               marginBottom: '24px'
             }}>
-              <span>{editableText.length} characters</span>
-              <span>Click edit to modify with rich text features</span>
+              <span>{(editorRef.current?.textContent || editableText).replace(/<[^>]*>/g, '').length} characters</span>
+              <span>{isEditing ? 'Select text and use toolbar to format' : 'Click Edit to modify'}</span>
             </div>
           )}
 
