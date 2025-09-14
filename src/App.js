@@ -193,7 +193,6 @@ function AppContent() {
       showMessage('Failed to save transcription or update usage.');
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef]);
-
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
     try {
       abortControllerRef.current = new AbortController();
@@ -384,6 +383,7 @@ function AppContent() {
   const handleUpgradeClick = useCallback(() => {
     showMessage('Upgrade functionality will be implemented soon. Please contact support for now.');
   }, [showMessage]);
+
   if (!currentUser) {
     return (
       <div style={{ 
@@ -442,13 +442,18 @@ function AppContent() {
       </div>
     );
   }
-
   return (
     <Routes>
       {/* Route for individual transcription detail page */}
       <Route path="/transcription/:id" element={<TranscriptionDetail />} />
       
-      {/* Main dashboard route */}
+      {/* Dashboard route - separate from main app */}
+      <Route path="/dashboard" element={<Dashboard />} />
+      
+      {/* Admin dashboard route */}
+      <Route path="/admin" element={isAdmin ? <AdminDashboard /> : <Navigate to="/" />} />
+      
+      {/* Main app route */}
       <Route path="/" element={
         <div style={{ 
           minHeight: '100vh',
@@ -618,6 +623,7 @@ function AppContent() {
               </button>
             )}
           </div>
+
           {/* Show Different Views */}
           {currentView === 'pricing' ? (
             <div style={{ 
@@ -642,7 +648,6 @@ function AppContent() {
               }}>
                 Unlock the full potential of TypeMyworDz with our flexible pricing plans
               </p>
-              
               <div style={{ 
                 display: 'flex', 
                 gap: '30px', 
@@ -853,7 +858,7 @@ function AppContent() {
                     padding: '0',
                     marginBottom: '40px'
                   }}>
-                    <li>✅ 100% Human Transcription-</li>
+                    <li>✅ 100% Human Transcription</li>
                     <li>✅ Proofreading</li>
                     <li>✅ Priority support</li>
                   </ul>
@@ -1150,7 +1155,6 @@ function AppContent() {
                   )}
                 </div>
               )}
-
               {/* Transcription Result */}
               {transcription && (
                 <div style={{
