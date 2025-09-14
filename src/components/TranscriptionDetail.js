@@ -808,6 +808,7 @@ const TranscriptionDetail = () => {
               contentEditable
               suppressContentEditableWarning={true}
               onInput={handleEditorInput}
+              dir="ltr" // Added dir attribute
               style={{
                 width: '100%',
                 minHeight: '400px',
@@ -819,21 +820,22 @@ const TranscriptionDetail = () => {
                 fontFamily: 'system-ui, -apple-system, sans-serif',
                 outline: 'none',
                 backgroundColor: 'white',
-                overflowY: 'auto',
-                direction: 'ltr !important' // Added !important
+                overflowY: 'auto'
               }}
               dangerouslySetInnerHTML={{ __html: editableText }}
             />
           ) : (
-            <div style={{
-              background: '#f9fafb',
-              borderRadius: '8px',
-              padding: '20px',
-              minHeight: '400px',
-              border: '2px solid #e5e7eb',
-              boxSizing: 'border-box',
-              overflowY: 'auto'
-            }}>
+            <div 
+              dir="ltr" // Added dir attribute
+              style={{
+                background: '#f9fafb',
+                borderRadius: '8px',
+                padding: '20px',
+                minHeight: '400px',
+                border: '2px solid #e5e7eb',
+                boxSizing: 'border-box',
+                overflowY: 'auto'
+              }}>
               {editableText ? (
                 <div 
                   style={{
@@ -841,8 +843,7 @@ const TranscriptionDetail = () => {
                     fontSize: '16px',
                     lineHeight: '1.6',
                     fontFamily: 'system-ui, -apple-system, sans-serif',
-                    margin: 0,
-                    direction: 'ltr !important' // Added !important
+                    margin: 0
                   }}
                   dangerouslySetInnerHTML={{ __html: editableText }}
                 />
