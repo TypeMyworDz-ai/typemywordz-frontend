@@ -568,7 +568,7 @@ const TranscriptionDetail = () => {
             </div>
           )}
         </div>
-                {/* Text Editor */}
+        {/* Text Editor */}
         <div style={textEditorContainerStyle}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
             <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1f2937' }}>
@@ -820,7 +820,7 @@ const TranscriptionDetail = () => {
                 outline: 'none',
                 backgroundColor: 'white',
                 overflowY: 'auto',
-                direction: 'ltr' // Added to fix typing direction
+                direction: 'ltr !important' // Added !important
               }}
               dangerouslySetInnerHTML={{ __html: editableText }}
             />
@@ -842,7 +842,7 @@ const TranscriptionDetail = () => {
                     lineHeight: '1.6',
                     fontFamily: 'system-ui, -apple-system, sans-serif',
                     margin: 0,
-                    direction: 'ltr' // Added to fix typing direction
+                    direction: 'ltr !important' // Added !important
                   }}
                   dangerouslySetInnerHTML={{ __html: editableText }}
                 />
