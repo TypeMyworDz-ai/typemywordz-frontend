@@ -63,7 +63,7 @@ function AppContent() {
   const [showLogin, setShowLogin] = useState(true);
   const [currentView, setCurrentView] = useState('transcribe'); // Added 'pricing' as possible view
   const [audioDuration, setAudioDuration] = useState(0);
-  const [isRecording, setIsRecording] = useState(false);
+  const [isRecording, setIsRecording] = useState(0);
   const [recordingTime, setRecordingTime] = useState(0);
   const mediaRecorderRef = useRef(null);
   const recordingIntervalRef = useRef(null);
@@ -967,7 +967,7 @@ function AppContent() {
                     color: '#6c5ce7', 
                     margin: '0 0 15px 0',
                     fontSize: '1.2rem'
-                  }}>&lt;span&gt;🎤 Record Audio&lt;&#x2F;span&gt;
+                  }}>🎤 Record Audio
                   </h3>
                   
                   {isRecording && (
@@ -1027,7 +1027,7 @@ function AppContent() {
                     color: '#6c5ce7', 
                     margin: '0 0 15px 0',
                     fontSize: '1.2rem'
-                  }}>&lt;span&gt;📁 Or Upload Audio/Video File&lt;&#x2F;span&gt;
+                  }}>📁 Or Upload Audio/Video File
                   </h3>
                   
                   <div style={{
@@ -1126,7 +1126,7 @@ function AppContent() {
                         ❌ Cancel Transcribing
                       </button>
                     )}
-                  &lt;/div&gt;
+                  </div>
                 </div>
               </div>
 
