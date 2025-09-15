@@ -102,6 +102,16 @@ const TranscriptionDetail = () => {
     }
   }, []);
 
+  // Manual override for contentEditable direction - last resort
+  useEffect(() => {
+    if (editorRef.current && (isEditing || !isEditing)) { // Apply on mount and when editing state changes
+      editorRef.current.style.setProperty('direction', 'ltr', 'important');
+      editorRef.current.style.setProperty('text-align', 'left', 'important');
+      editorRef.current.setAttribute('dir', 'ltr');
+    }
+  }, [isEditing]);
+
+
   const handleEditorInput = () => {
     if (editorRef.current) {
       setEditableText(editorRef.current.innerHTML);
@@ -804,6 +814,7 @@ const TranscriptionDetail = () => {
           {/* Text Editor Area */}
           {isEditing ? (
             <div
+              key={id + '-editor-' + isEditing} // Added key to force re-render
               ref={editorRef}
               contentEditable
               suppressContentEditableWarning={true}
@@ -820,12 +831,15 @@ const TranscriptionDetail = () => {
                 fontFamily: 'system-ui, -apple-system, sans-serif',
                 outline: 'none',
                 backgroundColor: 'white',
-                overflowY: 'auto'
+                overflowY: 'auto',
+                direction: 'ltr !important', // Inline style with !important
+                textAlign: 'left !important' // Inline style with !important
               }}
               dangerouslySetInnerHTML={{ __html: editableText }}
             />
           ) : (
             <div 
+              key={id + '-display-' + isEditing} // Added key to force re-render
               dir="ltr" // Added dir attribute
               style={{
                 background: '#f9fafb',
@@ -834,7 +848,9 @@ const TranscriptionDetail = () => {
                 minHeight: '400px',
                 border: '2px solid #e5e7eb',
                 boxSizing: 'border-box',
-                overflowY: 'auto'
+                overflowY: 'auto',
+                direction: 'ltr !important', // Inline style with !important
+                textAlign: 'left !important' // Inline style with !important
               }}>
               {editableText ? (
                 <div 
