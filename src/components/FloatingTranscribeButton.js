@@ -1,22 +1,11 @@
 import React from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
-const FloatingTranscribeButton = ({ currentView, setCurrentView }) => {
-  const { currentUser } = useAuth();
-
-  // Don't show the button if:
-  // - User is not logged in
-  // - Already on transcribe view
-  // - On login/landing page
-  // - On Dashboard page
-  if (!currentUser || currentView === 'transcribe' || !currentView) {
-    return null;
-  }
+const FloatingTranscribeButton = () => {
+  const navigate = useNavigate();
 
   const handleClick = () => {
-    if (setCurrentView) {
-      setCurrentView('transcribe');
-    }
+    navigate('/');
   };
 
   return (
