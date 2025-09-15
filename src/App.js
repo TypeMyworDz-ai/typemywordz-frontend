@@ -52,7 +52,7 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   return interval; 
 };
 
-function AppContent() // Corrected: removed extraneous '{' here
+function AppContent() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [jobId, setJobId] = useState(null);
   const [status, setStatus] = useState('idle'); // 'idle', 'processing', 'completed', 'failed'
@@ -63,7 +63,7 @@ function AppContent() // Corrected: removed extraneous '{' here
   const [showLogin, setShowLogin] = useState(true);
   const [currentView, setCurrentView] = useState('transcribe'); // Added 'pricing' as possible view
   const [audioDuration, setAudioDuration] = useState(0);
-  const [isRecording, setIsRecording] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const mediaRecorderRef = useRef(null);
   const recordingIntervalRef = useRef(null);
@@ -448,7 +448,7 @@ function AppContent() // Corrected: removed extraneous '{' here
       <Route path="/transcription/:id" element={<TranscriptionDetail />} />
       
       {/* Dashboard route - separate from main app */}
-      <Route path="/dashboard" element={<Dashboard setCurrentView={setCurrentView} />} /> {/* Passed setCurrentView */}
+      <Route path="/dashboard" element={<Dashboard />} />
       
       {/* Admin dashboard route */}
       <Route path="/admin" element={isAdmin ? <AdminDashboard /> : <Navigate to="/" />} />
@@ -710,8 +710,8 @@ function AppContent() // Corrected: removed extraneous '{' here
                     <li>✅ Basic transcription accuracy</li>
                     <li>✅ Download as TXT/Word</li>
                     <li>✅ 24-hour file storage</li>
-                    <li>✅ No long audio support</li>
-                    <li>✅ No priority processing</li>
+                    <li>❌ No long audio support</li>
+                    <li>❌ No priority processing</li>
                   </ul>
                   <button style={{
                     width: '100%',
@@ -909,8 +909,8 @@ function AppContent() // Corrected: removed extraneous '{' here
           ) : currentView === 'admin' ? (
             <AdminDashboard />
           ) : currentView === 'dashboard' ? (
-            <Dashboard setCurrentView={setCurrentView} /> {/* Passed setCurrentView to Dashboard */}
-          ) :
+            <Dashboard />
+          ) : (
             <main style={{ 
               flex: 1,
               padding: '0 20px 40px',
@@ -1155,7 +1155,6 @@ function AppContent() // Corrected: removed extraneous '{' here
                   )}
                 </div>
               )}
-
               {/* Transcription Result */}
               {transcription && (
                 <div style={{
