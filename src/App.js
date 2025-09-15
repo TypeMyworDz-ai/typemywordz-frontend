@@ -383,7 +383,6 @@ function AppContent() {
   const handleUpgradeClick = useCallback(() => {
     showMessage('Upgrade functionality will be implemented soon. Please contact support for now.');
   }, [showMessage]);
-
   if (!currentUser) {
     return (
       <div style={{ 
@@ -447,8 +446,8 @@ function AppContent() {
       {/* Route for individual transcription detail page */}
       <Route path="/transcription/:id" element={<TranscriptionDetail />} />
       
-      {/* Dashboard route - separate from main app */}
-      <Route path="/dashboard" element={<Dashboard />} />
+      {/* Dashboard route - separate from main app - FIXED: Added setCurrentView prop */}
+      <Route path="/dashboard" element={<Dashboard setCurrentView={setCurrentView} />} />
       
       {/* Admin dashboard route */}
       <Route path="/admin" element={isAdmin ? <AdminDashboard /> : <Navigate to="/" />} />
@@ -647,7 +646,6 @@ function AppContent() {
               }}>
                 Unlock the full potential of TypeMyworDz with our flexible pricing plans
               </p>
-              
               <div style={{ 
                 display: 'flex', 
                 gap: '30px', 
@@ -909,7 +907,7 @@ function AppContent() {
           ) : currentView === 'admin' ? (
             <AdminDashboard />
           ) : currentView === 'dashboard' ? (
-            <Dashboard />
+            <Dashboard setCurrentView={setCurrentView} />
           ) : (
             <main style={{ 
               flex: 1,
@@ -944,7 +942,6 @@ function AppContent() {
                   </button>
                 </div>
               )}
-              
               {/* Record Audio Section */}
               <div style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.95)',
