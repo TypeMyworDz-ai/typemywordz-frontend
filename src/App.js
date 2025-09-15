@@ -8,6 +8,7 @@ import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
 import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile } from './userService';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 
 // Configuration
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
@@ -446,8 +447,13 @@ function AppContent() {
       {/* Route for individual transcription detail page */}
       <Route path="/transcription/:id" element={<TranscriptionDetail />} />
       
-      {/* Dashboard route - separate from main app - FIXED: Added setCurrentView prop */}
-      <Route path="/dashboard" element={<Dashboard setCurrentView={setCurrentView} />} />
+      {/* Dashboard route - separate from main app - FIXED: Added FloatingTranscribeButton */}
+<Route path="/dashboard" element={
+  <>
+    <FloatingTranscribeButton />
+    <Dashboard setCurrentView={setCurrentView} />
+  </>
+} />
       
       {/* Admin dashboard route */}
       <Route path="/admin" element={isAdmin ? <AdminDashboard /> : <Navigate to="/" />} />
