@@ -942,6 +942,7 @@ function AppContent() {
                   </button>
                 </div>
               )}
+              
               {/* Record Audio Section */}
               <div style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.95)',
