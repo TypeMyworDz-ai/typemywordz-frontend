@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { fetchUserTranscriptions, deleteTranscription, updateTranscription } from '../userService';
 import { useNavigate } from 'react-router-dom';
 
-const Dashboard = ({ setCurrentView }) => { // Receive setCurrentView as a prop
+const Dashboard = ({ setCurrentView }) => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [transcriptions, setTranscriptions] = useState([]);
@@ -93,6 +93,18 @@ const Dashboard = ({ setCurrentView }) => { // Receive setCurrentView as a prop
     }
   };
 
+  // FIXED: Handle the "Transcribe New Audio" button click
+  const handleTranscribeNewAudio = useCallback(() => {
+    console.log('Transcribe New Audio clicked', { setCurrentView }); // Debug log
+    
+    if (setCurrentView) {
+      setCurrentView('transcribe');
+    } else {
+      // Fallback: navigate to home page
+      navigate('/');
+    }
+  }, [setCurrentView, navigate]);
+
   const filteredTranscriptions = transcriptions.filter(transcription =>
     transcription.fileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     transcription.text?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -117,7 +129,6 @@ const Dashboard = ({ setCurrentView }) => { // Receive setCurrentView as a prop
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
-
   if (!currentUser) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
@@ -164,6 +175,7 @@ const Dashboard = ({ setCurrentView }) => { // Receive setCurrentView as a prop
       </div>
     );
   }
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
       <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '2rem 1rem' }}>
@@ -174,7 +186,7 @@ const Dashboard = ({ setCurrentView }) => { // Receive setCurrentView as a prop
             <p style={{ color: '#6b7280' }}>Manage and edit your audio transcriptions</p>
           </div>
           <button
-            onClick={() => setCurrentView('transcribe')} // Use setCurrentView to go back to transcribe
+            onClick={handleTranscribeNewAudio}
             style={{
               backgroundColor: '#7c3aed',
               color: 'white',
@@ -186,7 +198,19 @@ const Dashboard = ({ setCurrentView }) => { // Receive setCurrentView as a prop
               fontWeight: '500',
               display: 'flex',
               alignItems: 'center',
-              gap: '0.5rem'
+              gap: '0.5rem',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 2px 4px rgba(124, 58, 237, 0.2)'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = '#6d28d9';
+              e.target.style.transform = 'translateY(-1px)';
+              e.target.style.boxShadow = '0 4px 8px rgba(124, 58, 237, 0.3)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = '#7c3aed';
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = '0 2px 4px rgba(124, 58, 237, 0.2)';
             }}
           >
             <svg style={{ width: '1rem', height: '1rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -242,7 +266,6 @@ const Dashboard = ({ setCurrentView }) => { // Receive setCurrentView as a prop
             </div>
           </div>
         </div>
-
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
           <div style={{ backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1.5rem' }}>
@@ -314,13 +337,12 @@ const Dashboard = ({ setCurrentView }) => { // Receive setCurrentView as a prop
               width: '100%',
               overflow: 'hidden'
             }}>
-              {/* Note: RichTextEditor component is removed from here as per new plan */}
               <textarea
                 value={editingText}
                 onChange={(e) => setEditingText(e.target.value)}
                 style={{
                   width: '100%',
-                  height: 'calc(90vh - 100px)', // Adjust height for modal
+                  height: 'calc(90vh - 100px)',
                   padding: '20px',
                   border: '2px solid #d1d5db',
                   borderRadius: '8px',
@@ -370,13 +392,14 @@ const Dashboard = ({ setCurrentView }) => { // Receive setCurrentView as a prop
             </div>
           </div>
         )}
+
         {/* Transcriptions List */}
         {sortedTranscriptions.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
             <h3 style={{ fontSize: '1.125rem', fontWeight: '500', color: '#111827', marginBottom: '0.5rem' }}>No Transcriptions Yet</h3>
             <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>Start by uploading your first audio file to get transcribed.</p>
             <button 
-              onClick={() => setCurrentView('transcribe')} // Use setCurrentView to go back to transcribe
+              onClick={handleTranscribeNewAudio}
               style={{ 
                 backgroundColor: '#3b82f6', 
                 color: 'white', 
