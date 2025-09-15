@@ -9,7 +9,6 @@ const TranscriptionDetail = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const audioRef = useRef(null);
-  const editorRef = useRef(null); // Ref for the contentEditable div
   
   const [transcription, setTranscription] = useState(state?.transcription || null);
   const [editableText, setEditableText] = useState(transcription?.text || '');
@@ -52,9 +51,6 @@ const TranscriptionDetail = () => {
   useEffect(() => {
     if (transcription) {
       setEditableText(transcription.text || '');
-      if (editorRef.current) {
-        editorRef.current.innerHTML = transcription.text || '';
-      }
     }
   }, [transcription]);
 
@@ -102,22 +98,6 @@ const TranscriptionDetail = () => {
     }
   }, []);
 
-  // Manual override for contentEditable direction - last resort
-  useEffect(() => {
-    if (editorRef.current && (isEditing || !isEditing)) { // Apply on mount and when editing state changes
-      editorRef.current.style.setProperty('direction', 'ltr', 'important');
-      editorRef.current.style.setProperty('text-align', 'left', 'important');
-      editorRef.current.setAttribute('dir', 'ltr');
-    }
-  }, [isEditing]);
-
-
-  const handleEditorInput = () => {
-    if (editorRef.current) {
-      setEditableText(editorRef.current.innerHTML);
-    }
-  };
-
   const handleSave = async () => {
     if (!currentUser?.uid || !transcription) return;
     
@@ -138,9 +118,6 @@ const TranscriptionDetail = () => {
   const handleCancelEdit = () => {
     setIsEditing(false);
     setEditableText(transcription?.text || '');
-    if (editorRef.current) {
-      editorRef.current.innerHTML = transcription?.text || '';
-    }
   };
 
   const handleDelete = async () => {
@@ -156,14 +133,12 @@ const TranscriptionDetail = () => {
   };
 
   const handleCopy = () => {
-    const textToCopy = editorRef.current ? editorRef.current.textContent : editableText;
-    navigator.clipboard.writeText(textToCopy);
+    navigator.clipboard.writeText(editableText);
     alert('Transcription copied to clipboard!');
   };
 
   const handleDownload = (format) => {
-    const textToDownload = editorRef.current ? editorRef.current.textContent : editableText;
-    const blob = new Blob([textToDownload], { 
+    const blob = new Blob([editableText], { 
       type: format === 'word' ? 'application/msword' : 'text/plain' 
     });
     const url = URL.createObjectURL(blob);
@@ -265,33 +240,6 @@ const TranscriptionDetail = () => {
     borderRadius: '12px',
     boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
     padding: '24px'
-  };
-
-  // Function to handle text case transformation
-  const transformCase = (type) => {
-    const selection = window.getSelection();
-    if (selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      const selectedText = range.toString();
-      
-      if (selectedText) {
-        let transformedText;
-        switch (type) {
-          case 'upper':
-            transformedText = selectedText.toUpperCase();
-            break;
-          case 'lower':
-            transformedText = selectedText.toLowerCase();
-            break;
-          default:
-            return;
-        }
-        
-        range.deleteContents();
-        range.insertNode(document.createTextNode(transformedText));
-        handleEditorInput(); // Update state after modification
-      }
-    }
   };
   if (!transcription) {
     return (
@@ -646,179 +594,11 @@ const TranscriptionDetail = () => {
             </div>
           </div>
 
-          {/* Formatting Toolbar - Only show when editing */}
-          {isEditing && (
-            <div style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '8px',
-              padding: '12px',
-              backgroundColor: '#f8f9fa',
-              borderRadius: '8px',
-              marginBottom: '16px',
-              border: '1px solid #e9ecef'
-            }}>
-              {/* Text Formatting */}
-              <button
-                onClick={() => document.execCommand('bold')}
-                style={{
-                  padding: '6px 10px',
-                  border: '1px solid #d1d5db',
-                  backgroundColor: 'white',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 'bold'
-                }}
-                title="Bold"
-              >
-                B
-              </button>
-              
-              <button
-                onClick={() => document.execCommand('italic')}
-                style={{
-                  padding: '6px 10px',
-                  border: '1px solid #d1d5db',
-                  backgroundColor: 'white',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontStyle: 'italic'
-                }}
-                title="Italic"
-              >
-                I
-              </button>
-              
-              <button
-                onClick={() => document.execCommand('underline')}
-                style={{
-                  padding: '6px 10px',
-                  border: '1px solid #d1d5db',
-                  backgroundColor: 'white',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  textDecoration: 'underline'
-                }}
-                title="Underline"
-              >
-                U
-              </button>
-
-              <div style={{ width: '1px', backgroundColor: '#d1d5db', margin: '4px 8px' }}></div>
-
-              {/* Font Size */}
-              <select
-                onChange={(e) => document.execCommand('fontSize', false, e.target.value)}
-                style={{
-                  padding: '4px 8px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  fontSize: '12px',
-                  backgroundColor: 'white',
-                  cursor: 'pointer'
-                }}
-              >
-                <option value="">Size</option>
-                <option value="1">Small</option>
-                <option value="3">Normal</option>
-                <option value="5">Large</option>
-                <option value="7">Extra Large</option>
-              </select>
-
-              {/* Text Color */}
-              <input
-                type="color"
-                onChange={(e) => document.execCommand('foreColor', false, e.target.value)}
-                title="Text Color"
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
-              />
-
-              <div style={{ width: '1px', backgroundColor: '#d1d5db', margin: '4px 8px' }}></div>
-
-              {/* Lists */}
-              <button
-                onClick={() => document.execCommand('insertUnorderedList')}
-                style={{
-                  padding: '6px 10px',
-                  border: '1px solid #d1d5db',
-                  backgroundColor: 'white',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
-                title="Bullet List"
-              >
-                • List
-              </button>
-              
-              <button
-                onClick={() => document.execCommand('insertOrderedList')}
-                style={{
-                  padding: '6px 10px',
-                  border: '1px solid #d1d5db',
-                  backgroundColor: 'white',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
-                title="Numbered List"
-              >
-                1. List
-              </button>
-
-              <div style={{ width: '1px', backgroundColor: '#d1d5db', margin: '4px 8px' }}></div>
-
-              {/* Text Case */}
-              <button
-                onClick={() => transformCase('upper')}
-                style={{
-                  padding: '6px 8px',
-                  border: '1px solid #d1d5db',
-                  backgroundColor: 'white',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '10px',
-                  fontWeight: 'bold'
-                }}
-                title="UPPERCASE"
-              >
-                AA
-              </button>
-              
-              <button
-                onClick={() => transformCase('lower')}
-                style={{
-                  padding: '6px 8px',
-                  border: '1px solid #d1d5db',
-                  backgroundColor: 'white',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '10px'
-                }}
-                title="lowercase"
-              >
-                aa
-              </button>
-            </div>
-          )}
-
           {/* Text Editor Area */}
           {isEditing ? (
-            <div
-              key={id + '-editor-' + isEditing} // Added key to force re-render
-              ref={editorRef}
-              contentEditable
-              suppressContentEditableWarning={true}
-              onInput={handleEditorInput}
+            <textarea
+              value={editableText}
+              onChange={(e) => setEditableText(e.target.value)}
               dir="ltr" // Added dir attribute
               style={{
                 width: '100%',
@@ -831,15 +611,12 @@ const TranscriptionDetail = () => {
                 fontFamily: 'system-ui, -apple-system, sans-serif',
                 outline: 'none',
                 backgroundColor: 'white',
-                overflowY: 'auto',
-                direction: 'ltr !important', // Inline style with !important
-                textAlign: 'left !important' // Inline style with !important
+                overflowY: 'auto'
               }}
-              dangerouslySetInnerHTML={{ __html: editableText }}
+              placeholder="Start typing your transcription here..."
             />
           ) : (
             <div 
-              key={id + '-display-' + isEditing} // Added key to force re-render
               dir="ltr" // Added dir attribute
               style={{
                 background: '#f9fafb',
@@ -848,21 +625,19 @@ const TranscriptionDetail = () => {
                 minHeight: '400px',
                 border: '2px solid #e5e7eb',
                 boxSizing: 'border-box',
-                overflowY: 'auto',
-                direction: 'ltr !important', // Inline style with !important
-                textAlign: 'left !important' // Inline style with !important
+                overflowY: 'auto'
               }}>
               {editableText ? (
-                <div 
+                <p 
                   style={{
                     color: '#1f2937',
                     fontSize: '16px',
                     lineHeight: '1.6',
                     fontFamily: 'system-ui, -apple-system, sans-serif',
                     margin: 0
-                  }}
-                  dangerouslySetInnerHTML={{ __html: editableText }}
-                />
+                  }}>
+                  {editableText}
+                </p>
               ) : (
                 <div style={{
                   height: '100%',
@@ -884,7 +659,7 @@ const TranscriptionDetail = () => {
                       No transcription text available
                     </p>
                     <p style={{ color: '#9ca3af', fontSize: '14px' }}>
-                      Click "Edit" to add and format content
+                      Click "Edit" to add content
                     </p>
                   </div>
                 </div>
@@ -901,8 +676,8 @@ const TranscriptionDetail = () => {
               marginTop: '12px',
               marginBottom: '24px'
             }}>
-              <span>{(editorRef.current?.textContent || editableText).replace(/<[^>]*>/g, '').length} characters</span>
-              <span>{isEditing ? 'Select text and use toolbar to format' : 'Click Edit to modify'}</span>
+              <span>{editableText.length} characters</span>
+              <span>Click Edit to modify</span>
             </div>
           )}
 
