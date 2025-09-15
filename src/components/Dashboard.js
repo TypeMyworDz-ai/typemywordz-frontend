@@ -177,47 +177,66 @@ const Dashboard = ({ setCurrentView }) => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '2rem 1rem' }}>
-        {/* Header */}
-        <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb', position: 'relative' }}>
+      {/* FLOATING TRANSCRIBE BUTTON */}
+      <button
+        onClick={handleTranscribeNewAudio}
+        style={{
+          position: 'fixed',
+          top: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 9999,
+          backgroundColor: '#7c3aed',
+          color: 'white',
+          padding: '12px 24px',
+          borderRadius: '50px',
+          border: 'none',
+          cursor: 'pointer',
+          fontSize: '16px',
+          fontWeight: '600',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          boxShadow: '0 4px 20px rgba(124, 58, 237, 0.4)',
+          transition: 'all 0.3s ease',
+          backdropFilter: 'blur(10px)',
+          animation: 'float 3s ease-in-out infinite'
+        }}
+        onMouseEnter={(e) => {
+          e.target.style.backgroundColor = '#6d28d9';
+          e.target.style.transform = 'translateX(-50%) translateY(-2px)';
+          e.target.style.boxShadow = '0 6px 25px rgba(124, 58, 237, 0.6)';
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.backgroundColor = '#7c3aed';
+          e.target.style.transform = 'translateX(-50%)';
+          e.target.style.boxShadow = '0 4px 20px rgba(124, 58, 237, 0.4)';
+        }}
+      >
+        <svg 
+          style={{ width: '20px', height: '20px' }} 
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            strokeWidth={2} 
+            d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" 
+          />
+        </svg>
+        🎤 New Transcription
+      </button>
+
+      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '5rem 1rem 2rem' }}>
+        {/* Header - REMOVED OLD BUTTON */}
+        <div style={{ marginBottom: '2rem' }}>
           <div>
             <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: '#111827', marginBottom: '0.5rem' }}>Your Transcriptions</h1>
             <p style={{ color: '#6b7280' }}>Manage and edit your audio transcriptions</p>
           </div>
-          <button
-            onClick={handleTranscribeNewAudio}
-            style={{
-              backgroundColor: '#7c3aed',
-              color: 'white',
-              padding: '0.75rem 1.5rem',
-              borderRadius: '0.5rem',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: '500',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              transition: 'all 0.2s ease',
-              boxShadow: '0 2px 4px rgba(124, 58, 237, 0.2)'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.backgroundColor = '#6d28d9';
-              e.target.style.transform = 'translateY(-1px)';
-              e.target.style.boxShadow = '0 4px 8px rgba(124, 58, 237, 0.3)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.backgroundColor = '#7c3aed';
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = '0 2px 4px rgba(124, 58, 237, 0.2)';
-            }}
-          >
-            <svg style={{ width: '1rem', height: '1rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m0 0l4-4m-4 4l4 4" />
-            </svg>
-            Transcribe New Audio
-          </button>
         </div>
 
         {/* Search and Filter */}
@@ -546,6 +565,10 @@ const Dashboard = ({ setCurrentView }) => {
           @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+          }
+          @keyframes float {
+            0%, 100% { transform: translateX(-50%) translateY(0px); }
+            50% { transform: translateX(-50%) translateY(-3px); }
           }
         `}</style>
       </div>
