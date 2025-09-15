@@ -8,6 +8,7 @@ const FloatingTranscribeButton = ({ currentView, setCurrentView }) => {
   // - User is not logged in
   // - Already on transcribe view
   // - On login/landing page
+  // - On Dashboard page
   if (!currentUser || currentView === 'transcribe' || !currentView) {
     return null;
   }
