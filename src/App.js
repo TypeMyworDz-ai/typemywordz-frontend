@@ -448,7 +448,7 @@ function AppContent() {
       <Route path="/transcription/:id" element={<TranscriptionDetail />} />
       
       {/* Dashboard route - separate from main app */}
-      <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/dashboard" element={<Dashboard setCurrentView={setCurrentView} />} /> {/* Passed setCurrentView */}
       
       {/* Admin dashboard route */}
       <Route path="/admin" element={isAdmin ? <AdminDashboard /> : <Navigate to="/" />} />
@@ -710,8 +710,8 @@ function AppContent() {
                     <li>✅ Basic transcription accuracy</li>
                     <li>✅ Download as TXT/Word</li>
                     <li>✅ 24-hour file storage</li>
-                    <li>❌ No long audio support</li>
-                    <li>❌ No priority processing</li>
+                    <li>✅ No long audio support</li>
+                    <li>✅ No priority processing</li>
                   </ul>
                   <button style={{
                     width: '100%',
@@ -909,7 +909,7 @@ function AppContent() {
           ) : currentView === 'admin' ? (
             <AdminDashboard />
           ) : currentView === 'dashboard' ? (
-            <Dashboard />
+            <Dashboard setCurrentView={setCurrentView} /> {/* Passed setCurrentView to Dashboard */}
           ) : (
             <main style={{ 
               flex: 1,
@@ -967,8 +967,7 @@ function AppContent() {
                     color: '#6c5ce7', 
                     margin: '0 0 15px 0',
                     fontSize: '1.2rem'
-                  }}>
-                    🎤 Record Audio
+                  }}>&lt;span&gt;🎤 Record Audio&lt;&#x2F;span&gt;
                   </h3>
                   
                   {isRecording && (
@@ -1028,8 +1027,7 @@ function AppContent() {
                     color: '#6c5ce7', 
                     margin: '0 0 15px 0',
                     fontSize: '1.2rem'
-                  }}>
-                    📁 Or Upload Audio/Video File
+                  }}>&lt;span&gt;📁 Or Upload Audio/Video File&lt;&#x2F;span&gt;
                   </h3>
                   
                   <div style={{
@@ -1128,7 +1126,7 @@ function AppContent() {
                         ❌ Cancel Transcribing
                       </button>
                     )}
-                  </div>
+                  &lt;/div&gt;
                 </div>
               </div>
 
@@ -1155,6 +1153,7 @@ function AppContent() {
                   )}
                 </div>
               )}
+
               {/* Transcription Result */}
               {transcription && (
                 <div style={{
