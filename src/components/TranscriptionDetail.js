@@ -964,8 +964,12 @@ const TranscriptionDetail = () => {
         </div>
       </div>
 
-      {/* Add CSS animation for spin */}
+      {/* Global CSS override for contenteditable elements */}
       <style>{`
+        [contenteditable="true"] {
+          direction: ltr !important;
+          text-align: left !important; /* Ensure text alignment is also left */
+        }
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
