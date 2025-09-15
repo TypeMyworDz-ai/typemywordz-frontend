@@ -2,9 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchUserTranscriptions, deleteTranscription, updateTranscription } from '../userService';
 import { useNavigate } from 'react-router-dom';
-import RichTextEditor from './RichTextEditor';
 
-const Dashboard = () => {
+const Dashboard = ({ setCurrentView }) => { // Receive setCurrentView as a prop
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [transcriptions, setTranscriptions] = useState([]);
@@ -169,9 +168,32 @@ const Dashboard = () => {
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
       <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '2rem 1rem' }}>
         {/* Header */}
-        <div style={{ marginBottom: '2rem' }}>
-          <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: '#111827', marginBottom: '0.5rem' }}>Your Transcriptions</h1>
-          <p style={{ color: '#6b7280' }}>Manage and edit your audio transcriptions</p>
+        <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: '#111827', marginBottom: '0.5rem' }}>Your Transcriptions</h1>
+            <p style={{ color: '#6b7280' }}>Manage and edit your audio transcriptions</p>
+          </div>
+          <button
+            onClick={() => setCurrentView('transcribe')} // Use setCurrentView to go back to transcribe
+            style={{
+              backgroundColor: '#7c3aed',
+              color: 'white',
+              padding: '0.75rem 1.5rem',
+              borderRadius: '0.5rem',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}
+          >
+            <svg style={{ width: '1rem', height: '1rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m0 0l4-4m-4 4l4 4" />
+            </svg>
+            Transcribe New Audio
+          </button>
         </div>
 
         {/* Search and Filter */}
@@ -292,12 +314,59 @@ const Dashboard = () => {
               width: '100%',
               overflow: 'hidden'
             }}>
-              <RichTextEditor
-                initialText={editingText}
-                onSave={handleSaveEdit}
-                onCancel={handleCancelEdit}
-                isSaving={isSaving}
+              {/* Note: RichTextEditor component is removed from here as per new plan */}
+              <textarea
+                value={editingText}
+                onChange={(e) => setEditingText(e.target.value)}
+                style={{
+                  width: '100%',
+                  height: 'calc(90vh - 100px)', // Adjust height for modal
+                  padding: '20px',
+                  border: '2px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontSize: '16px',
+                  lineHeight: '1.6',
+                  fontFamily: 'system-ui, -apple-system, sans-serif',
+                  outline: 'none',
+                  backgroundColor: 'white',
+                  overflowY: 'auto',
+                  resize: 'vertical'
+                }}
               />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '10px', gap: '10px' }}>
+                <button
+                  onClick={() => handleSaveEdit(editingText)}
+                  disabled={isSaving}
+                  style={{
+                    backgroundColor: '#10b981',
+                    color: 'white',
+                    padding: '10px 20px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    opacity: isSaving ? 0.7 : 1
+                  }}
+                >
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  style={{
+                    backgroundColor: '#6b7280',
+                    color: 'white',
+                    padding: '10px 20px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500'
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -307,7 +376,7 @@ const Dashboard = () => {
             <h3 style={{ fontSize: '1.125rem', fontWeight: '500', color: '#111827', marginBottom: '0.5rem' }}>No Transcriptions Yet</h3>
             <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>Start by uploading your first audio file to get transcribed.</p>
             <button 
-              onClick={() => navigate('/')}
+              onClick={() => setCurrentView('transcribe')} // Use setCurrentView to go back to transcribe
               style={{ 
                 backgroundColor: '#3b82f6', 
                 color: 'white', 
@@ -437,10 +506,7 @@ const Dashboard = () => {
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.75rem', color: '#6b7280' }}>
-                      <svg style={{ width: '0.75rem', height: '0.75rem', marginRight: '0.25rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                      Click to edit with rich text editor
+                      Click to edit
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#3b82f6', fontWeight: '500' }}>
                       Open →
