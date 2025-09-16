@@ -52,7 +52,6 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   }, intervalTime);
   return interval; 
 };
-
 function AppContent() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [jobId, setJobId] = useState(null);
@@ -82,6 +81,8 @@ function AppContent() {
 
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
+  
+  // UPDATED: Enhanced reset function with auto-clear functionality
   const resetTranscriptionProcessUI = useCallback(() => { 
     setSelectedFile(null);
     setJobId(null);
@@ -100,10 +101,13 @@ function AppContent() {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    // Clear any file input values
+    const fileInputs = document.querySelectorAll('input[type="file"]');
+    fileInputs.forEach(input => input.value = '');
   }, []);
-
+  // UPDATED: Auto-clear when selecting new file
   const handleFileSelect = useCallback((event) => {
-    resetTranscriptionProcessUI(); 
+    resetTranscriptionProcessUI(); // Auto-clear previous content
     const file = event.target.files[0];
     setSelectedFile(file);
     
@@ -123,8 +127,9 @@ function AppContent() {
     }
   }, [resetTranscriptionProcessUI]);
 
+  // UPDATED: Auto-clear when starting new recording
   const startRecording = useCallback(async () => {
-    resetTranscriptionProcessUI(); 
+    resetTranscriptionProcessUI(); // Auto-clear previous content
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorderRef.current = new MediaRecorder(stream);
@@ -145,6 +150,13 @@ function AppContent() {
           audioPlayerRef.current.src = URL.createObjectURL(file);
           audioPlayerRef.current.load();
         }
+        
+        // Auto-start transcription after recording stops
+        setTimeout(() => {
+          if (!isUploading && userProfile && !profileLoading) {
+            handleUpload();
+          }
+        }, 500);
       };
 
       mediaRecorderRef.current.start();
@@ -157,7 +169,7 @@ function AppContent() {
     } catch (error) {
       showMessage('Could not access microphone: ' + error.message);
     }
-  }, [resetTranscriptionProcessUI, showMessage]);
+  }, [resetTranscriptionProcessUI, showMessage, isUploading, userProfile, profileLoading]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -174,7 +186,6 @@ function AppContent() {
     resetTranscriptionProcessUI();
     showMessage("Upload / Transcription cancelled.");
   }, [resetTranscriptionProcessUI, showMessage]);
-
   const handleTranscriptionComplete = useCallback(async (transcriptionText) => {
     try {
       const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
@@ -194,6 +205,7 @@ function AppContent() {
       showMessage('Failed to save transcription or update usage.');
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef]);
+
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
     try {
       abortControllerRef.current = new AbortController();
@@ -312,7 +324,6 @@ function AppContent() {
       abortControllerRef.current = null;
     }
   }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile, profileLoading]);
-
   useEffect(() => {
     if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
       // Only trigger handleUpload when profile is fully loaded
@@ -448,12 +459,12 @@ function AppContent() {
       <Route path="/transcription/:id" element={<TranscriptionDetail />} />
       
       {/* Dashboard route - separate from main app - FIXED: Added FloatingTranscribeButton */}
-<Route path="/dashboard" element={
-  <>
-    <FloatingTranscribeButton />
-    <Dashboard setCurrentView={setCurrentView} />
-  </>
-} />
+      <Route path="/dashboard" element={
+        <>
+          <FloatingTranscribeButton />
+          <Dashboard setCurrentView={setCurrentView} />
+        </>
+      } />
       
       {/* Admin dashboard route */}
       <Route path="/admin" element={isAdmin ? <AdminDashboard /> : <Navigate to="/" />} />
@@ -539,7 +550,6 @@ function AppContent() {
               </div>
             </header>
           )}
-
           {/* Profile Loading Indicator */}
           {profileLoading && (
             <div style={{
@@ -628,6 +638,7 @@ function AppContent() {
               </button>
             )}
           </div>
+
           {/* Show Different Views */}
           {currentView === 'pricing' ? (
             <div style={{ 
