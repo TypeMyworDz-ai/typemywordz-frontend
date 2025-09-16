@@ -82,9 +82,8 @@ function AppContent() {
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
   
-  // UPDATED: Enhanced reset function with auto-clear functionality
+  // FIXED: Enhanced reset function that doesn't interfere with file selection
   const resetTranscriptionProcessUI = useCallback(() => { 
-    setSelectedFile(null);
     setJobId(null);
     setStatus('idle'); 
     setTranscription('');
@@ -101,14 +100,27 @@ function AppContent() {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    // Clear any file input values
-    const fileInputs = document.querySelectorAll('input[type="file"]');
-    fileInputs.forEach(input => input.value = '');
   }, []);
-  // UPDATED: Auto-clear when selecting new file
+  // FIXED: File selection that doesn't clear the file input prematurely
   const handleFileSelect = useCallback((event) => {
-    resetTranscriptionProcessUI(); // Auto-clear previous content
     const file = event.target.files[0];
+    
+    // Only proceed if a file was actually selected
+    if (!file) {
+      return;
+    }
+    
+    // Clear other content but preserve the file selection
+    setJobId(null);
+    setStatus('idle'); 
+    setTranscription('');
+    setAudioDuration(0);
+    setIsUploading(false);
+    setUploadProgress(0);
+    setTranscriptionProgress(0); 
+    recordedAudioBlobRef.current = null;
+    
+    // Set the new file
     setSelectedFile(file);
     
     if (file && (file.type.startsWith('audio/') || file.type.startsWith('video/'))) { 
@@ -125,11 +137,13 @@ function AppContent() {
       };
       audio.src = URL.createObjectURL(file);
     }
-  }, [resetTranscriptionProcessUI]);
+  }, []);
 
   // UPDATED: Auto-clear when starting new recording
   const startRecording = useCallback(async () => {
     resetTranscriptionProcessUI(); // Auto-clear previous content
+    setSelectedFile(null); // Clear any selected file
+    
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorderRef.current = new MediaRecorder(stream);
@@ -550,6 +564,7 @@ function AppContent() {
               </div>
             </header>
           )}
+
           {/* Profile Loading Indicator */}
           {profileLoading && (
             <div style={{
@@ -638,7 +653,6 @@ function AppContent() {
               </button>
             )}
           </div>
-
           {/* Show Different Views */}
           {currentView === 'pricing' ? (
             <div style={{ 
