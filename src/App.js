@@ -234,7 +234,7 @@ function AppContent() {
         // Show compression preview
         try {
           const originalSize = file.size / (1024 * 1024); // MB
-          showMessage(`File loaded: ${originalSize.toFixed(2)} MB. Compression will be applied automatically for optimal transcription.`);
+          showMessage(`File loaded: ${originalSize.toFixed(2)} MB. Server will compress for optimal transcription.`);
         } catch (error) {
           console.error('Error getting file info:', error);
         }
@@ -276,25 +276,36 @@ function AppContent() {
       };
 
       mediaRecorderRef.current.onstop = async () => {
-        const originalBlob = new Blob(chunks, { type: mimeType });
-        
-        try {
-          // Compress the recorded audio
-          showMessage('Compressing recorded audio...');
-          const compressedBlob = await compressAudioToMP3(originalBlob, 64);
-          
-          const originalSize = originalBlob.size;
-          const compressedSize = compressedBlob.size;
-          const compressionResult = getCompressionRatio(originalSize, compressedSize);
-          
-          setCompressionStats({
-            originalSize: (originalSize / (1024 * 1024)).toFixed(2),
-            compressedSize: (compressedSize / (1024 * 1024)).toFixed(2),
-            ratio: compressionResult.ratio,
-            isCompressed: compressionResult.isCompressed
-          });
-          
-          recordedAudioBlobRef.current = compressedBlob;
+  const originalBlob = new Blob(chunks, { type: mimeType });
+  
+  // Skip frontend compression, let backend handle it
+  recordedAudioBlobRef.current = originalBlob;
+  
+  // Determine file extension
+  let extension = 'wav';
+  if (mimeType.includes('webm')) {
+    extension = 'webm';
+  }
+  
+  const file = new File([originalBlob], `recording-${Date.now()}.${extension}`, { type: mimeType });
+  setSelectedFile(file);
+  stream.getTracks().forEach(track => track.stop());
+
+  if (audioPlayerRef.current) {
+    audioPlayerRef.current.src = URL.createObjectURL(file);
+    audioPlayerRef.current.load();
+  }
+  
+  const originalSize = originalBlob.size / (1024 * 1024);
+  showMessage(`Recording saved: ${originalSize.toFixed(2)} MB - server will compress for transcription`);
+  
+  // Auto-start transcription after recording stops
+  setTimeout(() => {
+    if (!isUploading && userProfile && !profileLoading) {
+      handleUpload();
+    }
+  }, 1000);
+};
           
           // Determine file extension
           let extension = 'wav';
