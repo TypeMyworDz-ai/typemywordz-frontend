@@ -52,6 +52,7 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   }, intervalTime);
   return interval; 
 };
+
 function AppContent() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [jobId, setJobId] = useState(null);
@@ -65,6 +66,7 @@ function AppContent() {
   const [audioDuration, setAudioDuration] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [downloadFormat, setDownloadFormat] = useState('mp3'); // NEW: Format selection state
   const mediaRecorderRef = useRef(null);
   const recordingIntervalRef = useRef(null);
   const audioPlayerRef = useRef(null); 
@@ -81,7 +83,6 @@ function AppContent() {
 
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
-  
   // FIXED: Enhanced reset function that doesn't interfere with file selection
   const resetTranscriptionProcessUI = useCallback(() => { 
     setJobId(null);
@@ -139,6 +140,7 @@ function AppContent() {
       audio.src = URL.createObjectURL(file);
     }
   }, []);
+
   // UPDATED: Auto-clear when starting new recording with MP3 support
   const startRecording = useCallback(async () => {
     resetTranscriptionProcessUI(); // Auto-clear previous content
@@ -267,18 +269,19 @@ function AppContent() {
     URL.revokeObjectURL(url);
   }, [transcription]);
 
+  // UPDATED: Download with format selection
   const downloadRecordedAudio = useCallback(() => { 
     if (recordedAudioBlobRef.current) {
       const url = URL.createObjectURL(recordedAudioBlobRef.current);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `recording-${Date.now()}.wav`;
+      a.download = `recording-${Date.now()}.${downloadFormat}`; // Use selected format
       a.click();
       URL.revokeObjectURL(url);
     } else {
       showMessage('No recorded audio available to download.');
     }
-  }, [showMessage]);
+  }, [showMessage, downloadFormat]); // Add downloadFormat to dependencies
 
   const handleLogout = useCallback(async () => {
     try {
@@ -430,6 +433,7 @@ function AppContent() {
       return () => clearTimeout(timer);
     }
   }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile, profileLoading]);
+
   if (!currentUser) {
     return (
       <div style={{ 
@@ -488,7 +492,6 @@ function AppContent() {
       </div>
     );
   }
-
   return (
     <Routes>
       {/* Route for individual transcription detail page */}
@@ -586,6 +589,7 @@ function AppContent() {
               </div>
             </header>
           )}
+
           {/* Profile Loading Indicator */}
           {profileLoading && (
             <div style={{
@@ -674,8 +678,7 @@ function AppContent() {
               </button>
             )}
           </div>
-
-          {/* Show Different Views */}
+          {/* Show Different Views - Pricing Section */}
           {currentView === 'pricing' ? (
             <div style={{ 
               padding: '40px 20px', 
@@ -1050,24 +1053,48 @@ function AppContent() {
                     {isRecording ? '⏹️ Stop Recording' : '🎤 Start Recording'}
                   </button>
 
-                  {/* Download Recorded Audio Button */}
+                  {/* Format Selection and Download Recorded Audio */}
                   {recordedAudioBlobRef.current && !isRecording && (
-                    <button
-                      onClick={downloadRecordedAudio}
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: '#007bff',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '5px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        marginTop: '15px',
-                        marginLeft: '10px'
-                      }}
-                    >
-                      📥 Download Recording
-                    </button>
+                    <div style={{ marginTop: '15px' }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        gap: '10px',
+                        marginBottom: '10px'
+                      }}>
+                        <label htmlFor="downloadFormat" style={{ color: '#6c5ce7', fontWeight: 'bold' }}>
+                          Download Format:
+                        </label>
+                        <select
+                          id="downloadFormat"
+                          value={downloadFormat}
+                          onChange={(e) => setDownloadFormat(e.target.value)}
+                          style={{
+                            padding: '5px 10px',
+                            borderRadius: '5px',
+                            border: '1px solid #6c5ce7'
+                          }}
+                        >
+                          <option value="mp3">MP3 (Default)</option>
+                          <option value="wav">WAV</option>
+                        </select>
+                      </div>
+                      <button
+                        onClick={downloadRecordedAudio}
+                        style={{
+                          padding: '10px 20px',
+                          backgroundColor: '#007bff',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '5px',
+                          cursor: 'pointer',
+                          fontSize: '14px'
+                        }}
+                      >
+                        📥 Download Recording ({downloadFormat.toUpperCase()})
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -1181,7 +1208,6 @@ function AppContent() {
                   </div>
                 </div>
               </div>
-
               {/* Status Section */}
               {status && (status === 'completed' || status === 'failed') && (
                 <div style={{
