@@ -92,9 +92,19 @@ const audioBufferToWav = (samples, sampleRate) => {
   return buffer;
 };
 
+// FIXED: Compression ratio calculation
 const getCompressionRatio = (originalSize, compressedSize) => {
-  return ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
+  if (compressedSize >= originalSize) {
+    // File got larger or stayed same - show as expansion
+    const expansionRatio = ((compressedSize - originalSize) / originalSize * 100).toFixed(1);
+    return { ratio: expansionRatio, isCompressed: false };
+  } else {
+    // File got smaller - show as compression
+    const compressionRatio = ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
+    return { ratio: compressionRatio, isCompressed: true };
+  }
 };
+
 // Message Modal Component
 const MessageModal = ({ message, onClose }) => {
   if (!message) return null;
@@ -134,7 +144,6 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   }, intervalTime);
   return interval; 
 };
-
 function AppContent() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [jobId, setJobId] = useState(null);
@@ -166,6 +175,7 @@ function AppContent() {
 
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
+  
   // Enhanced reset function that doesn't interfere with file selection
   const resetTranscriptionProcessUI = useCallback(() => { 
     setJobId(null);
@@ -233,7 +243,6 @@ function AppContent() {
       audio.src = URL.createObjectURL(file);
     }
   }, [showMessage]);
-
   // Enhanced recording with compression
   const startRecording = useCallback(async () => {
     resetTranscriptionProcessUI();
@@ -274,14 +283,15 @@ function AppContent() {
           showMessage('Compressing recorded audio...');
           const compressedBlob = await compressAudioToMP3(originalBlob, 64);
           
-          const originalSize = originalBlob.size / (1024 * 1024);
-          const compressedSize = compressedBlob.size / (1024 * 1024);
-          const ratio = getCompressionRatio(originalBlob.size, compressedBlob.size);
+          const originalSize = originalBlob.size;
+          const compressedSize = compressedBlob.size;
+          const compressionResult = getCompressionRatio(originalSize, compressedSize);
           
           setCompressionStats({
-            originalSize: originalSize.toFixed(2),
-            compressedSize: compressedSize.toFixed(2),
-            ratio: ratio
+            originalSize: (originalSize / (1024 * 1024)).toFixed(2),
+            compressedSize: (compressedSize / (1024 * 1024)).toFixed(2),
+            ratio: compressionResult.ratio,
+            isCompressed: compressionResult.isCompressed
           });
           
           recordedAudioBlobRef.current = compressedBlob;
@@ -301,7 +311,11 @@ function AppContent() {
             audioPlayerRef.current.load();
           }
           
-          showMessage(`Recording compressed: ${originalSize.toFixed(2)} MB → ${compressedSize.toFixed(2)} MB (${ratio}% reduction)`);
+          if (compressionResult.isCompressed) {
+            showMessage(`Recording compressed: ${(originalSize / (1024 * 1024)).toFixed(2)} MB → ${(compressedSize / (1024 * 1024)).toFixed(2)} MB (${compressionResult.ratio}% reduction)`);
+          } else {
+            showMessage(`Recording processed: ${(originalSize / (1024 * 1024)).toFixed(2)} MB → ${(compressedSize / (1024 * 1024)).toFixed(2)} MB (${compressionResult.ratio}% larger - already optimized format)`);
+          }
           
           // Auto-start transcription after recording stops
           setTimeout(() => {
@@ -339,6 +353,7 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
+
   const handleCancelUpload = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -463,12 +478,13 @@ function AppContent() {
         setTranscriptionProgress(100);
         setStatus('completed'); 
         
-        // Display compression stats if available
+        // FIXED: Display compression stats from backend
         if (result.compression_stats) {
           setCompressionStats({
             originalSize: result.compression_stats.original_size_mb,
             compressedSize: result.compression_stats.compressed_size_mb,
-            ratio: result.compression_stats.compression_ratio_percent
+            ratio: result.compression_stats.compression_ratio_percent,
+            isCompressed: result.compression_stats.is_compressed
           });
         }
         
@@ -748,6 +764,7 @@ function AppContent() {
               </div>
             </header>
           )}
+
           {/* Profile Loading Indicator */}
           {profileLoading && (
             <div style={{
@@ -763,22 +780,25 @@ function AppContent() {
             </div>
           )}
 
-          {/* Compression Stats Display */}
+          {/* FIXED: Compression Stats Display */}
           {compressionStats && (
             <div style={{
               textAlign: 'center',
               padding: '15px',
-              backgroundColor: 'rgba(212, 237, 218, 0.9)',
+              backgroundColor: compressionStats.isCompressed ? 'rgba(212, 237, 218, 0.9)' : 'rgba(255, 243, 205, 0.9)',
               margin: '20px',
               borderRadius: '10px',
-              color: '#155724'
+              color: compressionStats.isCompressed ? '#155724' : '#856404'
             }}>
               <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
-                🗜️ Audio Compression Applied
+                {compressionStats.isCompressed ? '🗜️ Audio Compression Applied' : '⚠️ File Size Increased'}
               </div>
               <div style={{ fontSize: '14px' }}>
-                Original: {compressionStats.originalSize} MB → Compressed: {compressionStats.compressedSize} MB 
-                ({compressionStats.ratio}% reduction)
+                Original: {compressionStats.originalSize} MB → Processed: {compressionStats.compressedSize} MB 
+                ({compressionStats.isCompressed ? 
+                  `${compressionStats.ratio}% smaller` : 
+                  `${compressionStats.ratio}% larger`
+                })
               </div>
             </div>
           )}
