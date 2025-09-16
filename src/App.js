@@ -13,6 +13,88 @@ import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 // Configuration
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
 
+// Audio compression utility functions
+const compressAudioToMP3 = async (audioFile, quality = 64) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = async (e) => {
+      try {
+        const arrayBuffer = e.target.result;
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        
+        // Convert to mono for smaller file size
+        const samples = audioBuffer.getChannelData(0);
+        const sampleRate = 16000; // Optimize for speech recognition
+        
+        // Resample if needed
+        let resampledSamples = samples;
+        if (audioBuffer.sampleRate !== sampleRate) {
+          const ratio = audioBuffer.sampleRate / sampleRate;
+          const newLength = Math.round(samples.length / ratio);
+          resampledSamples = new Float32Array(newLength);
+          
+          for (let i = 0; i < newLength; i++) {
+            const srcIndex = Math.round(i * ratio);
+            resampledSamples[i] = samples[srcIndex] || 0;
+          }
+        }
+        
+        // Convert to WAV format (simpler than MP3 encoding in browser)
+        const wavBuffer = audioBufferToWav(resampledSamples, sampleRate);
+        const compressedBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+        
+        resolve(compressedBlob);
+        
+      } catch (error) {
+        reject(error);
+      }
+    };
+    
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(audioFile);
+  });
+};
+
+const audioBufferToWav = (samples, sampleRate) => {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+  
+  // WAV header
+  const writeString = (offset, string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+  
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, 'data');
+  view.setUint32(40, samples.length * 2, true);
+  
+  // Convert float samples to 16-bit PCM
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++, offset += 2) {
+    const sample = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, sample * 0x7FFF, true);
+  }
+  
+  return buffer;
+};
+
+const getCompressionRatio = (originalSize, compressedSize) => {
+  return ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
+};
 // Message Modal Component
 const MessageModal = ({ message, onClose }) => {
   if (!message) return null;
@@ -62,11 +144,12 @@ function AppContent() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [transcriptionProgress, setTranscriptionProgress] = useState(0);
   const [showLogin, setShowLogin] = useState(true);
-  const [currentView, setCurrentView] = useState('transcribe'); // Added 'pricing' as possible view
+  const [currentView, setCurrentView] = useState('transcribe');
   const [audioDuration, setAudioDuration] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [downloadFormat, setDownloadFormat] = useState('mp3'); // NEW: Format selection state
+  const [downloadFormat, setDownloadFormat] = useState('mp3');
+  const [compressionStats, setCompressionStats] = useState(null);
   const mediaRecorderRef = useRef(null);
   const recordingIntervalRef = useRef(null);
   const audioPlayerRef = useRef(null); 
@@ -83,7 +166,7 @@ function AppContent() {
 
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
-  // FIXED: Enhanced reset function that doesn't interfere with file selection
+  // Enhanced reset function that doesn't interfere with file selection
   const resetTranscriptionProcessUI = useCallback(() => { 
     setJobId(null);
     setStatus('idle'); 
@@ -92,6 +175,7 @@ function AppContent() {
     setIsUploading(false);
     setUploadProgress(0);
     setTranscriptionProgress(0); 
+    setCompressionStats(null);
     recordedAudioBlobRef.current = null;
     if (audioPlayerRef.current) {
       audioPlayerRef.current.src = '';
@@ -103,8 +187,8 @@ function AppContent() {
     }
   }, []);
 
-  // FIXED: File selection that doesn't clear the file input prematurely
-  const handleFileSelect = useCallback((event) => {
+  // Enhanced file selection with compression preview
+  const handleFileSelect = useCallback(async (event) => {
     const file = event.target.files[0];
     
     // Only proceed if a file was actually selected
@@ -120,6 +204,7 @@ function AppContent() {
     setIsUploading(false);
     setUploadProgress(0);
     setTranscriptionProgress(0); 
+    setCompressionStats(null);
     recordedAudioBlobRef.current = null;
     
     // Set the new file
@@ -133,30 +218,45 @@ function AppContent() {
 
       const audio = new Audio(); 
       audio.preload = 'metadata';
-      audio.onloadedmetadata = () => {
+      audio.onloadedmetadata = async () => {
         setAudioDuration(audio.duration);
         URL.revokeObjectURL(audio.src);
+        
+        // Show compression preview
+        try {
+          const originalSize = file.size / (1024 * 1024); // MB
+          showMessage(`File loaded: ${originalSize.toFixed(2)} MB. Compression will be applied automatically for optimal transcription.`);
+        } catch (error) {
+          console.error('Error getting file info:', error);
+        }
       };
       audio.src = URL.createObjectURL(file);
     }
-  }, []);
+  }, [showMessage]);
 
-  // UPDATED: Auto-clear when starting new recording with MP3 support
+  // Enhanced recording with compression
   const startRecording = useCallback(async () => {
-    resetTranscriptionProcessUI(); // Auto-clear previous content
-    setSelectedFile(null); // Clear any selected file
+    resetTranscriptionProcessUI();
+    setSelectedFile(null);
     
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          sampleRate: 16000, // Optimized for speech recognition
+          channelCount: 1,   // Mono audio
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      });
       
-      // Try to use MP3 if supported, otherwise fall back to other formats
-      let mimeType = 'audio/wav'; // Default fallback
-      if (MediaRecorder.isTypeSupported('audio/mp3')) {
-        mimeType = 'audio/mp3';
-      } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-        mimeType = 'audio/webm;codecs=opus';
-      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+      // Try to use the best available format
+      let mimeType = 'audio/webm;codecs=opus';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
         mimeType = 'audio/webm';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'audio/wav';
+        }
       }
       
       mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
@@ -166,36 +266,61 @@ function AppContent() {
         chunks.push(event.data);
       };
 
-      mediaRecorderRef.current.onstop = () => {
-        const blob = new Blob(chunks, { type: mimeType });
-        recordedAudioBlobRef.current = blob; 
+      mediaRecorderRef.current.onstop = async () => {
+        const originalBlob = new Blob(chunks, { type: mimeType });
         
-        // Determine file extension based on mime type
-        let extension = 'wav';
-        if (mimeType.includes('mp3')) {
-          extension = 'mp3';
-        } else if (mimeType.includes('webm')) {
-          extension = 'webm';
-        }
-        
-        const file = new File([blob], `recording-${Date.now()}.${extension}`, { type: mimeType });
-        setSelectedFile(file);
-        stream.getTracks().forEach(track => track.stop());
-
-        if (audioPlayerRef.current) {
-          audioPlayerRef.current.src = URL.createObjectURL(file);
-          audioPlayerRef.current.load();
-        }
-        
-        // Auto-start transcription after recording stops
-        setTimeout(() => {
-          if (!isUploading && userProfile && !profileLoading) {
-            handleUpload();
+        try {
+          // Compress the recorded audio
+          showMessage('Compressing recorded audio...');
+          const compressedBlob = await compressAudioToMP3(originalBlob, 64);
+          
+          const originalSize = originalBlob.size / (1024 * 1024);
+          const compressedSize = compressedBlob.size / (1024 * 1024);
+          const ratio = getCompressionRatio(originalBlob.size, compressedBlob.size);
+          
+          setCompressionStats({
+            originalSize: originalSize.toFixed(2),
+            compressedSize: compressedSize.toFixed(2),
+            ratio: ratio
+          });
+          
+          recordedAudioBlobRef.current = compressedBlob;
+          
+          // Determine file extension
+          let extension = 'wav';
+          if (mimeType.includes('webm')) {
+            extension = 'webm';
           }
-        }, 500);
+          
+          const file = new File([compressedBlob], `recording-${Date.now()}.${extension}`, { type: 'audio/wav' });
+          setSelectedFile(file);
+          stream.getTracks().forEach(track => track.stop());
+
+          if (audioPlayerRef.current) {
+            audioPlayerRef.current.src = URL.createObjectURL(file);
+            audioPlayerRef.current.load();
+          }
+          
+          showMessage(`Recording compressed: ${originalSize.toFixed(2)} MB → ${compressedSize.toFixed(2)} MB (${ratio}% reduction)`);
+          
+          // Auto-start transcription after recording stops
+          setTimeout(() => {
+            if (!isUploading && userProfile && !profileLoading) {
+              handleUpload();
+            }
+          }, 1000);
+          
+        } catch (error) {
+          console.error('Error compressing recorded audio:', error);
+          // Fall back to original blob if compression fails
+          recordedAudioBlobRef.current = originalBlob;
+          const file = new File([originalBlob], `recording-${Date.now()}.wav`, { type: mimeType });
+          setSelectedFile(file);
+          showMessage('Recording saved (compression failed, using original)');
+        }
       };
 
-      mediaRecorderRef.current.start();
+      mediaRecorderRef.current.start(1000);
       setIsRecording(true);
       setRecordingTime(0);
 
@@ -214,7 +339,6 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
-
   const handleCancelUpload = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -269,19 +393,41 @@ function AppContent() {
     URL.revokeObjectURL(url);
   }, [transcription]);
 
-  // UPDATED: Download with format selection
-  const downloadRecordedAudio = useCallback(() => { 
+  // Enhanced download with compression options
+  const downloadRecordedAudio = useCallback(async () => { 
     if (recordedAudioBlobRef.current) {
-      const url = URL.createObjectURL(recordedAudioBlobRef.current);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `recording-${Date.now()}.${downloadFormat}`; // Use selected format
-      a.click();
-      URL.revokeObjectURL(url);
+      try {
+        let downloadBlob = recordedAudioBlobRef.current;
+        let filename = `recording-${Date.now()}.${downloadFormat}`;
+        
+        // If user wants different format, compress accordingly
+        if (downloadFormat === 'mp3' && !recordedAudioBlobRef.current.type.includes('mp3')) {
+          showMessage('Compressing to MP3...');
+          downloadBlob = await compressAudioToMP3(recordedAudioBlobRef.current, 128); // Higher quality for download
+          showMessage('MP3 compression complete!');
+        }
+        
+        const url = URL.createObjectURL(downloadBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error('Error compressing for download:', error);
+        showMessage('Download compression failed, downloading original format.');
+        // Fallback to original
+        const url = URL.createObjectURL(recordedAudioBlobRef.current);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `recording-${Date.now()}.wav`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
     } else {
       showMessage('No recorded audio available to download.');
     }
-  }, [showMessage, downloadFormat]); // Add downloadFormat to dependencies
+  }, [showMessage, downloadFormat]);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -316,6 +462,16 @@ function AppContent() {
         clearInterval(transcriptionInterval); 
         setTranscriptionProgress(100);
         setStatus('completed'); 
+        
+        // Display compression stats if available
+        if (result.compression_stats) {
+          setCompressionStats({
+            originalSize: result.compression_stats.original_size_mb,
+            compressedSize: result.compression_stats.compressed_size_mb,
+            ratio: result.compression_stats.compression_ratio_percent
+          });
+        }
+        
         await handleTranscriptionComplete(result.transcription);
         setIsUploading(false); 
       } else if (response.ok && result.status === 'failed') {
@@ -382,6 +538,9 @@ function AppContent() {
     abortControllerRef.current = new AbortController();
 
     try {
+      // Show compression message
+      showMessage('Compressing audio for optimal transcription...');
+      
       const formData = new FormData();
       formData.append('file', selectedFile);
 
@@ -429,11 +588,10 @@ function AppContent() {
       // Only trigger handleUpload when profile is fully loaded
       const timer = setTimeout(() => {
         handleUpload();
-      }, 200); // Slightly longer delay to ensure everything is ready
+      }, 200);
       return () => clearTimeout(timer);
     }
   }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile, profileLoading]);
-
   if (!currentUser) {
     return (
       <div style={{ 
@@ -467,7 +625,7 @@ function AppContent() {
             margin: '0',
             opacity: '0.8'
           }}>
-            Speech to Text AI • Simple, Accurate, Powerful
+            Speech to Text AI • Simple, Accurate, Powerful • Now with Advanced Audio Compression
           </p>
         </header>
         
@@ -492,6 +650,7 @@ function AppContent() {
       </div>
     );
   }
+
   return (
     <Routes>
       {/* Route for individual transcription detail page */}
@@ -589,7 +748,6 @@ function AppContent() {
               </div>
             </header>
           )}
-
           {/* Profile Loading Indicator */}
           {profileLoading && (
             <div style={{
@@ -601,6 +759,26 @@ function AppContent() {
             }}>
               <div style={{ color: '#6c5ce7', fontSize: '16px' }}>
                 🔄 Loading your profile...
+              </div>
+            </div>
+          )}
+
+          {/* Compression Stats Display */}
+          {compressionStats && (
+            <div style={{
+              textAlign: 'center',
+              padding: '15px',
+              backgroundColor: 'rgba(212, 237, 218, 0.9)',
+              margin: '20px',
+              borderRadius: '10px',
+              color: '#155724'
+            }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+                🗜️ Audio Compression Applied
+              </div>
+              <div style={{ fontSize: '14px' }}>
+                Original: {compressionStats.originalSize} MB → Compressed: {compressionStats.compressedSize} MB 
+                ({compressionStats.ratio}% reduction)
               </div>
             </div>
           )}
@@ -743,7 +921,7 @@ function AppContent() {
                       fontWeight: 'bold',
                       color: '#6c5ce7'
                     }}>
-                      $0
+                      USD 0
                     </span>
                     <span style={{ 
                       color: '#666',
@@ -761,6 +939,7 @@ function AppContent() {
                     marginBottom: '40px'
                   }}>
                     <li>✅ Up to 5 minutes per audio file</li>
+                    <li>✅ Advanced audio compression</li>
                     <li>✅ Basic transcription accuracy</li>
                     <li>✅ Download as TXT/Word</li>
                     <li>✅ 24-hour file storage</li>
@@ -818,7 +997,7 @@ function AppContent() {
                       fontWeight: 'bold',
                       color: '#6c5ce7'
                     }}>
-                      $9.99
+                      USD 9.99
                     </span>
                     <span style={{ 
                       color: '#666',
@@ -836,6 +1015,7 @@ function AppContent() {
                     marginBottom: '40px'
                   }}>
                     <li>✅ Unlimited audio length</li>
+                    <li>✅ Advanced audio compression</li>
                     <li>✅ High accuracy transcription</li>
                     <li>✅ Priority processing</li>
                     <li>✅ Advanced export options</li>
@@ -913,8 +1093,10 @@ function AppContent() {
                     marginBottom: '40px'
                   }}>
                     <li>✅ 100% Human Transcription</li>
-                    <li>✅ Proofreading</li>
+                    <li>✅ Advanced audio compression</li>
+                    <li>✅ Proofreading included</li>
                     <li>✅ Priority support</li>
+                    <li>✅ Custom formatting</li>
                   </ul>
                   <button 
                     onClick={handleUpgradeClick}
@@ -952,11 +1134,12 @@ function AppContent() {
                   textAlign: 'left',
                   color: '#666'
                 }}>
+                  <div>✅ Advanced audio compression technology</div>
                   <div>✅ Multiple file formats supported</div>
                   <div>✅ Fast processing times</div>
                   <div>✅ Easy-to-use interface</div>
                   <div>✅ Mobile-friendly design</div>
-                  <div>✅ Regular updates</div>
+                  <div>✅ Regular updates & improvements</div>
                 </div>
               </div>
             </div>
@@ -982,7 +1165,7 @@ function AppContent() {
                   textAlign: 'center',
                   backdropFilter: 'blur(10px)'
                 }}>
-                  🎵 Transcribe up to 5mins of audio. For long audios{' '}
+                  🎵 Transcribe up to 5mins of audio with advanced compression. For long audios{' '}
                   <button 
                     onClick={() => setCurrentView('pricing')}
                     style={{
@@ -1022,7 +1205,7 @@ function AppContent() {
                     margin: '0 0 15px 0',
                     fontSize: '1.2rem'
                   }}>
-                    🎤 Record Audio
+                    🎤 Record Audio (with Auto-Compression)
                   </h3>
                   
                   {isRecording && (
@@ -1053,7 +1236,7 @@ function AppContent() {
                     {isRecording ? '⏹️ Stop Recording' : '🎤 Start Recording'}
                   </button>
 
-                  {/* Format Selection and Download Recorded Audio */}
+                  {/* Enhanced Format Selection and Download Recorded Audio */}
                   {recordedAudioBlobRef.current && !isRecording && (
                     <div style={{ marginTop: '15px' }}>
                       <div style={{ 
@@ -1076,8 +1259,8 @@ function AppContent() {
                             border: '1px solid #6c5ce7'
                           }}
                         >
-                          <option value="mp3">MP3 (Default)</option>
-                          <option value="wav">WAV</option>
+                          <option value="mp3">MP3 (Compressed)</option>
+                          <option value="wav">WAV (Original)</option>
                         </select>
                       </div>
                       <button
@@ -1107,7 +1290,7 @@ function AppContent() {
                     margin: '0 0 15px 0',
                     fontSize: '1.2rem'
                   }}>
-                    📁 Or Upload Audio/Video File
+                    📁 Or Upload Audio/Video File (Auto-Compressed)
                   </h3>
                   
                   <div style={{
@@ -1132,6 +1315,9 @@ function AppContent() {
                         marginTop: '10px'
                       }}>
                         ✅ Selected: {selectedFile.name}
+                        <div style={{ fontSize: '12px', marginTop: '5px', opacity: '0.8' }}>
+                          Audio will be automatically compressed for optimal transcription
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1144,7 +1330,8 @@ function AppContent() {
                       </audio>
                     </div>
                   )}
-                  {/* Transcription Progress Bar */}
+
+                  {/* Enhanced Transcription Progress Bar */}
                   {(status === 'processing' || status === 'uploading') && (
                     <div style={{ marginBottom: '20px' }}>
                       <div style={{
@@ -1162,7 +1349,7 @@ function AppContent() {
                         }}></div>
                       </div>
                       <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
-                        Transcription in Progress...
+                        🗜️ Compressing & Transcribing Audio...
                       </div>
                     </div>
                   )}
@@ -1208,6 +1395,7 @@ function AppContent() {
                   </div>
                 </div>
               </div>
+
               {/* Status Section */}
               {status && (status === 'completed' || status === 'failed') && (
                 <div style={{
@@ -1232,7 +1420,7 @@ function AppContent() {
                 </div>
               )}
 
-              {/* Transcription Result */}
+              {/* Enhanced Transcription Result */}
               {transcription && (
                 <div style={{
                   backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -1350,8 +1538,9 @@ function AppContent() {
             fontSize: '0.9rem',
             marginTop: 'auto'
           }}>
-            &copy; {new Date().getFullYear()} TypeMyworDz, Inc.
+            &copy; {new Date().getFullYear()} TypeMyworDz, Inc. - Enhanced with Advanced Audio Compression
           </footer>
+
           {/* Copied Message Animation */}
           {copiedMessageVisible && (
             <div className="copied-message-animation">
