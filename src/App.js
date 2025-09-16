@@ -101,6 +101,7 @@ function AppContent() {
       abortControllerRef.current = null;
     }
   }, []);
+
   // FIXED: File selection that doesn't clear the file input prematurely
   const handleFileSelect = useCallback((event) => {
     const file = event.target.files[0];
@@ -138,15 +139,25 @@ function AppContent() {
       audio.src = URL.createObjectURL(file);
     }
   }, []);
-
-  // UPDATED: Auto-clear when starting new recording
+  // UPDATED: Auto-clear when starting new recording with MP3 support
   const startRecording = useCallback(async () => {
     resetTranscriptionProcessUI(); // Auto-clear previous content
     setSelectedFile(null); // Clear any selected file
     
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
+      
+      // Try to use MP3 if supported, otherwise fall back to other formats
+      let mimeType = 'audio/wav'; // Default fallback
+      if (MediaRecorder.isTypeSupported('audio/mp3')) {
+        mimeType = 'audio/mp3';
+      } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        mimeType = 'audio/webm';
+      }
+      
+      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
       const chunks = [];
 
       mediaRecorderRef.current.ondataavailable = (event) => {
@@ -154,9 +165,18 @@ function AppContent() {
       };
 
       mediaRecorderRef.current.onstop = () => {
-        const blob = new Blob(chunks, { type: 'audio/wav' });
+        const blob = new Blob(chunks, { type: mimeType });
         recordedAudioBlobRef.current = blob; 
-        const file = new File([blob], `recording-${Date.now()}.wav`, { type: 'audio/wav' });
+        
+        // Determine file extension based on mime type
+        let extension = 'wav';
+        if (mimeType.includes('mp3')) {
+          extension = 'mp3';
+        } else if (mimeType.includes('webm')) {
+          extension = 'webm';
+        }
+        
+        const file = new File([blob], `recording-${Date.now()}.${extension}`, { type: mimeType });
         setSelectedFile(file);
         stream.getTracks().forEach(track => track.stop());
 
@@ -200,6 +220,7 @@ function AppContent() {
     resetTranscriptionProcessUI();
     showMessage("Upload / Transcription cancelled.");
   }, [resetTranscriptionProcessUI, showMessage]);
+
   const handleTranscriptionComplete = useCallback(async (transcriptionText) => {
     try {
       const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
@@ -220,6 +241,67 @@ function AppContent() {
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef]);
 
+  const copyToClipboard = useCallback(() => { 
+    navigator.clipboard.writeText(transcription);
+    setCopiedMessageVisible(true);
+    setTimeout(() => setCopiedMessageVisible(false), 2000);
+  }, [transcription]);
+
+  const downloadAsWord = useCallback(() => { 
+    const blob = new Blob([transcription], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'transcription.doc';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [transcription]);
+
+  const downloadAsTXT = useCallback(() => { 
+    const blob = new Blob([transcription], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'transcription.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [transcription]);
+
+  const downloadRecordedAudio = useCallback(() => { 
+    if (recordedAudioBlobRef.current) {
+      const url = URL.createObjectURL(recordedAudioBlobRef.current);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `recording-${Date.now()}.wav`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      showMessage('No recorded audio available to download.');
+    }
+  }, [showMessage]);
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await logout();
+    } catch (error) {
+      showMessage('Failed to log out');
+    }
+  }, [logout, showMessage]);
+
+  const createMissingProfile = useCallback(async () => {
+    try {
+      await createUserProfile(currentUser.uid, currentUser.email);
+      showMessage('Profile created successfully! Refreshing page...');
+      window.location.reload();
+    } catch (error) {
+      console.error('Error creating profile:', error);
+      showMessage('Error creating profile: ' + error.message);
+    }
+  }, [currentUser?.uid, currentUser?.email, showMessage]);
+
+  const handleUpgradeClick = useCallback(() => {
+    showMessage('Upgrade functionality will be implemented soon. Please contact support for now.');
+  }, [showMessage]);
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
     try {
       abortControllerRef.current = new AbortController();
@@ -338,6 +420,7 @@ function AppContent() {
       abortControllerRef.current = null;
     }
   }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile, profileLoading]);
+
   useEffect(() => {
     if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
       // Only trigger handleUpload when profile is fully loaded
@@ -347,68 +430,6 @@ function AppContent() {
       return () => clearTimeout(timer);
     }
   }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile, profileLoading]);
-
-  const copyToClipboard = useCallback(() => { 
-    navigator.clipboard.writeText(transcription);
-    setCopiedMessageVisible(true);
-    setTimeout(() => setCopiedMessageVisible(false), 2000);
-  }, [transcription]);
-
-  const downloadAsWord = useCallback(() => { 
-    const blob = new Blob([transcription], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'transcription.doc';
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [transcription]);
-
-  const downloadAsTXT = useCallback(() => { 
-    const blob = new Blob([transcription], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'transcription.txt';
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [transcription]);
-
-  const downloadRecordedAudio = useCallback(() => { 
-    if (recordedAudioBlobRef.current) {
-      const url = URL.createObjectURL(recordedAudioBlobRef.current);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `recording-${Date.now()}.wav`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } else {
-      showMessage('No recorded audio available to download.');
-    }
-  }, [showMessage]);
-
-  const handleLogout = useCallback(async () => {
-    try {
-      await logout();
-    } catch (error) {
-      showMessage('Failed to log out');
-    }
-  }, [logout, showMessage]);
-
-  const createMissingProfile = useCallback(async () => {
-    try {
-      await createUserProfile(currentUser.uid, currentUser.email);
-      showMessage('Profile created successfully! Refreshing page...');
-      window.location.reload();
-    } catch (error) {
-      console.error('Error creating profile:', error);
-      showMessage('Error creating profile: ' + error.message);
-    }
-  }, [currentUser?.uid, currentUser?.email, showMessage]);
-
-  const handleUpgradeClick = useCallback(() => {
-    showMessage('Upgrade functionality will be implemented soon. Please contact support for now.');
-  }, [showMessage]);
   if (!currentUser) {
     return (
       <div style={{ 
@@ -467,6 +488,7 @@ function AppContent() {
       </div>
     );
   }
+
   return (
     <Routes>
       {/* Route for individual transcription detail page */}
@@ -564,7 +586,6 @@ function AppContent() {
               </div>
             </header>
           )}
-
           {/* Profile Loading Indicator */}
           {profileLoading && (
             <div style={{
@@ -653,6 +674,7 @@ function AppContent() {
               </button>
             )}
           </div>
+
           {/* Show Different Views */}
           {currentView === 'pricing' ? (
             <div style={{ 
@@ -1070,7 +1092,7 @@ function AppContent() {
                   }}>
                     <input
                       type="file"
-                      accept="audio/*,video/*"
+                      accept="audio/mp3,audio/mpeg,audio/*,video/*"
                       onChange={handleFileSelect}
                       style={{ marginBottom: '10px' }}
                     />
@@ -1095,7 +1117,6 @@ function AppContent() {
                       </audio>
                     </div>
                   )}
-                  
                   {/* Transcription Progress Bar */}
                   {(status === 'processing' || status === 'uploading') && (
                     <div style={{ marginBottom: '20px' }}>
@@ -1184,6 +1205,7 @@ function AppContent() {
                   )}
                 </div>
               )}
+
               {/* Transcription Result */}
               {transcription && (
                 <div style={{
