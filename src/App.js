@@ -147,7 +147,7 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
 function AppContent() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [jobId, setJobId] = useState(null);
-  const [status, setStatus] = useState('idle'); // 'idle', 'processing', 'completed', 'failed'
+  const [status, setStatus] = useState('idle');
   const [transcription, setTranscription] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -231,7 +231,7 @@ function AppContent() {
         setAudioDuration(audio.duration);
         URL.revokeObjectURL(audio.src);
         
-        // Show compression preview
+        // Show file info
         try {
           const originalSize = file.size / (1024 * 1024); // MB
           showMessage(`File loaded: ${originalSize.toFixed(2)} MB. Server will compress for optimal transcription.`);
@@ -243,7 +243,7 @@ function AppContent() {
     }
   }, [showMessage]);
 
-  // Enhanced recording with compression
+  // FIXED: Enhanced recording without frontend compression
   const startRecording = useCallback(async () => {
     resetTranscriptionProcessUI();
     setSelectedFile(null);
@@ -276,73 +276,35 @@ function AppContent() {
       };
 
       mediaRecorderRef.current.onstop = async () => {
-  const originalBlob = new Blob(chunks, { type: mimeType });
-  
-  // Skip frontend compression, let backend handle it
-  recordedAudioBlobRef.current = originalBlob;
-  
-  // Determine file extension
-  let extension = 'wav';
-  if (mimeType.includes('webm')) {
-    extension = 'webm';
-  }
-  
-  const file = new File([originalBlob], `recording-${Date.now()}.${extension}`, { type: mimeType });
-  setSelectedFile(file);
-  stream.getTracks().forEach(track => track.stop());
-
-  if (audioPlayerRef.current) {
-    audioPlayerRef.current.src = URL.createObjectURL(file);
-    audioPlayerRef.current.load();
-  }
-  
-  const originalSize = originalBlob.size / (1024 * 1024);
-  showMessage(`Recording saved: ${originalSize.toFixed(2)} MB - server will compress for transcription`);
-  
-  // Auto-start transcription after recording stops
-  setTimeout(() => {
-    if (!isUploading && userProfile && !profileLoading) {
-      handleUpload();
-    }
-  }, 1000);
-};
-          
-          // Determine file extension
-          let extension = 'wav';
-          if (mimeType.includes('webm')) {
-            extension = 'webm';
-          }
-          
-          const file = new File([compressedBlob], `recording-${Date.now()}.${extension}`, { type: 'audio/wav' });
-          setSelectedFile(file);
-          stream.getTracks().forEach(track => track.stop());
-
-          if (audioPlayerRef.current) {
-            audioPlayerRef.current.src = URL.createObjectURL(file);
-            audioPlayerRef.current.load();
-          }
-          
-          if (compressionResult.isCompressed) {
-            showMessage(`Recording compressed: ${(originalSize / (1024 * 1024)).toFixed(2)} MB → ${(compressedSize / (1024 * 1024)).toFixed(2)} MB (${compressionResult.ratio}% reduction)`);
-          } else {
-            showMessage(`Recording processed: ${(originalSize / (1024 * 1024)).toFixed(2)} MB → ${(compressedSize / (1024 * 1024)).toFixed(2)} MB (${compressionResult.ratio}% larger - already optimized format)`);
-          }
-          
-          // Auto-start transcription after recording stops
-          setTimeout(() => {
-            if (!isUploading && userProfile && !profileLoading) {
-              handleUpload();
-            }
-          }, 1000);
-          
-        } catch (error) {
-          console.error('Error compressing recorded audio:', error);
-          // Fall back to original blob if compression fails
-          recordedAudioBlobRef.current = originalBlob;
-          const file = new File([originalBlob], `recording-${Date.now()}.wav`, { type: mimeType });
-          setSelectedFile(file);
-          showMessage('Recording saved (compression failed, using original)');
+        const originalBlob = new Blob(chunks, { type: mimeType });
+        
+        // Skip frontend compression, let backend handle it
+        recordedAudioBlobRef.current = originalBlob;
+        
+        // Determine file extension
+        let extension = 'wav';
+        if (mimeType.includes('webm')) {
+          extension = 'webm';
         }
+        
+        const file = new File([originalBlob], `recording-${Date.now()}.${extension}`, { type: mimeType });
+        setSelectedFile(file);
+        stream.getTracks().forEach(track => track.stop());
+
+        if (audioPlayerRef.current) {
+          audioPlayerRef.current.src = URL.createObjectURL(file);
+          audioPlayerRef.current.load();
+        }
+        
+        const originalSize = originalBlob.size / (1024 * 1024);
+        showMessage(`Recording saved: ${originalSize.toFixed(2)} MB - server will compress for transcription`);
+        
+        // Auto-start transcription after recording stops
+        setTimeout(() => {
+          if (!isUploading && userProfile && !profileLoading) {
+            handleUpload();
+          }
+        }, 1000);
       };
 
       mediaRecorderRef.current.start(1000);
@@ -566,7 +528,7 @@ function AppContent() {
 
     try {
       // Show compression message
-      showMessage('Compressing audio for optimal transcription...');
+      showMessage('Server will compress audio for optimal transcription...');
       
       const formData = new FormData();
       formData.append('file', selectedFile);
@@ -991,7 +953,6 @@ function AppContent() {
                     Current Plan
                   </button>
                 </div>
-
                 {/* Pro Plan */}
                 <div style={{
                   backgroundColor: 'white',
@@ -1147,7 +1108,6 @@ function AppContent() {
                   </button>
                 </div>
               </div>
-
               <div style={{
                 marginTop: '60px',
                 padding: '30px',
@@ -1212,7 +1172,6 @@ function AppContent() {
                   </button>
                 </div>
               )}
-              
               {/* Record Audio Section */}
               <div style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -1311,7 +1270,6 @@ function AppContent() {
                     </div>
                   )}
                 </div>
-
                 <div style={{
                   borderTop: '2px solid #e9ecef',
                   paddingTop: '30px'
@@ -1426,7 +1384,6 @@ function AppContent() {
                   </div>
                 </div>
               </div>
-
               {/* Status Section */}
               {status && (status === 'completed' || status === 'failed') && (
                 <div style={{
