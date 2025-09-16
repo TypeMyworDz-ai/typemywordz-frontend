@@ -91,7 +91,6 @@ const audioBufferToWav = (samples, sampleRate) => {
   
   return buffer;
 };
-
 // FIXED: Compression ratio calculation
 const getCompressionRatio = (originalSize, compressedSize) => {
   if (compressedSize >= originalSize) {
@@ -144,6 +143,7 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   }, intervalTime);
   return interval; 
 };
+
 function AppContent() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [jobId, setJobId] = useState(null);
@@ -175,7 +175,6 @@ function AppContent() {
 
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
-  
   // Enhanced reset function that doesn't interfere with file selection
   const resetTranscriptionProcessUI = useCallback(() => { 
     setJobId(null);
@@ -243,6 +242,7 @@ function AppContent() {
       audio.src = URL.createObjectURL(file);
     }
   }, [showMessage]);
+
   // Enhanced recording with compression
   const startRecording = useCallback(async () => {
     resetTranscriptionProcessUI();
@@ -353,7 +353,6 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
-
   const handleCancelUpload = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -478,13 +477,14 @@ function AppContent() {
         setTranscriptionProgress(100);
         setStatus('completed'); 
         
-        // FIXED: Display compression stats from backend
+        // FIXED: Display compression stats from backend with correct wording
         if (result.compression_stats) {
+          const stats = result.compression_stats;
           setCompressionStats({
-            originalSize: result.compression_stats.original_size_mb,
-            compressedSize: result.compression_stats.compressed_size_mb,
-            ratio: result.compression_stats.compression_ratio_percent,
-            isCompressed: result.compression_stats.is_compressed
+            originalSize: stats.original_size_mb,
+            compressedSize: stats.compressed_size_mb,
+            ratio: Math.abs(stats.compression_ratio_percent),
+            isCompressed: stats.compressed_size_mb < stats.original_size_mb
           });
         }
         
@@ -780,7 +780,7 @@ function AppContent() {
             </div>
           )}
 
-          {/* FIXED: Compression Stats Display */}
+          {/* FIXED: Compression Stats Display with Correct Wording */}
           {compressionStats && (
             <div style={{
               textAlign: 'center',
@@ -791,18 +791,17 @@ function AppContent() {
               color: compressionStats.isCompressed ? '#155724' : '#856404'
             }}>
               <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
-                {compressionStats.isCompressed ? '🗜️ Audio Compression Applied' : '⚠️ File Size Increased'}
+                {compressionStats.isCompressed ? '✅ File Size Reduced' : '⚠️ File Size Increased'}
               </div>
               <div style={{ fontSize: '14px' }}>
                 Original: {compressionStats.originalSize} MB → Processed: {compressionStats.compressedSize} MB 
                 ({compressionStats.isCompressed ? 
-                  `${compressionStats.ratio}% smaller` : 
+                  `${compressionStats.ratio}% reduction` : 
                   `${compressionStats.ratio}% larger`
                 })
               </div>
             </div>
           )}
-
           {/* Navigation Tabs */}
           <div style={{ 
             textAlign: 'center', 
@@ -876,6 +875,7 @@ function AppContent() {
               </button>
             )}
           </div>
+
           {/* Show Different Views - Pricing Section */}
           {currentView === 'pricing' ? (
             <div style={{ 
