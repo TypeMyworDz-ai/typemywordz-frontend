@@ -104,22 +104,57 @@ const getCompressionRatio = (originalSize, compressedSize) => {
     return { ratio: compressionRatio, isCompressed: true };
   }
 };
-
-// Message Modal Component
+// FIXED: Enhanced Message Modal Component with auto-fade after 10 seconds
 const MessageModal = ({ message, onClose }) => {
+  const [isVisible, setIsVisible] = useState(true);
+  
+  useEffect(() => {
+    if (message) {
+      setIsVisible(true);
+      // Auto-close after 10 seconds
+      const timer = setTimeout(() => {
+        setIsVisible(false);
+        // Wait for fade animation to complete before closing
+        setTimeout(onClose, 300);
+      }, 10000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [message, onClose]);
+  
   if (!message) return null;
   
   return (
-    <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
-      <div className="bg-white p-8 rounded-xl shadow-2xl text-center max-w-sm w-full transform transition-all duration-300 scale-100">
+    <div 
+      className={`fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50 transition-opacity duration-300 ${
+        isVisible ? 'opacity-100' : 'opacity-0'
+      }`}
+    >
+      <div className={`bg-white p-8 rounded-xl shadow-2xl text-center max-w-sm w-full transform transition-all duration-300 ${
+        isVisible ? 'scale-100' : 'scale-95'
+      }`}>
         <h3 className="text-xl font-bold mb-4 text-purple-600">Notification</h3>
         <p className="text-gray-700 mb-6">{message}</p>
         <button
-          onClick={onClose}
+          onClick={() => {
+            setIsVisible(false);
+            setTimeout(onClose, 300);
+          }}
           className="bg-purple-600 text-white px-6 py-2 rounded-full font-bold shadow-lg hover:bg-purple-700 transition-colors duration-200"
         >
           OK
         </button>
+        
+        {/* Auto-close progress bar */}
+        <div className="mt-4">
+          <div className="w-full bg-gray-200 rounded-full h-1">
+            <div 
+              className="bg-purple-600 h-1 rounded-full transition-all duration-[10000ms] ease-linear"
+              style={{ width: isVisible ? '0%' : '100%' }}
+            ></div>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">Auto-closes in 10 seconds</p>
+        </div>
       </div>
     </div>
   );
@@ -188,23 +223,28 @@ function AppContent() {
     setCompressionStats(null);
     
     // FIXED: Clear recorded audio reference
-    recordedAudioBlobRef.current = null;
+    if (recordedAudioBlobRef.current) {
+      recordedAudioBlobRef.current = null;
+    }
     
     // FIXED: Clear audio player completely
     if (audioPlayerRef.current) {
       audioPlayerRef.current.pause();
-      audioPlayerRef.current.src = '';
-      audioPlayerRef.current.load();
-      // Clear any object URLs to prevent memory leaks
+      // Revoke existing blob URL before clearing
       if (audioPlayerRef.current.src && audioPlayerRef.current.src.startsWith('blob:')) {
         URL.revokeObjectURL(audioPlayerRef.current.src);
       }
+      audioPlayerRef.current.src = '';
+      audioPlayerRef.current.load();
     }
     
+    // FIXED: Abort any ongoing requests
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+
+    console.log('All transcription state cleared');
   }, []);
 
   // FIXED: Enhanced file selection that properly resets previous content
@@ -248,16 +288,42 @@ function AppContent() {
       audio.src = newAudioUrl;
     }
   }, [showMessage, resetTranscriptionProcessUI]);
-  // FIXED: Enhanced recording that properly clears previous state
+  // FIXED: Enhanced recording that properly clears previous state and prevents conflicts
   const startRecording = useCallback(async () => {
-    // FIXED: Clear ALL previous state including selected files
+    // FIXED: Forcefully stop any ongoing transcription first
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      console.log('Aborted ongoing transcription before starting new recording.');
+    }
+
+    // FIXED: Clear ALL previous state including selected files and audio blobs
     resetTranscriptionProcessUI();
-    setSelectedFile(null);
+    setSelectedFile(null); // Ensure selected file input is also cleared
     
-    // Clear file input
+    // FIXED: Explicitly clear the recorded audio blob reference BEFORE starting new recording
+    if (recordedAudioBlobRef.current) {
+      URL.revokeObjectURL(recordedAudioBlobRef.current); // Revoke old blob URL
+      recordedAudioBlobRef.current = null;
+      console.log('Cleared previous recorded audio blob reference.');
+    }
+    
+    // Clear file input element directly
     const fileInput = document.querySelector('input[type="file"]');
     if (fileInput) {
       fileInput.value = '';
+      console.log('Cleared file input element.');
+    }
+    
+    // FIXED: Clear any existing audio player source
+    if (audioPlayerRef.current) {
+      if (audioPlayerRef.current.src && audioPlayerRef.current.src.startsWith('blob:')) {
+        URL.revokeObjectURL(audioPlayerRef.current.src);
+      }
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current.src = '';
+      audioPlayerRef.current.load();
+      console.log('Cleared audio player source.');
     }
     
     try {
@@ -280,99 +346,171 @@ function AppContent() {
         }
       }
       
-      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
+      // FIXED: Create a fresh chunks array for each recording
       const chunks = [];
+      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
+      console.log('MediaRecorder initialized with mimeType:', mimeType);
 
       mediaRecorderRef.current.ondataavailable = (event) => {
-        chunks.push(event.data);
+        if (event.data && event.data.size > 0) {
+          chunks.push(event.data);
+        }
       };
 
       mediaRecorderRef.current.onstop = async () => {
+        console.log('MediaRecorder stopped. Chunks collected:', chunks.length);
+        // FIXED: Only process if we actually have chunks and we're not in the middle of another recording
+        if (chunks.length === 0) {
+          console.warn('No audio data recorded, stopping onstop callback.');
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+
         const originalBlob = new Blob(chunks, { type: mimeType });
         
-        // FIXED: Clear any previous recorded audio first
-        if (recordedAudioBlobRef.current) {
-          recordedAudioBlobRef.current = null;
-        }
-        
-        recordedAudioBlobRef.current = originalBlob;
-        
-        // Determine file extension
-        let extension = 'wav';
-        if (mimeType.includes('webm')) {
-          extension = 'webm';
-        }
-        
-        const file = new File([originalBlob], `recording-${Date.now()}.${extension}`, { type: mimeType });
-        setSelectedFile(file);
-        stream.getTracks().forEach(track => track.stop());
-
-        if (audioPlayerRef.current) {
-          // Clear previous audio first
-          if (audioPlayerRef.current.src && audioPlayerRef.current.src.startsWith('blob:')) {
-            URL.revokeObjectURL(audioPlayerRef.current.src);
+        // FIXED: Double-check that we're not overwriting a newer recording
+        if (!isRecording) { // isRecording should be false by this point from stopRecording
+          recordedAudioBlobRef.current = originalBlob;
+          console.log('Recorded audio blob stored.');
+          
+          // Determine file extension
+          let extension = 'wav';
+          if (mimeType.includes('webm')) {
+            extension = 'webm';
           }
-          audioPlayerRef.current.src = URL.createObjectURL(file);
-          audioPlayerRef.current.load();
-        }
-        
-        const originalSize = originalBlob.size / (1024 * 1024);
-        showMessage(`Recording saved: ${originalSize.toFixed(2)} MB - server will compress for transcription`);
-        
-        // Don't auto-start transcription for free users
-        if (userProfile?.plan === 'business') {
-          setTimeout(() => {
-            if (!isUploading && userProfile && !profileLoading) {
-              handleUpload();
+          
+          const timestamp = Date.now();
+          const file = new File([originalBlob], `recording-${timestamp}.${extension}`, { type: mimeType });
+          setSelectedFile(file);
+          console.log('Selected file set:', file.name);
+          
+          // FIXED: Create fresh audio URL for the new recording
+          const newAudioUrl = URL.createObjectURL(file);
+          if (audioPlayerRef.current) {
+            if (audioPlayerRef.current.src && audioPlayerRef.current.src.startsWith('blob:')) {
+              URL.revokeObjectURL(audioPlayerRef.current.src); // Revoke old if somehow still there
             }
-          }, 1000);
+            audioPlayerRef.current.src = newAudioUrl;
+            audioPlayerRef.current.load();
+            console.log('Audio player updated with new recording.');
+          }
+          
+          const originalSize = originalBlob.size / (1024 * 1024);
+          showMessage(`New recording saved: ${originalSize.toFixed(2)} MB - server will compress for transcription`);
+          
+          // FIXED: Only auto-start transcription for business users and only if not currently processing
+          if (userProfile?.plan === 'business' && status === 'idle' && !isUploading) {
+            console.log('Business user, auto-starting transcription in 1.5 seconds...');
+            setTimeout(() => {
+              // Double-check conditions before starting upload to prevent race conditions
+              if (!isUploading && !profileLoading && status === 'idle') {
+                handleUpload();
+              } else {
+                console.log('Auto-upload conditions not met after delay. isUploading:', isUploading, 'profileLoading:', profileLoading, 'status:', status);
+              }
+            }, 1500); // Slightly longer delay to ensure state is stable
+          } else {
+            console.log('Not auto-starting transcription. User plan:', userProfile?.plan, 'status:', status, 'isUploading:', isUploading);
+          }
+        } else {
+          console.warn('Recording stopped, but isRecording state was still true. Possible race condition averted.');
         }
+        
+        // Clean up stream
+        stream.getTracks().forEach(track => track.stop());
+        console.log('Media stream tracks stopped.');
       };
 
-      mediaRecorderRef.current.start(1000);
+      mediaRecorderRef.current.onerror = (event) => {
+        console.error('MediaRecorder error:', event.error);
+        showMessage('Recording error: ' + event.error.name + ': ' + event.error.message);
+        setIsRecording(false);
+        if (recordingIntervalRef.current) {
+          clearInterval(recordingIntervalRef.current);
+          recordingIntervalRef.current = null;
+        }
+        stream.getTracks().forEach(track => track.stop());
+        console.log('MediaRecorder error handler executed.');
+      };
+
+      // FIXED: Clear any existing recording interval before starting new one
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = null;
+        console.log('Cleared previous recording interval.');
+      }
+
+      mediaRecorderRef.current.start(1000); // Start recording, collect data every second
       setIsRecording(true);
       setRecordingTime(0);
 
       recordingIntervalRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
+      console.log('Started new recording interval.');
+
+      showMessage('Started new recording...');
+      
     } catch (error) {
       showMessage('Could not access microphone: ' + error.message);
+      setIsRecording(false);
+      console.error('Error starting recording:', error);
     }
-  }, [resetTranscriptionProcessUI, showMessage, isUploading, userProfile, profileLoading]);
+  }, [resetTranscriptionProcessUI, showMessage, isUploading, userProfile, profileLoading, status, isRecording, handleUpload]);
 
+  // FIXED: Enhanced stop recording function
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
+      console.log('Stopping current recording...');
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-      clearInterval(recordingIntervalRef.current);
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = null;
+        console.log('Cleared recording interval on stop.');
+      }
+    } else {
+      console.log('stopRecording called but no active recording or mediaRecorder.current is null.');
     }
   }, [isRecording]);
-
   const handleCancelUpload = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      console.log('Aborted active upload/transcription request.');
     }
     resetTranscriptionProcessUI();
     showMessage("Upload / Transcription cancelled.");
+    console.log('handleCancelUpload executed.');
   }, [resetTranscriptionProcessUI, showMessage]);
 
   const handleTranscriptionComplete = useCallback(async (transcriptionText) => {
     try {
-      const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
+      const estimatedDuration = audioDuration || (selectedFile ? selectedFile.size / 100000 : 60); // Fallback if audioDuration is 0
       
       await updateUserUsage(currentUser.uid, estimatedDuration);
       const audioUrl = selectedFile ? URL.createObjectURL(selectedFile) : (recordedAudioBlobRef.current ? URL.createObjectURL(recordedAudioBlobRef.current) : null);
+      
+      // IMPORTANT: Ensure audioUrl is valid before saving if it's based on a blob
+      let finalAudioUrl = audioUrl;
+      if (audioUrl && audioUrl.startsWith('blob:') && !recordedAudioBlobRef.current) {
+        console.warn('Attempted to save transcription with a blob URL but recordedAudioBlobRef.current is null. Re-creating URL.');
+        finalAudioUrl = selectedFile ? URL.createObjectURL(selectedFile) : null;
+      }
+
       await saveTranscription(currentUser.uid, {
-        fileName: selectedFile.name,
+        fileName: selectedFile?.name || `Recording-${Date.now()}`, // Provide fallback file name
         duration: estimatedDuration,
         text: transcriptionText,
-        audioUrl: audioUrl
+        audioUrl: finalAudioUrl // Use the potentially re-created or original URL
       });
+      console.log('Transcription saved and user usage updated.');
       
-      await refreshUserProfile();
+      await refreshUserProfile(); // Refresh user profile to update usage display
+      console.log('User profile refreshed.');
+
     } catch (error) {
-      console.error('Error updating usage:', error);
+      console.error('Error updating usage or saving transcription:', error);
       showMessage('Failed to save transcription or update usage.');
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef]);
@@ -381,6 +519,7 @@ function AppContent() {
     navigator.clipboard.writeText(transcription);
     setCopiedMessageVisible(true);
     setTimeout(() => setCopiedMessageVisible(false), 2000);
+    console.log('Transcription copied to clipboard.');
   }, [transcription]);
 
   const downloadAsWord = useCallback(() => { 
@@ -391,6 +530,7 @@ function AppContent() {
     a.download = 'transcription.doc';
     a.click();
     URL.revokeObjectURL(url);
+    console.log('Transcription downloaded as Word document.');
   }, [transcription]);
 
   const downloadAsTXT = useCallback(() => { 
@@ -401,6 +541,7 @@ function AppContent() {
     a.download = 'transcription.txt';
     a.click();
     URL.revokeObjectURL(url);
+    console.log('Transcription downloaded as TXT file.');
   }, [transcription]);
 
   // Enhanced download with compression options
@@ -423,6 +564,7 @@ function AppContent() {
         a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
+        console.log(`Recorded audio downloaded as ${downloadFormat.toUpperCase()}.`);
       } catch (error) {
         console.error('Error compressing for download:', error);
         showMessage('Download compression failed, downloading original format.');
@@ -433,17 +575,21 @@ function AppContent() {
         a.download = `recording-${Date.now()}.wav`;
         a.click();
         URL.revokeObjectURL(url);
+        console.log('Fallback: Recorded audio downloaded in original WAV format.');
       }
     } else {
       showMessage('No recorded audio available to download.');
+      console.warn('Attempted to download recorded audio but recordedAudioBlobRef.current is null.');
     }
   }, [showMessage, downloadFormat]);
 
   const handleLogout = useCallback(async () => {
     try {
       await logout();
+      console.log('User logged out successfully.');
     } catch (error) {
       showMessage('Failed to log out');
+      console.error('Logout failed:', error);
     }
   }, [logout, showMessage]);
 
@@ -451,6 +597,7 @@ function AppContent() {
     try {
       await createUserProfile(currentUser.uid, currentUser.email);
       showMessage('Profile created successfully! Refreshing page...');
+      console.log('User profile created/fixed:', currentUser.email);
       window.location.reload();
     } catch (error) {
       console.error('Error creating profile:', error);
@@ -460,10 +607,13 @@ function AppContent() {
 
   const handleUpgradeClick = useCallback(() => {
     showMessage('Upgrade functionality will be implemented soon. Please contact support for now.');
+    console.log('Upgrade button clicked.');
   }, [showMessage]);
+
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
     try {
       abortControllerRef.current = new AbortController();
+      console.log('Checking job status for:', jobId);
       const response = await fetch(`${BACKEND_URL}/status/${jobId}`, { signal: abortControllerRef.current.signal });
       const result = await response.json();
       
@@ -472,6 +622,7 @@ function AppContent() {
         clearInterval(transcriptionInterval); 
         setTranscriptionProgress(100);
         setStatus('completed'); 
+        console.log('Transcription job completed:', jobId);
         
         // FIXED: Display compression stats from backend with correct wording
         if (result.compression_stats) {
@@ -482,6 +633,7 @@ function AppContent() {
             ratio: Math.abs(stats.compression_ratio_percent),
             isCompressed: stats.compressed_size_mb < stats.original_size_mb
           });
+          console.log('Compression stats received:', stats);
         }
         
         await handleTranscriptionComplete(result.transcription);
@@ -492,8 +644,10 @@ function AppContent() {
         setTranscriptionProgress(0);
         setStatus('failed'); 
         setIsUploading(false); 
+        console.error('Transcription job failed:', jobId, 'Error:', result.error);
       } else {
         if (result.status === 'processing') {
+          console.log('Transcription still processing for job:', jobId, 'Polling again in 2 seconds.');
           setTimeout(() => checkJobStatus(jobId, transcriptionInterval), 2000);
         } else {
           const errorDetail = result.detail || `Unexpected status: ${result.status} or HTTP error! Status: UNKNOWN`;
@@ -502,11 +656,12 @@ function AppContent() {
           setTranscriptionProgress(0);
           setStatus('failed'); 
           setIsUploading(false); 
+          console.error('Unexpected status or HTTP error for job:', jobId, 'Detail:', errorDetail);
         }
       }
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.log('Fetch aborted by user.');
+        console.log('Fetch aborted by user for job:', jobId);
       } else {
         console.error('Status check failed:', error);
         clearInterval(transcriptionInterval); 
@@ -524,22 +679,25 @@ function AppContent() {
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
+      console.warn('Upload attempted without selecting a file.');
       return;
     }
 
     // Wait for profile to be fully loaded
     if (profileLoading || !userProfile) {
       showMessage('Loading user profile... Please wait.');
+      console.warn('Upload attempted before user profile was loaded.');
       return;
     }
 
-    const estimatedDuration = audioDuration || 60;
+    const estimatedDuration = audioDuration || (selectedFile.size / 100000); // Fallback for duration
     
     // FIXED: Strict enforcement - free users cannot transcribe at all
     if (userProfile.plan === 'free') {
       showMessage('Transcription is only available for paid users. Free users can record audio but need to upgrade to transcribe.');
       setCurrentView('pricing');
       resetTranscriptionProcessUI();
+      console.warn('Free user attempted transcription, redirected to pricing.');
       return;
     }
 
@@ -550,12 +708,14 @@ function AppContent() {
       showMessage('You do not have permission to transcribe audio. Please upgrade your plan.');
       setCurrentView('pricing');
       resetTranscriptionProcessUI(); 
+      console.warn('Paid user attempted transcription but failed canUserTranscribe check, redirected to pricing.');
       return;
     }
 
     setIsUploading(true);
     setStatus('processing');
     abortControllerRef.current = new AbortController();
+    console.log('Starting upload for file:', selectedFile.name);
 
     try {
       // Show compression message
@@ -578,6 +738,7 @@ function AppContent() {
         setJobId(result.job_id);
         const transcriptionInterval = simulateProgress(setTranscriptionProgress, 500, -1); 
         checkJobStatus(result.job_id, transcriptionInterval); 
+        console.log('File uploaded successfully, job ID:', result.job_id);
         
       } else {
         console.error("Backend upload failed response:", result);
@@ -602,19 +763,240 @@ function AppContent() {
       abortControllerRef.current = null;
     }
   }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile, profileLoading]);
+  // Enhanced download with compression options
+  const downloadRecordedAudio = useCallback(async () => { 
+    if (recordedAudioBlobRef.current) {
+      try {
+        let downloadBlob = recordedAudioBlobRef.current;
+        let filename = `recording-${Date.now()}.${downloadFormat}`;
+        
+        // If user wants different format, compress accordingly
+        if (downloadFormat === 'mp3' && !recordedAudioBlobRef.current.type.includes('mp3')) {
+          showMessage('Compressing to MP3...');
+          downloadBlob = await compressAudioToMP3(recordedAudioBlobRef.current, 128); // Higher quality for download
+          showMessage('MP3 compression complete!');
+        }
+        
+        const url = URL.createObjectURL(downloadBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        console.log(`Recorded audio downloaded as ${downloadFormat.toUpperCase()}.`);
+      } catch (error) {
+        console.error('Error compressing for download:', error);
+        showMessage('Download compression failed, downloading original format.');
+        // Fallback to original
+        const url = URL.createObjectURL(recordedAudioBlobRef.current);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `recording-${Date.now()}.wav`;
+        a.click();
+        URL.revokeObjectURL(url);
+        console.log('Fallback: Recorded audio downloaded in original WAV format.');
+      }
+    } else {
+      showMessage('No recorded audio available to download.');
+      console.warn('Attempted to download recorded audio but recordedAudioBlobRef.current is null.');
+    }
+  }, [showMessage, downloadFormat]);
 
+  const handleLogout = useCallback(async () => {
+    try {
+      await logout();
+      console.log('User logged out successfully.');
+    } catch (error) {
+      showMessage('Failed to log out');
+      console.error('Logout failed:', error);
+    }
+  }, [logout, showMessage]);
+
+  const createMissingProfile = useCallback(async () => {
+    try {
+      await createUserProfile(currentUser.uid, currentUser.email);
+      showMessage('Profile created successfully! Refreshing page...');
+      console.log('User profile created/fixed:', currentUser.email);
+      window.location.reload();
+    } catch (error) {
+      console.error('Error creating profile:', error);
+      showMessage('Error creating profile: ' + error.message);
+    }
+  }, [currentUser?.uid, currentUser?.email, showMessage]);
+
+  const handleUpgradeClick = useCallback(() => {
+    showMessage('Upgrade functionality will be implemented soon. Please contact support for now.');
+    console.log('Upgrade button clicked.');
+  }, [showMessage]);
+  const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
+    try {
+      abortControllerRef.current = new AbortController();
+      console.log('Checking job status for:', jobId);
+      const response = await fetch(`${BACKEND_URL}/status/${jobId}`, { signal: abortControllerRef.current.signal });
+      const result = await response.json();
+      
+      if (response.ok && result.status === 'completed') {
+        setTranscription(result.transcription);
+        clearInterval(transcriptionInterval); 
+        setTranscriptionProgress(100);
+        setStatus('completed'); 
+        console.log('Transcription job completed:', jobId);
+        
+        // FIXED: Display compression stats from backend with correct wording
+        if (result.compression_stats) {
+          const stats = result.compression_stats;
+          setCompressionStats({
+            originalSize: stats.original_size_mb,
+            compressedSize: stats.compressed_size_mb,
+            ratio: Math.abs(stats.compression_ratio_percent),
+            isCompressed: stats.compressed_size_mb < stats.original_size_mb
+          });
+          console.log('Compression stats received:', stats);
+        }
+        
+        await handleTranscriptionComplete(result.transcription);
+        setIsUploading(false); 
+      } else if (response.ok && result.status === 'failed') {
+        showMessage('Transcription failed: ' + result.error);
+        clearInterval(transcriptionInterval); 
+        setTranscriptionProgress(0);
+        setStatus('failed'); 
+        setIsUploading(false); 
+        console.error('Transcription job failed:', jobId, 'Error:', result.error);
+      } else {
+        if (result.status === 'processing') {
+          console.log('Transcription still processing for job:', jobId, 'Polling again in 2 seconds.');
+          setTimeout(() => checkJobStatus(jobId, transcriptionInterval), 2000);
+        } else {
+          const errorDetail = result.detail || `Unexpected status: ${result.status} or HTTP error! Status: UNKNOWN`;
+          showMessage('Status check failed: ' + errorDetail);
+          clearInterval(transcriptionInterval); 
+          setTranscriptionProgress(0);
+          setStatus('failed'); 
+          setIsUploading(false); 
+          console.error('Unexpected status or HTTP error for job:', jobId, 'Detail:', errorDetail);
+        }
+      }
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('Fetch aborted by user for job:', jobId);
+      } else {
+        console.error('Status check failed:', error);
+        clearInterval(transcriptionInterval); 
+        setTranscriptionProgress(0);
+        setStatus('failed'); 
+        setIsUploading(false); 
+        showMessage('Status check failed: ' + error.message);
+      }
+    } finally {
+      abortControllerRef.current = null;
+    }
+  }, [handleTranscriptionComplete, showMessage]);
+
+  // FIXED: Enhanced upload function with proper user validation
+  const handleUpload = useCallback(async () => {
+    if (!selectedFile) {
+      showMessage('Please select a file first');
+      console.warn('Upload attempted without selecting a file.');
+      return;
+    }
+
+    // Wait for profile to be fully loaded
+    if (profileLoading || !userProfile) {
+      showMessage('Loading user profile... Please wait.');
+      console.warn('Upload attempted before user profile was loaded.');
+      return;
+    }
+
+    const estimatedDuration = audioDuration || (selectedFile.size / 100000); // Fallback for duration
+    
+    // FIXED: Strict enforcement - free users cannot transcribe at all
+    if (userProfile.plan === 'free') {
+      showMessage('Transcription is only available for paid users. Free users can record audio but need to upgrade to transcribe.');
+      setCurrentView('pricing');
+      resetTranscriptionProcessUI();
+      console.warn('Free user attempted transcription, redirected to pricing.');
+      return;
+    }
+
+    // Only business/paid users can proceed with transcription
+    const canTranscribe = await canUserTranscribe(currentUser.uid, estimatedDuration);
+    
+    if (!canTranscribe) {
+      showMessage('You do not have permission to transcribe audio. Please upgrade your plan.');
+      setCurrentView('pricing');
+      resetTranscriptionProcessUI(); 
+      console.warn('Paid user attempted transcription but failed canUserTranscribe check, redirected to pricing.');
+      return;
+    }
+
+    setIsUploading(true);
+    setStatus('processing');
+    abortControllerRef.current = new AbortController();
+    console.log('Starting upload for file:', selectedFile.name);
+
+    try {
+      // Show compression message
+      showMessage('Server will compress audio for optimal transcription...');
+      
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      const response = await fetch(`${BACKEND_URL}/transcribe`, {
+        method: 'POST',
+        body: formData,
+        signal: abortControllerRef.current.signal
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        setUploadProgress(100);
+        setStatus('processing');
+        setJobId(result.job_id);
+        const transcriptionInterval = simulateProgress(setTranscriptionProgress, 500, -1); 
+        checkJobStatus(result.job_id, transcriptionInterval); 
+        console.log('File uploaded successfully, job ID:', result.job_id);
+        
+      } else {
+        console.error("Backend upload failed response:", result);
+        showMessage('Upload failed: ' + (result.detail || `HTTP error! Status: ${response.status}`));
+        setUploadProgress(0);
+        setTranscriptionProgress(0);
+        setStatus('failed'); 
+        setIsUploading(false); 
+      }
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('Upload aborted by user.');
+      } else {
+        console.error("Fetch error during upload:", error);
+        showMessage('Upload failed: ' + error.message);
+        setUploadProgress(0);
+        setTranscriptionProgress(0);
+        setStatus('failed'); 
+        setIsUploading(false); 
+      }
+    } finally {
+      abortControllerRef.current = null;
+    }
+  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile, profileLoading]);
   // FIXED: Updated useEffect to not auto-trigger for free users
   useEffect(() => {
     if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
       // Only auto-trigger for business users
       if (userProfile.plan === 'business') {
+        console.log('Auto-triggering handleUpload for business user after file selection.');
         const timer = setTimeout(() => {
           handleUpload();
         }, 200);
         return () => clearTimeout(timer);
+      } else {
+        console.log('Not auto-triggering handleUpload for free user.');
       }
     }
   }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile, profileLoading]);
+
   // Login screen for non-authenticated users
   if (!currentUser) {
     return (
@@ -674,7 +1056,6 @@ function AppContent() {
       </div>
     );
   }
-
   return (
     <Routes>
       {/* Route for individual transcription detail page */}
@@ -810,7 +1191,6 @@ function AppContent() {
               </div>
             </div>
           )}
-
           {/* Navigation Tabs */}
           <div style={{ 
             textAlign: 'center', 
@@ -884,6 +1264,7 @@ function AppContent() {
               </button>
             )}
           </div>
+
           {/* Show Different Views - Pricing Section and Main Interface */}
           {currentView === 'pricing' ? (
             <div style={{ 
@@ -1449,6 +1830,7 @@ function AppContent() {
                   )}
                 </div>
               )}
+
               {/* Enhanced Transcription Result */}
               {transcription && (
                 <div style={{
