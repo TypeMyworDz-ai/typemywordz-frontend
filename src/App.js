@@ -144,6 +144,38 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   }, intervalTime);
   return interval; 
 };
+function AppContent() {
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [jobId, setJobId] = useState(null);
+  const [status, setStatus] = useState('idle');
+  const [transcription, setTranscription] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [transcriptionProgress, setTranscriptionProgress] = useState(0);
+  const [showLogin, setShowLogin] = useState(true);
+  const [currentView, setCurrentView] = useState('transcribe');
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [downloadFormat, setDownloadFormat] = useState('mp3');
+  const [compressionStats, setCompressionStats] = useState(null);
+  const mediaRecorderRef = useRef(null);
+  const recordingIntervalRef = useRef(null);
+  const audioPlayerRef = useRef(null); 
+  const recordedAudioBlobRef = useRef(null); 
+  const [message, setMessage] = useState('');
+  const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
+
+  const abortControllerRef = useRef(null);
+
+  const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithMicrosoft, profileLoading } = useAuth();
+
+  const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
+  const isAdmin = ADMIN_EMAILS.includes(currentUser?.email);
+
+  const showMessage = useCallback((msg) => setMessage(msg), []);
+  const clearMessage = useCallback(() => setMessage(''), []);
+
   // FIXED: Enhanced reset function that properly clears all state
   const resetTranscriptionProcessUI = useCallback(() => { 
     setJobId(null);
@@ -216,7 +248,6 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
       audio.src = newAudioUrl;
     }
   }, [showMessage, resetTranscriptionProcessUI]);
-
   // FIXED: Enhanced recording that properly clears previous state
   const startRecording = useCallback(async () => {
     // FIXED: Clear ALL previous state including selected files
@@ -584,7 +615,6 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
       }
     }
   }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile, profileLoading]);
-
   // Login screen for non-authenticated users
   if (!currentUser) {
     return (
@@ -644,6 +674,7 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
       </div>
     );
   }
+
   return (
     <Routes>
       {/* Route for individual transcription detail page */}
@@ -779,6 +810,7 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
               </div>
             </div>
           )}
+
           {/* Navigation Tabs */}
           <div style={{ 
             textAlign: 'center', 
@@ -852,8 +884,7 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
               </button>
             )}
           </div>
-
-          {/* Show Different Views - Pricing Section */}
+          {/* Show Different Views - Pricing Section and Main Interface */}
           {currentView === 'pricing' ? (
             <div style={{ 
               padding: '40px 20px', 
@@ -1418,7 +1449,6 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
                   )}
                 </div>
               )}
-
               {/* Enhanced Transcription Result */}
               {transcription && (
                 <div style={{
@@ -1529,6 +1559,7 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
               )}
             </main>
           )}
+
           {/* Footer for main app interface */}
           <footer style={{ 
             textAlign: 'center', 
@@ -1550,6 +1581,7 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
       } />
     </Routes>
   );
+}
 
 // Main App Component with AuthProvider
 function App() {
