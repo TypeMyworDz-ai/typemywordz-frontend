@@ -91,6 +91,7 @@ const audioBufferToWav = (samples, sampleRate) => {
   
   return buffer;
 };
+
 // FIXED: Compression ratio calculation
 const getCompressionRatio = (originalSize, compressedSize) => {
   if (compressedSize >= originalSize) {
@@ -143,39 +144,7 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   }, intervalTime);
   return interval; 
 };
-
-function AppContent() {
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [jobId, setJobId] = useState(null);
-  const [status, setStatus] = useState('idle');
-  const [transcription, setTranscription] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [transcriptionProgress, setTranscriptionProgress] = useState(0);
-  const [showLogin, setShowLogin] = useState(true);
-  const [currentView, setCurrentView] = useState('transcribe');
-  const [audioDuration, setAudioDuration] = useState(0);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
-  const [downloadFormat, setDownloadFormat] = useState('mp3');
-  const [compressionStats, setCompressionStats] = useState(null);
-  const mediaRecorderRef = useRef(null);
-  const recordingIntervalRef = useRef(null);
-  const audioPlayerRef = useRef(null); 
-  const recordedAudioBlobRef = useRef(null); 
-  const [message, setMessage] = useState('');
-  const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
-
-  const abortControllerRef = useRef(null);
-
-  const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithMicrosoft, profileLoading } = useAuth();
-
-  const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
-  const isAdmin = ADMIN_EMAILS.includes(currentUser?.email);
-
-  const showMessage = useCallback((msg) => setMessage(msg), []);
-  const clearMessage = useCallback(() => setMessage(''), []);
-  // Enhanced reset function that doesn't interfere with file selection
+  // FIXED: Enhanced reset function that properly clears all state
   const resetTranscriptionProcessUI = useCallback(() => { 
     setJobId(null);
     setStatus('idle'); 
@@ -185,18 +154,28 @@ function AppContent() {
     setUploadProgress(0);
     setTranscriptionProgress(0); 
     setCompressionStats(null);
+    
+    // FIXED: Clear recorded audio reference
     recordedAudioBlobRef.current = null;
+    
+    // FIXED: Clear audio player completely
     if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
       audioPlayerRef.current.src = '';
       audioPlayerRef.current.load();
+      // Clear any object URLs to prevent memory leaks
+      if (audioPlayerRef.current.src && audioPlayerRef.current.src.startsWith('blob:')) {
+        URL.revokeObjectURL(audioPlayerRef.current.src);
+      }
     }
+    
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
   }, []);
 
-  // Enhanced file selection with compression preview
+  // FIXED: Enhanced file selection that properly resets previous content
   const handleFileSelect = useCallback(async (event) => {
     const file = event.target.files[0];
     
@@ -205,23 +184,18 @@ function AppContent() {
       return;
     }
     
-    // Clear other content but preserve the file selection
-    setJobId(null);
-    setStatus('idle'); 
-    setTranscription('');
-    setAudioDuration(0);
-    setIsUploading(false);
-    setUploadProgress(0);
-    setTranscriptionProgress(0); 
-    setCompressionStats(null);
-    recordedAudioBlobRef.current = null;
+    // FIXED: Always reset everything when new file is selected
+    resetTranscriptionProcessUI();
     
     // Set the new file
     setSelectedFile(file);
     
     if (file && (file.type.startsWith('audio/') || file.type.startsWith('video/'))) { 
+      // Create new object URL for the new file
+      const newAudioUrl = URL.createObjectURL(file);
+      
       if (audioPlayerRef.current) {
-        audioPlayerRef.current.src = URL.createObjectURL(file);
+        audioPlayerRef.current.src = newAudioUrl;
         audioPlayerRef.current.load();
       }
 
@@ -239,14 +213,21 @@ function AppContent() {
           console.error('Error getting file info:', error);
         }
       };
-      audio.src = URL.createObjectURL(file);
+      audio.src = newAudioUrl;
     }
-  }, [showMessage]);
+  }, [showMessage, resetTranscriptionProcessUI]);
 
-  // FIXED: Enhanced recording without frontend compression
+  // FIXED: Enhanced recording that properly clears previous state
   const startRecording = useCallback(async () => {
+    // FIXED: Clear ALL previous state including selected files
     resetTranscriptionProcessUI();
     setSelectedFile(null);
+    
+    // Clear file input
+    const fileInput = document.querySelector('input[type="file"]');
+    if (fileInput) {
+      fileInput.value = '';
+    }
     
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -278,7 +259,11 @@ function AppContent() {
       mediaRecorderRef.current.onstop = async () => {
         const originalBlob = new Blob(chunks, { type: mimeType });
         
-        // Skip frontend compression, let backend handle it
+        // FIXED: Clear any previous recorded audio first
+        if (recordedAudioBlobRef.current) {
+          recordedAudioBlobRef.current = null;
+        }
+        
         recordedAudioBlobRef.current = originalBlob;
         
         // Determine file extension
@@ -292,6 +277,10 @@ function AppContent() {
         stream.getTracks().forEach(track => track.stop());
 
         if (audioPlayerRef.current) {
+          // Clear previous audio first
+          if (audioPlayerRef.current.src && audioPlayerRef.current.src.startsWith('blob:')) {
+            URL.revokeObjectURL(audioPlayerRef.current.src);
+          }
           audioPlayerRef.current.src = URL.createObjectURL(file);
           audioPlayerRef.current.load();
         }
@@ -299,12 +288,14 @@ function AppContent() {
         const originalSize = originalBlob.size / (1024 * 1024);
         showMessage(`Recording saved: ${originalSize.toFixed(2)} MB - server will compress for transcription`);
         
-        // Auto-start transcription after recording stops
-        setTimeout(() => {
-          if (!isUploading && userProfile && !profileLoading) {
-            handleUpload();
-          }
-        }, 1000);
+        // Don't auto-start transcription for free users
+        if (userProfile?.plan === 'business') {
+          setTimeout(() => {
+            if (!isUploading && userProfile && !profileLoading) {
+              handleUpload();
+            }
+          }, 1000);
+        }
       };
 
       mediaRecorderRef.current.start(1000);
@@ -326,6 +317,7 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
+
   const handleCancelUpload = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -497,6 +489,7 @@ function AppContent() {
     }
   }, [handleTranscriptionComplete, showMessage]);
 
+  // FIXED: Enhanced upload function with proper user validation
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
@@ -510,13 +503,20 @@ function AppContent() {
     }
 
     const estimatedDuration = audioDuration || 60;
+    
+    // FIXED: Strict enforcement - free users cannot transcribe at all
+    if (userProfile.plan === 'free') {
+      showMessage('Transcription is only available for paid users. Free users can record audio but need to upgrade to transcribe.');
+      setCurrentView('pricing');
+      resetTranscriptionProcessUI();
+      return;
+    }
+
+    // Only business/paid users can proceed with transcription
     const canTranscribe = await canUserTranscribe(currentUser.uid, estimatedDuration);
     
     if (!canTranscribe) {
-      const maxDuration = 5 * 60; // 5 minutes in seconds
-      const fileDurationMinutes = Math.floor(estimatedDuration / 60);
-      const fileDurationSeconds = estimatedDuration % 60;
-      showMessage(`Audio file is ${fileDurationMinutes}:${fileDurationSeconds.toString().padStart(2, '0')} long. Free users can only transcribe files up to 5 minutes. Please upgrade your plan for longer files.`);
+      showMessage('You do not have permission to transcribe audio. Please upgrade your plan.');
       setCurrentView('pricing');
       resetTranscriptionProcessUI(); 
       return;
@@ -572,15 +572,20 @@ function AppContent() {
     }
   }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile, profileLoading]);
 
+  // FIXED: Updated useEffect to not auto-trigger for free users
   useEffect(() => {
     if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
-      // Only trigger handleUpload when profile is fully loaded
-      const timer = setTimeout(() => {
-        handleUpload();
-      }, 200);
-      return () => clearTimeout(timer);
+      // Only auto-trigger for business users
+      if (userProfile.plan === 'business') {
+        const timer = setTimeout(() => {
+          handleUpload();
+        }, 200);
+        return () => clearTimeout(timer);
+      }
     }
   }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile, profileLoading]);
+
+  // Login screen for non-authenticated users
   if (!currentUser) {
     return (
       <div style={{ 
@@ -639,7 +644,6 @@ function AppContent() {
       </div>
     );
   }
-
   return (
     <Routes>
       {/* Route for individual transcription detail page */}
@@ -701,7 +705,7 @@ function AppContent() {
                 {userProfile && userProfile.plan === 'business' ? (
                   <span>Plan: Unlimited Transcription</span>
                 ) : (
-                  <span>Plan: Free (Up to 5min per audio)</span>
+                  <span>Plan: Free (Recording Only - Upgrade for Transcription)</span>
                 )}
                 <button
                   onClick={handleLogout}
@@ -931,13 +935,13 @@ function AppContent() {
                     padding: '0',
                     marginBottom: '40px'
                   }}>
-                    <li>✅ Up to 5 minutes per audio file</li>
+                    <li>✅ Unlimited audio recording</li>
                     <li>✅ Advanced audio compression</li>
-                    <li>✅ Basic transcription accuracy</li>
-                    <li>✅ Download as TXT/Word</li>
+                    <li>✅ Download recordings as MP3/WAV</li>
+                    <li>✅ Basic audio playback</li>
                     <li>✅ 24-hour file storage</li>
-                    <li>❌ No long audio support</li>
-                    <li>❌ No priority processing</li>
+                    <li>❌ No transcription access</li>
+                    <li>❌ No text conversion</li>
                   </ul>
                   <button style={{
                     width: '100%',
@@ -953,6 +957,7 @@ function AppContent() {
                     Current Plan
                   </button>
                 </div>
+
                 {/* Pro Plan */}
                 <div style={{
                   backgroundColor: 'white',
@@ -1006,9 +1011,9 @@ function AppContent() {
                     padding: '0',
                     marginBottom: '40px'
                   }}>
-                    <li>✅ Unlimited audio length</li>
-                    <li>✅ Advanced audio compression</li>
-                    <li>✅ High accuracy transcription</li>
+                    <li>✅ Everything in Free Plan</li>
+                    <li>✅ Unlimited transcription access</li>
+                    <li>✅ High accuracy AI transcription</li>
                     <li>✅ Priority processing</li>
                     <li>✅ Advanced export options</li>
                     <li>✅ 7-day file storage</li>
@@ -1052,14 +1057,14 @@ function AppContent() {
                     marginBottom: '20px',
                     display: 'inline-block'
                   }}>
-                    Human Transcription
+                    PREMIUM ACCURACY
                   </div>
                   <h3 style={{ 
                     color: '#6c5ce7',
                     fontSize: '1.8rem',
                     margin: '0 0 10px 0'
                   }}>
-                    Top Accuracy
+                    Business Plan
                   </h3>
                   <div style={{ marginBottom: '30px' }}>
                     <span style={{ 
@@ -1073,7 +1078,7 @@ function AppContent() {
                       color: '#666',
                       fontSize: '1.2rem'
                     }}>
-                      /Minute
+                      /Month
                     </span>
                   </div>
                   <ul style={{ 
@@ -1084,11 +1089,13 @@ function AppContent() {
                     padding: '0',
                     marginBottom: '40px'
                   }}>
-                    <li>✅ 100% Human Transcription</li>
-                    <li>✅ Advanced audio compression</li>
-                    <li>✅ Proofreading included</li>
-                    <li>✅ Priority support</li>
-                    <li>✅ Custom formatting</li>
+                    <li>✅ Everything in Pro Plan</li>
+                    <li>✅ 99%+ Human-level accuracy</li>
+                    <li>✅ Bulk processing</li>
+                    <li>✅ API access</li>
+                    <li>✅ Custom integrations</li>
+                    <li>✅ Dedicated support</li>
+                    <li>✅ SLA guarantee</li>
                   </ul>
                   <button 
                     onClick={handleUpgradeClick}
@@ -1145,7 +1152,7 @@ function AppContent() {
               maxWidth: '800px', 
               margin: '0 auto'
             }}>
-              {/* Updated Usage Information Banner */}
+              {/* FIXED: Updated Usage Information Banner */}
               {userProfile && userProfile.plan === 'free' && (
                 <div style={{
                   backgroundColor: 'rgba(255, 243, 205, 0.95)',
@@ -1156,7 +1163,7 @@ function AppContent() {
                   textAlign: 'center',
                   backdropFilter: 'blur(10px)'
                 }}>
-                  🎵 Transcribe up to 5mins of audio with advanced compression. For long audios{' '}
+                  🎵 Free users can <strong>record audio</strong> but need to{' '}
                   <button 
                     onClick={() => setCurrentView('pricing')}
                     style={{
@@ -1170,8 +1177,10 @@ function AppContent() {
                   >
                     Upgrade
                   </button>
+                  {' '}for transcription access.
                 </div>
               )}
+
               {/* Record Audio Section */}
               <div style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -1270,6 +1279,7 @@ function AppContent() {
                     </div>
                   )}
                 </div>
+
                 <div style={{
                   borderTop: '2px solid #e9ecef',
                   paddingTop: '30px'
@@ -1343,16 +1353,16 @@ function AppContent() {
                     </div>
                   )}
 
-                  {/* Action Buttons */}
+                  {/* FIXED: Action Buttons with proper free user handling */}
                   <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
                     {status === 'idle' && !isUploading && selectedFile && (
                       <button
-                        onClick={handleUpload}
+                        onClick={userProfile?.plan === 'free' ? () => setCurrentView('pricing') : handleUpload}
                         disabled={!selectedFile || isUploading}
                         style={{
                           padding: '15px 30px',
                           fontSize: '18px',
-                          backgroundColor: (!selectedFile || isUploading) ? '#6c757d' : '#6c5ce7',
+                          backgroundColor: (!selectedFile || isUploading) ? '#6c757d' : (userProfile?.plan === 'free' ? '#ffc107' : '#6c5ce7'),
                           color: 'white',
                           border: 'none',
                           borderRadius: '25px',
@@ -1360,7 +1370,7 @@ function AppContent() {
                           boxShadow: '0 5px 15px rgba(108, 92, 231, 0.4)'
                         }}
                       >
-                        🚀 Start Transcription
+                        {userProfile?.plan === 'free' ? '🔒 Upgrade to Transcribe' : '🚀 Start Transcription'}
                       </button>
                     )}
 
@@ -1384,6 +1394,7 @@ function AppContent() {
                   </div>
                 </div>
               </div>
+
               {/* Status Section */}
               {status && (status === 'completed' || status === 'failed') && (
                 <div style={{
@@ -1539,7 +1550,6 @@ function AppContent() {
       } />
     </Routes>
   );
-}
 
 // Main App Component with AuthProvider
 function App() {
