@@ -105,18 +105,18 @@ const getCompressionRatio = (originalSize, compressedSize) => {
   }
 };
 
-// FIXED: Message Modal Component with auto-dismiss
-const MessageModal = ({ message, onClose }) => {
+// FIXED: Better Toast Notification Component
+const ToastNotification = ({ message, onClose }) => {
   const [isVisible, setIsVisible] = useState(false);
   
   useEffect(() => {
     if (message) {
       setIsVisible(true);
-      // Auto-dismiss after 10 seconds
+      // Auto-dismiss after 4 seconds
       const timer = setTimeout(() => {
         setIsVisible(false);
         setTimeout(onClose, 300); // Wait for fade animation
-      }, 10000);
+      }, 4000);
       
       return () => clearTimeout(timer);
     }
@@ -125,18 +125,69 @@ const MessageModal = ({ message, onClose }) => {
   if (!message) return null;
   
   return (
-    <div className={`fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50 transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
-      <div className={`bg-white p-8 rounded-xl shadow-2xl text-center max-w-sm w-full transform transition-all duration-300 ${isVisible ? 'scale-100' : 'scale-95'}`}>
-        <h3 className="text-xl font-bold mb-4 text-purple-600">Notification</h3>
-        <p className="text-gray-700 mb-6">{message}</p>
+    <div 
+      className={`fixed top-4 right-4 max-w-sm w-full bg-white border-l-4 border-blue-500 rounded-lg shadow-lg p-4 transform transition-all duration-300 z-50 ${
+        isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
+      }`}
+      style={{
+        backgroundColor: 'white',
+        borderLeft: '4px solid #3b82f6',
+        borderRadius: '8px',
+        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+        padding: '16px',
+        maxWidth: '384px',
+        width: '100%',
+        position: 'fixed',
+        top: '16px',
+        right: '16px',
+        zIndex: 1000,
+        transform: isVisible ? 'translateX(0)' : 'translateX(100%)',
+        opacity: isVisible ? 1 : 0,
+        transition: 'all 0.3s ease-in-out'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+        <div style={{ 
+          backgroundColor: '#3b82f6', 
+          borderRadius: '50%', 
+          width: '24px', 
+          height: '24px', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          marginRight: '12px',
+          flexShrink: 0
+        }}>
+          <span style={{ color: 'white', fontSize: '14px', fontWeight: 'bold' }}>ℹ</span>
+        </div>
+        <div style={{ flex: 1 }}>
+          <p style={{ 
+            margin: 0, 
+            color: '#374151', 
+            fontSize: '14px', 
+            lineHeight: '1.4',
+            fontWeight: '500'
+          }}>
+            {message}
+          </p>
+        </div>
         <button
           onClick={() => {
             setIsVisible(false);
             setTimeout(onClose, 300);
           }}
-          className="bg-purple-600 text-white px-6 py-2 rounded-full font-bold shadow-lg hover:bg-purple-700 transition-colors duration-200"
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#9ca3af',
+            cursor: 'pointer',
+            fontSize: '18px',
+            padding: '0',
+            marginLeft: '8px',
+            lineHeight: 1
+          }}
         >
-          OK
+          ×
         </button>
       </div>
     </div>
@@ -185,7 +236,9 @@ function AppContent() {
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
 
   const abortControllerRef = useRef(null);
-  const transcriptionIntervalRef = useRef(null); // ADDED: For tracking transcription interval
+  const transcriptionIntervalRef = useRef(null);
+  const statusCheckTimeoutRef = useRef(null); // ADDED: For tracking status check timeouts
+  const isCancelledRef = useRef(false); // ADDED: For tracking cancellation state
 
   const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithMicrosoft, profileLoading } = useAuth();
 
@@ -206,6 +259,9 @@ function AppContent() {
     setTranscriptionProgress(0); 
     setCompressionStats(null);
     
+    // Reset cancellation flag
+    isCancelledRef.current = false;
+    
     // FIXED: Clear recorded audio reference completely
     recordedAudioBlobRef.current = null;
     
@@ -224,10 +280,15 @@ function AppContent() {
       abortControllerRef.current = null;
     }
 
-    // ADDED: Clear transcription interval
+    // Clear all intervals and timeouts
     if (transcriptionIntervalRef.current) {
       clearInterval(transcriptionIntervalRef.current);
       transcriptionIntervalRef.current = null;
+    }
+
+    if (statusCheckTimeoutRef.current) {
+      clearTimeout(statusCheckTimeoutRef.current);
+      statusCheckTimeoutRef.current = null;
     }
   }, []);
 
@@ -374,18 +435,26 @@ function AppContent() {
     }
   }, [isRecording]);
 
-  // FIXED: Enhanced cancel function that properly stops transcription
+  // FIXED: Enhanced cancel function with better state management
   const handleCancelUpload = useCallback(() => {
+    // Set cancellation flag immediately
+    isCancelledRef.current = true;
+    
     // Abort any ongoing fetch requests
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
     
-    // Clear the transcription progress interval
+    // Clear all intervals and timeouts
     if (transcriptionIntervalRef.current) {
       clearInterval(transcriptionIntervalRef.current);
       transcriptionIntervalRef.current = null;
+    }
+    
+    if (statusCheckTimeoutRef.current) {
+      clearTimeout(statusCheckTimeoutRef.current);
+      statusCheckTimeoutRef.current = null;
     }
     
     // Reset all transcription-related state immediately
@@ -396,7 +465,7 @@ function AppContent() {
     setJobId(null);
     
     // Show cancellation message
-    showMessage("Upload / Transcription cancelled.");
+    showMessage("Transcription cancelled successfully.");
   }, [showMessage]);
 
   const handleTranscriptionComplete = useCallback(async (transcriptionText) => {
@@ -505,19 +574,24 @@ function AppContent() {
   }, [showMessage]);
   // FIXED: Enhanced checkJobStatus with better cancellation handling
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
+    // Check if cancelled before making request
+    if (isCancelledRef.current) {
+      return;
+    }
+    
     try {
-      // Create new abort controller for this specific request
       abortControllerRef.current = new AbortController();
       
       const response = await fetch(`${BACKEND_URL}/status/${jobId}`, { 
         signal: abortControllerRef.current.signal 
       });
-      const result = await response.json();
       
-      // Check if we were cancelled during the request
-      if (abortControllerRef.current.signal.aborted) {
+      // Check if cancelled after request
+      if (isCancelledRef.current) {
         return;
       }
+      
+      const result = await response.json();
       
       if (response.ok && result.status === 'completed') {
         setTranscription(result.transcription);
@@ -545,10 +619,10 @@ function AppContent() {
         setStatus('failed'); 
         setIsUploading(false); 
       } else {
-        if (result.status === 'processing' && !abortControllerRef.current.signal.aborted) {
-          // Only continue checking if not cancelled
-          setTimeout(() => {
-            if (!abortControllerRef.current.signal.aborted) {
+        if (result.status === 'processing' && !isCancelledRef.current) {
+          // Only continue checking if not cancelled - use timeout instead of setTimeout
+          statusCheckTimeoutRef.current = setTimeout(() => {
+            if (!isCancelledRef.current) {
               checkJobStatus(jobId, transcriptionInterval);
             }
           }, 2000);
@@ -562,7 +636,7 @@ function AppContent() {
         }
       }
     } catch (error) {
-      if (error.name === 'AbortError') {
+      if (error.name === 'AbortError' || isCancelledRef.current) {
         console.log('Fetch aborted by user.');
         // Clean up on abort
         clearInterval(transcriptionInterval);
@@ -578,10 +652,7 @@ function AppContent() {
         showMessage('Status check failed: ' + error.message);
       }
     } finally {
-      // Only clear if this is still the current abort controller
-      if (abortControllerRef.current) {
-        abortControllerRef.current = null;
-      }
+      abortControllerRef.current = null;
     }
   }, [handleTranscriptionComplete, showMessage]);
 
@@ -618,6 +689,9 @@ function AppContent() {
       return;
     }
 
+    // Reset cancellation flag
+    isCancelledRef.current = false;
+
     setIsUploading(true);
     setStatus('processing');
     abortControllerRef.current = new AbortController();
@@ -634,6 +708,11 @@ function AppContent() {
         body: formData,
         signal: abortControllerRef.current.signal
       });
+
+      // Check if cancelled after upload
+      if (isCancelledRef.current) {
+        return;
+      }
 
       const result = await response.json();
       
@@ -654,7 +733,7 @@ function AppContent() {
         setIsUploading(false); 
       }
     } catch (error) {
-      if (error.name === 'AbortError') {
+      if (error.name === 'AbortError' || isCancelledRef.current) {
         console.log('Upload aborted by user.');
       } else {
         console.error("Fetch error during upload:", error);
@@ -729,7 +808,7 @@ function AppContent() {
         }}>
           <Login />
         </div>
-        <MessageModal message={message} onClose={clearMessage} />
+        <ToastNotification message={message} onClose={clearMessage} />
         <footer style={{ 
           textAlign: 'center', 
           padding: '20px', 
@@ -765,7 +844,7 @@ function AppContent() {
           flexDirection: 'column',
           background: (currentView === 'dashboard' || currentView === 'admin' || currentView === 'pricing') ? '#f8f9fa' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
         }}>
-          <MessageModal message={message} onClose={clearMessage} />
+          <ToastNotification message={message} onClose={clearMessage} />
 
           {currentView === 'transcribe' && (
             <header style={{ 
