@@ -105,17 +105,35 @@ const getCompressionRatio = (originalSize, compressedSize) => {
   }
 };
 
-// Message Modal Component
+// FIXED: Message Modal Component with auto-dismiss
 const MessageModal = ({ message, onClose }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  
+  useEffect(() => {
+    if (message) {
+      setIsVisible(true);
+      // Auto-dismiss after 10 seconds
+      const timer = setTimeout(() => {
+        setIsVisible(false);
+        setTimeout(onClose, 300); // Wait for fade animation
+      }, 10000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [message, onClose]);
+  
   if (!message) return null;
   
   return (
-    <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
-      <div className="bg-white p-8 rounded-xl shadow-2xl text-center max-w-sm w-full transform transition-all duration-300 scale-100">
+    <div className={`fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50 transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`bg-white p-8 rounded-xl shadow-2xl text-center max-w-sm w-full transform transition-all duration-300 ${isVisible ? 'scale-100' : 'scale-95'}`}>
         <h3 className="text-xl font-bold mb-4 text-purple-600">Notification</h3>
         <p className="text-gray-700 mb-6">{message}</p>
         <button
-          onClick={onClose}
+          onClick={() => {
+            setIsVisible(false);
+            setTimeout(onClose, 300);
+          }}
           className="bg-purple-600 text-white px-6 py-2 rounded-full font-bold shadow-lg hover:bg-purple-700 transition-colors duration-200"
         >
           OK
@@ -187,18 +205,17 @@ function AppContent() {
     setTranscriptionProgress(0); 
     setCompressionStats(null);
     
-    // FIXED: Clear recorded audio reference
+    // FIXED: Clear recorded audio reference completely
     recordedAudioBlobRef.current = null;
     
-    // FIXED: Clear audio player completely
+    // FIXED: Clear audio player completely and revoke object URLs
     if (audioPlayerRef.current) {
       audioPlayerRef.current.pause();
-      audioPlayerRef.current.src = '';
-      audioPlayerRef.current.load();
-      // Clear any object URLs to prevent memory leaks
       if (audioPlayerRef.current.src && audioPlayerRef.current.src.startsWith('blob:')) {
         URL.revokeObjectURL(audioPlayerRef.current.src);
       }
+      audioPlayerRef.current.src = '';
+      audioPlayerRef.current.load();
     }
     
     if (abortControllerRef.current) {
@@ -248,6 +265,7 @@ function AppContent() {
       audio.src = newAudioUrl;
     }
   }, [showMessage, resetTranscriptionProcessUI]);
+
   // FIXED: Enhanced recording that properly clears previous state
   const startRecording = useCallback(async () => {
     // FIXED: Clear ALL previous state including selected files
@@ -615,6 +633,7 @@ function AppContent() {
       }
     }
   }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile, profileLoading]);
+
   // Login screen for non-authenticated users
   if (!currentUser) {
     return (
@@ -674,7 +693,6 @@ function AppContent() {
       </div>
     );
   }
-
   return (
     <Routes>
       {/* Route for individual transcription detail page */}
@@ -1449,6 +1467,7 @@ function AppContent() {
                   )}
                 </div>
               )}
+
               {/* Enhanced Transcription Result */}
               {transcription && (
                 <div style={{
@@ -1559,7 +1578,6 @@ function AppContent() {
               )}
             </main>
           )}
-
           {/* Footer for main app interface */}
           <footer style={{ 
             textAlign: 'center', 
