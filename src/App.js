@@ -185,6 +185,7 @@ function AppContent() {
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
 
   const abortControllerRef = useRef(null);
+  const transcriptionIntervalRef = useRef(null); // ADDED: For tracking transcription interval
 
   const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithMicrosoft, profileLoading } = useAuth();
 
@@ -221,6 +222,12 @@ function AppContent() {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
+    }
+
+    // ADDED: Clear transcription interval
+    if (transcriptionIntervalRef.current) {
+      clearInterval(transcriptionIntervalRef.current);
+      transcriptionIntervalRef.current = null;
     }
   }, []);
 
@@ -367,13 +374,30 @@ function AppContent() {
     }
   }, [isRecording]);
 
+  // FIXED: Enhanced cancel function that properly stops transcription
   const handleCancelUpload = useCallback(() => {
+    // Abort any ongoing fetch requests
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
-    resetTranscriptionProcessUI();
+    
+    // Clear the transcription progress interval
+    if (transcriptionIntervalRef.current) {
+      clearInterval(transcriptionIntervalRef.current);
+      transcriptionIntervalRef.current = null;
+    }
+    
+    // Reset all transcription-related state immediately
+    setIsUploading(false);
+    setUploadProgress(0);
+    setTranscriptionProgress(0);
+    setStatus('idle');
+    setJobId(null);
+    
+    // Show cancellation message
     showMessage("Upload / Transcription cancelled.");
-  }, [resetTranscriptionProcessUI, showMessage]);
+  }, [showMessage]);
 
   const handleTranscriptionComplete = useCallback(async (transcriptionText) => {
     try {
@@ -479,11 +503,22 @@ function AppContent() {
   const handleUpgradeClick = useCallback(() => {
     showMessage('Upgrade functionality will be implemented soon. Please contact support for now.');
   }, [showMessage]);
+  // FIXED: Enhanced checkJobStatus with better cancellation handling
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
     try {
-      abortControllerRef.current = new AbortController();
-      const response = await fetch(`${BACKEND_URL}/status/${jobId}`, { signal: abortControllerRef.current.signal });
+      // Create new abort controller for this specific request
+      const currentAbortController = new AbortController();
+      abortControllerRef.current = currentAbortController;
+      
+      const response = await fetch(`${BACKEND_URL}/status/${jobId}`, { 
+        signal: currentAbortController.signal 
+      });
       const result = await response.json();
+      
+      // Check if we were cancelled during the request
+      if (currentAbortController.signal.aborted) {
+        return;
+      }
       
       if (response.ok && result.status === 'completed') {
         setTranscription(result.transcription);
@@ -491,7 +526,7 @@ function AppContent() {
         setTranscriptionProgress(100);
         setStatus('completed'); 
         
-        // FIXED: Display compression stats from backend with correct wording
+        // Display compression stats from backend
         if (result.compression_stats) {
           const stats = result.compression_stats;
           setCompressionStats({
@@ -511,8 +546,13 @@ function AppContent() {
         setStatus('failed'); 
         setIsUploading(false); 
       } else {
-        if (result.status === 'processing') {
-          setTimeout(() => checkJobStatus(jobId, transcriptionInterval), 2000);
+        if (result.status === 'processing' && !currentAbortController.signal.aborted) {
+          // Only continue checking if not cancelled
+          setTimeout(() => {
+            if (!currentAbortController.signal.aborted) {
+              checkJobStatus(jobId, transcriptionInterval);
+            }
+          }, 2000);
         } else {
           const errorDetail = result.detail || `Unexpected status: ${result.status} or HTTP error! Status: UNKNOWN`;
           showMessage('Status check failed: ' + errorDetail);
@@ -525,6 +565,11 @@ function AppContent() {
     } catch (error) {
       if (error.name === 'AbortError') {
         console.log('Fetch aborted by user.');
+        // Clean up on abort
+        clearInterval(transcriptionInterval);
+        setTranscriptionProgress(0);
+        setIsUploading(false);
+        return;
       } else {
         console.error('Status check failed:', error);
         clearInterval(transcriptionInterval); 
@@ -534,11 +579,14 @@ function AppContent() {
         showMessage('Status check failed: ' + error.message);
       }
     } finally {
-      abortControllerRef.current = null;
+      // Only clear if this is still the current abort controller
+      if (abortControllerRef.current === currentAbortController) {
+        abortControllerRef.current = null;
+      }
     }
   }, [handleTranscriptionComplete, showMessage]);
 
-  // FIXED: Enhanced upload function with proper user validation
+  // FIXED: Enhanced upload function with proper interval tracking
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
@@ -594,8 +642,9 @@ function AppContent() {
         setUploadProgress(100);
         setStatus('processing');
         setJobId(result.job_id);
-        const transcriptionInterval = simulateProgress(setTranscriptionProgress, 500, -1); 
-        checkJobStatus(result.job_id, transcriptionInterval); 
+        // Store the interval reference so we can clear it on cancel
+        transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
+        checkJobStatus(result.job_id, transcriptionIntervalRef.current); 
         
       } else {
         console.error("Backend upload failed response:", result);
@@ -1467,7 +1516,6 @@ function AppContent() {
                   )}
                 </div>
               )}
-
               {/* Enhanced Transcription Result */}
               {transcription && (
                 <div style={{
@@ -1578,6 +1626,7 @@ function AppContent() {
               )}
             </main>
           )}
+
           {/* Footer for main app interface */}
           <footer style={{ 
             textAlign: 'center', 
@@ -1600,7 +1649,6 @@ function AppContent() {
     </Routes>
   );
 }
-
 // Main App Component with AuthProvider
 function App() {
   return (
