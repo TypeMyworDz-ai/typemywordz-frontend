@@ -435,8 +435,10 @@ function AppContent() {
     }
   }, [isRecording]);
 
-  // FIXED: Enhanced cancel function with better state management
-  const handleCancelUpload = useCallback(() => {
+    // FIXED: More aggressive cancel function that forces immediate stop
+  const handleCancelUpload = useCallback(async () => {
+    console.log('Cancel button clicked - forcing immediate stop');
+    
     // Set cancellation flag immediately
     isCancelledRef.current = true;
     
@@ -446,7 +448,7 @@ function AppContent() {
       abortControllerRef.current = null;
     }
     
-    // Clear all intervals and timeouts
+    // Clear all intervals and timeouts immediately
     if (transcriptionIntervalRef.current) {
       clearInterval(transcriptionIntervalRef.current);
       transcriptionIntervalRef.current = null;
@@ -456,17 +458,43 @@ function AppContent() {
       clearTimeout(statusCheckTimeoutRef.current);
       statusCheckTimeoutRef.current = null;
     }
+
+    // Try to cancel the backend job if we have a jobId
+    if (jobId) {
+      try {
+        console.log('Attempting to cancel backend job:', jobId);
+        const cancelController = new AbortController();
+        const cancelResponse = await fetch(`${BACKEND_URL}/cancel/${jobId}`, {
+          method: 'POST',
+          signal: cancelController.signal,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        
+        if (cancelResponse.ok) {
+          console.log('Backend job cancelled successfully');
+        } else {
+          console.log('Backend job cancellation failed, but continuing with frontend cleanup');
+        }
+      } catch (error) {
+        console.log('Error cancelling backend job, but continuing with frontend cleanup:', error);
+      }
+    }
     
-    // Reset all transcription-related state immediately
+    // Force reset all state immediately regardless of backend response
     setIsUploading(false);
     setUploadProgress(0);
     setTranscriptionProgress(0);
     setStatus('idle');
     setJobId(null);
+    setTranscription('');
     
     // Show cancellation message
     showMessage("Transcription cancelled successfully.");
-  }, [showMessage]);
+    
+    console.log('Cancellation complete - all state reset');
+  }, [jobId, showMessage]);
 
   const handleTranscriptionComplete = useCallback(async (transcriptionText) => {
     try {
@@ -572,28 +600,51 @@ function AppContent() {
   const handleUpgradeClick = useCallback(() => {
     showMessage('Upgrade functionality will be implemented soon. Please contact support for now.');
   }, [showMessage]);
-  // FIXED: Enhanced checkJobStatus with better cancellation handling
+  // FIXED: More robust checkJobStatus with immediate cancellation checks
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
+    console.log('Checking job status for:', jobId, 'Cancelled flag:', isCancelledRef.current);
+    
     // Check if cancelled before making request
     if (isCancelledRef.current) {
+      console.log('Job cancelled - stopping status checks');
+      clearInterval(transcriptionInterval);
       return;
     }
     
     try {
-      abortControllerRef.current = new AbortController();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      
+      // Set a timeout to abort the request if it takes too long
+      const timeoutId = setTimeout(() => {
+        if (!isCancelledRef.current) {
+          controller.abort();
+        }
+      }, 10000); // 10 second timeout
       
       const response = await fetch(`${BACKEND_URL}/status/${jobId}`, { 
-        signal: abortControllerRef.current.signal 
+        signal: controller.signal 
       });
+      
+      clearTimeout(timeoutId);
       
       // Check if cancelled after request
       if (isCancelledRef.current) {
+        console.log('Job cancelled during request - stopping');
+        clearInterval(transcriptionInterval);
         return;
       }
       
       const result = await response.json();
+      console.log('Status response:', result);
       
       if (response.ok && result.status === 'completed') {
+        // Double check cancellation before processing completion
+        if (isCancelledRef.current) {
+          console.log('Job cancelled - ignoring completion');
+          return;
+        }
+        
         setTranscription(result.transcription);
         clearInterval(transcriptionInterval); 
         setTranscriptionProgress(100);
@@ -613,20 +664,33 @@ function AppContent() {
         await handleTranscriptionComplete(result.transcription);
         setIsUploading(false); 
       } else if (response.ok && result.status === 'failed') {
-        showMessage('Transcription failed: ' + result.error);
-        clearInterval(transcriptionInterval); 
+        if (!isCancelledRef.current) {
+          showMessage('Transcription failed: ' + result.error);
+          clearInterval(transcriptionInterval); 
+          setTranscriptionProgress(0);
+          setStatus('failed'); 
+          setIsUploading(false);
+        }
+      } else if (response.ok && result.status === 'cancelled') {
+        // Handle backend cancellation
+        console.log('Backend job was cancelled');
+        clearInterval(transcriptionInterval);
         setTranscriptionProgress(0);
-        setStatus('failed'); 
-        setIsUploading(false); 
+        setStatus('idle');
+        setIsUploading(false);
+        if (!isCancelledRef.current) {
+          showMessage('Transcription was cancelled.');
+        }
       } else {
         if (result.status === 'processing' && !isCancelledRef.current) {
+          console.log('Job still processing, checking again in 2 seconds');
           // Only continue checking if not cancelled - use timeout instead of setTimeout
           statusCheckTimeoutRef.current = setTimeout(() => {
             if (!isCancelledRef.current) {
               checkJobStatus(jobId, transcriptionInterval);
             }
           }, 2000);
-        } else {
+        } else if (!isCancelledRef.current) {
           const errorDetail = result.detail || `Unexpected status: ${result.status} or HTTP error! Status: UNKNOWN`;
           showMessage('Status check failed: ' + errorDetail);
           clearInterval(transcriptionInterval); 
@@ -637,13 +701,14 @@ function AppContent() {
       }
     } catch (error) {
       if (error.name === 'AbortError' || isCancelledRef.current) {
-        console.log('Fetch aborted by user.');
-        // Clean up on abort
+        console.log('Fetch aborted by user or timeout');
         clearInterval(transcriptionInterval);
         setTranscriptionProgress(0);
-        setIsUploading(false);
+        if (!isCancelledRef.current) {
+          setIsUploading(false);
+        }
         return;
-      } else {
+      } else if (!isCancelledRef.current) {
         console.error('Status check failed:', error);
         clearInterval(transcriptionInterval); 
         setTranscriptionProgress(0);
