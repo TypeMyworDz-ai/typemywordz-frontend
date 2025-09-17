@@ -507,16 +507,15 @@ function AppContent() {
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
     try {
       // Create new abort controller for this specific request
-      const currentAbortController = new AbortController();
-      abortControllerRef.current = currentAbortController;
+      abortControllerRef.current = new AbortController();
       
       const response = await fetch(`${BACKEND_URL}/status/${jobId}`, { 
-        signal: currentAbortController.signal 
+        signal: abortControllerRef.current.signal 
       });
       const result = await response.json();
       
       // Check if we were cancelled during the request
-      if (currentAbortController.signal.aborted) {
+      if (abortControllerRef.current.signal.aborted) {
         return;
       }
       
@@ -546,10 +545,10 @@ function AppContent() {
         setStatus('failed'); 
         setIsUploading(false); 
       } else {
-        if (result.status === 'processing' && !currentAbortController.signal.aborted) {
+        if (result.status === 'processing' && !abortControllerRef.current.signal.aborted) {
           // Only continue checking if not cancelled
           setTimeout(() => {
-            if (!currentAbortController.signal.aborted) {
+            if (!abortControllerRef.current.signal.aborted) {
               checkJobStatus(jobId, transcriptionInterval);
             }
           }, 2000);
@@ -580,7 +579,7 @@ function AppContent() {
       }
     } finally {
       // Only clear if this is still the current abort controller
-      if (abortControllerRef.current === currentAbortController) {
+      if (abortControllerRef.current) {
         abortControllerRef.current = null;
       }
     }
