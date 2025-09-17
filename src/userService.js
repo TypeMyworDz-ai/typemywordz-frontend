@@ -67,7 +67,21 @@ export const getUserProfile = async (uid) => {
   return null;
 };
 
-// Check if user can transcribe based on limits
+// FIXED: New function to check recording permissions
+export const canUserRecord = async (uid) => {
+  try {
+    const userProfile = await getUserProfile(uid);
+    if (!userProfile) return false;
+    
+    // Both free and paid users can record
+    return true;
+  } catch (error) {
+    console.error("Error checking recording permissions:", error);
+    return false;
+  }
+};
+
+// FIXED: Check if user can transcribe - only paid users
 export const canUserTranscribe = async (uid, estimatedDuration) => {
   try {
     console.log("🔍 canUserTranscribe called with:", { uid, estimatedDuration });
@@ -85,16 +99,9 @@ export const canUserTranscribe = async (uid, estimatedDuration) => {
       return true;
     }
 
-    // NEW LOGIC: Free users can only transcribe files up to 5 minutes
-    const maxDurationForFreeUsers = 5 * 60; // 5 minutes in seconds
-    
-    if (estimatedDuration > maxDurationForFreeUsers) {
-      console.log("❌ File too long for free user:", { estimatedDuration, maxAllowed: maxDurationForFreeUsers });
-      return false;
-    }
-
-    console.log("✅ File duration acceptable for free user:", { estimatedDuration, maxAllowed: maxDurationForFreeUsers });
-    return true;
+    // FIXED: Free users cannot transcribe at all (only paid users can)
+    console.log("❌ Free users cannot access transcription feature");
+    return false;
     
   } catch (error) {
     console.error("❌ Error in canUserTranscribe:", error);
@@ -165,7 +172,3 @@ export const deleteTranscription = async (uid, transcriptionId) => {
   await deleteDoc(transcriptionRef);
   console.log("Transcription deleted:", transcriptionId);
 };
-
-// NOTE: For automatic 24-hour deletion, you would typically use Firebase Cloud Functions
-// triggered by a scheduled job or by document creation/update. This client-side code
-// only sets the 'expiresAt' field and filters based on it.
