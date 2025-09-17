@@ -435,20 +435,27 @@ function AppContent() {
     }
   }, [isRecording]);
 
-    // FIXED: More aggressive cancel function that forces immediate stop
+    // FIXED: Nuclear option - completely stop everything immediately
   const handleCancelUpload = useCallback(async () => {
-    console.log('Cancel button clicked - forcing immediate stop');
+    console.log('🛑 FORCE CANCEL - Stopping everything immediately');
     
-    // Set cancellation flag immediately
+    // Set cancellation flag FIRST
     isCancelledRef.current = true;
     
-    // Abort any ongoing fetch requests
+    // Immediately reset ALL UI state - no waiting
+    setIsUploading(false);
+    setUploadProgress(0);
+    setTranscriptionProgress(0);
+    setStatus('idle');
+    setJobId(null);
+    
+    // Kill all running processes
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
     
-    // Clear all intervals and timeouts immediately
+    // Clear ALL intervals and timeouts - be aggressive
     if (transcriptionIntervalRef.current) {
       clearInterval(transcriptionIntervalRef.current);
       transcriptionIntervalRef.current = null;
@@ -459,41 +466,33 @@ function AppContent() {
       statusCheckTimeoutRef.current = null;
     }
 
-    // Try to cancel the backend job if we have a jobId
-    if (jobId) {
-      try {
-        console.log('Attempting to cancel backend job:', jobId);
-        const cancelController = new AbortController();
-        const cancelResponse = await fetch(`${BACKEND_URL}/cancel/${jobId}`, {
-          method: 'POST',
-          signal: cancelController.signal,
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        });
-        
-        if (cancelResponse.ok) {
-          console.log('Backend job cancelled successfully');
-        } else {
-          console.log('Backend job cancellation failed, but continuing with frontend cleanup');
-        }
-      } catch (error) {
-        console.log('Error cancelling backend job, but continuing with frontend cleanup:', error);
-      }
+    // Clear ALL other intervals that might be running
+    const highestIntervalId = setInterval(() => {}, 0);
+    for (let i = 1; i <= highestIntervalId; i++) {
+      clearInterval(i);
+      clearTimeout(i);
     }
     
-    // Force reset all state immediately regardless of backend response
-    setIsUploading(false);
-    setUploadProgress(0);
-    setTranscriptionProgress(0);
-    setStatus('idle');
-    setJobId(null);
-    setTranscription('');
+    // Try to cancel backend job (but don't wait for response)
+    if (jobId) {
+      fetch(`${BACKEND_URL}/cancel/${jobId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }).catch(() => {
+        // Ignore errors - we're force cancelling anyway
+        console.log('Backend cancel request failed, but continuing with force cancel');
+      });
+    }
     
-    // Show cancellation message
-    showMessage("Transcription cancelled successfully.");
+    // Show success message
+    showMessage("🛑 Transcription force cancelled!");
     
-    console.log('Cancellation complete - all state reset');
+    // Force a small delay then reset cancellation flag
+    setTimeout(() => {
+      isCancelledRef.current = false;
+    }, 1000);
+    
+    console.log('✅ Force cancellation complete');
   }, [jobId, showMessage]);
 
   const handleTranscriptionComplete = useCallback(async (transcriptionText) => {
@@ -600,27 +599,26 @@ function AppContent() {
   const handleUpgradeClick = useCallback(() => {
     showMessage('Upgrade functionality will be implemented soon. Please contact support for now.');
   }, [showMessage]);
-  // FIXED: More robust checkJobStatus with immediate cancellation checks
+  // FIXED: Bulletproof checkJobStatus that respects cancellation
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
-    console.log('Checking job status for:', jobId, 'Cancelled flag:', isCancelledRef.current);
-    
-    // Check if cancelled before making request
+    // FIRST thing - check if cancelled
     if (isCancelledRef.current) {
-      console.log('Job cancelled - stopping status checks');
+      console.log('🛑 Status check aborted - job was cancelled');
       clearInterval(transcriptionInterval);
       return;
     }
+    
+    let timeoutId;
     
     try {
       const controller = new AbortController();
       abortControllerRef.current = controller;
       
-      // Set a timeout to abort the request if it takes too long
-      const timeoutId = setTimeout(() => {
-        if (!isCancelledRef.current) {
-          controller.abort();
-        }
-      }, 10000); // 10 second timeout
+      // Set aggressive timeout
+      timeoutId = setTimeout(() => {
+        console.log('⏰ Status check timeout - aborting');
+        controller.abort();
+      }, 5000); // 5 second timeout
       
       const response = await fetch(`${BACKEND_URL}/status/${jobId}`, { 
         signal: controller.signal 
@@ -628,20 +626,27 @@ function AppContent() {
       
       clearTimeout(timeoutId);
       
-      // Check if cancelled after request
+      // Check cancellation IMMEDIATELY after fetch
       if (isCancelledRef.current) {
-        console.log('Job cancelled during request - stopping');
+        console.log('🛑 Job cancelled during fetch - stopping immediately');
         clearInterval(transcriptionInterval);
         return;
       }
       
       const result = await response.json();
-      console.log('Status response:', result);
+      
+      // Check cancellation AGAIN after parsing response
+      if (isCancelledRef.current) {
+        console.log('🛑 Job cancelled after response - stopping immediately');
+        clearInterval(transcriptionInterval);
+        return;
+      }
       
       if (response.ok && result.status === 'completed') {
-        // Double check cancellation before processing completion
+        // Final cancellation check before processing
         if (isCancelledRef.current) {
-          console.log('Job cancelled - ignoring completion');
+          console.log('🛑 Job cancelled - ignoring completion');
+          clearInterval(transcriptionInterval);
           return;
         }
         
@@ -650,7 +655,6 @@ function AppContent() {
         setTranscriptionProgress(100);
         setStatus('completed'); 
         
-        // Display compression stats from backend
         if (result.compression_stats) {
           const stats = result.compression_stats;
           setCompressionStats({
@@ -663,6 +667,7 @@ function AppContent() {
         
         await handleTranscriptionComplete(result.transcription);
         setIsUploading(false); 
+        
       } else if (response.ok && result.status === 'failed') {
         if (!isCancelledRef.current) {
           showMessage('Transcription failed: ' + result.error);
@@ -671,27 +676,33 @@ function AppContent() {
           setStatus('failed'); 
           setIsUploading(false);
         }
-      } else if (response.ok && result.status === 'cancelled') {
-        // Handle backend cancellation
-        console.log('Backend job was cancelled');
+        
+      } else if (response.ok && (result.status === 'cancelled' || result.status === 'canceled')) {
+        console.log('✅ Backend confirmed job cancellation');
         clearInterval(transcriptionInterval);
         setTranscriptionProgress(0);
         setStatus('idle');
         setIsUploading(false);
-        if (!isCancelledRef.current) {
-          showMessage('Transcription was cancelled.');
-        }
+        
       } else {
+        // Only continue if not cancelled AND status is processing
         if (result.status === 'processing' && !isCancelledRef.current) {
-          console.log('Job still processing, checking again in 2 seconds');
-          // Only continue checking if not cancelled - use timeout instead of setTimeout
+          console.log('⏳ Job still processing - will check again');
           statusCheckTimeoutRef.current = setTimeout(() => {
+            // Double check cancellation before recursive call
             if (!isCancelledRef.current) {
               checkJobStatus(jobId, transcriptionInterval);
+            } else {
+              console.log('🛑 Recursive call cancelled');
+              clearInterval(transcriptionInterval);
             }
           }, 2000);
-        } else if (!isCancelledRef.current) {
-          const errorDetail = result.detail || `Unexpected status: ${result.status} or HTTP error! Status: UNKNOWN`;
+        } else if (isCancelledRef.current) {
+          console.log('🛑 Job cancelled - stopping status checks');
+          clearInterval(transcriptionInterval);
+        } else {
+          // Error case
+          const errorDetail = result.detail || `Unexpected status: ${result.status}`;
           showMessage('Status check failed: ' + errorDetail);
           clearInterval(transcriptionInterval); 
           setTranscriptionProgress(0);
@@ -699,17 +710,19 @@ function AppContent() {
           setIsUploading(false); 
         }
       }
+      
     } catch (error) {
+      clearTimeout(timeoutId);
+      
       if (error.name === 'AbortError' || isCancelledRef.current) {
-        console.log('Fetch aborted by user or timeout');
+        console.log('🛑 Request aborted or job cancelled');
         clearInterval(transcriptionInterval);
-        setTranscriptionProgress(0);
         if (!isCancelledRef.current) {
           setIsUploading(false);
         }
         return;
       } else if (!isCancelledRef.current) {
-        console.error('Status check failed:', error);
+        console.error('❌ Status check error:', error);
         clearInterval(transcriptionInterval); 
         setTranscriptionProgress(0);
         setStatus('failed'); 
@@ -825,6 +838,21 @@ function AppContent() {
       }
     }
   }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile, profileLoading]);
+
+    // ADDED: Cleanup effect to ensure cancellation works
+  useEffect(() => {
+    return () => {
+      // Cleanup on unmount
+      if (isCancelledRef.current) {
+        console.log('🧹 Component cleanup - clearing all intervals');
+        const highestId = setInterval(() => {}, 0);
+        for (let i = 1; i <= highestId; i++) {
+          clearInterval(i);
+          clearTimeout(i);
+        }
+      }
+    };
+  }, []);
 
   // Login screen for non-authenticated users
   if (!currentUser) {
