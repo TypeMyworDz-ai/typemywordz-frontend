@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc } from 'firebase/firestore'; // Removed 'limit' as it's not used in provided snippets
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc } from 'firebase/firestore';
 
 const USERS_COLLECTION = 'users';
 const TRANSCRIPTIONS_COLLECTION = 'transcriptions';
@@ -27,7 +27,7 @@ export const createUserProfile = async (uid, email, name = '') => {
       email,
       name,
       plan: userPlan, // Set plan based on admin status
-      totalMinutesUsed: 0, // FIXED: Initialize totalMinutesUsed for new users
+      totalMinutesUsed: 0, // Initialize totalMinutesUsed for new users
       createdAt: new Date(),
       lastAccessed: new Date(),
     });
@@ -64,7 +64,7 @@ export const getUserProfile = async (uid) => {
   if (docSnap.exists()) {
     const profileData = docSnap.data();
     
-    // FIXED: Ensure totalMinutesUsed is always a number, default to 0
+    // Ensure totalMinutesUsed is always a number, default to 0
     profileData.totalMinutesUsed = typeof profileData.totalMinutesUsed === 'number' ? profileData.totalMinutesUsed : 0;
 
     // Ensure admin accounts always return business plan
@@ -77,7 +77,7 @@ export const getUserProfile = async (uid) => {
   return null;
 };
 
-// Check recording permissions (no change needed)
+// Check recording permissions
 export const canUserRecord = async (uid) => {
   try {
     const userProfile = await getUserProfile(uid);
@@ -91,10 +91,10 @@ export const canUserRecord = async (uid) => {
   }
 };
 
-// FIXED: Check if user can transcribe - now includes free trial logic
-export const canUserTranscribe = async (uid, estimatedDuration) => {
+// FIXED: Check if user can transcribe - now includes free trial logic and correct unit conversion
+export const canUserTranscribe = async (uid, estimatedDurationSeconds) => { // Renamed param for clarity
   try {
-    console.log("🔍 canUserTranscribe called with:", { uid, estimatedDuration });
+    console.log("🔍 canUserTranscribe called with:", { uid, estimatedDurationSeconds });
     
     const userProfile = await getUserProfile(uid);
     console.log("👤 User profile retrieved:", userProfile);
@@ -114,11 +114,14 @@ export const canUserTranscribe = async (uid, estimatedDuration) => {
       const currentMinutesUsed = userProfile.totalMinutesUsed || 0;
       const remainingMinutes = 30 - currentMinutesUsed;
 
-      if (estimatedDuration <= remainingMinutes) {
-        console.log(`✅ Free plan user - ${estimatedDuration} minutes within ${remainingMinutes} remaining. Allowing transcription.`);
+      // Convert estimated duration from seconds to minutes (ceil to count partial minutes)
+      const estimatedDurationMinutes = Math.ceil(estimatedDurationSeconds / 60);
+
+      if (estimatedDurationMinutes <= remainingMinutes) {
+        console.log(`✅ Free plan user - ${estimatedDurationMinutes} minutes within ${remainingMinutes} remaining. Allowing transcription.`);
         return true;
       } else {
-        console.log(`❌ Free plan user - ${estimatedDuration} minutes exceeds ${remainingMinutes} remaining. Blocking transcription.`);
+        console.log(`❌ Free plan user - ${estimatedDurationMinutes} minutes exceeds ${remainingMinutes} remaining. Blocking transcription.`);
         return false;
       }
     }
@@ -132,19 +135,21 @@ export const canUserTranscribe = async (uid, estimatedDuration) => {
     return false;
   }
 };
-
-// FIXED: Update user usage after transcription - now uses totalMinutesUsed
-export const updateUserUsage = async (uid, duration) => {
+// FIXED: Update user usage after transcription - now correctly converts duration to minutes
+export const updateUserUsage = async (uid, durationSeconds) => { // Renamed param for clarity
   const userRef = getUserProfileRef(uid);
   const userProfile = await getUserProfile(uid);
 
   if (userProfile && userProfile.plan === 'free') {
-    const newTotalMinutes = (userProfile.totalMinutesUsed || 0) + duration;
+    // Convert duration from seconds to minutes (ceil to count partial minutes as full)
+    const durationMinutes = Math.ceil(durationSeconds / 60);
+    const newTotalMinutes = (userProfile.totalMinutesUsed || 0) + durationMinutes;
+
     await updateDoc(userRef, {
-      totalMinutesUsed: newTotalMinutes, // FIXED: Update totalMinutesUsed
+      totalMinutesUsed: newTotalMinutes, // Update totalMinutesUsed with minutes
       lastAccessed: new Date(),
     });
-    console.log(`📊 User ${uid} (free plan): Updated totalMinutesUsed to ${newTotalMinutes}`);
+    console.log(`📊 User ${uid} (free plan): Updated totalMinutesUsed by ${durationMinutes} mins to ${newTotalMinutes} mins.`);
   } else if (userProfile && userProfile.plan === 'business') {
     // For business plan, we don't update totalMinutesUsed for limits
     await updateDoc(userRef, {
@@ -156,7 +161,7 @@ export const updateUserUsage = async (uid, duration) => {
   }
 };
 
-// Save transcription to Firestore (no change needed)
+// Save transcription to Firestore
 export const saveTranscription = async (uid, transcriptionData) => {
   const transcriptionsCollectionRef = getUserTranscriptionsCollectionRef(uid);
   const newTranscriptionRef = doc(transcriptionsCollectionRef); // Let Firestore generate ID
@@ -171,7 +176,7 @@ export const saveTranscription = async (uid, transcriptionData) => {
   return newTranscriptionRef.id;
 };
 
-// Fetch user's transcriptions (for Dashboard) (no change needed)
+// Fetch user's transcriptions (for Dashboard)
 export const fetchUserTranscriptions = async (uid) => {
   const transcriptionsCollectionRef = getUserTranscriptionsCollectionRef(uid);
   // Query for active transcriptions, ordered by creation date
@@ -188,14 +193,14 @@ export const fetchUserTranscriptions = async (uid) => {
   return transcriptions;
 };
 
-// Update a specific transcription (no change needed)
+// Update a specific transcription
 export const updateTranscription = async (uid, transcriptionId, newData) => {
   const transcriptionRef = doc(db, USERS_COLLECTION, uid, TRANSCRIPTIONS_COLLECTION, transcriptionId);
   await updateDoc(transcriptionRef, newData);
   console.log("Transcription updated:", transcriptionId);
 };
 
-// Delete a specific transcription (no change needed)
+// Delete a specific transcription
 export const deleteTranscription = async (uid, transcriptionId) => {
   const transcriptionRef = doc(db, USERS_COLLECTION, uid, TRANSCRIPTIONS_COLLECTION, transcriptionId);
   await deleteDoc(transcriptionRef);
