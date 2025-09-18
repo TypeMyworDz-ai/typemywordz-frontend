@@ -331,20 +331,7 @@ function AppContent() {
         const originalSize = originalBlob.size / (1024 * 1024);
         showMessage(`Recording saved: ${originalSize.toFixed(2)} MB - ready for transcription.`);
         
-        // UPDATED: Check for 30-minute trial for new users
-        if (userProfile?.plan === 'free' && userProfile?.totalMinutesUsed < 30) {
-          setTimeout(() => {
-            if (!isUploading && userProfile && !profileLoading) {
-              handleUpload();
-            }
-          }, 1000);
-        } else if (userProfile?.plan === 'business') {
-          setTimeout(() => {
-            if (!isUploading && userProfile && !profileLoading) {
-              handleUpload();
-            }
-          }, 1000);
-        }
+        // UPDATED: Check for 30-minute trial for new users - will be handled by handleUpload
       };
 
       mediaRecorderRef.current.start(1000);
@@ -438,7 +425,7 @@ function AppContent() {
         audioUrl: audioUrl
       });
       
-      await refreshUserProfile();
+      await refreshUserProfile(); // Crucial for updating totalMinutesUsed
     } catch (error) {
       console.error('Error updating usage:', error);
       showMessage('Failed to save transcription or update usage.');
@@ -585,21 +572,20 @@ function AppContent() {
 
     const estimatedDuration = audioDuration || 60;
     
-    // UPDATED: Check for 30-minute trial for free users
-    if (userProfile.plan === 'free') {
-      if (userProfile.totalMinutesUsed >= 30) {
-        showMessage('You have used your 30-minute free trial. Please upgrade to continue transcribing.');
-        setCurrentView('pricing');
-        resetTranscriptionProcessUI();
-        return;
-      }
-      // Free users can transcribe within their 30-minute limit
+    // UPDATED: Check for 30-minute trial for free users and enforce lock
+    const remainingMinutes = 30 - (userProfile?.totalMinutesUsed || 0);
+    if (userProfile.plan === 'free' && remainingMinutes <= 0) {
+      showMessage('You have used your 30-minute free trial. Please upgrade to continue transcribing.');
+      setCurrentView('pricing');
+      resetTranscriptionProcessUI();
+      return;
     }
 
-    // Only business/paid users can proceed with unlimited transcription
+    // Only business/paid users or free users within their trial can proceed with transcription
     const canTranscribe = await canUserTranscribe(currentUser.uid, estimatedDuration);
     
-    if (!canTranscribe && userProfile.plan !== 'free') {
+    // If canTranscribe is false AND it's not a free user within their limit, then block
+    if (!canTranscribe && !(userProfile.plan === 'free' && remainingMinutes > 0)) {
       showMessage('You do not have permission to transcribe audio. Please upgrade your plan.');
       setCurrentView('pricing');
       resetTranscriptionProcessUI(); 
@@ -765,7 +751,8 @@ function AppContent() {
   useEffect(() => {
     if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
       // Auto-trigger for business users and free users within their 30-minute limit
-      if (userProfile.plan === 'business' || (userProfile.plan === 'free' && userProfile.totalMinutesUsed < 30)) {
+      const remainingMinutes = 30 - (userProfile.totalMinutesUsed || 0);
+      if (userProfile.plan === 'business' || (userProfile.plan === 'free' && remainingMinutes > 0)) {
         const timer = setTimeout(() => {
           handleUpload();
         }, 200);
@@ -788,7 +775,6 @@ function AppContent() {
       }
     };
   }, []);
-
   // Login screen for non-authenticated users
   if (!currentUser) {
     return (
@@ -848,6 +834,7 @@ function AppContent() {
       </div>
     );
   }
+
   return (
     <Routes>
       {/* Route for individual transcription detail page */}
@@ -1036,7 +1023,6 @@ function AppContent() {
               </button>
             )}
           </div>
-
           {/* Show Different Views - Pricing Section and Main Interface */}
           {currentView === 'pricing' ? (
             <div style={{ 
@@ -1340,7 +1326,7 @@ function AppContent() {
               maxWidth: '800px', 
               margin: '0 auto'
             }}>
-              {/* Updated Usage Information Banner */}
+              {/* UPDATED: Usage Information Banner with dynamic remaining minutes */}
               {userProfile && userProfile.plan === 'free' && (
                 <div style={{
                   backgroundColor: 'rgba(255, 243, 205, 0.95)',
@@ -1370,7 +1356,7 @@ function AppContent() {
                     </>
                   ) : (
                     <>
-                      🎵 Your free trial has ended. <strong>Upgrade</strong> to continue transcribing.{' '}
+                      🎵 Your free trial has ended. You have {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining.{' '}
                       <button 
                         onClick={() => setCurrentView('pricing')}
                         style={{
@@ -1554,32 +1540,36 @@ function AppContent() {
                     </div>
                   )}
 
-                  {/* Action Buttons with proper free user handling */}
+                  {/* UPDATED: Action Buttons with proper free user handling and locked state */}
                   <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
                     {status === 'idle' && !isUploading && selectedFile && (
                       <button
                         onClick={() => {
-                          // Check if user can transcribe
-                          if (userProfile?.plan === 'free' && userProfile?.totalMinutesUsed >= 30) {
-                            setCurrentView('pricing');
+                          const remainingMinutes = 30 - (userProfile?.totalMinutesUsed || 0);
+                          if (userProfile?.plan === 'free' && remainingMinutes <= 0) {
+                            setCurrentView('pricing'); // Redirect to pricing if trial ended
                           } else {
-                            handleUpload();
+                            handleUpload(); // Proceed with upload if within trial or paid
                           }
                         }}
-                        disabled={!selectedFile || isUploading}
+                        disabled={
+                          !selectedFile || 
+                          isUploading || 
+                          (userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) <= 0) // Disable if free trial ended
+                        }
                         style={{
                           padding: '15px 30px',
                           fontSize: '18px',
-                          backgroundColor: (!selectedFile || isUploading) ? '#6c757d' : 
-                            (userProfile?.plan === 'free' && userProfile?.totalMinutesUsed >= 30) ? '#ffc107' : '#6c5ce7',
+                          backgroundColor: (!selectedFile || isUploading || (userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) <= 0)) ? '#6c757d' : 
+                            (userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) > 0) ? '#ffc107' : '#6c5ce7',
                           color: 'white',
                           border: 'none',
                           borderRadius: '25px',
-                          cursor: (!selectedFile || isUploading) ? 'not-allowed' : 'pointer',
+                          cursor: (!selectedFile || isUploading || (userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) <= 0)) ? 'not-allowed' : 'pointer',
                           boxShadow: '0 5px 15px rgba(108, 92, 231, 0.4)'
                         }}
                       >
-                        {(userProfile?.plan === 'free' && userProfile?.totalMinutesUsed >= 30) ? 
+                        {(userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) <= 0) ? 
                           '🔒 Upgrade to Transcribe' : '🚀 Start Transcription'}
                       </button>
                     )}
@@ -1773,7 +1763,6 @@ function AppContent() {
               )}
             </main>
           )}
-
           {/* Footer for main app interface */}
           <footer style={{ 
             textAlign: 'center', 
@@ -1796,6 +1785,7 @@ function AppContent() {
     </Routes>
   );
 }
+
 // Main App Component with AuthProvider
 function App() {
   return (
