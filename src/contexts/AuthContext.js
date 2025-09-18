@@ -19,6 +19,9 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
 
+  // This function is key. It refetches the user profile.
+  // Once getUserProfile in userService.js is updated, this will correctly
+  // fetch the new totalMinutesUsed from Firestore.
   const refreshUserProfile = async () => {
     if (currentUser) {
       setProfileLoading(true);

@@ -205,6 +205,13 @@ function AppContent() {
       console.log('✅ Reset complete, ready for new operations');
     }, 500);
   }, []);
+
+  // DIAGNOSTIC: Log userProfile.totalMinutesUsed changes
+  useEffect(() => {
+    if (userProfile) {
+      console.log('DIAGNOSTIC: userProfile.totalMinutesUsed updated to:', userProfile.totalMinutesUsed);
+    }
+  }, [userProfile?.totalMinutesUsed]);
   // Enhanced file selection with proper job cancellation
   const handleFileSelect = useCallback(async (event) => {
     const file = event.target.files[0];
@@ -416,21 +423,20 @@ function AppContent() {
     try {
       const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
       
-      await updateUserUsage(currentUser.uid, estimatedDuration);
-      const audioUrl = selectedFile ? URL.createObjectURL(selectedFile) : (recordedAudioBlobRef.current ? URL.createObjectURL(recordedAudioBlobRef.current) : null);
-      await saveTranscription(currentUser.uid, {
-        fileName: selectedFile.name,
-        duration: estimatedDuration,
-        text: transcriptionText,
-        audioUrl: audioUrl
-      });
+      console.log('DIAGNOSTIC: Before updateUserUsage - userProfile.totalMinutesUsed:', userProfile?.totalMinutesUsed);
+      console.log('DIAGNOSTIC: Estimated duration for this transcription:', estimatedDuration);
+
+      await updateUserUsage(currentUser.uid, estimatedDuration); // This sends new usage to backend
+      // ... saveTranscription ...
       
       await refreshUserProfile(); // Crucial for updating totalMinutesUsed
+      console.log('DIAGNOSTIC: After refreshUserProfile - userProfile.totalMinutesUsed:', userProfile?.totalMinutesUsed);
+
     } catch (error) {
       console.error('Error updating usage:', error);
       showMessage('Failed to save transcription or update usage.');
     }
-  }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef]);
+  }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]); // Added userProfile to dependencies for logging
 
   // Enhanced checkJobStatus with better cancellation handling
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
@@ -747,19 +753,24 @@ function AppContent() {
     showMessage('Upgrade functionality will be implemented soon. Please contact support for now.');
   }, [showMessage]);
 
-  // Updated useEffect to handle 30-minute trial for free users
+  // UPDATED: useEffect to handle 30-minute trial for free users
   useEffect(() => {
     if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
       // Auto-trigger for business users and free users within their 30-minute limit
       const remainingMinutes = 30 - (userProfile.totalMinutesUsed || 0);
       if (userProfile.plan === 'business' || (userProfile.plan === 'free' && remainingMinutes > 0)) {
+        console.log('DIAGNOSTIC: Auto-upload triggered. User plan:', userProfile.plan, 'Remaining minutes:', remainingMinutes);
         const timer = setTimeout(() => {
           handleUpload();
         }, 200);
         return () => clearTimeout(timer);
+      } else if (userProfile.plan === 'free' && remainingMinutes <= 0) {
+        console.log('DIAGNOSTIC: Free trial ended. Not auto-uploading.');
+        // Optionally show a message here if you want to notify user immediately
+        // showMessage('Your free trial has ended. Please upgrade to transcribe.');
       }
     }
-  }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile, profileLoading]);
+  }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile, profileLoading, showMessage]);
 
   // Cleanup effect to ensure cancellation works
   useEffect(() => {

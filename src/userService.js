@@ -1,8 +1,8 @@
 import { db } from './firebase';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, limit, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc } from 'firebase/firestore'; // Removed 'limit' as it's not used in provided snippets
 
 const USERS_COLLECTION = 'users';
-const TRANSCRIPTIONS_COLLECTION = 'transcriptions'; // New collection for transcriptions
+const TRANSCRIPTIONS_COLLECTION = 'transcriptions';
 
 // Admin emails - define here for consistent access
 const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
@@ -27,25 +27,34 @@ export const createUserProfile = async (uid, email, name = '') => {
       email,
       name,
       plan: userPlan, // Set plan based on admin status
-      monthlyMinutes: 0, // Ensure monthlyMinutes is initialized to 0
+      totalMinutesUsed: 0, // FIXED: Initialize totalMinutesUsed for new users
       createdAt: new Date(),
       lastAccessed: new Date(),
     });
     console.log("User profile created for:", email, "with plan:", userPlan);
   } else {
+    // Get existing data to preserve totalMinutesUsed if it exists
+    const existingData = docSnap.data();
+    const updates = {
+      lastAccessed: new Date(),
+    };
+
     // If profile exists, ensure admin accounts always have business plan
-    if (ADMIN_EMAILS.includes(email) && docSnap.data().plan !== 'business') {
-      await updateDoc(userRef, {
-        plan: 'business', // Upgrade to business if admin and not already
-        lastAccessed: new Date(),
-      });
+    if (ADMIN_EMAILS.includes(email) && existingData.plan !== 'business') {
+      updates.plan = 'business'; // Upgrade to business if admin and not already
       console.log("Admin user profile updated to business plan:", email);
-    } else {
-      await updateDoc(userRef, {
-        lastAccessed: new Date(),
-      });
-      console.log("User profile updated for:", email);
+    } else if (!ADMIN_EMAILS.includes(email) && existingData.plan === 'business' && existingData.totalMinutesUsed === undefined) {
+      // Edge case: if a non-admin somehow got 'business' plan but is free, ensure totalMinutesUsed is set
+      updates.totalMinutesUsed = existingData.totalMinutesUsed !== undefined ? existingData.totalMinutesUsed : 0;
     }
+    
+    // Ensure totalMinutesUsed is initialized if it's missing for an existing user (e.g., old accounts)
+    if (existingData.totalMinutesUsed === undefined || existingData.totalMinutesUsed === null) {
+        updates.totalMinutesUsed = 0;
+    }
+
+    await updateDoc(userRef, updates);
+    console.log("User profile updated for:", email);
   }
 };
 
@@ -54,8 +63,9 @@ export const getUserProfile = async (uid) => {
   const docSnap = await getDoc(getUserProfileRef(uid));
   if (docSnap.exists()) {
     const profileData = docSnap.data();
-    // Ensure monthlyMinutes is always a number, default to 0
-    profileData.monthlyMinutes = profileData.monthlyMinutes !== undefined && profileData.monthlyMinutes !== null && !isNaN(profileData.monthlyMinutes) ? profileData.monthlyMinutes : 0;
+    
+    // FIXED: Ensure totalMinutesUsed is always a number, default to 0
+    profileData.totalMinutesUsed = typeof profileData.totalMinutesUsed === 'number' ? profileData.totalMinutesUsed : 0;
 
     // Ensure admin accounts always return business plan
     if (ADMIN_EMAILS.includes(profileData.email) && profileData.plan !== 'business') {
@@ -67,7 +77,7 @@ export const getUserProfile = async (uid) => {
   return null;
 };
 
-// FIXED: New function to check recording permissions
+// Check recording permissions (no change needed)
 export const canUserRecord = async (uid) => {
   try {
     const userProfile = await getUserProfile(uid);
@@ -81,7 +91,7 @@ export const canUserRecord = async (uid) => {
   }
 };
 
-// FIXED: Check if user can transcribe - only paid users
+// FIXED: Check if user can transcribe - now includes free trial logic
 export const canUserTranscribe = async (uid, estimatedDuration) => {
   try {
     console.log("🔍 canUserTranscribe called with:", { uid, estimatedDuration });
@@ -99,8 +109,22 @@ export const canUserTranscribe = async (uid, estimatedDuration) => {
       return true;
     }
 
-    // FIXED: Free users cannot transcribe at all (only paid users can)
-    console.log("❌ Free users cannot access transcription feature");
+    // NEW LOGIC: Free users get 30 minutes
+    if (userProfile.plan === 'free') {
+      const currentMinutesUsed = userProfile.totalMinutesUsed || 0;
+      const remainingMinutes = 30 - currentMinutesUsed;
+
+      if (estimatedDuration <= remainingMinutes) {
+        console.log(`✅ Free plan user - ${estimatedDuration} minutes within ${remainingMinutes} remaining. Allowing transcription.`);
+        return true;
+      } else {
+        console.log(`❌ Free plan user - ${estimatedDuration} minutes exceeds ${remainingMinutes} remaining. Blocking transcription.`);
+        return false;
+      }
+    }
+    
+    // Default to false for any other unhandled plan or scenario
+    console.log("❌ canUserTranscribe: User plan not eligible for transcription or unhandled scenario.");
     return false;
     
   } catch (error) {
@@ -109,25 +133,30 @@ export const canUserTranscribe = async (uid, estimatedDuration) => {
   }
 };
 
-// Update user usage after transcription
+// FIXED: Update user usage after transcription - now uses totalMinutesUsed
 export const updateUserUsage = async (uid, duration) => {
   const userRef = getUserProfileRef(uid);
   const userProfile = await getUserProfile(uid);
 
   if (userProfile && userProfile.plan === 'free') {
+    const newTotalMinutes = (userProfile.totalMinutesUsed || 0) + duration;
     await updateDoc(userRef, {
-      monthlyMinutes: (userProfile.monthlyMinutes || 0) + duration,
+      totalMinutesUsed: newTotalMinutes, // FIXED: Update totalMinutesUsed
       lastAccessed: new Date(),
     });
+    console.log(`📊 User ${uid} (free plan): Updated totalMinutesUsed to ${newTotalMinutes}`);
   } else if (userProfile && userProfile.plan === 'business') {
-    // For business plan (admins), we don't update monthlyMinutes for limits
+    // For business plan, we don't update totalMinutesUsed for limits
     await updateDoc(userRef, {
       lastAccessed: new Date(),
     });
+    console.log(`📊 User ${uid} (business plan): Usage not tracked for limits.`);
+  } else {
+    console.warn(`⚠️ User ${uid}: Profile not found or plan not recognized for usage update.`);
   }
 };
 
-// Save transcription to Firestore
+// Save transcription to Firestore (no change needed)
 export const saveTranscription = async (uid, transcriptionData) => {
   const transcriptionsCollectionRef = getUserTranscriptionsCollectionRef(uid);
   const newTranscriptionRef = doc(transcriptionsCollectionRef); // Let Firestore generate ID
@@ -142,7 +171,7 @@ export const saveTranscription = async (uid, transcriptionData) => {
   return newTranscriptionRef.id;
 };
 
-// Fetch user's transcriptions (for Dashboard)
+// Fetch user's transcriptions (for Dashboard) (no change needed)
 export const fetchUserTranscriptions = async (uid) => {
   const transcriptionsCollectionRef = getUserTranscriptionsCollectionRef(uid);
   // Query for active transcriptions, ordered by creation date
@@ -159,14 +188,14 @@ export const fetchUserTranscriptions = async (uid) => {
   return transcriptions;
 };
 
-// Update a specific transcription
+// Update a specific transcription (no change needed)
 export const updateTranscription = async (uid, transcriptionId, newData) => {
   const transcriptionRef = doc(db, USERS_COLLECTION, uid, TRANSCRIPTIONS_COLLECTION, transcriptionId);
   await updateDoc(transcriptionRef, newData);
   console.log("Transcription updated:", transcriptionId);
 };
 
-// Delete a specific transcription
+// Delete a specific transcription (no change needed)
 export const deleteTranscription = async (uid, transcriptionId) => {
   const transcriptionRef = doc(db, USERS_COLLECTION, uid, TRANSCRIPTIONS_COLLECTION, transcriptionId);
   await deleteDoc(transcriptionRef);
