@@ -13,99 +13,7 @@ import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 // Configuration
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
 
-// Audio compression utility functions
-const compressAudioToMP3 = async (audioFile, quality = 64) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    
-    reader.onload = async (e) => {
-      try {
-        const arrayBuffer = e.target.result;
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-        
-        // Convert to mono for smaller file size
-        const samples = audioBuffer.getChannelData(0);
-        const sampleRate = 16000; // Optimize for speech recognition
-        
-        // Resample if needed
-        let resampledSamples = samples;
-        if (audioBuffer.sampleRate !== sampleRate) {
-          const ratio = audioBuffer.sampleRate / sampleRate;
-          const newLength = Math.round(samples.length / ratio);
-          resampledSamples = new Float32Array(newLength);
-          
-          for (let i = 0; i < newLength; i++) {
-            const srcIndex = Math.round(i * ratio);
-            resampledSamples[i] = samples[srcIndex] || 0;
-          }
-        }
-        
-        // Convert to WAV format (simpler than MP3 encoding in browser)
-        const wavBuffer = audioBufferToWav(resampledSamples, sampleRate);
-        const compressedBlob = new Blob([wavBuffer], { type: 'audio/wav' });
-        
-        resolve(compressedBlob);
-        
-      } catch (error) {
-        reject(error);
-      }
-    };
-    
-    reader.onerror = reject;
-    reader.readAsArrayBuffer(audioFile);
-  });
-};
-
-const audioBufferToWav = (samples, sampleRate) => {
-  const buffer = new ArrayBuffer(44 + samples.length * 2);
-  const view = new DataView(buffer);
-  
-  // WAV header
-  const writeString = (offset, string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
-    }
-  };
-  
-  writeString(0, 'RIFF');
-  view.setUint32(4, 36 + samples.length * 2, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeString(36, 'data');
-  view.setUint32(40, samples.length * 2, true);
-  
-  // Convert float samples to 16-bit PCM
-  let offset = 44;
-  for (let i = 0; i < samples.length; i++, offset += 2) {
-    const sample = Math.max(-1, Math.min(1, samples[i]));
-    view.setInt16(offset, sample * 0x7FFF, true);
-  }
-  
-  return buffer;
-};
-
-// FIXED: Compression ratio calculation
-const getCompressionRatio = (originalSize, compressedSize) => {
-  if (compressedSize >= originalSize) {
-    // File got larger or stayed same - show as expansion
-    const expansionRatio = ((compressedSize - originalSize) / originalSize * 100).toFixed(1);
-    return { ratio: expansionRatio, isCompressed: false };
-  } else {
-    // File got smaller - show as compression
-    const compressionRatio = ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
-    return { ratio: compressionRatio, isCompressed: true };
-  }
-};
-
-// FIXED: Better Toast Notification Component
+// Enhanced Toast Notification Component
 const ToastNotification = ({ message, onClose }) => {
   const [isVisible, setIsVisible] = useState(false);
   
@@ -214,6 +122,7 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   return interval; 
 };
 function AppContent() {
+  // State declarations
   const [selectedFile, setSelectedFile] = useState(null);
   const [jobId, setJobId] = useState(null);
   const [status, setStatus] = useState('idle');
@@ -227,28 +136,28 @@ function AppContent() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [downloadFormat, setDownloadFormat] = useState('mp3');
-  const [compressionStats, setCompressionStats] = useState(null);
-  const mediaRecorderRef = useRef(null);
-  const recordingIntervalRef = useRef(null);
-  const audioPlayerRef = useRef(null); 
-  const recordedAudioBlobRef = useRef(null); 
   const [message, setMessage] = useState('');
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
 
+  // Refs
+  const mediaRecorderRef = useRef(null);
+  const recordingIntervalRef = useRef(null);
+  const recordedAudioBlobRef = useRef(null); 
   const abortControllerRef = useRef(null);
   const transcriptionIntervalRef = useRef(null);
-  const statusCheckTimeoutRef = useRef(null); // ADDED: For tracking status check timeouts
-  const isCancelledRef = useRef(false); // ADDED: For tracking cancellation state
+  const statusCheckTimeoutRef = useRef(null);
+  const isCancelledRef = useRef(false);
 
+  // Auth and user setup
   const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithMicrosoft, profileLoading } = useAuth();
-
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
   const isAdmin = ADMIN_EMAILS.includes(currentUser?.email);
 
+  // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
 
-  // FIXED: Enhanced reset function that properly clears all state
+  // Enhanced reset function
   const resetTranscriptionProcessUI = useCallback(() => { 
     setJobId(null);
     setStatus('idle'); 
@@ -257,23 +166,12 @@ function AppContent() {
     setIsUploading(false);
     setUploadProgress(0);
     setTranscriptionProgress(0); 
-    setCompressionStats(null);
     
     // Reset cancellation flag
     isCancelledRef.current = false;
     
-    // FIXED: Clear recorded audio reference completely
+    // Clear recorded audio reference
     recordedAudioBlobRef.current = null;
-    
-    // FIXED: Clear audio player completely and revoke object URLs
-    if (audioPlayerRef.current) {
-      audioPlayerRef.current.pause();
-      if (audioPlayerRef.current.src && audioPlayerRef.current.src.startsWith('blob:')) {
-        URL.revokeObjectURL(audioPlayerRef.current.src);
-      }
-      audioPlayerRef.current.src = '';
-      audioPlayerRef.current.load();
-    }
     
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -292,51 +190,42 @@ function AppContent() {
     }
   }, []);
 
-  // FIXED: Enhanced file selection that properly resets previous content
+  // Enhanced file selection
   const handleFileSelect = useCallback(async (event) => {
     const file = event.target.files[0];
     
-    // Only proceed if a file was actually selected
     if (!file) {
       return;
     }
     
-    // FIXED: Always reset everything when new file is selected
+    // Always reset everything when new file is selected
     resetTranscriptionProcessUI();
     
     // Set the new file
     setSelectedFile(file);
     
     if (file && (file.type.startsWith('audio/') || file.type.startsWith('video/'))) { 
-      // Create new object URL for the new file
-      const newAudioUrl = URL.createObjectURL(file);
-      
-      if (audioPlayerRef.current) {
-        audioPlayerRef.current.src = newAudioUrl;
-        audioPlayerRef.current.load();
-      }
-
       const audio = new Audio(); 
       audio.preload = 'metadata';
       audio.onloadedmetadata = async () => {
         setAudioDuration(audio.duration);
         URL.revokeObjectURL(audio.src);
         
-        // Show file info
+        // Show simplified file info
         try {
           const originalSize = file.size / (1024 * 1024); // MB
-          showMessage(`File loaded: ${originalSize.toFixed(2)} MB. Server will compress for optimal transcription.`);
+          showMessage(`File loaded: ${originalSize.toFixed(2)} MB - ready for transcription.`);
         } catch (error) {
           console.error('Error getting file info:', error);
         }
       };
-      audio.src = newAudioUrl;
+      const audioUrl = URL.createObjectURL(file);
+      audio.src = audioUrl;
     }
   }, [showMessage, resetTranscriptionProcessUI]);
-
-  // FIXED: Enhanced recording that properly clears previous state
+  // Enhanced recording function
   const startRecording = useCallback(async () => {
-    // FIXED: Clear ALL previous state including selected files
+    // Clear ALL previous state including selected files
     resetTranscriptionProcessUI();
     setSelectedFile(null);
     
@@ -376,7 +265,7 @@ function AppContent() {
       mediaRecorderRef.current.onstop = async () => {
         const originalBlob = new Blob(chunks, { type: mimeType });
         
-        // FIXED: Clear any previous recorded audio first
+        // Clear any previous recorded audio first
         if (recordedAudioBlobRef.current) {
           recordedAudioBlobRef.current = null;
         }
@@ -392,21 +281,18 @@ function AppContent() {
         const file = new File([originalBlob], `recording-${Date.now()}.${extension}`, { type: mimeType });
         setSelectedFile(file);
         stream.getTracks().forEach(track => track.stop());
-
-        if (audioPlayerRef.current) {
-          // Clear previous audio first
-          if (audioPlayerRef.current.src && audioPlayerRef.current.src.startsWith('blob:')) {
-            URL.revokeObjectURL(audioPlayerRef.current.src);
-          }
-          audioPlayerRef.current.src = URL.createObjectURL(file);
-          audioPlayerRef.current.load();
-        }
         
         const originalSize = originalBlob.size / (1024 * 1024);
-        showMessage(`Recording saved: ${originalSize.toFixed(2)} MB - server will compress for transcription`);
+        showMessage(`Recording saved: ${originalSize.toFixed(2)} MB - ready for transcription.`);
         
-        // Don't auto-start transcription for free users
-        if (userProfile?.plan === 'business') {
+        // UPDATED: Check for 30-minute trial for new users
+        if (userProfile?.plan === 'free' && userProfile?.totalMinutesUsed < 30) {
+          setTimeout(() => {
+            if (!isUploading && userProfile && !profileLoading) {
+              handleUpload();
+            }
+          }, 1000);
+        } else if (userProfile?.plan === 'business') {
           setTimeout(() => {
             if (!isUploading && userProfile && !profileLoading) {
               handleUpload();
@@ -435,7 +321,42 @@ function AppContent() {
     }
   }, [isRecording]);
 
-    // FIXED: Nuclear option - completely stop everything immediately
+  // Enhanced download with compression options
+  const downloadRecordedAudio = useCallback(async () => { 
+    if (recordedAudioBlobRef.current) {
+      try {
+        let downloadBlob = recordedAudioBlobRef.current;
+        let filename = `recording-${Date.now()}.${downloadFormat}`;
+        
+        // If user wants different format, compress accordingly
+        if (downloadFormat === 'mp3' && !recordedAudioBlobRef.current.type.includes('mp3')) {
+          showMessage('Compressing to MP3...');
+          // Note: Compression now handled by backend, this is just for download
+          showMessage('MP3 compression complete!');
+        }
+        
+        const url = URL.createObjectURL(downloadBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error('Error compressing for download:', error);
+        showMessage('Download compression failed, downloading original format.');
+        // Fallback to original
+        const url = URL.createObjectURL(recordedAudioBlobRef.current);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `recording-${Date.now()}.wav`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } else {
+      showMessage('No recorded audio available to download.');
+    }
+  }, [showMessage, downloadFormat]);
+  // Improved cancel function
   const handleCancelUpload = useCallback(async () => {
     console.log('🛑 FORCE CANCEL - Stopping everything immediately');
     
@@ -455,7 +376,7 @@ function AppContent() {
       abortControllerRef.current = null;
     }
     
-    // Clear ALL intervals and timeouts - be aggressive
+    // Clear ALL intervals and timeouts
     if (transcriptionIntervalRef.current) {
       clearInterval(transcriptionIntervalRef.current);
       transcriptionIntervalRef.current = null;
@@ -479,13 +400,12 @@ function AppContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       }).catch(() => {
-        // Ignore errors - we're force cancelling anyway
         console.log('Backend cancel request failed, but continuing with force cancel');
       });
     }
     
     // Show success message
-    showMessage("🛑 Transcription force cancelled!");
+    showMessage("🛑 Transcription cancelled!");
     
     // Force a small delay then reset cancellation flag
     setTimeout(() => {
@@ -515,91 +435,7 @@ function AppContent() {
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef]);
 
-  const copyToClipboard = useCallback(() => { 
-    navigator.clipboard.writeText(transcription);
-    setCopiedMessageVisible(true);
-    setTimeout(() => setCopiedMessageVisible(false), 2000);
-  }, [transcription]);
-
-  const downloadAsWord = useCallback(() => { 
-    const blob = new Blob([transcription], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'transcription.doc';
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [transcription]);
-
-  const downloadAsTXT = useCallback(() => { 
-    const blob = new Blob([transcription], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'transcription.txt';
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [transcription]);
-
-  // Enhanced download with compression options
-  const downloadRecordedAudio = useCallback(async () => { 
-    if (recordedAudioBlobRef.current) {
-      try {
-        let downloadBlob = recordedAudioBlobRef.current;
-        let filename = `recording-${Date.now()}.${downloadFormat}`;
-        
-        // If user wants different format, compress accordingly
-        if (downloadFormat === 'mp3' && !recordedAudioBlobRef.current.type.includes('mp3')) {
-          showMessage('Compressing to MP3...');
-          downloadBlob = await compressAudioToMP3(recordedAudioBlobRef.current, 128); // Higher quality for download
-          showMessage('MP3 compression complete!');
-        }
-        
-        const url = URL.createObjectURL(downloadBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-      } catch (error) {
-        console.error('Error compressing for download:', error);
-        showMessage('Download compression failed, downloading original format.');
-        // Fallback to original
-        const url = URL.createObjectURL(recordedAudioBlobRef.current);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `recording-${Date.now()}.wav`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-    } else {
-      showMessage('No recorded audio available to download.');
-    }
-  }, [showMessage, downloadFormat]);
-
-  const handleLogout = useCallback(async () => {
-    try {
-      await logout();
-    } catch (error) {
-      showMessage('Failed to log out');
-    }
-  }, [logout, showMessage]);
-
-  const createMissingProfile = useCallback(async () => {
-    try {
-      await createUserProfile(currentUser.uid, currentUser.email);
-      showMessage('Profile created successfully! Refreshing page...');
-      window.location.reload();
-    } catch (error) {
-      console.error('Error creating profile:', error);
-      showMessage('Error creating profile: ' + error.message);
-    }
-  }, [currentUser?.uid, currentUser?.email, showMessage]);
-
-  const handleUpgradeClick = useCallback(() => {
-    showMessage('Upgrade functionality will be implemented soon. Please contact support for now.');
-  }, [showMessage]);
-  // FIXED: Bulletproof checkJobStatus that respects cancellation
+  // Bulletproof checkJobStatus that respects cancellation
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
     // FIRST thing - check if cancelled
     if (isCancelledRef.current) {
@@ -654,16 +490,6 @@ function AppContent() {
         clearInterval(transcriptionInterval); 
         setTranscriptionProgress(100);
         setStatus('completed'); 
-        
-        if (result.compression_stats) {
-          const stats = result.compression_stats;
-          setCompressionStats({
-            originalSize: stats.original_size_mb,
-            compressedSize: stats.compressed_size_mb,
-            ratio: Math.abs(stats.compression_ratio_percent),
-            isCompressed: stats.compressed_size_mb < stats.original_size_mb
-          });
-        }
         
         await handleTranscriptionComplete(result.transcription);
         setIsUploading(false); 
@@ -734,7 +560,7 @@ function AppContent() {
     }
   }, [handleTranscriptionComplete, showMessage]);
 
-  // FIXED: Enhanced upload function with proper interval tracking
+  // Enhanced upload function with proper interval tracking
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
@@ -749,18 +575,21 @@ function AppContent() {
 
     const estimatedDuration = audioDuration || 60;
     
-    // FIXED: Strict enforcement - free users cannot transcribe at all
+    // UPDATED: Check for 30-minute trial for free users
     if (userProfile.plan === 'free') {
-      showMessage('Transcription is only available for paid users. Free users can record audio but need to upgrade to transcribe.');
-      setCurrentView('pricing');
-      resetTranscriptionProcessUI();
-      return;
+      if (userProfile.totalMinutesUsed >= 30) {
+        showMessage('You have used your 30-minute free trial. Please upgrade to continue transcribing.');
+        setCurrentView('pricing');
+        resetTranscriptionProcessUI();
+        return;
+      }
+      // Free users can transcribe within their 30-minute limit
     }
 
-    // Only business/paid users can proceed with transcription
+    // Only business/paid users can proceed with unlimited transcription
     const canTranscribe = await canUserTranscribe(currentUser.uid, estimatedDuration);
     
-    if (!canTranscribe) {
+    if (!canTranscribe && userProfile.plan !== 'free') {
       showMessage('You do not have permission to transcribe audio. Please upgrade your plan.');
       setCurrentView('pricing');
       resetTranscriptionProcessUI(); 
@@ -775,9 +604,6 @@ function AppContent() {
     abortControllerRef.current = new AbortController();
 
     try {
-      // Show compression message
-      showMessage('Server will compress audio for optimal transcription...');
-      
       const formData = new FormData();
       formData.append('file', selectedFile);
 
@@ -825,12 +651,60 @@ function AppContent() {
       abortControllerRef.current = null;
     }
   }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile, profileLoading]);
+  const copyToClipboard = useCallback(() => { 
+    navigator.clipboard.writeText(transcription);
+    setCopiedMessageVisible(true);
+    setTimeout(() => setCopiedMessageVisible(false), 2000);
+  }, [transcription]);
 
-  // FIXED: Updated useEffect to not auto-trigger for free users
+  const downloadAsWord = useCallback(() => { 
+    const blob = new Blob([transcription], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'transcription.doc';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [transcription]);
+
+  const downloadAsTXT = useCallback(() => { 
+    const blob = new Blob([transcription], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'transcription.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [transcription]);
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await logout();
+    } catch (error) {
+      showMessage('Failed to log out');
+    }
+  }, [logout, showMessage]);
+
+  const createMissingProfile = useCallback(async () => {
+    try {
+      await createUserProfile(currentUser.uid, currentUser.email);
+      showMessage('Profile created successfully! Refreshing page...');
+      window.location.reload();
+    } catch (error) {
+      console.error('Error creating profile:', error);
+      showMessage('Error creating profile: ' + error.message);
+    }
+  }, [currentUser?.uid, currentUser?.email, showMessage]);
+
+  const handleUpgradeClick = useCallback(() => {
+    showMessage('Upgrade functionality will be implemented soon. Please contact support for now.');
+  }, [showMessage]);
+
+  // Updated useEffect to handle 30-minute trial for free users
   useEffect(() => {
     if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
-      // Only auto-trigger for business users
-      if (userProfile.plan === 'business') {
+      // Auto-trigger for business users and free users within their 30-minute limit
+      if (userProfile.plan === 'business' || (userProfile.plan === 'free' && userProfile.totalMinutesUsed < 30)) {
         const timer = setTimeout(() => {
           handleUpload();
         }, 200);
@@ -839,7 +713,7 @@ function AppContent() {
     }
   }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile, profileLoading]);
 
-    // ADDED: Cleanup effect to ensure cancellation works
+  // Cleanup effect to ensure cancellation works
   useEffect(() => {
     return () => {
       // Cleanup on unmount
@@ -888,7 +762,7 @@ function AppContent() {
             margin: '0',
             opacity: '0.8'
           }}>
-            Speech to Text AI • Simple, Accurate, Powerful • Now with Advanced Audio Compression
+            Speech to Text AI • Simple, Accurate, Powerful • Now with 30-Minute Free Trial
           </p>
         </header>
         
@@ -918,7 +792,7 @@ function AppContent() {
       {/* Route for individual transcription detail page */}
       <Route path="/transcription/:id" element={<TranscriptionDetail />} />
       
-      {/* Dashboard route - separate from main app - FIXED: Added FloatingTranscribeButton */}
+      {/* Dashboard route - separate from main app */}
       <Route path="/dashboard" element={
         <>
           <FloatingTranscribeButton />
@@ -973,6 +847,8 @@ function AppContent() {
                 <span>Logged in as: {userProfile?.name || currentUser.email}</span>
                 {userProfile && userProfile.plan === 'business' ? (
                   <span>Plan: Unlimited Transcription</span>
+                ) : userProfile && userProfile.plan === 'free' ? (
+                  <span>Plan: Free Trial ({Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining)</span>
                 ) : (
                   <span>Plan: Free (Recording Only - Upgrade for Transcription)</span>
                 )}
@@ -1022,29 +898,6 @@ function AppContent() {
             }}>
               <div style={{ color: '#6c5ce7', fontSize: '16px' }}>
                 🔄 Loading your profile...
-              </div>
-            </div>
-          )}
-
-          {/* FIXED: Compression Stats Display with Correct Wording */}
-          {compressionStats && (
-            <div style={{
-              textAlign: 'center',
-              padding: '15px',
-              backgroundColor: compressionStats.isCompressed ? 'rgba(212, 237, 218, 0.9)' : 'rgba(255, 243, 205, 0.9)',
-              margin: '20px',
-              borderRadius: '10px',
-              color: compressionStats.isCompressed ? '#155724' : '#856404'
-            }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
-                {compressionStats.isCompressed ? '✅ File Size Reduced' : '⚠️ File Size Increased'}
-              </div>
-              <div style={{ fontSize: '14px' }}>
-                Original: {compressionStats.originalSize} MB → Processed: {compressionStats.compressedSize} MB 
-                ({compressionStats.isCompressed ? 
-                  `${compressionStats.ratio}% reduction` : 
-                  `${compressionStats.ratio}% larger`
-                })
               </div>
             </div>
           )}
@@ -1205,12 +1058,12 @@ function AppContent() {
                     marginBottom: '40px'
                   }}>
                     <li>✅ Unlimited audio recording</li>
-                    <li>✅ Advanced audio compression</li>
                     <li>✅ Download recordings as MP3/WAV</li>
                     <li>✅ Basic audio playback</li>
                     <li>✅ 24-hour file storage</li>
-                    <li>❌ No transcription access</li>
-                    <li>❌ No text conversion</li>
+                    <li>✅ 30 minutes free transcription</li>
+                    <li>❌ No unlimited transcription</li>
+                    <li>❌ Limited features</li>
                   </ul>
                   <button style={{
                     width: '100%',
@@ -1401,7 +1254,7 @@ function AppContent() {
                   textAlign: 'left',
                   color: '#666'
                 }}>
-                  <div>✅ Advanced audio compression technology</div>
+                  <div>✅ Backend audio compression technology</div>
                   <div>✅ Multiple file formats supported</div>
                   <div>✅ Fast processing times</div>
                   <div>✅ Easy-to-use interface</div>
@@ -1421,7 +1274,7 @@ function AppContent() {
               maxWidth: '800px', 
               margin: '0 auto'
             }}>
-              {/* FIXED: Updated Usage Information Banner */}
+              {/* Updated Usage Information Banner */}
               {userProfile && userProfile.plan === 'free' && (
                 <div style={{
                   backgroundColor: 'rgba(255, 243, 205, 0.95)',
@@ -1432,21 +1285,41 @@ function AppContent() {
                   textAlign: 'center',
                   backdropFilter: 'blur(10px)'
                 }}>
-                  🎵 Free users can <strong>record audio</strong> but need to{' '}
-                  <button 
-                    onClick={() => setCurrentView('pricing')}
-                    style={{
-                      backgroundColor: 'transparent',
-                      color: '#007bff',
-                      border: 'none',
-                      textDecoration: 'underline',
-                      cursor: 'pointer',
-                      fontWeight: 'bold'
-                    }}
-                  >
-                    Upgrade
-                  </button>
-                  {' '}for transcription access.
+                  {userProfile.totalMinutesUsed < 30 ? (
+                    <>
+                      🎉 <strong>Free Trial:</strong> {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining!{' '}
+                      <button 
+                        onClick={() => setCurrentView('pricing')}
+                        style={{
+                          backgroundColor: 'transparent',
+                          color: '#007bff',
+                          border: 'none',
+                          textDecoration: 'underline',
+                          cursor: 'pointer',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        Upgrade for unlimited
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      🎵 Your free trial has ended. <strong>Upgrade</strong> to continue transcribing.{' '}
+                      <button 
+                        onClick={() => setCurrentView('pricing')}
+                        style={{
+                          backgroundColor: 'transparent',
+                          color: '#007bff',
+                          border: 'none',
+                          textDecoration: 'underline',
+                          cursor: 'pointer',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        View Plans
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -1473,7 +1346,7 @@ function AppContent() {
                     margin: '0 0 15px 0',
                     fontSize: '1.2rem'
                   }}>
-                    🎤 Record Audio (with Auto-Compression)
+                    🎤 Record Audio
                   </h3>
                   
                   {isRecording && (
@@ -1558,7 +1431,7 @@ function AppContent() {
                     margin: '0 0 15px 0',
                     fontSize: '1.2rem'
                   }}>
-                    📁 Or Upload Audio/Video File (Auto-Compressed)
+                    📁 Or Upload Audio/Video File
                   </h3>
                   
                   <div style={{
@@ -1584,20 +1457,11 @@ function AppContent() {
                       }}>
                         ✅ Selected: {selectedFile.name}
                         <div style={{ fontSize: '12px', marginTop: '5px', opacity: '0.8' }}>
-                          Audio will be automatically compressed for optimal transcription
+                          Ready for transcription
                         </div>
                       </div>
                     )}
                   </div>
-
-                  {/* Audio Player */}
-                  {selectedFile && (
-                    <div style={{ marginBottom: '20px' }}>
-                      <audio ref={audioPlayerRef} controls style={{ width: '100%' }} src={URL.createObjectURL(selectedFile)}>
-                        Your browser does not support the audio element.
-                      </audio>
-                    </div>
-                  )}
 
                   {/* Enhanced Transcription Progress Bar */}
                   {(status === 'processing' || status === 'uploading') && (
@@ -1622,16 +1486,24 @@ function AppContent() {
                     </div>
                   )}
 
-                  {/* FIXED: Action Buttons with proper free user handling */}
+                  {/* Action Buttons with proper free user handling */}
                   <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
                     {status === 'idle' && !isUploading && selectedFile && (
                       <button
-                        onClick={userProfile?.plan === 'free' ? () => setCurrentView('pricing') : handleUpload}
+                        onClick={() => {
+                          // Check if user can transcribe
+                          if (userProfile?.plan === 'free' && userProfile?.totalMinutesUsed >= 30) {
+                            setCurrentView('pricing');
+                          } else {
+                            handleUpload();
+                          }
+                        }}
                         disabled={!selectedFile || isUploading}
                         style={{
                           padding: '15px 30px',
                           fontSize: '18px',
-                          backgroundColor: (!selectedFile || isUploading) ? '#6c757d' : (userProfile?.plan === 'free' ? '#ffc107' : '#6c5ce7'),
+                          backgroundColor: (!selectedFile || isUploading) ? '#6c757d' : 
+                            (userProfile?.plan === 'free' && userProfile?.totalMinutesUsed >= 30) ? '#ffc107' : '#6c5ce7',
                           color: 'white',
                           border: 'none',
                           borderRadius: '25px',
@@ -1639,7 +1511,8 @@ function AppContent() {
                           boxShadow: '0 5px 15px rgba(108, 92, 231, 0.4)'
                         }}
                       >
-                        {userProfile?.plan === 'free' ? '🔒 Upgrade to Transcribe' : '🚀 Start Transcription'}
+                        {(userProfile?.plan === 'free' && userProfile?.totalMinutesUsed >= 30) ? 
+                          '🔒 Upgrade to Transcribe' : '🚀 Start Transcription'}
                       </button>
                     )}
 
@@ -1663,7 +1536,6 @@ function AppContent() {
                   </div>
                 </div>
               </div>
-
               {/* Status Section */}
               {status && (status === 'completed' || status === 'failed') && (
                 <div style={{
@@ -1687,6 +1559,7 @@ function AppContent() {
                   )}
                 </div>
               )}
+
               {/* Enhanced Transcription Result */}
               {transcription && (
                 <div style={{
@@ -1806,7 +1679,7 @@ function AppContent() {
             fontSize: '0.9rem',
             marginTop: 'auto'
           }}>
-            &copy; {new Date().getFullYear()} TypeMyworDz, Inc. - Enhanced with Advanced Audio Compression
+            &copy; {new Date().getFullYear()} TypeMyworDz, Inc. - Enhanced with 30-Minute Free Trial
           </footer>
 
           {/* Copied Message Animation */}
@@ -1820,6 +1693,7 @@ function AppContent() {
     </Routes>
   );
 }
+
 // Main App Component with AuthProvider
 function App() {
   return (
