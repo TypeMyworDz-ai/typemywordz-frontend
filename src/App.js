@@ -360,7 +360,7 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
-  // Improved cancel function
+  // UPDATED: Improved cancel function with page refresh
   const handleCancelUpload = useCallback(async () => {
     console.log('🛑 FORCE CANCEL - Stopping everything immediately');
     
@@ -408,15 +408,15 @@ function AppContent() {
       });
     }
     
-    // Show success message
-    showMessage("🛑 Transcription cancelled!");
+    // Show success message briefly, then refresh
+    showMessage("🛑 Transcription cancelled! Reloading page...");
     
-    // Force a small delay then reset cancellation flag
+    // Force a small delay for message to show, then refresh the page
     setTimeout(() => {
-      isCancelledRef.current = false;
-    }, 1000);
+      window.location.reload(); // Force page refresh as requested
+    }, 1500); // 1.5 second delay
     
-    console.log('✅ Force cancellation complete');
+    console.log('✅ Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage]);
 
   const handleTranscriptionComplete = useCallback(async (transcriptionText) => {
@@ -1262,7 +1262,7 @@ function AppContent() {
                       color: '#666',
                       fontSize: '1.2rem'
                     }}>
-                      /Month
+                      /month
                     </span>
                   </div>
                   <ul style={{ 
