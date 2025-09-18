@@ -157,8 +157,14 @@ function AppContent() {
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
 
-  // Enhanced reset function
+  // Enhanced reset function with better job cancellation
   const resetTranscriptionProcessUI = useCallback(() => { 
+    console.log('🔄 Resetting transcription UI and cancelling any ongoing processes');
+    
+    // Set cancellation flag FIRST
+    isCancelledRef.current = true;
+    
+    // Reset UI state
     setJobId(null);
     setStatus('idle'); 
     setTranscription('');
@@ -166,9 +172,6 @@ function AppContent() {
     setIsUploading(false);
     setUploadProgress(0);
     setTranscriptionProgress(0); 
-    
-    // Reset cancellation flag
-    isCancelledRef.current = false;
     
     // Clear recorded audio reference
     recordedAudioBlobRef.current = null;
@@ -178,7 +181,7 @@ function AppContent() {
       abortControllerRef.current = null;
     }
 
-    // Clear all intervals and timeouts
+    // Clear all intervals and timeouts aggressively
     if (transcriptionIntervalRef.current) {
       clearInterval(transcriptionIntervalRef.current);
       transcriptionIntervalRef.current = null;
@@ -188,14 +191,43 @@ function AppContent() {
       clearTimeout(statusCheckTimeoutRef.current);
       statusCheckTimeoutRef.current = null;
     }
-  }, []);
 
-  // Enhanced file selection
+    // Clear all other intervals that might be running
+    const highestIntervalId = setInterval(() => {}, 0);
+    for (let i = 1; i <= highestIntervalId; i++) {
+      clearInterval(i);
+      clearTimeout(i);
+    }
+    
+    // Reset cancellation flag after a short delay
+    setTimeout(() => {
+      isCancelledRef.current = false;
+      console.log('✅ Reset complete, ready for new operations');
+    }, 500);
+  }, []);
+  // Enhanced file selection with proper job cancellation
   const handleFileSelect = useCallback(async (event) => {
     const file = event.target.files[0];
     
     if (!file) {
       return;
+    }
+    
+    // FIRST: Cancel any ongoing backend job before clearing state
+    if (jobId && (status === 'processing' || status === 'uploading')) {
+      console.log('🛑 Cancelling previous job before selecting new file');
+      isCancelledRef.current = true;
+      
+      // Try to cancel the backend job
+      try {
+        await fetch(`${BACKEND_URL}/cancel/${jobId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        console.log('✅ Previous job cancelled successfully');
+      } catch (error) {
+        console.log('⚠️ Failed to cancel previous job, but continuing:', error);
+      }
     }
     
     // Always reset everything when new file is selected
@@ -211,9 +243,8 @@ function AppContent() {
         setAudioDuration(audio.duration);
         URL.revokeObjectURL(audio.src);
         
-        // Show simplified file info
         try {
-          const originalSize = file.size / (1024 * 1024); // MB
+          const originalSize = file.size / (1024 * 1024);
           showMessage(`File loaded: ${originalSize.toFixed(2)} MB - ready for transcription.`);
         } catch (error) {
           console.error('Error getting file info:', error);
@@ -222,9 +253,27 @@ function AppContent() {
       const audioUrl = URL.createObjectURL(file);
       audio.src = audioUrl;
     }
-  }, [showMessage, resetTranscriptionProcessUI]);
-  // Enhanced recording function
+  }, [showMessage, resetTranscriptionProcessUI, jobId, status]);
+
+  // Enhanced recording function with proper job cancellation
   const startRecording = useCallback(async () => {
+    // FIRST: Cancel any ongoing backend job before clearing state
+    if (jobId && (status === 'processing' || status === 'uploading')) {
+      console.log('🛑 Cancelling previous job before starting new recording');
+      isCancelledRef.current = true;
+      
+      // Try to cancel the backend job
+      try {
+        await fetch(`${BACKEND_URL}/cancel/${jobId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        console.log('✅ Previous job cancelled successfully');
+      } catch (error) {
+        console.log('⚠️ Failed to cancel previous job, but continuing:', error);
+      }
+    }
+
     // Clear ALL previous state including selected files
     resetTranscriptionProcessUI();
     setSelectedFile(null);
@@ -238,15 +287,14 @@ function AppContent() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
-          sampleRate: 16000, // Optimized for speech recognition
-          channelCount: 1,   // Mono audio
+          sampleRate: 16000,
+          channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true
         } 
       });
       
-      // Try to use the best available format
       let mimeType = 'audio/webm;codecs=opus';
       if (!MediaRecorder.isTypeSupported(mimeType)) {
         mimeType = 'audio/webm';
@@ -265,14 +313,12 @@ function AppContent() {
       mediaRecorderRef.current.onstop = async () => {
         const originalBlob = new Blob(chunks, { type: mimeType });
         
-        // Clear any previous recorded audio first
         if (recordedAudioBlobRef.current) {
           recordedAudioBlobRef.current = null;
         }
         
         recordedAudioBlobRef.current = originalBlob;
         
-        // Determine file extension
         let extension = 'wav';
         if (mimeType.includes('webm')) {
           extension = 'webm';
@@ -311,7 +357,7 @@ function AppContent() {
     } catch (error) {
       showMessage('Could not access microphone: ' + error.message);
     }
-  }, [resetTranscriptionProcessUI, showMessage, isUploading, userProfile, profileLoading]);
+  }, [resetTranscriptionProcessUI, showMessage, isUploading, userProfile, profileLoading, jobId, status]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -320,42 +366,6 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
-
-  // Enhanced download with compression options
-  const downloadRecordedAudio = useCallback(async () => { 
-    if (recordedAudioBlobRef.current) {
-      try {
-        let downloadBlob = recordedAudioBlobRef.current;
-        let filename = `recording-${Date.now()}.${downloadFormat}`;
-        
-        // If user wants different format, compress accordingly
-        if (downloadFormat === 'mp3' && !recordedAudioBlobRef.current.type.includes('mp3')) {
-          showMessage('Compressing to MP3...');
-          // Note: Compression now handled by backend, this is just for download
-          showMessage('MP3 compression complete!');
-        }
-        
-        const url = URL.createObjectURL(downloadBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-      } catch (error) {
-        console.error('Error compressing for download:', error);
-        showMessage('Download compression failed, downloading original format.');
-        // Fallback to original
-        const url = URL.createObjectURL(recordedAudioBlobRef.current);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `recording-${Date.now()}.wav`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-    } else {
-      showMessage('No recorded audio available to download.');
-    }
-  }, [showMessage, downloadFormat]);
   // Improved cancel function
   const handleCancelUpload = useCallback(async () => {
     console.log('🛑 FORCE CANCEL - Stopping everything immediately');
@@ -435,7 +445,7 @@ function AppContent() {
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef]);
 
-  // Bulletproof checkJobStatus that respects cancellation
+  // Enhanced checkJobStatus with better cancellation handling
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
     // FIRST thing - check if cancelled
     if (isCancelledRef.current) {
@@ -454,7 +464,7 @@ function AppContent() {
       timeoutId = setTimeout(() => {
         console.log('⏰ Status check timeout - aborting');
         controller.abort();
-      }, 5000); // 5 second timeout
+      }, 5000);
       
       const response = await fetch(`${BACKEND_URL}/status/${jobId}`, { 
         signal: controller.signal 
@@ -651,13 +661,27 @@ function AppContent() {
       abortControllerRef.current = null;
     }
   }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile, profileLoading]);
+  // UPDATED: Copy to clipboard - only for paid users
   const copyToClipboard = useCallback(() => { 
+    // Check if user is on free plan
+    if (userProfile?.plan === 'free') {
+      showMessage('Copy to clipboard is only available for paid users. Please upgrade to access this feature.');
+      return;
+    }
+    
     navigator.clipboard.writeText(transcription);
     setCopiedMessageVisible(true);
     setTimeout(() => setCopiedMessageVisible(false), 2000);
-  }, [transcription]);
+  }, [transcription, userProfile, showMessage]);
 
+  // UPDATED: Download as Word - only for paid users
   const downloadAsWord = useCallback(() => { 
+    // Check if user is on free plan
+    if (userProfile?.plan === 'free') {
+      showMessage('MS Word download is only available for paid users. Please upgrade to access this feature.');
+      return;
+    }
+    
     const blob = new Blob([transcription], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -665,8 +689,9 @@ function AppContent() {
     a.download = 'transcription.doc';
     a.click();
     URL.revokeObjectURL(url);
-  }, [transcription]);
+  }, [transcription, userProfile, showMessage]);
 
+  // TXT download - available for all users
   const downloadAsTXT = useCallback(() => { 
     const blob = new Blob([transcription], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -676,6 +701,42 @@ function AppContent() {
     a.click();
     URL.revokeObjectURL(url);
   }, [transcription]);
+
+  // Enhanced download with compression options
+  const downloadRecordedAudio = useCallback(async () => { 
+    if (recordedAudioBlobRef.current) {
+      try {
+        let downloadBlob = recordedAudioBlobRef.current;
+        let filename = `recording-${Date.now()}.${downloadFormat}`;
+        
+        // If user wants different format, compress accordingly
+        if (downloadFormat === 'mp3' && !recordedAudioBlobRef.current.type.includes('mp3')) {
+          showMessage('Compressing to MP3...');
+          // Note: Compression now handled by backend, this is just for download
+          showMessage('MP3 compression complete!');
+        }
+        
+        const url = URL.createObjectURL(downloadBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error('Error compressing for download:', error);
+        showMessage('Download compression failed, downloading original format.');
+        // Fallback to original
+        const url = URL.createObjectURL(recordedAudioBlobRef.current);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `recording-${Date.now()}.wav`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } else {
+      showMessage('No recorded audio available to download.');
+    }
+  }, [showMessage, downloadFormat]);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -975,6 +1036,7 @@ function AppContent() {
               </button>
             )}
           </div>
+
           {/* Show Different Views - Pricing Section and Main Interface */}
           {currentView === 'pricing' ? (
             <div style={{ 
@@ -1005,7 +1067,7 @@ function AppContent() {
                 justifyContent: 'center', 
                 flexWrap: 'wrap' 
               }}>
-                {/* Free Plan */}
+                {/* Free Plan - UPDATED: Removed "Basic audio playback" */}
                 <div style={{
                   backgroundColor: 'white',
                   padding: '40px 30px',
@@ -1059,11 +1121,13 @@ function AppContent() {
                   }}>
                     <li>✅ Unlimited audio recording</li>
                     <li>✅ Download recordings as MP3/WAV</li>
-                    <li>✅ Basic audio playback</li>
+                    {/* REMOVED: Basic audio playback */}
                     <li>✅ 24-hour file storage</li>
                     <li>✅ 30 minutes free transcription</li>
+                    <li>✅ TXT download only</li>
                     <li>❌ No unlimited transcription</li>
-                    <li>❌ Limited features</li>
+                    <li>❌ No copy to clipboard</li>
+                    <li>❌ No MS Word download</li>
                   </ul>
                   <button style={{
                     width: '100%',
@@ -1137,7 +1201,8 @@ function AppContent() {
                     <li>✅ Unlimited transcription access</li>
                     <li>✅ High accuracy AI transcription</li>
                     <li>✅ Priority processing</li>
-                    <li>✅ Advanced export options</li>
+                    <li>✅ Copy to clipboard feature</li>
+                    <li>✅ MS Word & TXT downloads</li>
                     <li>✅ 7-day file storage</li>
                     <li>✅ Email support</li>
                   </ul>
@@ -1237,6 +1302,7 @@ function AppContent() {
                   </button>
                 </div>
               </div>
+              
               <div style={{
                 marginTop: '60px',
                 padding: '30px',
@@ -1463,6 +1529,8 @@ function AppContent() {
                     )}
                   </div>
 
+                  {/* REMOVED: Audio Player (as requested) */}
+
                   {/* Enhanced Transcription Progress Bar */}
                   {(status === 'processing' || status === 'uploading') && (
                     <div style={{ marginBottom: '20px' }}>
@@ -1560,7 +1628,7 @@ function AppContent() {
                 </div>
               )}
 
-              {/* Enhanced Transcription Result */}
+              {/* UPDATED: Enhanced Transcription Result with User Plan Restrictions */}
               {transcription && (
                 <div style={{
                   backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -1584,34 +1652,41 @@ function AppContent() {
                     marginBottom: '20px',
                     flexWrap: 'wrap'
                   }}>
+                    {/* UPDATED: Copy to Clipboard - Only for paid users */}
                     <button
                       onClick={copyToClipboard}
                       style={{
                         padding: '10px 20px',
-                        backgroundColor: '#27ae60',
+                        backgroundColor: userProfile?.plan === 'free' ? '#6c757d' : '#27ae60',
                         color: 'white',
                         border: 'none',
                         borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontSize: '14px'
+                        cursor: userProfile?.plan === 'free' ? 'not-allowed' : 'pointer',
+                        fontSize: '14px',
+                        opacity: userProfile?.plan === 'free' ? 0.6 : 1
                       }}
                     >
-                      📋 Copy to Clipboard
+                      {userProfile?.plan === 'free' ? '🔒 Copy (Pro Only)' : '📋 Copy to Clipboard'}
                     </button>
+                    
+                    {/* UPDATED: MS Word Download - Only for paid users */}
                     <button
                       onClick={downloadAsWord}
                       style={{
                         padding: '10px 20px',
-                        backgroundColor: '#007bff',
+                        backgroundColor: userProfile?.plan === 'free' ? '#6c757d' : '#007bff',
                         color: 'white',
                         border: 'none',
                         borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontSize: '14px'
+                        cursor: userProfile?.plan === 'free' ? 'not-allowed' : 'pointer',
+                        fontSize: '14px',
+                        opacity: userProfile?.plan === 'free' ? 0.6 : 1
                       }}
                     >
-                      📄 MS Word
+                      {userProfile?.plan === 'free' ? '🔒 Word (Pro Only)' : '📄 MS Word'}
                     </button>
+                    
+                    {/* TXT Download - Available for all users */}
                     <button
                       onClick={downloadAsTXT}
                       style={{
@@ -1627,6 +1702,34 @@ function AppContent() {
                       📝 TXT
                     </button>
                   </div>
+                  
+                  {/* Show upgrade message for free users */}
+                  {userProfile?.plan === 'free' && (
+                    <div style={{
+                      backgroundColor: 'rgba(255, 243, 205, 0.95)',
+                      color: '#856404',
+                      padding: '10px',
+                      borderRadius: '5px',
+                      marginBottom: '20px',
+                      textAlign: 'center',
+                      fontSize: '14px'
+                    }}>
+                      🔒 Copy to clipboard and MS Word downloads are available for Pro users.{' '}
+                      <button 
+                        onClick={() => setCurrentView('pricing')}
+                        style={{
+                          backgroundColor: 'transparent',
+                          color: '#007bff',
+                          border: 'none',
+                          textDecoration: 'underline',
+                          cursor: 'pointer',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        Upgrade now
+                      </button>
+                    </div>
+                  )}
                   
                   <div style={{
                     backgroundColor: '#f8f9fa',
@@ -1693,7 +1796,6 @@ function AppContent() {
     </Routes>
   );
 }
-
 // Main App Component with AuthProvider
 function App() {
   return (
