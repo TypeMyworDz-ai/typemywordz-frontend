@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import {
   Elements,
@@ -9,7 +9,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { STRIPE_CONFIG } from '../stripe/config';
 
-// Load Stripe with your real publishable key
+// Load Stripe once outside of component render cycle
 const stripePromise = loadStripe(STRIPE_CONFIG.publishableKey);
 
 const CheckoutForm = ({ selectedPlan, onSuccess, onCancel }) => {
@@ -19,11 +19,23 @@ const CheckoutForm = ({ selectedPlan, onSuccess, onCancel }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  useEffect(() => {
+    // Log the status of stripe and elements when component mounts or updates
+    console.log('CheckoutForm mounted/updated.');
+    console.log('Stripe instance:', stripe ? 'loaded' : 'null');
+    console.log('Elements instance:', elements ? 'loaded' : 'null');
+    if (!stripe || !elements) {
+      setError('Stripe payment elements are not fully loaded. Please wait a moment or refresh.');
+    } else {
+      setError(null); // Clear error if elements load
+    }
+  }, [stripe, elements]);
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     
     if (!stripe || !elements) {
-      setError('Stripe has not loaded yet. Please try again.');
+      setError('Stripe payment elements are not ready. Please try again.');
       return;
     }
     
@@ -31,7 +43,7 @@ const CheckoutForm = ({ selectedPlan, onSuccess, onCancel }) => {
     setError(null);
 
     try {
-      console.log('Starting payment process for plan:', selectedPlan);
+      console.log('Initiating payment process for plan:', selectedPlan);
       
       // Create subscription with your backend
       const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/create-subscription`, {
@@ -71,11 +83,12 @@ const CheckoutForm = ({ selectedPlan, onSuccess, onCancel }) => {
           onSuccess(result.subscriptionId, selectedPlan);
         }
       } else {
-        setError(result.error || 'Failed to create subscription');
+        // Handle backend errors
+        setError(result.detail || result.error || 'Failed to create subscription on backend.');
       }
     } catch (err) {
-      console.error('Payment error:', err);
-      setError('Payment failed. Please try again.');
+      console.error('Frontend payment submission error:', err);
+      setError('Payment failed. Please check your internet connection and try again.');
     }
     
     setLoading(false);
@@ -84,7 +97,7 @@ const CheckoutForm = ({ selectedPlan, onSuccess, onCancel }) => {
   const plan = STRIPE_CONFIG.plans[selectedPlan];
   
   if (!plan) {
-    return <div>Error: Plan not found</div>;
+    return <div>Error: Plan configuration not found.</div>;
   }
 
   return (
@@ -113,6 +126,7 @@ const CheckoutForm = ({ selectedPlan, onSuccess, onCancel }) => {
           marginBottom: '20px',
           backgroundColor: 'white'
         }}>
+          {/* CardElement is rendered here */}
           <CardElement
             options={{
               style: {
@@ -122,6 +136,10 @@ const CheckoutForm = ({ selectedPlan, onSuccess, onCancel }) => {
                   '::placeholder': {
                     color: '#aab7c4',
                   },
+                },
+                invalid: {
+                  color: '#fa755a',
+                  iconColor: '#fa755a',
                 },
               },
             }}
@@ -158,15 +176,15 @@ const CheckoutForm = ({ selectedPlan, onSuccess, onCancel }) => {
           </button>
           <button
             type="submit"
-            disabled={!stripe || loading}
+            disabled={!stripe || !elements || loading} // Disable if stripe/elements not ready
             style={{
               flex: 2,
               padding: '12px',
-              backgroundColor: loading ? '#6c757d' : '#28a745',
+              backgroundColor: (!stripe || !elements || loading) ? '#6c757d' : '#28a745',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
-              cursor: loading ? 'not-allowed' : 'pointer'
+              cursor: (!stripe || !elements || loading) ? 'not-allowed' : 'pointer'
             }}
           >
             {loading ? 'Processing...' : `Pay USD ${(plan.amount / 100).toFixed(2)}`}
@@ -179,9 +197,10 @@ const CheckoutForm = ({ selectedPlan, onSuccess, onCancel }) => {
 
 const StripePayment = ({ selectedPlan, onSuccess, onCancel }) => {
   if (!selectedPlan) {
-    return <div>Error: No plan selected</div>;
+    return <div>Error: No plan selected for payment.</div>;
   }
 
+  // Ensure Elements wraps the CheckoutForm
   return (
     <Elements stripe={stripePromise}>
       <CheckoutForm 
