@@ -774,11 +774,12 @@ function AppContent() {
     }
   }, [currentUser?.uid, currentUser?.email, showMessage]);
 
-  // UPDATED: Handle upgrade button clicks
-  const handleUpgradeClick = useCallback((planType) => {
-    setSelectedPlan(planType);
-    setShowPayment(true);
-  }, []);
+// UPDATED: Handle upgrade button clicks
+const handleUpgradeClick = useCallback((planType) => {
+  console.log('Upgrade clicked for plan:', planType);
+  setSelectedPlan(planType);
+  setShowPayment(true);
+}, []);
 
   // UPDATED: useEffect to handle 30-minute trial for free users
   useEffect(() => {
@@ -1648,7 +1649,7 @@ function AppContent() {
                   </h3>
                   {status === 'failed' && (
                     <p style={{ margin: '10px 0 0 0', color: '#666' }}>
-                      An error occurred during transcription. Please try again.
+                      Transcription failed. Check Your Network & Refresh the Page.
                     </p>
                   )}
                 </div>
@@ -1817,40 +1818,40 @@ function AppContent() {
             </div>
           )}
 
-          {/* NEW: Payment Modal */}
-          {showPayment && selectedPlan && (
-            <div style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0,0,0,0.8)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 1000
-            }}>
-              <div style={{
-                backgroundColor: 'white',
-                borderRadius: '15px',
-                padding: '20px',
-                maxWidth: '500px',
-                width: '90%',
-                maxHeight: '90vh',
-                overflow: 'auto'
-              }}>
-                <StripePayment
-                  selectedPlan={selectedPlan}
-                  onSuccess={handlePaymentSuccess}
-                  onCancel={() => {
-                    setShowPayment(false);
-                    setSelectedPlan(null);
-                  }}
-                />
-              </div>
-            </div>
-          )}
+{/* NEW: Payment Modal */}
+{showPayment && selectedPlan && (
+  <div style={{
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000
+  }}>
+    <div style={{
+      backgroundColor: 'white',
+      borderRadius: '15px',
+      padding: '20px',
+      maxWidth: '500px',
+      width: '90%',
+      maxHeight: '90vh',
+      overflow: 'auto'
+    }}>
+      <StripePayment
+        selectedPlan={selectedPlan}
+        onSuccess={handlePaymentSuccess}
+        onCancel={() => {
+          setShowPayment(false);
+          setSelectedPlan(null);
+        }}
+      />
+    </div>
+  </div>
+)}
         </div>
       } />
     </Routes>
