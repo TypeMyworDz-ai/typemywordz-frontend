@@ -7,31 +7,88 @@ import {
   useElements
 } from '@stripe/react-stripe-js';
 import { useAuth } from '../contexts/AuthContext';
+import { STRIPE_CONFIG } from '../stripe/config';
 
-// Load Stripe directly without config file
-const stripePromise = loadStripe('pk_test_your_publishable_key_here'); // We'll use a placeholder for now
+// Load Stripe with your real publishable key
+const stripePromise = loadStripe(STRIPE_CONFIG.publishableKey);
 
-const TestCheckoutForm = ({ selectedPlan, onCancel }) => {
+const CheckoutForm = ({ selectedPlan, onSuccess, onCancel }) => {
+  const stripe = useStripe();
+  const elements = useElements();
+  const { currentUser } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setLoading(true);
     
-    // Just show an alert for now
-    setTimeout(() => {
-      alert(`This would upgrade you to ${selectedPlan} plan!\n\nNext steps:\n1. Set up real Stripe account\n2. Add backend API\n3. Complete payment flow`);
-      setLoading(false);
-      onCancel(); // Close modal
-    }, 1000);
+    if (!stripe || !elements) {
+      setError('Stripe has not loaded yet. Please try again.');
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log('Starting payment process for plan:', selectedPlan);
+      
+      // Create subscription with your backend
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/create-subscription`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          priceId: STRIPE_CONFIG.plans[selectedPlan].priceId,
+          userId: currentUser.uid,
+          userEmail: currentUser.email,
+          userName: currentUser.displayName || currentUser.email
+        }),
+      });
+
+      console.log('Backend response status:', response.status);
+      const result = await response.json();
+      console.log('Backend response:', result);
+
+      if (response.ok && result.clientSecret) {
+        // Confirm payment with Stripe
+        const { error, paymentIntent } = await stripe.confirmCardPayment(result.clientSecret, {
+          payment_method: {
+            card: elements.getElement(CardElement),
+            billing_details: {
+              name: currentUser.displayName || 'Customer',
+              email: currentUser.email,
+            },
+          }
+        });
+
+        if (error) {
+          console.error('Stripe error:', error);
+          setError(error.message);
+        } else if (paymentIntent.status === 'succeeded') {
+          console.log('Payment succeeded!');
+          onSuccess(result.subscriptionId, selectedPlan);
+        }
+      } else {
+        setError(result.error || 'Failed to create subscription');
+      }
+    } catch (err) {
+      console.error('Payment error:', err);
+      setError('Payment failed. Please try again.');
+    }
+    
+    setLoading(false);
   };
+
+  const plan = STRIPE_CONFIG.plans[selectedPlan];
+  
+  if (!plan) {
+    return <div>Error: Plan not found</div>;
+  }
 
   return (
     <div style={{ maxWidth: '400px', margin: '0 auto', padding: '20px' }}>
-      <h3 style={{ color: '#6c5ce7', marginBottom: '20px' }}>
-        Upgrade to {selectedPlan?.toUpperCase()} Plan
-      </h3>
-      
       <div style={{
         backgroundColor: '#f8f9fa',
         padding: '20px',
@@ -39,11 +96,50 @@ const TestCheckoutForm = ({ selectedPlan, onCancel }) => {
         marginBottom: '20px',
         textAlign: 'center'
       }}>
-        <p>🚧 Payment integration in progress</p>
-        <p>This will connect to Stripe when backend is ready!</p>
+        <h3 style={{ color: '#6c5ce7', marginBottom: '10px' }}>
+          {plan.name}
+        </h3>
+        <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#28a745' }}>
+          USD {(plan.amount / 100).toFixed(2)}
+          <span style={{ fontSize: '1rem', fontWeight: 'normal' }}>/{plan.interval}</span>
+        </div>
       </div>
-      
+
       <form onSubmit={handleSubmit}>
+        <div style={{
+          padding: '15px',
+          border: '1px solid #ddd',
+          borderRadius: '8px',
+          marginBottom: '20px',
+          backgroundColor: 'white'
+        }}>
+          <CardElement
+            options={{
+              style: {
+                base: {
+                  fontSize: '16px',
+                  color: '#424770',
+                  '::placeholder': {
+                    color: '#aab7c4',
+                  },
+                },
+              },
+            }}
+          />
+        </div>
+        
+        {error && (
+          <div style={{
+            color: '#e74c3c',
+            backgroundColor: '#ffeaea',
+            padding: '10px',
+            borderRadius: '5px',
+            marginBottom: '15px'
+          }}>
+            {error}
+          </div>
+        )}
+        
         <div style={{ display: 'flex', gap: '10px' }}>
           <button
             type="button"
@@ -62,7 +158,7 @@ const TestCheckoutForm = ({ selectedPlan, onCancel }) => {
           </button>
           <button
             type="submit"
-            disabled={loading}
+            disabled={!stripe || loading}
             style={{
               flex: 2,
               padding: '12px',
@@ -73,7 +169,7 @@ const TestCheckoutForm = ({ selectedPlan, onCancel }) => {
               cursor: loading ? 'not-allowed' : 'pointer'
             }}
           >
-            {loading ? 'Processing...' : `Preview ${selectedPlan} Upgrade`}
+            {loading ? 'Processing...' : `Pay USD ${(plan.amount / 100).toFixed(2)}`}
           </button>
         </div>
       </form>
@@ -82,13 +178,18 @@ const TestCheckoutForm = ({ selectedPlan, onCancel }) => {
 };
 
 const StripePayment = ({ selectedPlan, onSuccess, onCancel }) => {
-  // For now, don't use Elements wrapper to avoid the useMemo error
+  if (!selectedPlan) {
+    return <div>Error: No plan selected</div>;
+  }
+
   return (
-    <TestCheckoutForm 
-      selectedPlan={selectedPlan} 
-      onSuccess={onSuccess} 
-      onCancel={onCancel} 
-    />
+    <Elements stripe={stripePromise}>
+      <CheckoutForm 
+        selectedPlan={selectedPlan} 
+        onSuccess={onSuccess} 
+        onCancel={onCancel} 
+      />
+    </Elements>
   );
 };
 
