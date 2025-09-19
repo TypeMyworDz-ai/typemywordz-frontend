@@ -6,7 +6,8 @@ import Signup from './components/Signup';
 import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
-import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile } from './userService';
+import StripePayment from './components/StripePayment';
+import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan } from './userService';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 
@@ -138,6 +139,10 @@ function AppContent() {
   const [downloadFormat, setDownloadFormat] = useState('mp3');
   const [message, setMessage] = useState('');
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
+  
+  // NEW: Stripe payment states
+  const [showPayment, setShowPayment] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState(null);
 
   // Refs
   const mediaRecorderRef = useRef(null);
@@ -337,8 +342,6 @@ function AppContent() {
         
         const originalSize = originalBlob.size / (1024 * 1024);
         showMessage(`Recording saved: ${originalSize.toFixed(2)} MB - ready for transcription.`);
-        
-        // UPDATED: Check for 30-minute trial for new users - will be handled by handleUpload
       };
 
       mediaRecorderRef.current.start(1000);
@@ -438,6 +441,29 @@ function AppContent() {
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]); // Added userProfile to dependencies for logging
 
+  // NEW: Handle successful payment
+  const handlePaymentSuccess = useCallback(async (subscriptionId, planType) => {
+    try {
+      // Update user plan in Firestore
+      await updateUserPlan(currentUser.uid, planType, subscriptionId);
+      
+      // Refresh user profile to get updated plan
+      await refreshUserProfile();
+      
+      // Close payment modal
+      setShowPayment(false);
+      setSelectedPlan(null);
+      
+      // Show success message
+      showMessage(`🎉 Successfully upgraded to ${planType.charAt(0).toUpperCase() + planType.slice(1)} plan! You now have unlimited transcription access.`);
+      
+      // Redirect to transcribe view
+      setCurrentView('transcribe');
+    } catch (error) {
+      console.error('Error updating user plan:', error);
+      showMessage('Payment successful but there was an error updating your account. Please contact support.');
+    }
+  }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
   // Enhanced checkJobStatus with better cancellation handling
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
     // FIRST thing - check if cancelled
@@ -562,7 +588,6 @@ function AppContent() {
       abortControllerRef.current = null;
     }
   }, [handleTranscriptionComplete, showMessage]);
-
   // Enhanced upload function with proper interval tracking
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
@@ -653,6 +678,7 @@ function AppContent() {
       abortControllerRef.current = null;
     }
   }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile, profileLoading]);
+
   // UPDATED: Copy to clipboard - only for paid users
   const copyToClipboard = useCallback(() => { 
     // Check if user is on free plan
@@ -693,7 +719,6 @@ function AppContent() {
     a.click();
     URL.revokeObjectURL(url);
   }, [transcription]);
-
   // Enhanced download with compression options
   const downloadRecordedAudio = useCallback(async () => { 
     if (recordedAudioBlobRef.current) {
@@ -749,9 +774,11 @@ function AppContent() {
     }
   }, [currentUser?.uid, currentUser?.email, showMessage]);
 
-  const handleUpgradeClick = useCallback(() => {
-    showMessage('Upgrade functionality will be implemented soon. Please contact support for now.');
-  }, [showMessage]);
+  // UPDATED: Handle upgrade button clicks
+  const handleUpgradeClick = useCallback((planType) => {
+    setSelectedPlan(planType);
+    setShowPayment(true);
+  }, []);
 
   // UPDATED: useEffect to handle 30-minute trial for free users
   useEffect(() => {
@@ -906,6 +933,8 @@ function AppContent() {
                 <span>Logged in as: {userProfile?.name || currentUser.email}</span>
                 {userProfile && userProfile.plan === 'business' ? (
                   <span>Plan: Unlimited Transcription</span>
+                ) : userProfile && userProfile.plan === 'pro' ? (
+                  <span>Plan: Pro (Unlimited Transcription)</span>
                 ) : userProfile && userProfile.plan === 'free' ? (
                   <span>Plan: Free Trial ({Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining)</span>
                 ) : (
@@ -945,7 +974,6 @@ function AppContent() {
               </div>
             </header>
           )}
-
           {/* Profile Loading Indicator */}
           {profileLoading && (
             <div style={{
@@ -1034,6 +1062,7 @@ function AppContent() {
               </button>
             )}
           </div>
+          
           {/* Show Different Views - Pricing Section and Main Interface */}
           {currentView === 'pricing' ? (
             <div style={{ 
@@ -1064,7 +1093,7 @@ function AppContent() {
                 justifyContent: 'center', 
                 flexWrap: 'wrap' 
               }}>
-                {/* Free Plan - UPDATED: Removed "Basic audio playback" */}
+                {/* Free Plan */}
                 <div style={{
                   backgroundColor: 'white',
                   padding: '40px 30px',
@@ -1118,7 +1147,6 @@ function AppContent() {
                   }}>
                     <li>✅ Unlimited audio recording</li>
                     <li>✅ Download recordings as MP3/WAV</li>
-                    {/* REMOVED: Basic audio playback */}
                     <li>✅ 24-hour file storage</li>
                     <li>✅ 30 minutes free transcription</li>
                     <li>✅ TXT download only</li>
@@ -1140,7 +1168,6 @@ function AppContent() {
                     Current Plan
                   </button>
                 </div>
-
                 {/* Pro Plan */}
                 <div style={{
                   backgroundColor: 'white',
@@ -1204,7 +1231,7 @@ function AppContent() {
                     <li>✅ Email support</li>
                   </ul>
                   <button 
-                    onClick={handleUpgradeClick}
+                    onClick={() => handleUpgradeClick('pro')}
                     style={{
                       width: '100%',
                       padding: '15px',
@@ -1282,7 +1309,7 @@ function AppContent() {
                     <li>✅ SLA guarantee</li>
                   </ul>
                   <button 
-                    onClick={handleUpgradeClick}
+                    onClick={() => handleUpgradeClick('business')}
                     style={{
                       width: '100%',
                       padding: '15px',
@@ -1526,8 +1553,6 @@ function AppContent() {
                     )}
                   </div>
 
-                  {/* REMOVED: Audio Player (as requested) */}
-
                   {/* Enhanced Transcription Progress Bar */}
                   {(status === 'processing' || status === 'uploading') && (
                     <div style={{ marginBottom: '20px' }}>
@@ -1550,7 +1575,6 @@ function AppContent() {
                       </div>
                     </div>
                   )}
-
                   {/* UPDATED: Action Buttons with proper free user handling and locked state */}
                   <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
                     {status === 'idle' && !isUploading && selectedFile && (
@@ -1605,6 +1629,7 @@ function AppContent() {
                   </div>
                 </div>
               </div>
+              
               {/* Status Section */}
               {status && (status === 'completed' || status === 'failed') && (
                 <div style={{
@@ -1789,6 +1814,41 @@ function AppContent() {
           {copiedMessageVisible && (
             <div className="copied-message-animation">
               Copied to clipboard!
+            </div>
+          )}
+
+          {/* NEW: Payment Modal */}
+          {showPayment && selectedPlan && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.8)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000
+            }}>
+              <div style={{
+                backgroundColor: 'white',
+                borderRadius: '15px',
+                padding: '20px',
+                maxWidth: '500px',
+                width: '90%',
+                maxHeight: '90vh',
+                overflow: 'auto'
+              }}>
+                <StripePayment
+                  selectedPlan={selectedPlan}
+                  onSuccess={handlePaymentSuccess}
+                  onCancel={() => {
+                    setShowPayment(false);
+                    setSelectedPlan(null);
+                  }}
+                />
+              </div>
             </div>
           )}
         </div>
