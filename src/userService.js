@@ -77,6 +77,29 @@ export const getUserProfile = async (uid) => {
   return null;
 };
 
+// NEW: Update user plan after successful payment
+export const updateUserPlan = async (uid, newPlan, subscriptionId = null) => {
+  const userRef = getUserProfileRef(uid);
+  const updates = {
+    plan: newPlan,
+    lastAccessed: new Date(),
+  };
+  
+  if (subscriptionId) {
+    updates.stripeSubscriptionId = subscriptionId;
+    updates.subscriptionStartDate = new Date();
+  }
+  
+  // Reset usage for newly upgraded users (except admins)
+  const userProfile = await getUserProfile(uid);
+  if (newPlan !== 'free' && !ADMIN_EMAILS.includes(userProfile?.email)) {
+    updates.totalMinutesUsed = 0;
+  }
+  
+  await updateDoc(userRef, updates);
+  console.log(`User ${uid} plan updated to: ${newPlan}`);
+};
+
 // Check recording permissions
 export const canUserRecord = async (uid) => {
   try {
@@ -104,8 +127,8 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds) => { // R
       return false;
     }
 
-    if (userProfile.plan === 'business') {
-      console.log("✅ Business plan user - unlimited transcription");
+    if (userProfile.plan === 'business' || userProfile.plan === 'pro') {
+      console.log(`✅ ${userProfile.plan} plan user - unlimited transcription`);
       return true;
     }
 
@@ -135,6 +158,7 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds) => { // R
     return false;
   }
 };
+
 // FIXED: Update user usage after transcription - now correctly converts duration to minutes
 export const updateUserUsage = async (uid, durationSeconds) => { // Renamed param for clarity
   const userRef = getUserProfileRef(uid);
@@ -150,12 +174,12 @@ export const updateUserUsage = async (uid, durationSeconds) => { // Renamed para
       lastAccessed: new Date(),
     });
     console.log(`📊 User ${uid} (free plan): Updated totalMinutesUsed by ${durationMinutes} mins to ${newTotalMinutes} mins.`);
-  } else if (userProfile && userProfile.plan === 'business') {
-    // For business plan, we don't update totalMinutesUsed for limits
+  } else if (userProfile && (userProfile.plan === 'business' || userProfile.plan === 'pro')) {
+    // For business/pro plan, we don't update totalMinutesUsed for limits
     await updateDoc(userRef, {
       lastAccessed: new Date(),
     });
-    console.log(`📊 User ${uid} (business plan): Usage not tracked for limits.`);
+    console.log(`📊 User ${uid} (${userProfile.plan} plan): Usage not tracked for limits.`);
   } else {
     console.warn(`⚠️ User ${uid}: Profile not found or plan not recognized for usage update.`);
   }
