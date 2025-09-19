@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { STRIPE_CONFIG } from '../stripe/config';
 
 // Load Stripe once outside of component render cycle
+console.log("Stripe Publishable Key (from config):", STRIPE_CONFIG.publishableKey); // ADDED THIS LOG
 const stripePromise = loadStripe(STRIPE_CONFIG.publishableKey);
 
 const CheckoutForm = ({ selectedPlan, onSuccess, onCancel }) => {
