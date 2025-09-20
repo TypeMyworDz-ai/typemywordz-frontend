@@ -7,13 +7,13 @@ import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
 import StripePayment from './components/StripePayment';
+import CreditPurchase from './components/SubscriptionPlans';
 import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan } from './userService';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 
 // Configuration
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
-
 // Enhanced Toast Notification Component
 const ToastNotification = ({ message, onClose }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -102,7 +102,6 @@ const ToastNotification = ({ message, onClose }) => {
     </div>
   );
 };
-
 // Utility functions
 const formatTime = (seconds) => {
   const mins = Math.floor(seconds / 60);
@@ -122,6 +121,7 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   }, intervalTime);
   return interval; 
 };
+
 function AppContent() {
   // State declarations
   const [selectedFile, setSelectedFile] = useState(null);
@@ -140,9 +140,10 @@ function AppContent() {
   const [message, setMessage] = useState('');
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
   
-  // NEW: Stripe payment states
+  // NEW: Payment states
   const [showPayment, setShowPayment] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
+  const [pricingView, setPricingView] = useState('african'); // 'african' or 'western'
 
   // Refs
   const mediaRecorderRef = useRef(null);
@@ -161,7 +162,6 @@ function AppContent() {
   // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
-
   // Enhanced reset function with better job cancellation
   const resetTranscriptionProcessUI = useCallback(() => { 
     console.log('🔄 Resetting transcription UI and cancelling any ongoing processes');
@@ -217,6 +217,7 @@ function AppContent() {
       console.log('DIAGNOSTIC: userProfile.totalMinutesUsed updated to:', userProfile.totalMinutesUsed);
     }
   }, [userProfile?.totalMinutesUsed]);
+
   // Enhanced file selection with proper job cancellation
   const handleFileSelect = useCallback(async (event) => {
     const file = event.target.files[0];
@@ -266,7 +267,6 @@ function AppContent() {
       audio.src = audioUrl;
     }
   }, [showMessage, resetTranscriptionProcessUI, jobId, status]);
-
   // Enhanced recording function with proper job cancellation
   const startRecording = useCallback(async () => {
     // FIRST: Cancel any ongoing backend job before clearing state
@@ -363,6 +363,7 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
+
   // UPDATED: Improved cancel function with page refresh
   const handleCancelUpload = useCallback(async () => {
     console.log('🛑 FORCE CANCEL - Stopping everything immediately');
@@ -421,7 +422,6 @@ function AppContent() {
     
     console.log('✅ Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage]);
-
   const handleTranscriptionComplete = useCallback(async (transcriptionText) => {
     try {
       const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
@@ -464,6 +464,7 @@ function AppContent() {
       showMessage('Payment successful but there was an error updating your account. Please contact support.');
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
+
   // Enhanced checkJobStatus with better cancellation handling
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
     // FIRST thing - check if cancelled
@@ -719,6 +720,7 @@ function AppContent() {
     a.click();
     URL.revokeObjectURL(url);
   }, [transcription]);
+
   // Enhanced download with compression options
   const downloadRecordedAudio = useCallback(async () => { 
     if (recordedAudioBlobRef.current) {
@@ -754,7 +756,6 @@ function AppContent() {
       showMessage('No recorded audio available to download.');
     }
   }, [showMessage, downloadFormat]);
-
   const handleLogout = useCallback(async () => {
     try {
       await logout();
@@ -774,12 +775,12 @@ function AppContent() {
     }
   }, [currentUser?.uid, currentUser?.email, showMessage]);
 
-// UPDATED: Handle upgrade button clicks
-const handleUpgradeClick = useCallback((planType) => {
-  console.log('Upgrade clicked for plan:', planType);
-  setSelectedPlan(planType);
-  setShowPayment(true);
-}, []);
+  // UPDATED: Handle upgrade button clicks
+  const handleUpgradeClick = useCallback((planType) => {
+    console.log('Upgrade clicked for plan:', planType);
+    setSelectedPlan(planType);
+    setShowPayment(true);
+  }, []);
 
   // UPDATED: useEffect to handle 30-minute trial for free users
   useEffect(() => {
@@ -814,6 +815,7 @@ const handleUpgradeClick = useCallback((planType) => {
       }
     };
   }, []);
+
   // Login screen for non-authenticated users
   if (!currentUser) {
     return (
@@ -1069,7 +1071,7 @@ const handleUpgradeClick = useCallback((planType) => {
             <div style={{ 
               padding: '40px 20px', 
               textAlign: 'center', 
-              maxWidth: '1000px', 
+              maxWidth: '1200px', 
               margin: '0 auto',
               backgroundColor: '#f8f9fa',
               minHeight: '70vh'
@@ -1086,248 +1088,221 @@ const handleUpgradeClick = useCallback((planType) => {
                 fontSize: '1.2rem',
                 marginBottom: '40px'
               }}>
-                Unlock the full potential of TypeMyworDz with our flexible pricing plans
+                Flexible options for different regions and needs
               </p>
-              <div style={{ 
-                display: 'flex', 
-                gap: '30px', 
-                justifyContent: 'center', 
-                flexWrap: 'wrap' 
-              }}>
-                {/* Free Plan */}
-                <div style={{
-                  backgroundColor: 'white',
-                  padding: '40px 30px',
-                  borderRadius: '20px',
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
-                  maxWidth: '350px',
-                  width: '100%',
-                  border: '2px solid #e9ecef'
-                }}>
-                  <div style={{
-                    backgroundColor: '#6c757d',
-                    color: 'white',
-                    padding: '8px 20px',
-                    borderRadius: '20px',
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    marginBottom: '20px',
-                    display: 'inline-block'
-                  }}>
-                    CURRENT PLAN
-                  </div>
-                  <h3 style={{ 
-                    color: '#6c757d',
-                    fontSize: '1.8rem',
-                    margin: '0 0 10px 0'
-                  }}>
-                    Free Plan
-                  </h3>
-                  <div style={{ marginBottom: '30px' }}>
-                    <span style={{ 
-                      fontSize: '3rem',
-                      fontWeight: 'bold',
-                      color: '#6c5ce7'
-                    }}>
-                      USD 0
-                    </span>
-                    <span style={{ 
-                      color: '#666',
-                      fontSize: '1.2rem'
-                    }}>
-                      /month
-                    </span>
-                  </div>
-                  <ul style={{ 
-                    textAlign: 'left', 
-                    color: '#666', 
-                    lineHeight: '2.5',
-                    listStyle: 'none',
-                    padding: '0',
-                    marginBottom: '40px'
-                  }}>
-                    <li>✅ Unlimited audio recording</li>
-                    <li>✅ Download recordings as MP3/WAV</li>
-                    <li>✅ 24-hour file storage</li>
-                    <li>✅ 30 minutes free transcription</li>
-                    <li>✅ TXT download only</li>
-                    <li>❌ No unlimited transcription</li>
-                    <li>❌ No copy to clipboard</li>
-                    <li>❌ No MS Word download</li>
-                  </ul>
-                  <button style={{
-                    width: '100%',
-                    padding: '15px',
-                    backgroundColor: '#6c757d',
+
+              {/* Region Selection Tabs */}
+              <div style={{ marginBottom: '40px' }}>
+                <button
+                  onClick={() => setPricingView('african')}
+                  style={{
+                    padding: '12px 30px',
+                    margin: '0 10px',
+                    backgroundColor: pricingView === 'african' ? '#007bff' : '#6c757d',
                     color: 'white',
                     border: 'none',
-                    borderRadius: '10px',
-                    cursor: 'not-allowed',
-                    fontSize: '16px',
-                    fontWeight: 'bold'
-                  }}>
-                    Current Plan
-                  </button>
-                </div>
-                {/* Pro Plan */}
-                <div style={{
-                  backgroundColor: 'white',
-                  padding: '40px 30px',
-                  borderRadius: '20px',
-                  boxShadow: '0 15px 40px rgba(40, 167, 69, 0.2)',
-                  maxWidth: '350px',
-                  width: '100%',
-                  border: '3px solid #28a745',
-                  transform: 'scale(1.05)'
-                }}>
-                  <div style={{
-                    backgroundColor: '#28a745',
+                    borderRadius: '25px',
+                    cursor: 'pointer',
+                    fontSize: '16px'
+                  }}
+                >
+                  🌍 African Clients (Credits)
+                </button>
+                <button
+                  onClick={() => setPricingView('western')}
+                  style={{
+                    padding: '12px 30px',
+                    margin: '0 10px',
+                    backgroundColor: pricingView === 'western' ? '#28a745' : '#6c757d',
                     color: 'white',
-                    padding: '8px 20px',
-                    borderRadius: '20px',
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    marginBottom: '20px',
-                    display: 'inline-block'
-                  }}>
-                    MOST POPULAR
-                  </div>
-                  <h3 style={{ 
-                    color: '#28a745',
-                    fontSize: '1.8rem',
-                    margin: '0 0 10px 0'
-                  }}>
-                    Pro Plan
-                  </h3>
-                  <div style={{ marginBottom: '30px' }}>
-                    <span style={{ 
-                      fontSize: '3rem',
-                      fontWeight: 'bold',
-                      color: '#6c5ce7'
-                    }}>
-                      USD 9.99
-                    </span>
-                    <span style={{ 
-                      color: '#666',
-                      fontSize: '1.2rem'
-                    }}>
-                      /month
-                    </span>
-                  </div>
-                  <ul style={{ 
-                    textAlign: 'left', 
-                    color: '#666', 
-                    lineHeight: '2.5',
-                    listStyle: 'none',
-                    padding: '0',
-                    marginBottom: '40px'
-                  }}>
-                    <li>✅ Everything in Free Plan</li>
-                    <li>✅ Unlimited transcription access</li>
-                    <li>✅ High accuracy AI transcription</li>
-                    <li>✅ Priority processing</li>
-                    <li>✅ Copy to clipboard feature</li>
-                    <li>✅ MS Word & TXT downloads</li>
-                    <li>✅ 7-day file storage</li>
-                    <li>✅ Email support</li>
-                  </ul>
-                  <button 
-                    onClick={() => handleUpgradeClick('pro')}
-                    style={{
-                      width: '100%',
-                      padding: '15px',
-                      backgroundColor: '#28a745',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '10px',
-                      cursor: 'pointer',
-                      fontSize: '16px',
-                      fontWeight: 'bold'
-                    }}
-                  >
-                    Upgrade Now
-                  </button>
-                </div>
-
-                {/* Business Plan */}
-                <div style={{
-                  backgroundColor: 'white',
-                  padding: '40px 30px',
-                  borderRadius: '20px',
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
-                  maxWidth: '350px',
-                  width: '100%',
-                  border: '2px solid #6c5ce7'
-                }}>
-                  <div style={{
-                    backgroundColor: '#6c5ce7',
-                    color: 'white',
-                    padding: '8px 20px',
-                    borderRadius: '20px',
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    marginBottom: '20px',
-                    display: 'inline-block'
-                  }}>
-                    PREMIUM ACCURACY
-                  </div>
-                  <h3 style={{ 
-                    color: '#6c5ce7',
-                    fontSize: '1.8rem',
-                    margin: '0 0 10px 0'
-                  }}>
-                    Business Plan
-                  </h3>
-                  <div style={{ marginBottom: '30px' }}>
-                    <span style={{ 
-                      fontSize: '3rem',
-                      fontWeight: 'bold',
-                      color: '#6c5ce7'
-                    }}>
-                      Custom
-                    </span>
-                    <span style={{ 
-                      color: '#666',
-                      fontSize: '1.2rem'
-                    }}>
-                      /month
-                    </span>
-                  </div>
-                  <ul style={{ 
-                    textAlign: 'left', 
-                    color: '#666', 
-                    lineHeight: '2.5',
-                    listStyle: 'none',
-                    padding: '0',
-                    marginBottom: '40px'
-                  }}>
-                    <li>✅ Everything in Pro Plan</li>
-                    <li>✅ 99%+ Human-level accuracy</li>
-                    <li>✅ Bulk processing</li>
-                    <li>✅ API access</li>
-                    <li>✅ Custom integrations</li>
-                    <li>✅ Dedicated support</li>
-                    <li>✅ SLA guarantee</li>
-                  </ul>
-                  <button 
-                    onClick={() => handleUpgradeClick('business')}
-                    style={{
-                      width: '100%',
-                      padding: '15px',
-                      backgroundColor: '#6c5ce7',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '10px',
-                      cursor: 'pointer',
-                      fontSize: '16px',
-                      fontWeight: 'bold'
-                    }}
-                  >
-                    Contact Sales
-                  </button>
-                </div>
+                    border: 'none',
+                    borderRadius: '25px',
+                    cursor: 'pointer',
+                    fontSize: '16px'
+                  }}
+                >
+                  🇺🇸 Western Clients (Subscriptions)
+                </button>
               </div>
-              
+
+              {/* Conditional Content Based on Selected View */}
+              {pricingView === 'african' ? (
+                <>
+                  {/* African Credit System */}
+                  <CreditPurchase />
+                </>
+              ) : (
+                <>
+                  {/* Western Subscription Plans */}
+                  <div style={{ marginTop: '20px' }}>
+                    <h2 style={{ color: '#28a745', marginBottom: '30px' }}>
+                      🇺🇸 Monthly Subscriptions (Western Clients)
+                    </h2>
+                    <p style={{ color: '#666', marginBottom: '30px' }}>
+                      Recurring monthly plans with 2Checkout integration
+                    </p>
+                    
+                    <div style={{ display: 'flex', gap: '30px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                      {/* Free Plan */}
+                      <div style={{
+                        backgroundColor: 'white',
+                        padding: '40px 30px',
+                        borderRadius: '20px',
+                        boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+                        maxWidth: '350px',
+                        width: '100%',
+                        border: '2px solid #e9ecef'
+                      }}>
+                        <div style={{
+                          backgroundColor: '#6c757d',
+                          color: 'white',
+                          padding: '8px 20px',
+                          borderRadius: '20px',
+                          fontSize: '14px',
+                          fontWeight: 'bold',
+                          marginBottom: '20px',
+                          display: 'inline-block'
+                        }}>
+                          CURRENT PLAN
+                        </div>
+                        <h3 style={{ 
+                          color: '#6c757d',
+                          fontSize: '1.8rem',
+                          margin: '0 0 10px 0'
+                        }}>
+                          Free Plan
+                        </h3>
+                        <div style={{ marginBottom: '30px' }}>
+                          <span style={{ 
+                            fontSize: '3rem',
+                            fontWeight: 'bold',
+                            color: '#6c5ce7'
+                          }}>
+                            $0
+                          </span>
+                          <span style={{ 
+                            color: '#666',
+                            fontSize: '1.2rem'
+                          }}>
+                            /month
+                          </span>
+                        </div>
+                        <ul style={{ 
+                          textAlign: 'left', 
+                          color: '#666', 
+                          lineHeight: '2.5',
+                          listStyle: 'none',
+                          padding: '0',
+                          marginBottom: '40px'
+                        }}>
+                          <li>✅ Unlimited audio recording</li>
+                          <li>✅ Download recordings as MP3/WAV</li>
+                          <li>✅ 24-hour file storage</li>
+                          <li>✅ 30 minutes free transcription</li>
+                          <li>✅ TXT download only</li>
+                          <li>❌ No unlimited transcription</li>
+                          <li>❌ No copy to clipboard</li>
+                          <li>❌ No MS Word download</li>
+                        </ul>
+                        <button style={{
+                          width: '100%',
+                          padding: '15px',
+                          backgroundColor: '#6c757d',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '10px',
+                          cursor: 'not-allowed',
+                          fontSize: '16px',
+                          fontWeight: 'bold'
+                        }}>
+                          Current Plan
+                        </button>
+                      </div>
+
+                      {/* Pro Plan */}
+                      <div style={{
+                        backgroundColor: 'white',
+                        padding: '40px 30px',
+                        borderRadius: '20px',
+                        boxShadow: '0 15px 40px rgba(40, 167, 69, 0.2)',
+                        maxWidth: '350px',
+                        width: '100%',
+                        border: '3px solid #28a745',
+                        transform: 'scale(1.05)'
+                      }}>
+                        <div style={{
+                          backgroundColor: '#28a745',
+                          color: 'white',
+                          padding: '8px 20px',
+                          borderRadius: '20px',
+                          fontSize: '14px',
+                          fontWeight: 'bold',
+                          marginBottom: '20px',
+                          display: 'inline-block'
+                        }}>
+                          COMING SOON
+                        </div>
+                        <h3 style={{ 
+                          color: '#28a745',
+                          fontSize: '1.8rem',
+                          margin: '0 0 10px 0'
+                        }}>
+                          Pro Plan
+                        </h3>
+                        <div style={{ marginBottom: '30px' }}>
+                          <span style={{ 
+                            fontSize: '3rem',
+                            fontWeight: 'bold',
+                            color: '#6c5ce7'
+                          }}>
+                            $9.99
+                          </span>
+                          <span style={{ 
+                            color: '#666',
+                            fontSize: '1.2rem'
+                          }}>
+                            /month
+                          </span>
+                        </div>
+                        <ul style={{ 
+                          textAlign: 'left', 
+                          color: '#666', 
+                          lineHeight: '2.5',
+                          listStyle: 'none',
+                          padding: '0',
+                          marginBottom: '40px'
+                        }}>
+                          <li>✅ Everything in Free Plan</li>
+                          <li>✅ Unlimited transcription access</li>
+                          <li>✅ High accuracy AI transcription</li>
+                          <li>✅ Priority processing</li>
+                          <li>✅ Copy to clipboard feature</li>
+                          <li>✅ MS Word & TXT downloads</li>
+                          <li>✅ 7-day file storage</li>
+                          <li>✅ Email support</li>
+                        </ul>
+                        <button 
+                          style={{
+                            width: '100%',
+                            padding: '15px',
+                            backgroundColor: '#6c757d',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '10px',
+                            cursor: 'not-allowed',
+                            fontSize: '16px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          Coming Soon (2Checkout)
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Common Features Section */}
               <div style={{
                 marginTop: '60px',
                 padding: '30px',
@@ -1553,7 +1528,6 @@ const handleUpgradeClick = useCallback((planType) => {
                       </div>
                     )}
                   </div>
-
                   {/* Enhanced Transcription Progress Bar */}
                   {(status === 'processing' || status === 'uploading') && (
                     <div style={{ marginBottom: '20px' }}>
@@ -1576,6 +1550,7 @@ const handleUpgradeClick = useCallback((planType) => {
                       </div>
                     </div>
                   )}
+
                   {/* UPDATED: Action Buttons with proper free user handling and locked state */}
                   <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
                     {status === 'idle' && !isUploading && selectedFile && (
@@ -1654,7 +1629,6 @@ const handleUpgradeClick = useCallback((planType) => {
                   )}
                 </div>
               )}
-
               {/* UPDATED: Enhanced Transcription Result with User Plan Restrictions */}
               {transcription && (
                 <div style={{
@@ -1800,6 +1774,7 @@ const handleUpgradeClick = useCallback((planType) => {
               )}
             </main>
           )}
+          
           {/* Footer for main app interface */}
           <footer style={{ 
             textAlign: 'center', 
@@ -1818,40 +1793,40 @@ const handleUpgradeClick = useCallback((planType) => {
             </div>
           )}
 
-{/* NEW: Payment Modal */}
-{showPayment && selectedPlan && (
-  <div style={{
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000
-  }}>
-    <div style={{
-      backgroundColor: 'white',
-      borderRadius: '15px',
-      padding: '20px',
-      maxWidth: '500px',
-      width: '90%',
-      maxHeight: '90vh',
-      overflow: 'auto'
-    }}>
-      <StripePayment
-        selectedPlan={selectedPlan}
-        onSuccess={handlePaymentSuccess}
-        onCancel={() => {
-          setShowPayment(false);
-          setSelectedPlan(null);
-        }}
-      />
-    </div>
-  </div>
-)}
+          {/* NEW: Payment Modal */}
+          {showPayment && selectedPlan && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.8)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000
+            }}>
+              <div style={{
+                backgroundColor: 'white',
+                borderRadius: '15px',
+                padding: '20px',
+                maxWidth: '500px',
+                width: '90%',
+                maxHeight: '90vh',
+                overflow: 'auto'
+              }}>
+                <StripePayment
+                  selectedPlan={selectedPlan}
+                  onSuccess={handlePaymentSuccess}
+                  onCancel={() => {
+                    setShowPayment(false);
+                    setSelectedPlan(null);
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       } />
     </Routes>
