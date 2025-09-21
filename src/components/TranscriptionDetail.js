@@ -288,7 +288,7 @@ const TranscriptionDetail = () => {
   const headerStyle = {
     background: 'white',
     borderRadius: '12px',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)s',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', // Removed 's'
     padding: '24px',
     marginBottom: '24px',
     maxWidth: '1200px',
@@ -411,7 +411,8 @@ const TranscriptionDetail = () => {
           
           <audio
             ref={audioRef}
-            src={localAudioUrl || sourceAudioUrl} {/* UPDATED: Dynamic audio source */}
+            src={localAudioUrl || sourceAudioUrl}
+            {/* UPDATED: Dynamic audio source */} {/* MOVED COMMENT OUTSIDE ATTRIBUTE */}
             preload="metadata"
             crossOrigin="anonymous"
           />
@@ -425,7 +426,8 @@ const TranscriptionDetail = () => {
             style={{ display: 'none' }}
           />
 
-          {audioError || !sourceAudioUrl ? ( {/* UPDATED: Check for !sourceAudioUrl */}
+          {/* FIXED: Syntax Error in Conditional Rendering (Corrected parentheses) */}
+          {(audioError || !sourceAudioUrl) ? ( 
             <div style={{ textAlign: 'center', padding: '24px' }}>
               <div style={{
                 width: '64px',
