@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
 import Signup from './components/Signup';
 import Dashboard from './components/Dashboard';
-import AdminDashboard from './components/components/AdminDashboard';
+import AdminDashboard from './components/AdminDashboard';  // ✅ Fixed - removed duplicate "components/"
 import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
 import StripePayment from './components/StripePayment';
