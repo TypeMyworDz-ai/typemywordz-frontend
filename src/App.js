@@ -949,49 +949,50 @@ function AppContent() {
           textAlign: 'center', 
           padding: '20px 20px 0 20px'
         }}>
-          <button
-            onClick={() => navigate('/transcription-editor')}
-            style={{
-              backgroundColor: '#28a745',
-              color: 'white',
-              padding: '12px 25px',
-              border: 'none',
-              borderRadius: '25px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: '600',
-              boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.3s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.backgroundColor = '#218838';
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.6)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.backgroundColor = '#28a745';
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
-            }}
-          >
-            <svg 
-              style={{ width: '20px', height: '20px' }} 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
-              />
-            </svg>
-            ✏️ Transcription Editor
-          </button>
+          // AFTER (New code):
+<button
+  onClick={() => window.open('/transcription-editor', '_blank')}
+  style={{
+    backgroundColor: '#28a745',
+    color: 'white',
+    padding: '12px 25px',
+    border: 'none',
+    borderRadius: '25px',
+    cursor: 'pointer',
+    fontSize: '16px',
+    fontWeight: '600',
+    boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    transition: 'all 0.3s ease'
+  }}
+  onMouseEnter={(e) => {
+    e.target.style.backgroundColor = '#218838';
+    e.target.style.transform = 'translateY(-2px)';
+    e.target.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.6)';
+  }}
+  onMouseLeave={(e) => {
+    e.target.style.backgroundColor = '#28a745';
+    e.target.style.transform = 'translateY(0)';
+    e.target.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
+  }}
+>
+  <svg 
+    style={{ width: '20px', height: '20px' }} 
+    fill="none" 
+    stroke="currentColor" 
+    viewBox="0 0 24 24"
+  >
+    <path 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      strokeWidth={2} 
+      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
+    />
+  </svg>
+  ✏️ Transcription Editor
+</button>
         </div>
 
         <header style={{ 
@@ -1237,59 +1238,58 @@ function AppContent() {
               </button>
             )}
           </div>
-
           {/* NEW: Transcription Editor Button - appears on transcribe view */}
-          {currentView === 'transcribe' && (
-            <div style={{ 
-              textAlign: 'center', 
-              padding: '0 20px 20px',
-              marginBottom: '20px'
-            }}>
-              <button
-                onClick={() => navigate('/transcription-editor')}
-                style={{
-                  backgroundColor: '#28a745',
-                  color: 'white',
-                  padding: '12px 25px',
-                  margin: '0 10px',
-                  border: 'none',
-                  borderRadius: '25px',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  transition: 'all 0.3s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = '#218838';
-                  e.target.style.transform = 'translateY(-2px)';
-                  e.target.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.6)';
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = '#28a745';
-                  e.target.style.transform = 'translateY(0)';
-                  e.target.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
-                }}
-              >
-                <svg 
-                  style={{ width: '20px', height: '20px' }} 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    strokeWidth={2} 
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
-                  />
-                </svg>
-                ✏️ Transcription Editor
-              </button>
-            </div>
-          )}
+{currentView === 'transcribe' && (
+  <div style={{ 
+    textAlign: 'center', 
+    padding: '0 20px 20px',
+    marginBottom: '20px'
+  }}>
+    <button
+      onClick={() => window.open('/transcription-editor', '_blank')}
+      style={{
+        backgroundColor: '#28a745',
+        color: 'white',
+        padding: '12px 25px',
+        margin: '0 10px',
+        border: 'none',
+        borderRadius: '25px',
+        cursor: 'pointer',
+        fontSize: '16px',
+        boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '8px',
+        transition: 'all 0.3s ease'
+      }}
+      onMouseEnter={(e) => {
+        e.target.style.backgroundColor = '#218838';
+        e.target.style.transform = 'translateY(-2px)';
+        e.target.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.6)';
+      }}
+      onMouseLeave={(e) => {
+        e.target.style.backgroundColor = '#28a745';
+        e.target.style.transform = 'translateY(0)';
+        e.target.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
+      }}
+    >
+      <svg 
+        style={{ width: '20px', height: '20px' }} 
+        fill="none" 
+        stroke="currentColor" 
+        viewBox="0 0 24 24"
+      >
+        <path 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          strokeWidth={2} 
+          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
+        />
+      </svg>
+      ✏️ Transcription Editor
+    </button>
+  </div>
+)}
           {/* Show Different Views - UPDATED Pricing Section */}
           {currentView === 'pricing' ? (
             <div style={{ 
