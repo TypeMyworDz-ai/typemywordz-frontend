@@ -140,10 +140,10 @@ function AppContent() {
   const [message, setMessage] = useState('');
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
   
-  // NEW: Payment states
+  // UPDATED: Payment states with better naming
   const [showPayment, setShowPayment] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const [pricingView, setPricingView] = useState('african'); // 'african' or 'western'
+  const [pricingView, setPricingView] = useState('credits'); // 'credits' or 'subscription'
 
   // Refs
   const mediaRecorderRef = useRef(null);
@@ -162,6 +162,109 @@ function AppContent() {
   // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
+  // NEW: Paystack payment functions
+  const initializePaystackPayment = async (email, amount, planName) => {
+    try {
+      console.log('Initializing Paystack payment:', { email, amount, planName });
+      
+      const response = await fetch('https://api.paystack.co/transaction/initialize', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer pk_test_305e52e090e0da3cd2acb5f6fddf4f9b5d4b8e52',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email,
+          amount: amount * 100, // Convert to kobo (Paystack uses kobo)
+          currency: 'USD',
+          callback_url: `${window.location.origin}/?payment=success`,
+          metadata: {
+            plan: planName,
+            user_id: currentUser.uid,
+            custom_fields: [
+              {
+                display_name: "Plan Type",
+                variable_name: "plan_type", 
+                value: planName
+              }
+            ]
+          }
+        })
+      });
+
+      const data = await response.json();
+      console.log('Paystack response:', data);
+      
+      if (data.status) {
+        showMessage('Redirecting to payment page...');
+        // Redirect to Paystack payment page
+        window.location.href = data.data.authorization_url;
+      } else {
+        throw new Error(data.message || 'Payment initialization failed');
+      }
+    } catch (error) {
+      console.error('Paystack payment error:', error);
+      showMessage('Payment initialization failed: ' + error.message);
+    }
+  };
+
+  // NEW: Handle payment success callback
+  const handlePaystackCallback = async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const reference = urlParams.get('reference');
+    const paymentStatus = urlParams.get('payment');
+    
+    console.log('Checking payment callback:', { reference, paymentStatus });
+    
+    if (reference) {
+      try {
+        showMessage('Verifying payment...');
+        
+        const response = await fetch(`${BACKEND_URL}/api/verify-payment`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ reference }),
+        });
+        
+        const data = await response.json();
+        console.log('Payment verification result:', data);
+        
+        if (data.status === 'success') {
+          // Update user plan in your system
+          await updateUserPlan(currentUser.uid, 'pro', reference);
+          await refreshUserProfile();
+          
+          showMessage(`🎉 Payment successful! ${data.data.plan} activated.`);
+          setCurrentView('transcribe');
+          
+          // Clean up URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } else {
+          showMessage('Payment verification failed: ' + (data.message || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Payment verification error:', error);
+        showMessage('Payment verification failed: ' + error.message);
+      }
+    } else if (paymentStatus === 'success') {
+      showMessage('Payment completed! Please wait for verification...');
+    }
+  };
+
+  // NEW: useEffect to handle payment callbacks
+  useEffect(() => {
+    // Check if we're returning from a payment
+    const urlParams = new URLSearchParams(window.location.search);
+    const reference = urlParams.get('reference');
+    const paymentStatus = urlParams.get('payment');
+    
+    if (reference || paymentStatus === 'success') {
+      console.log('Payment callback detected');
+      handlePaystackCallback();
+    }
+  }, [currentUser]); // Run when component mounts or user changes
   // Enhanced reset function with better job cancellation
   const resetTranscriptionProcessUI = useCallback(() => { 
     console.log('🔄 Resetting transcription UI and cancelling any ongoing processes');
@@ -756,6 +859,7 @@ function AppContent() {
       showMessage('No recorded audio available to download.');
     }
   }, [showMessage, downloadFormat]);
+
   const handleLogout = useCallback(async () => {
     try {
       await logout();
@@ -781,7 +885,6 @@ function AppContent() {
     setSelectedPlan(planType);
     setShowPayment(true);
   }, []);
-
   // UPDATED: useEffect to handle 30-minute trial for free users
   useEffect(() => {
     if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
@@ -1028,7 +1131,7 @@ function AppContent() {
                 boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
               }}
             >
-              📊 Dashboard
+              📊 History/Editor
             </button>
             <button
               onClick={() => setCurrentView('pricing')}
@@ -1065,7 +1168,6 @@ function AppContent() {
               </button>
             )}
           </div>
-          
           {/* Show Different Views - Pricing Section and Main Interface */}
           {currentView === 'pricing' ? (
             <div style={{ 
@@ -1091,14 +1193,14 @@ function AppContent() {
                 Flexible options for different regions and needs
               </p>
 
-              {/* Region Selection Tabs */}
+              {/* UPDATED: More subtle region selection */}
               <div style={{ marginBottom: '40px' }}>
                 <button
-                  onClick={() => setPricingView('african')}
+                  onClick={() => setPricingView('credits')}
                   style={{
                     padding: '12px 30px',
                     margin: '0 10px',
-                    backgroundColor: pricingView === 'african' ? '#007bff' : '#6c757d',
+                    backgroundColor: pricingView === 'credits' ? '#007bff' : '#6c757d',
                     color: 'white',
                     border: 'none',
                     borderRadius: '25px',
@@ -1106,14 +1208,14 @@ function AppContent() {
                     fontSize: '16px'
                   }}
                 >
-                  🌍 African Clients (Credits)
+                  💳 Buy Credits
                 </button>
                 <button
-                  onClick={() => setPricingView('western')}
+                  onClick={() => setPricingView('subscription')}
                   style={{
                     padding: '12px 30px',
                     margin: '0 10px',
-                    backgroundColor: pricingView === 'western' ? '#28a745' : '#6c757d',
+                    backgroundColor: pricingView === 'subscription' ? '#28a745' : '#6c757d',
                     color: 'white',
                     border: 'none',
                     borderRadius: '25px',
@@ -1121,29 +1223,24 @@ function AppContent() {
                     fontSize: '16px'
                   }}
                 >
-                  🇺🇸 Western Clients (Subscriptions)
+                  🔄 Pro Plans
                 </button>
               </div>
 
               {/* Conditional Content Based on Selected View */}
-              {pricingView === 'african' ? (
+              {pricingView === 'credits' ? (
                 <>
-                  {/* African Credit System */}
-                  <CreditPurchase />
-                </>
-              ) : (
-                <>
-                  {/* Western Subscription Plans */}
+                  {/* UPDATED: Cleaner Credit System */}
                   <div style={{ marginTop: '20px' }}>
-                    <h2 style={{ color: '#28a745', marginBottom: '30px' }}>
-                      🇺🇸 Monthly Subscriptions (Western Clients)
+                    <h2 style={{ color: '#007bff', marginBottom: '30px' }}>
+                      💳 Buy Credits - Pro Feature Access
                     </h2>
                     <p style={{ color: '#666', marginBottom: '30px' }}>
-                      Recurring monthly plans with 2Checkout integration
+                      Purchase temporary access to Pro features. Available globally with local currency support
                     </p>
                     
                     <div style={{ display: 'flex', gap: '30px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                      {/* Free Plan */}
+                      {/* 24 Hours Plan - UPDATED with cleaner design */}
                       <div style={{
                         backgroundColor: 'white',
                         padding: '40px 30px',
@@ -1153,8 +1250,84 @@ function AppContent() {
                         width: '100%',
                         border: '2px solid #e9ecef'
                       }}>
+                        <h3 style={{ 
+                          color: '#007bff',
+                          fontSize: '1.8rem',
+                          margin: '0 0 10px 0'
+                        }}>
+                          24 Hours Pro Access
+                        </h3>
+                        <p style={{ color: '#666', marginBottom: '20px', fontSize: '14px' }}>
+                          Full access to Pro features for 24 hours
+                        </p>
+                        <div style={{ marginBottom: '30px' }}>
+                          <span style={{ 
+                            fontSize: '3rem',
+                            fontWeight: 'bold',
+                            color: '#6c5ce7'
+                          }}>
+                            USD 1
+                          </span>
+                          <span style={{ 
+                            color: '#666',
+                            fontSize: '1.2rem'
+                          }}>
+                            for 24 hours
+                          </span>
+                        </div>
+                        
+                        {/* UPDATED: Cleaner feature list */}
+                        <div style={{ marginBottom: '30px', textAlign: 'left' }}>
+                          <h4 style={{ color: '#007bff', marginBottom: '15px', fontSize: '16px' }}>What you get:</h4>
+                          <ul style={{ 
+                            color: '#666', 
+                            lineHeight: '2.2',
+                            listStyle: 'none',
+                            padding: '0',
+                            margin: '0'
+                          }}>
+                            <li>✅ Unlimited transcription for 24 hours</li>
+                            <li>✅ All Transcript Download Options</li>
+                          </ul>
+                        </div>
+                        
+                        <button
+                          onClick={() => {
+                            if (!currentUser?.email) {
+                              showMessage('Please log in first to purchase credits.');
+                              return;
+                            }
+                            initializePaystackPayment(currentUser.email, 3, '24 Hours Pro Access');
+                          }}
+                          disabled={!currentUser?.email}
+                          style={{
+                            width: '100%',
+                            padding: '15px',
+                            backgroundColor: !currentUser?.email ? '#6c757d' : '#007bff',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '10px',
+                            cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
+                            fontSize: '16px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {!currentUser?.email ? 'Login Required' : 'Pay with Paystack - $3'}
+                        </button>
+                      </div>
+                      {/* 5 Days Plan - UPDATED with cleaner design */}
+                      <div style={{
+                        backgroundColor: 'white',
+                        padding: '40px 30px',
+                        borderRadius: '20px',
+                        boxShadow: '0 15px 40px rgba(40, 167, 69, 0.2)',
+                        maxWidth: '350px',
+                        width: '100%',
+                        border: '3px solid #28a745',
+                        transform: 'scale(1.05)'
+                      }}>
                         <div style={{
-                          backgroundColor: '#6c757d',
+                          backgroundColor: '#28a745',
                           color: 'white',
                           padding: '8px 20px',
                           borderRadius: '20px',
@@ -1163,62 +1336,89 @@ function AppContent() {
                           marginBottom: '20px',
                           display: 'inline-block'
                         }}>
-                          CURRENT PLAN
+                          BEST VALUE
                         </div>
                         <h3 style={{ 
-                          color: '#6c757d',
+                          color: '#28a745',
                           fontSize: '1.8rem',
                           margin: '0 0 10px 0'
                         }}>
-                          Free Plan
+                          5 Days Pro Access
                         </h3>
+                        <p style={{ color: '#666', marginBottom: '20px', fontSize: '14px' }}>
+                          Full access to Pro features for 5 days
+                        </p>
                         <div style={{ marginBottom: '30px' }}>
                           <span style={{ 
                             fontSize: '3rem',
                             fontWeight: 'bold',
                             color: '#6c5ce7'
                           }}>
-                            $0
+                            USD 2.5
                           </span>
                           <span style={{ 
                             color: '#666',
                             fontSize: '1.2rem'
                           }}>
-                            /month
+                            for 5 days
                           </span>
                         </div>
-                        <ul style={{ 
-                          textAlign: 'left', 
-                          color: '#666', 
-                          lineHeight: '2.5',
-                          listStyle: 'none',
-                          padding: '0',
-                          marginBottom: '40px'
-                        }}>
-                          <li>✅ Unlimited audio recording</li>
-                          <li>✅ Download recordings as MP3/WAV</li>
-                          <li>✅ 24-hour file storage</li>
-                          <li>✅ 30 minutes free transcription</li>
-                          <li>✅ TXT download only</li>
-                          <li>❌ No unlimited transcription</li>
-                          <li>❌ No copy to clipboard</li>
-                          <li>❌ No MS Word download</li>
-                        </ul>
-                        <button style={{
-                          width: '100%',
-                          padding: '15px',
-                          backgroundColor: '#6c757d',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '10px',
-                          cursor: 'not-allowed',
-                          fontSize: '16px',
-                          fontWeight: 'bold'
-                        }}>
-                          Current Plan
+                        
+                        {/* UPDATED: Cleaner feature list */}
+                        <div style={{ marginBottom: '30px', textAlign: 'left' }}>
+                          <h4 style={{ color: '#28a745', marginBottom: '15px', fontSize: '16px' }}>What you get:</h4>
+                          <ul style={{ 
+                            color: '#666', 
+                            lineHeight: '2.2',
+                            listStyle: 'none',
+                            padding: '0',
+                            margin: '0'
+                          }}>
+                            <li>✅ Unlimited transcription for 5 days</li>
+                            <li>✅ All Transcript Download Options</li>
+                            <li>✅ Extended File Storage</li>
+                          </ul>
+                        </div>
+                        
+                        <button
+                          onClick={() => {
+                            if (!currentUser?.email) {
+                              showMessage('Please log in first to purchase credits.');
+                              return;
+                            }
+                            initializePaystackPayment(currentUser.email, 5, '5 Days Pro Access');
+                          }}
+                          disabled={!currentUser?.email}
+                          style={{
+                            width: '100%',
+                            padding: '15px',
+                            backgroundColor: !currentUser?.email ? '#6c757d' : '#28a745',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '10px',
+                            cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
+                            fontSize: '16px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {!currentUser?.email ? 'Login Required' : 'Pay with Paystack - $5'}
                         </button>
                       </div>
-
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Pro Plan */}
+                  <div style={{ marginTop: '20px' }}>
+                    <h2 style={{ color: '#28a745', marginBottom: '30px' }}>
+                      🔄 Monthly Pro Plans
+                    </h2>
+                    <p style={{ color: '#666', marginBottom: '30px' }}>
+                      Go Pro
+                    </p>
+                    
+                    <div style={{ display: 'flex', gap: '30px', justifyContent: 'center', flexWrap: 'wrap' }}>
                       {/* Pro Plan */}
                       <div style={{
                         backgroundColor: 'white',
@@ -1301,7 +1501,6 @@ function AppContent() {
                   </div>
                 </>
               )}
-
               {/* Common Features Section */}
               <div style={{
                 marginTop: '60px',
