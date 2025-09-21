@@ -140,10 +140,15 @@ function AppContent() {
   const [message, setMessage] = useState('');
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
   
-  // UPDATED: Payment states with better naming
+  // UPDATED: Payment states with better naming and new region/currency states
   const [showPayment, setShowPayment] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [pricingView, setPricingView] = useState('credits'); // 'credits' or 'subscription'
+  const [selectedRegion, setSelectedRegion] = useState('KE'); // Default to Kenya
+  const [convertedAmounts, setConvertedAmounts] = useState({ 
+    '24hours': { amount: 1.00, currency: 'USD' }, 
+    '5days': { amount: 2.50, currency: 'USD' } 
+  });
 
   // Refs
   const mediaRecorderRef = useRef(null);
@@ -162,10 +167,10 @@ function AppContent() {
   // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
-  // UPDATED: Paystack payment functions - using backend endpoint
-  const initializePaystackPayment = async (email, amount, planName) => {
+  // UPDATED: Paystack payment functions - using backend endpoint and passing country_code
+  const initializePaystackPayment = async (email, amount, planName, countryCode) => {
     try {
-      console.log('Initializing Paystack payment:', { email, amount, planName });
+      console.log('Initializing Paystack payment:', { email, amount, planName, countryCode });
       
       // Call our backend instead of Paystack directly
       const response = await fetch(`${BACKEND_URL}/api/initialize-paystack-payment`, {
@@ -175,10 +180,10 @@ function AppContent() {
         },
         body: JSON.stringify({
           email: email,
-          amount: amount,
-          currency: 'USD',
+          amount: amount, // This is the USD base amount
           plan_name: planName,
           user_id: currentUser.uid,
+          country_code: countryCode, // Pass the selected country code
           callback_url: `${window.location.origin}/?payment=success`
         })
       });
@@ -199,7 +204,7 @@ function AppContent() {
     }
   };
 
-  // Handle payment success callback
+  // Handle payment success callback (No change)
   const handlePaystackCallback = async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const reference = urlParams.get('reference');
@@ -244,7 +249,7 @@ function AppContent() {
     }
   };
 
-  // useEffect to handle payment callbacks
+  // useEffect to handle payment callbacks (No change)
   useEffect(() => {
     // Check if we're returning from a payment
     const urlParams = new URLSearchParams(window.location.search);
@@ -305,14 +310,14 @@ function AppContent() {
     }, 500);
   }, []);
 
-  // DIAGNOSTIC: Log userProfile.totalMinutesUsed changes
+  // DIAGNOSTIC: Log userProfile.totalMinutesUsed changes (No change)
   useEffect(() => {
     if (userProfile) {
       console.log('DIAGNOSTIC: userProfile.totalMinutesUsed updated to:', userProfile.totalMinutesUsed);
     }
   }, [userProfile?.totalMinutesUsed]);
 
-  // Enhanced file selection with proper job cancellation
+  // Enhanced file selection with proper job cancellation (No change)
   const handleFileSelect = useCallback(async (event) => {
     const file = event.target.files[0];
     
@@ -458,7 +463,7 @@ function AppContent() {
     }
   }, [isRecording]);
 
-  // UPDATED: Improved cancel function with page refresh
+  // UPDATED: Improved cancel function with page refresh (No change)
   const handleCancelUpload = useCallback(async () => {
     console.log('🛑 FORCE CANCEL - Stopping everything immediately');
     
@@ -535,7 +540,7 @@ function AppContent() {
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]); // Added userProfile to dependencies for logging
 
-  // Handle successful payment
+  // Handle successful payment (No change)
   const handlePaymentSuccess = useCallback(async (subscriptionId, planType) => {
     try {
       // Update user plan in Firestore
@@ -559,7 +564,7 @@ function AppContent() {
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
 
-  // Enhanced checkJobStatus with better cancellation handling
+  // Enhanced checkJobStatus with better cancellation handling (No change)
   const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
     // FIRST thing - check if cancelled
     if (isCancelledRef.current) {
@@ -774,7 +779,7 @@ function AppContent() {
     }
   }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile, profileLoading]);
 
-  // UPDATED: Copy to clipboard - only for paid users
+  // UPDATED: Copy to clipboard - only for paid users (No change)
   const copyToClipboard = useCallback(() => { 
     // Check if user is on free plan
     if (userProfile?.plan === 'free') {
@@ -787,7 +792,7 @@ function AppContent() {
     setTimeout(() => setCopiedMessageVisible(false), 2000);
   }, [transcription, userProfile, showMessage]);
 
-  // UPDATED: Download as Word - only for paid users
+  // UPDATED: Download as Word - only for paid users (No change)
   const downloadAsWord = useCallback(() => { 
     // Check if user is on free plan
     if (userProfile?.plan === 'free') {
@@ -804,7 +809,7 @@ function AppContent() {
     URL.revokeObjectURL(url);
   }, [transcription, userProfile, showMessage]);
 
-  // TXT download - available for all users
+  // TXT download - available for all users (No change)
   const downloadAsTXT = useCallback(() => { 
     const blob = new Blob([transcription], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -815,7 +820,7 @@ function AppContent() {
     URL.revokeObjectURL(url);
   }, [transcription]);
 
-  // Enhanced download with compression options
+  // Enhanced download with compression options (No change)
   const downloadRecordedAudio = useCallback(async () => { 
     if (recordedAudioBlobRef.current) {
       try {
@@ -870,13 +875,13 @@ function AppContent() {
     }
   }, [currentUser?.uid, currentUser?.email, showMessage]);
 
-  // UPDATED: Handle upgrade button clicks
+  // UPDATED: Handle upgrade button clicks (No change)
   const handleUpgradeClick = useCallback((planType) => {
     console.log('Upgrade clicked for plan:', planType);
     setSelectedPlan(planType);
     setShowPayment(true);
   }, []);
-  // UPDATED: useEffect to handle 30-minute trial for free users
+  // UPDATED: useEffect to handle 30-minute trial for free users (No change)
   useEffect(() => {
     if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
       // Auto-trigger for business users and free users within their 30-minute limit
@@ -895,7 +900,7 @@ function AppContent() {
     }
   }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile, profileLoading, showMessage]);
 
-  // Cleanup effect to ensure cancellation works
+  // Cleanup effect to ensure cancellation works (No change)
   useEffect(() => {
     return () => {
       // Cleanup on unmount
@@ -910,7 +915,7 @@ function AppContent() {
     };
   }, []);
 
-  // Login screen for non-authenticated users
+  // Login screen for non-authenticated users (No change)
   if (!currentUser) {
     return (
       <div style={{ 
@@ -1071,7 +1076,7 @@ function AppContent() {
               </div>
             </header>
           )}
-          {/* Profile Loading Indicator */}
+          {/* Profile Loading Indicator (No change) */}
           {profileLoading && (
             <div style={{
               textAlign: 'center',
@@ -1086,7 +1091,7 @@ function AppContent() {
             </div>
           )}
 
-          {/* UPDATED: Navigation Tabs with History/Editor */}
+          {/* UPDATED: Navigation Tabs with History/Editor (No change) */}
           <div style={{ 
             textAlign: 'center', 
             padding: currentView === 'transcribe' ? '0 20px 40px' : '20px',
@@ -1159,7 +1164,6 @@ function AppContent() {
               </button>
             )}
           </div>
-          
           {/* Show Different Views - UPDATED Pricing Section */}
           {currentView === 'pricing' ? (
             <div style={{ 
@@ -1185,7 +1189,32 @@ function AppContent() {
                 Flexible options for different regions and needs
               </p>
 
-              {/* UPDATED: More subtle region selection */}
+              {/* UPDATED: Select Your Region Dropdown */}
+              <div style={{ marginBottom: '40px' }}>
+                <label htmlFor="paymentRegion" style={{ color: '#6c5ce7', fontWeight: 'bold', marginRight: '10px' }}>
+                  Select Your Region:
+                </label>
+                <select
+                  id="paymentRegion"
+                  value={selectedRegion}
+                  onChange={(e) => setSelectedRegion(e.target.value)}
+                  style={{
+                    padding: '8px 15px',
+                    borderRadius: '8px',
+                    border: '1px solid #6c5ce7',
+                    fontSize: '16px',
+                    minWidth: '200px'
+                  }}
+                >
+                  <option value="KE">Kenya (M-Pesa, Card)</option>
+                  <option value="NG">Nigeria (Bank, USSD, Card)</option>
+                  <option value="GH">Ghana (Mobile Money, Card)</option>
+                  <option value="ZA">South Africa (Card, EFT)</option>
+                  <option value="OTHER_AFRICA">Other African Countries (Card USD)</option>
+                </select>
+              </div>
+
+              {/* Region Selection Tabs (No change here, but logic below depends on selectedRegion) */}
               <div style={{ marginBottom: '40px' }}>
                 <button
                   onClick={() => setPricingView('credits')}
@@ -1222,7 +1251,7 @@ function AppContent() {
               {/* Conditional Content Based on Selected View */}
               {pricingView === 'credits' ? (
                 <>
-                  {/* UPDATED: Credit System with new prices */}
+                  {/* Credit System with new prices */}
                   <div style={{ marginTop: '20px' }}>
                     <h2 style={{ color: '#007bff', marginBottom: '30px' }}>
                       💳 Buy Credits - Pro Feature Access
@@ -1268,7 +1297,7 @@ function AppContent() {
                           </span>
                         </div>
                         
-                        {/* UPDATED: Cleaner feature list */}
+                        {/* Cleaner feature list */}
                         <div style={{ marginBottom: '30px', textAlign: 'left' }}>
                           <h4 style={{ color: '#007bff', marginBottom: '15px', fontSize: '16px' }}>What you get:</h4>
                           <ul style={{ 
@@ -1289,7 +1318,7 @@ function AppContent() {
                               showMessage('Please log in first to purchase credits.');
                               return;
                             }
-                            initializePaystackPayment(currentUser.email, 1, '24 Hours Pro Access');
+                            initializePaystackPayment(currentUser.email, 1, '24 Hours Pro Access', selectedRegion);
                           }}
                           disabled={!currentUser?.email}
                           style={{
@@ -1304,7 +1333,7 @@ function AppContent() {
                             fontWeight: 'bold'
                           }}
                         >
-                          {!currentUser?.email ? 'Login Required' : 'Pay with Paystack - $1'}
+                          {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 1`}
                         </button>
                       </div>
 
@@ -1357,7 +1386,7 @@ function AppContent() {
                           </span>
                         </div>
                         
-                        {/* UPDATED: Cleaner feature list */}
+                        {/* Cleaner feature list */}
                         <div style={{ marginBottom: '30px', textAlign: 'left' }}>
                           <h4 style={{ color: '#28a745', marginBottom: '15px', fontSize: '16px' }}>What you get:</h4>
                           <ul style={{ 
@@ -1379,7 +1408,7 @@ function AppContent() {
                               showMessage('Please log in first to purchase credits.');
                               return;
                             }
-                            initializePaystackPayment(currentUser.email, 2.5, '5 Days Pro Access');
+                            initializePaystackPayment(currentUser.email, 2.5, '5 Days Pro Access', selectedRegion);
                           }}
                           disabled={!currentUser?.email}
                           style={{
@@ -1394,7 +1423,7 @@ function AppContent() {
                             fontWeight: 'bold'
                           }}
                         >
-                          {!currentUser?.email ? 'Login Required' : 'Pay with Paystack - $2.50'}
+                          {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 2.50`}
                         </button>
                       </div>
                     </div>
@@ -1495,7 +1524,7 @@ function AppContent() {
                 </>
               )}
 
-              {/* Common Features Section */}
+              {/* Common Features Section (No change) */}
               <div style={{
                 marginTop: '60px',
                 padding: '30px',
@@ -1533,7 +1562,7 @@ function AppContent() {
               maxWidth: '800px', 
               margin: '0 auto'
             }}>
-              {/* UPDATED: Usage Information Banner with dynamic remaining minutes */}
+              {/* UPDATED: Usage Information Banner with dynamic remaining minutes (No change) */}
               {userProfile && userProfile.plan === 'free' && (
                 <div style={{
                   backgroundColor: 'rgba(255, 243, 205, 0.95)',
@@ -1581,7 +1610,7 @@ function AppContent() {
                   )}
                 </div>
               )}
-              {/* Record Audio Section */}
+              {/* Record Audio Section (No change) */}
               <div style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.95)',
                 borderRadius: '15px',
@@ -1635,7 +1664,7 @@ function AppContent() {
                     {isRecording ? '⏹️ Stop Recording' : '🎤 Start Recording'}
                   </button>
 
-                  {/* Enhanced Format Selection and Download Recorded Audio */}
+                  {/* Enhanced Format Selection and Download Recorded Audio (No change) */}
                   {recordedAudioBlobRef.current && !isRecording && (
                     <div style={{ marginTop: '15px' }}>
                       <div style={{ 
@@ -1720,7 +1749,7 @@ function AppContent() {
                       </div>
                     )}
                   </div>
-                  {/* Enhanced Transcription Progress Bar */}
+                  {/* Enhanced Transcription Progress Bar (No change) */}
                   {(status === 'processing' || status === 'uploading') && (
                     <div style={{ marginBottom: '20px' }}>
                       <div style={{
@@ -1743,7 +1772,7 @@ function AppContent() {
                     </div>
                   )}
 
-                  {/* UPDATED: Action Buttons with proper free user handling and locked state */}
+                  {/* UPDATED: Action Buttons with proper free user handling and locked state (No change) */}
                   <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
                     {status === 'idle' && !isUploading && selectedFile && (
                       <button
@@ -1798,7 +1827,7 @@ function AppContent() {
                 </div>
               </div>
               
-              {/* Status Section */}
+              {/* Status Section (No change) */}
               {status && (status === 'completed' || status === 'failed') && (
                 <div style={{
                   backgroundColor: status === 'completed' ? 'rgba(212, 237, 218, 0.95)' : 'rgba(255, 243, 205, 0.95)',
@@ -1821,7 +1850,7 @@ function AppContent() {
                   )}
                 </div>
               )}
-              {/* UPDATED: Enhanced Transcription Result with User Plan Restrictions */}
+              {/* UPDATED: Enhanced Transcription Result with User Plan Restrictions (No change) */}
               {transcription && (
                 <div style={{
                   backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -1845,7 +1874,7 @@ function AppContent() {
                     marginBottom: '20px',
                     flexWrap: 'wrap'
                   }}>
-                    {/* UPDATED: Copy to Clipboard - Only for paid users */}
+                    {/* UPDATED: Copy to Clipboard - Only for paid users (No change) */}
                     <button
                       onClick={copyToClipboard}
                       style={{
@@ -1862,7 +1891,7 @@ function AppContent() {
                       {userProfile?.plan === 'free' ? '🔒 Copy (Pro Only)' : '📋 Copy to Clipboard'}
                     </button>
                     
-                    {/* UPDATED: MS Word Download - Only for paid users */}
+                    {/* UPDATED: MS Word Download - Only for paid users (No change) */}
                     <button
                       onClick={downloadAsWord}
                       style={{
@@ -1879,7 +1908,7 @@ function AppContent() {
                       {userProfile?.plan === 'free' ? '🔒 Word (Pro Only)' : '📄 MS Word'}
                     </button>
                     
-                    {/* TXT Download - Available for all users */}
+                    {/* TXT Download - Available for all users (No change) */}
                     <button
                       onClick={downloadAsTXT}
                       style={{
@@ -1896,7 +1925,7 @@ function AppContent() {
                     </button>
                   </div>
                   
-                  {/* Show upgrade message for free users */}
+                  {/* Show upgrade message for free users (No change) */}
                   {userProfile?.plan === 'free' && (
                     <div style={{
                       backgroundColor: 'rgba(255, 243, 205, 0.95)',
@@ -1936,7 +1965,7 @@ function AppContent() {
                     {transcription}
                   </div>
                   
-                  {/* UPDATED: Changed Dashboard to History/Editor */}
+                  {/* UPDATED: Changed Dashboard to History/Editor (No change) */}
                   <div style={{ 
                     marginTop: '15px', 
                     textAlign: 'center', 
@@ -1968,7 +1997,7 @@ function AppContent() {
             </main>
           )}
           
-          {/* Footer for main app interface */}
+          {/* Footer for main app interface (No change) */}
           <footer style={{ 
             textAlign: 'center', 
             padding: '20px', 
@@ -1979,14 +2008,14 @@ function AppContent() {
             &copy; {new Date().getFullYear()} TypeMyworDz, Inc. - Enhanced with 30-Minute Free Trial
           </footer>
 
-          {/* Copied Message Animation */}
+          {/* Copied Message Animation (No change) */}
           {copiedMessageVisible && (
             <div className="copied-message-animation">
               Copied to clipboard!
             </div>
           )}
 
-          {/* Payment Modal */}
+          {/* Payment Modal (No change) */}
           {showPayment && selectedPlan && (
             <div style={{
               position: 'fixed',
@@ -2025,7 +2054,8 @@ function AppContent() {
     </Routes>
   );
 }
-// Main App Component with AuthProvider
+
+// Main App Component with AuthProvider (No change)
 function App() {
   return (
     <AuthProvider>
