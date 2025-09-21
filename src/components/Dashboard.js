@@ -48,6 +48,19 @@ const Dashboard = ({ setCurrentView }) => {
     }
   }, [currentUser?.uid, loadTranscriptions]);
 
+    const handleDelete = useCallback(async (transcriptionId, e) => {
+    e.stopPropagation();
+    if (window.confirm("Are you sure you want to delete this transcription?")) {
+      try {
+        await deleteTranscription(currentUser.uid, transcriptionId);
+        loadTranscriptions();
+      } catch (err) {
+        console.error("Error deleting transcription:", err);
+        setError("Failed to delete transcription. Please try again.");
+      }
+    }
+  }, [currentUser?.uid, loadTranscriptions]);
+
   const handleEdit = useCallback((transcription, e) => {
     e.stopPropagation();
     setEditingId(transcription.id);
@@ -103,19 +116,33 @@ const Dashboard = ({ setCurrentView }) => {
     }
   }, [setCurrentView, navigate]);
 
-  // UPDATED: filteredTranscriptions with robust checks
+  // UPDATED: filteredTranscriptions with robust checks and DEBUG LOGS
   const filteredTranscriptions = transcriptions.filter(transcription => {
+    console.log('DEBUG FILTER: Processing transcription:', transcription); // NEW LOG
     const lowerSearchTerm = searchTerm.toLowerCase();
     const fileName = transcription.fileName ? transcription.fileName.toLowerCase() : '';
     const text = transcription.text ? transcription.text.toLowerCase() : '';
 
-    return fileName.includes(lowerSearchTerm) || text.includes(lowerSearchTerm);
+    const matches = fileName.includes(lowerSearchTerm) || text.includes(lowerSearchTerm);
+    console.log(`DEBUG FILTER: FileName: ${fileName}, Text: ${text}, SearchTerm: ${lowerSearchTerm}, Matches: ${matches}`); // NEW LOG
+    return matches;
   });
+  console.log('DEBUG: After filtering, filteredTranscriptions.length:', filteredTranscriptions.length); // NEW LOG
 
+  // UPDATED: sortedTranscriptions with DEBUG LOGS
   const sortedTranscriptions = [...filteredTranscriptions].sort((a, b) => {
+    console.log('DEBUG SORT: Comparing:', a.fileName, 'and', b.fileName); // NEW LOG
     switch (sortBy) {
+      case 'newest':
+        // Ensure createdAt is a valid date object before comparison
+        const dateA_newest = a.createdAt && typeof a.createdAt.toDate === 'function' ? a.createdAt.toDate() : new Date(0);
+        const dateB_newest = b.createdAt && typeof b.createdAt.toDate === 'function' ? b.createdAt.toDate() : new Date(0);
+        return dateB_newest.getTime() - dateA_newest.getTime();
       case 'oldest':
-        return a.createdAt.toDate().getTime() - b.createdAt.toDate().getTime();
+        // Ensure createdAt is a valid date object before comparison
+        const dateA_oldest = a.createdAt && typeof a.createdAt.toDate === 'function' ? a.createdAt.toDate() : new Date(0);
+        const dateB_oldest = b.createdAt && typeof b.createdAt.toDate === 'function' ? b.createdAt.toDate() : new Date(0);
+        return dateA_oldest.getTime() - dateB_oldest.getTime();
       case 'name':
         // Add null/undefined checks for fileName before localeCompare
         const fileNameA = a.fileName || '';
@@ -124,9 +151,13 @@ const Dashboard = ({ setCurrentView }) => {
       case 'duration':
         return (b.duration || 0) - (a.duration || 0);
       default:
-        return b.createdAt.toDate().getTime() - a.createdAt.toDate().getTime();
+        // Default sort by newest, with null/undefined checks
+        const defaultDateA = a.createdAt && typeof a.createdAt.toDate === 'function' ? a.createdAt.toDate() : new Date(0);
+        const defaultDateB = b.createdAt && typeof b.createdAt.toDate === 'function' ? b.createdAt.toDate() : new Date(0);
+        return defaultDateB.getTime() - defaultDateA.getTime();
     }
   });
+  console.log('DEBUG: After sorting, sortedTranscriptions.length:', sortedTranscriptions.length); // NEW LOG
 
   const formatDuration = (seconds) => {
     if (!seconds) return 'N/A';
