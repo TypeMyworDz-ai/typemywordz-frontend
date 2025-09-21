@@ -521,6 +521,7 @@ function AppContent() {
     
     console.log('✅ Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage]);
+  // UPDATED: handleTranscriptionComplete with debugging logs for saveTranscription
   const handleTranscriptionComplete = useCallback(async (transcriptionText) => {
     try {
       const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
@@ -529,16 +530,34 @@ function AppContent() {
       console.log('DIAGNOSTIC: Estimated duration for this transcription:', estimatedDuration);
 
       await updateUserUsage(currentUser.uid, estimatedDuration); // This sends new usage to backend
-      // ... saveTranscription ...
+      
+      // --- NEW DEBUG LOGS FOR saveTranscription ---
+      console.log('DEBUG: Attempting to save transcription...');
+      console.log('DEBUG: saveTranscription arguments:');
+      console.log('DEBUG:   currentUser.uid:', currentUser.uid);
+      console.log('DEBUG:   selectedFile.name (or recorded audio name):', selectedFile ? selectedFile.name : `Recording-${Date.now()}.wav`);
+      console.log('DEBUG:   transcriptionText (first 100 chars):', transcriptionText.substring(0, 100) + '...');
+      console.log('DEBUG:   estimatedDuration:', estimatedDuration);
+      console.log('DEBUG:   jobId:', jobId);
+      
+      await saveTranscription(
+        currentUser.uid, 
+        selectedFile ? selectedFile.name : `Recording-${Date.now()}.wav`, 
+        transcriptionText, 
+        estimatedDuration, 
+        jobId
+      );
+      console.log('DEBUG: saveTranscription call completed.');
+      // --- END NEW DEBUG LOGS ---
       
       await refreshUserProfile(); // Crucial for updating totalMinutesUsed
       console.log('DIAGNOSTIC: After refreshUserProfile - userProfile.totalMinutesUsed:', userProfile?.totalMinutesUsed);
 
     } catch (error) {
-      console.error('Error updating usage:', error);
+      console.error('Error updating usage or saving transcription:', error); // Updated error message
       showMessage('Failed to save transcription or update usage.');
     }
-  }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]); // Added userProfile to dependencies for logging
+  }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile, jobId]); // Added jobId to dependencies
 
   // Handle successful payment (No change)
   const handlePaymentSuccess = useCallback(async (subscriptionId, planType) => {
@@ -1091,7 +1110,7 @@ function AppContent() {
             </div>
           )}
 
-          {/* UPDATED: Navigation Tabs with History/Editor (No change) */}
+          {/* UPDATED: Navigation Tabs with History/Editor (No change in functionality, just text) */}
           <div style={{ 
             textAlign: 'center', 
             padding: currentView === 'transcribe' ? '0 20px 40px' : '20px',
