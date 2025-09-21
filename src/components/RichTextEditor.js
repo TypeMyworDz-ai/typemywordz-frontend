@@ -1,14 +1,17 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext'; // Assuming useAuth is needed for login check
+import { useAuth } from '../contexts/AuthContext';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 const RichTextEditor = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const editorRef = useRef(null); // Ref for the contenteditable div
   const audioRef = useRef(null);
-  const fileInputRef = useRef(null); // Ref for hidden file input
+  const fileInputRef = useRef(null);
+  const quillRef = useRef(null);
 
+  // State declarations
   const [editorContent, setEditorContent] = useState('');
   const [audioCurrentTime, setAudioCurrentTime] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
@@ -19,12 +22,12 @@ const RichTextEditor = () => {
   const [audioError, setAudioError] = useState(false);
   const [localAudioFile, setLocalAudioFile] = useState(null);
   const [localAudioUrl, setLocalAudioUrl] = useState(null);
-  const [sourceAudioUrl, setSourceAudioUrl] = useState(null); // No initial transcription audio
+  const [sourceAudioUrl, setSourceAudioUrl] = useState(null);
 
   // Redirect if not logged in
   useEffect(() => {
     if (!currentUser) {
-      navigate('/'); // Redirect to home/login if not authenticated
+      navigate('/');
     }
   }, [currentUser, navigate]);
 
@@ -33,21 +36,91 @@ const RichTextEditor = () => {
     const savedContent = localStorage.getItem('richTextEditorContent');
     if (savedContent) {
       setEditorContent(savedContent);
-      if (editorRef.current) {
-        editorRef.current.innerHTML = savedContent;
-      }
     }
+  }, []);
+  // Save content to localStorage on change
+  const handleEditorChange = useCallback((content) => {
+    setEditorContent(content);
+    localStorage.setItem('richTextEditorContent', content);
   }, []);
 
-  // Save content to localStorage on change
-  const handleEditorChange = useCallback(() => {
-    if (editorRef.current) {
-      const currentContent = editorRef.current.innerHTML;
-      setEditorContent(currentContent);
-      localStorage.setItem('richTextEditorContent', currentContent);
+  // Quill modules configuration with custom toolbar
+  const modules = {
+    toolbar: {
+      container: [
+        [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ 'color': [] }, { 'background': [] }],
+        [{ 'font': [] }],
+        [{ 'align': [] }],
+        ['blockquote', 'code-block'],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        [{ 'indent': '-1'}, { 'indent': '+1' }],
+        ['link', 'image'],
+        ['clean'],
+        ['timestamp'] // Custom button for timestamps
+      ],
+      handlers: {
+        'timestamp': function() {
+          insertTimestamp();
+        }
+      }
+    },
+    clipboard: {
+      matchVisual: false,
     }
-  }, []);
-  // Audio player logic (similar to TranscriptionDetail.js)
+  };
+
+  const formats = [
+    'header', 'font', 'size',
+    'bold', 'italic', 'underline', 'strike', 'blockquote',
+    'list', 'bullet', 'indent',
+    'link', 'image', 'color', 'background', 'align', 'code-block'
+  ];
+
+  // Insert timestamp at current audio position
+  const insertTimestamp = useCallback(() => {
+    if (quillRef.current && audioCurrentTime !== undefined) {
+      const quill = quillRef.current.getEditor();
+      const range = quill.getSelection(true);
+      const timestamp = formatTime(audioCurrentTime);
+      
+      if (range) {
+        quill.insertText(range.index, `[${timestamp}] `, {
+          'color': '#007bff',
+          'bold': true
+        });
+        quill.setSelection(range.index + timestamp.length + 3);
+      }
+    }
+  }, [audioCurrentTime]);
+
+  // Export functions
+  const exportAsWord = useCallback(() => {
+    const blob = new Blob([editorContent], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'transcription.doc';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [editorContent]);
+
+  const exportAsTXT = useCallback(() => {
+    // Convert HTML to plain text
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = editorContent;
+    const plainText = tempDiv.textContent || tempDiv.innerText || '';
+    
+    const blob = new Blob([plainText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'transcription.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [editorContent]);
+  // Audio player setup
   useEffect(() => {
     if (localAudioFile) {
       const url = URL.createObjectURL(localAudioFile);
@@ -56,7 +129,7 @@ const RichTextEditor = () => {
       return () => URL.revokeObjectURL(url);
     } else {
       setLocalAudioUrl(null);
-      setSourceAudioUrl(null); // No default audio if local not selected
+      setSourceAudioUrl(null);
     }
   }, [localAudioFile]);
 
@@ -106,6 +179,7 @@ const RichTextEditor = () => {
     }
   }, [sourceAudioUrl, volume]);
 
+  // Audio control functions
   const togglePlayPause = useCallback(() => {
     const audio = audioRef.current;
     if (audio && !audioError) {
@@ -155,7 +229,7 @@ const RichTextEditor = () => {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
-  // Keyboard Shortcuts Effect (Global)
+  // Keyboard Shortcuts Effect
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.ctrlKey || event.metaKey) {
@@ -172,6 +246,10 @@ const RichTextEditor = () => {
             event.preventDefault();
             skipTime(5);
             break;
+          case 'KeyT':
+            event.preventDefault();
+            insertTimestamp();
+            break;
           default:
             break;
         }
@@ -180,9 +258,9 @@ const RichTextEditor = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlayPause, skipTime]);
+  }, [togglePlayPause, skipTime, insertTimestamp]);
 
-  // Handler for local audio file selection
+  // File handling
   const handleLocalAudioFileSelect = useCallback((event) => {
     const file = event.target.files[0];
     if (file && file.type.startsWith('audio/')) {
@@ -191,13 +269,13 @@ const RichTextEditor = () => {
       setIsPlaying(false);
       setAudioCurrentTime(0);
       setAudioDuration(0);
-      console.log('DEBUG: Local audio file selected:', file.name);
+      console.log('Audio file selected:', file.name);
     } else {
       setLocalAudioFile(null);
       setLocalAudioUrl(null);
       setSourceAudioUrl(null);
       setAudioError(true);
-      console.warn('WARNING: Invalid file type selected for local audio.');
+      console.warn('Invalid file type selected for audio.');
     }
   }, []);
 
@@ -205,44 +283,14 @@ const RichTextEditor = () => {
     fileInputRef.current.click();
   }, []);
 
-  // Rich Text Editor Commands
-  const applyFormat = useCallback((command, value = null) => {
-    document.execCommand(command, false, value);
-    editorRef.current.focus(); // Keep focus on editor after applying format
-    handleEditorChange(); // Trigger change to save to local storage
-  }, [handleEditorChange]);
-
-  const toUpperCase = useCallback(() => {
-    const selection = window.getSelection();
-    if (!selection.isCollapsed) {
-      const range = selection.getRangeAt(0);
-      const selectedText = range.toString();
-      range.deleteContents();
-      range.insertNode(document.createTextNode(selectedText.toUpperCase()));
-      editorRef.current.focus();
-      handleEditorChange();
-    }
-  }, [handleEditorChange]);
-
-  const toLowerCase = useCallback(() => {
-    const selection = window.getSelection();
-    if (!selection.isCollapsed) {
-      const range = selection.getRangeAt(0);
-      const selectedText = range.toString();
-      range.deleteContents();
-      range.insertNode(document.createTextNode(selectedText.toLowerCase()));
-      editorRef.current.focus();
-      handleEditorChange();
-    }
-  }, [handleEditorChange]);
-
   // Inline styles
   const containerStyle = {
     minHeight: '100vh',
-    background: 'linear-gradient(135deg, #e0f2f7 0%, #bbdefb 100%)', // Lighter background
+    background: 'linear-gradient(135deg, #e0f2f7 0%, #bbdefb 100%)',
     padding: '20px',
     fontFamily: 'system-ui, -apple-system, sans-serif'
   };
+
   const mainContentStyle = {
     maxWidth: '1200px',
     margin: '0 auto',
@@ -251,6 +299,7 @@ const RichTextEditor = () => {
     gap: '24px',
     alignItems: 'start'
   };
+
   const audioPlayerStyle = {
     background: 'white',
     borderRadius: '12px',
@@ -259,35 +308,14 @@ const RichTextEditor = () => {
     position: 'sticky',
     top: '20px'
   };
+
   const textEditorContainerStyle = { 
     background: 'white',
     borderRadius: '12px',
     boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
     padding: '24px'
   };
-  const toolbarStyle = {
-    marginBottom: '16px',
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '8px',
-    backgroundColor: '#f3f4f6',
-    padding: '8px',
-    borderRadius: '8px',
-    border: '1px solid #e5e7eb'
-  };
-  const toolbarButtonStyle = {
-    background: '#ffffff',
-    border: '1px solid #d1d5db',
-    borderRadius: '4px',
-    padding: '6px 10px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '500',
-    color: '#374151',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px'
-  };
+  // Guard clause for non-authenticated users
   if (!currentUser) {
     return (
       <div style={containerStyle}>
@@ -368,7 +396,9 @@ const RichTextEditor = () => {
                 alignItems: 'center',
                 justifyContent: 'center'
               }}>
-                <svg style={{ width: '32px', height: '32px', color: '#ef4444' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <svg style={{ width: '32px', height: '32px', color: '#ef4444' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
               </div>
               <p style={{ fontSize: '14px', color: '#ef4444', fontWeight: '500' }}>
                 {localAudioFile ? 'Error loading local audio' : 'No audio loaded'}
@@ -398,6 +428,7 @@ const RichTextEditor = () => {
                   Playing from: {localAudioFile.name}
                 </p>
               )}
+              
               {/* Progress Bar */}
               <div>
                 <div 
@@ -442,7 +473,7 @@ const RichTextEditor = () => {
                   }}
                   title="Rewind 10s"
                 >
-                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.334 4z" /></svg>
+                  ⏪
                 </button>
                 
                 <button
@@ -458,20 +489,7 @@ const RichTextEditor = () => {
                     opacity: (isLoading || audioError) ? 0.5 : 1
                   }}
                 >
-                  {isLoading ? (
-                    <div style={{
-                      width: '20px',
-                      height: '20px',
-                      border: '2px solid white',
-                      borderTop: '2px solid transparent',
-                      borderRadius: '50%',
-                      animation: 'spin 1s linear infinite'
-                    }} />
-                  ) : isPlaying ? (
-                    <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" /></svg>
-                  ) : (
-                    <svg style={{ width: '20px', height: '20px' }} fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                  )}
+                  {isLoading ? '⏳' : isPlaying ? '⏸️' : '▶️'}
                 </button>
                 
                 <button
@@ -487,9 +505,10 @@ const RichTextEditor = () => {
                   }}
                   title="Forward 10s"
                 >
-                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4z" /></svg>
+                  ⏩
                 </button>
               </div>
+
               {/* Speed Control */}
               <div>
                 <label style={{ fontSize: '12px', fontWeight: '500', color: '#374151', display: 'block', marginBottom: '8px' }}>
@@ -524,7 +543,7 @@ const RichTextEditor = () => {
                   Volume
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <svg style={{ width: '12px', height: '12px', color: '#9ca3af' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M9 12a1 1 0 01-.707-.293L6.586 10H4a1 1 0 01-1-1V8a1 1 0 011-1h2.586l1.707-1.707A1 1 0 019 6v6z" /></svg>
+                  <span>🔊</span>
                   <input
                     type="range"
                     min="0"
@@ -548,6 +567,7 @@ const RichTextEditor = () => {
                   </span>
                 </div>
               </div>
+
               <button 
                 onClick={triggerFileInput}
                 style={{
@@ -560,91 +580,107 @@ const RichTextEditor = () => {
                   marginTop: '8px'
                 }}
               >
-                Upload Local Audio
+                Change Audio File
               </button>
             </div>
           )}
         </div>
-        {/* Text Editor */}
+
+        {/* Text Editor with Quill */}
         <div style={textEditorContainerStyle}>
-          <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
-            Editor
-          </h2>
-          {/* Toolbar */}
-          <div style={toolbarStyle}>
-            <button style={toolbarButtonStyle} onClick={() => applyFormat('bold')}>
-              <svg style={{ width: '16px', height: '16px' }} fill="currentColor" viewBox="0 0 24 24"><path d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.4c2.25 0 4-1.72 4-3.97 0-1.07-.42-2.04-1.19-2.72l.43-.37zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5H10V6.5zm4 11H10v-3h4c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>
-              Bold
-            </button>
-            <button style={toolbarButtonStyle} onClick={() => applyFormat('italic')}>
-              <svg style={{ width: '16px', height: '16px' }} fill="currentColor" viewBox="0 0 24 24"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>
-              Italic
-            </button>
-            <button style={toolbarButtonStyle} onClick={() => applyFormat('underline')}>
-              <svg style={{ width: '16px', height: '16px' }} fill="currentColor" viewBox="0 0 24 24"><path d="M12 17c3.31 0 6-2.69 6-6V3h-2v8c0 2.21-1.79 4-4 4s-4-1.79-4-4V3H6v8c0 3.31 2.69 6 6 6zm-6 4v-2h12v2H6z"/></svg>
-              Underline
-            </button>
-            <button style={toolbarButtonStyle} onClick={toUpperCase}>
-              <svg style={{ width: '16px', height: '16px' }} fill="currentColor" viewBox="0 0 24 24"><path d="M9 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4zM7.83 14H16.17L12 5.17z"/></svg>
-              Uppercase
-            </button>
-            <button style={toolbarButtonStyle} onClick={toLowerCase}>
-              <svg style={{ width: '16px', height: '16px' }} fill="currentColor" viewBox="0 0 24 24"><path d="M7.83 14H16.17L12 5.17zM6 17v3h8v-3h-2.21l3.42-8H18V4h-8v3h2.21l-3.42 8H6v3z"/></svg>
-              Lowercase
-            </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>
+              Editor
+            </h2>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={insertTimestamp}
+                style={{
+                  background: '#10b981',
+                  color: 'white',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: '500'
+                }}
+                title="Insert Timestamp (Ctrl+T)"
+              >
+                ⏱️ Timestamp
+              </button>
+              <button
+                onClick={exportAsTXT}
+                style={{
+                  background: '#6b7280',
+                  color: 'white',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '12px'
+                }}
+              >
+                📝 Export TXT
+              </button>
+              <button
+                onClick={exportAsWord}
+                style={{
+                  background: '#2563eb',
+                  color: 'white',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '12px'
+                }}
+              >
+                📄 Export Word
+              </button>
+            </div>
           </div>
-          {/* Content Editable Area - FIRST FIX APPLIED */}
-          <div
-            ref={editorRef}
-            contentEditable="true"
-            onInput={handleEditorChange}
-            onFocus={(e) => {
-              // Ensure cursor goes to the end when focusing
-              const range = document.createRange();
-              const selection = window.getSelection();
-              range.selectNodeContents(e.target);
-              range.collapse(false); // false means collapse to end
-              selection.removeAllRanges();
-              selection.addRange(range);
-            }}
-            onKeyDown={(e) => {
-              // Handle specific key behaviors
-              if (e.key === 'Enter') {
-                // Ensure new lines work properly
-                e.preventDefault();
-                document.execCommand('insertHTML', false, '<br><br>');
-              }
-            }}
-            dangerouslySetInnerHTML={{ __html: editorContent }}
+
+          {/* Quill Editor */}
+          <ReactQuill
+            ref={quillRef}
+            theme="snow"
+            value={editorContent}
+            onChange={handleEditorChange}
+            modules={modules}
+            formats={formats}
+            placeholder="Start typing your transcription here..."
             style={{
-              width: '100%',
-              minHeight: '400px',
-              padding: '20px',
-              border: '2px solid #d1d5db',
-              borderRadius: '8px',
-              fontSize: '16px',
-              lineHeight: '1.6',
-              fontFamily: 'system-ui, -apple-system, sans-serif',
-              outline: 'none',
-              backgroundColor: '#f9fafb',
-              overflowY: 'auto',
-              textAlign: 'left', // Ensure left alignment
-              direction: 'ltr', // Left-to-right text direction
-              unicodeBidi: 'plaintext', // Handle mixed text directions properly
-              whiteSpace: 'pre-wrap', // Preserve whitespace and line breaks
-              wordWrap: 'break-word', // Handle long words
-              cursor: 'text' // Show text cursor
+              height: '400px',
+              marginBottom: '50px'
             }}
-            placeholder="Start typing or paste your transcription here..."
-            suppressContentEditableWarning={true}
           />
+
+          <div style={{ marginTop: '20px', fontSize: '12px', color: '#6b7280', textAlign: 'center' }}>
+            <strong>Keyboard Shortcuts:</strong> Ctrl+Space (Play/Pause) | Ctrl+← (Rewind 5s) | Ctrl+→ (Forward 5s) | Ctrl+T (Insert Timestamp)
+          </div>
         </div>
       </div>
-      {/* Global CSS for spin animation */}
+
+      {/* Custom CSS for Quill */}
       <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
+        .ql-editor {
+          font-size: 16px;
+          line-height: 1.6;
+          font-family: system-ui, -apple-system, sans-serif;
+        }
+        .ql-toolbar {
+          border-top: 1px solid #ccc;
+          border-left: 1px solid #ccc;
+          border-right: 1px solid #ccc;
+        }
+        .ql-container {
+          border-bottom: 1px solid #ccc;
+          border-left: 1px solid #ccc;
+          border-right: 1px solid #ccc;
+        }
+        .ql-editor.ql-blank::before {
+          color: #9ca3af;
+          font-style: italic;
         }
       `}</style>
     </div>
