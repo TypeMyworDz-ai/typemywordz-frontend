@@ -522,7 +522,8 @@ function AppContent() {
     console.log('✅ Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage]);
   // UPDATED: handleTranscriptionComplete with debugging logs for saveTranscription
-  const handleTranscriptionComplete = useCallback(async (transcriptionText) => {
+  // and accepting jobId as a parameter
+  const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => { // NEW: added completedJobId
     try {
       const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
       
@@ -538,14 +539,14 @@ function AppContent() {
       console.log('DEBUG:   selectedFile.name (or recorded audio name):', selectedFile ? selectedFile.name : `Recording-${Date.now()}.wav`);
       console.log('DEBUG:   transcriptionText (first 100 chars):', transcriptionText.substring(0, 100) + '...');
       console.log('DEBUG:   estimatedDuration:', estimatedDuration);
-      console.log('DEBUG:   jobId:', jobId);
+      console.log('DEBUG:   jobId (passed to saveTranscription):', completedJobId); // UPDATED LOG
       
       await saveTranscription(
         currentUser.uid, 
         selectedFile ? selectedFile.name : `Recording-${Date.now()}.wav`, 
         transcriptionText, 
         estimatedDuration, 
-        jobId
+        completedJobId // UPDATED: Pass the correct jobId here
       );
       console.log('DEBUG: saveTranscription call completed.');
       // --- END NEW DEBUG LOGS ---
@@ -557,7 +558,7 @@ function AppContent() {
       console.error('Error updating usage or saving transcription:', error); // Updated error message
       showMessage('Failed to save transcription or update usage.');
     }
-  }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile, jobId]); // Added jobId to dependencies
+  }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]); // Removed jobId from dependencies as it's now passed directly
 
   // Handle successful payment (No change)
   const handlePaymentSuccess = useCallback(async (subscriptionId, planType) => {
@@ -583,8 +584,8 @@ function AppContent() {
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
 
-  // Enhanced checkJobStatus with better cancellation handling (No change)
-  const checkJobStatus = useCallback(async (jobId, transcriptionInterval) => { 
+  // UPDATED: checkJobStatus to pass jobId to handleTranscriptionComplete
+  const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => { // NEW: Renamed jobId to jobIdToPass for clarity
     // FIRST thing - check if cancelled
     if (isCancelledRef.current) {
       console.log('🛑 Status check aborted - job was cancelled');
@@ -604,7 +605,7 @@ function AppContent() {
         controller.abort();
       }, 5000);
       
-      const response = await fetch(`${BACKEND_URL}/status/${jobId}`, { 
+      const response = await fetch(`${BACKEND_URL}/status/${jobIdToPass}`, { // Use jobIdToPass
         signal: controller.signal 
       });
       
@@ -639,7 +640,7 @@ function AppContent() {
         setTranscriptionProgress(100);
         setStatus('completed'); 
         
-        await handleTranscriptionComplete(result.transcription);
+        await handleTranscriptionComplete(result.transcription, jobIdToPass); // UPDATED: Pass jobIdToPass
         setIsUploading(false); 
         
       } else if (response.ok && result.status === 'failed') {
@@ -665,7 +666,7 @@ function AppContent() {
           statusCheckTimeoutRef.current = setTimeout(() => {
             // Double check cancellation before recursive call
             if (!isCancelledRef.current) {
-              checkJobStatus(jobId, transcriptionInterval);
+              checkJobStatus(jobIdToPass, transcriptionInterval); // Use jobIdToPass
             } else {
               console.log('🛑 Recursive call cancelled');
               clearInterval(transcriptionInterval);
