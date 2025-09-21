@@ -409,10 +409,10 @@ const TranscriptionDetail = () => {
             Audio Player
           </h2>
           
+          {/* UPDATED: Dynamic audio source */} {/* MOVED COMMENT HERE */}
           <audio
             ref={audioRef}
             src={localAudioUrl || sourceAudioUrl}
-            {/* UPDATED: Dynamic audio source */} {/* MOVED COMMENT OUTSIDE ATTRIBUTE */}
             preload="metadata"
             crossOrigin="anonymous"
           />
@@ -426,7 +426,6 @@ const TranscriptionDetail = () => {
             style={{ display: 'none' }}
           />
 
-          {/* FIXED: Syntax Error in Conditional Rendering (Corrected parentheses) */}
           {(audioError || !sourceAudioUrl) ? ( 
             <div style={{ textAlign: 'center', padding: '24px' }}>
               <div style={{
