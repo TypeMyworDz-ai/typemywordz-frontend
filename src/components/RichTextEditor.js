@@ -6,7 +6,7 @@ import 'react-quill/dist/quill.snow.css';
 
 const RichTextEditor = () => {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser } = useAuth(); // Keep currentUser to conditionally enable features
   const audioRef = useRef(null);
   const fileInputRef = useRef(null);
   const quillRef = useRef(null);
@@ -24,13 +24,6 @@ const RichTextEditor = () => {
   const [localAudioUrl, setLocalAudioUrl] = useState(null);
   const [sourceAudioUrl, setSourceAudioUrl] = useState(null);
 
-  // Redirect if not logged in
-  useEffect(() => {
-    if (!currentUser) {
-      navigate('/');
-    }
-  }, [currentUser, navigate]);
-
   // Load content from localStorage on mount
   useEffect(() => {
     const savedContent = localStorage.getItem('richTextEditorContent');
@@ -38,6 +31,7 @@ const RichTextEditor = () => {
       setEditorContent(savedContent);
     }
   }, []);
+
   // Save content to localStorage on change
   const handleEditorChange = useCallback((content) => {
     setEditorContent(content);
@@ -62,7 +56,12 @@ const RichTextEditor = () => {
       ],
       handlers: {
         'timestamp': function() {
-          insertTimestamp();
+          // Ensure audio is loaded before inserting timestamp
+          if (audioRef.current && !isNaN(audioRef.current.currentTime)) {
+            insertTimestamp();
+          } else {
+            alert('Please load an audio file first to use timestamps.');
+          }
         }
       }
     },
@@ -97,6 +96,10 @@ const RichTextEditor = () => {
 
   // Export functions
   const exportAsWord = useCallback(() => {
+    if (!currentUser) {
+      alert('Please log in to export as Word.');
+      return;
+    }
     const blob = new Blob([editorContent], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -104,7 +107,7 @@ const RichTextEditor = () => {
     a.download = 'transcription.doc';
     a.click();
     URL.revokeObjectURL(url);
-  }, [editorContent]);
+  }, [editorContent, currentUser]);
 
   const exportAsTXT = useCallback(() => {
     // Convert HTML to plain text
@@ -120,6 +123,7 @@ const RichTextEditor = () => {
     a.click();
     URL.revokeObjectURL(url);
   }, [editorContent]);
+
   // Audio player setup
   useEffect(() => {
     if (localAudioFile) {
@@ -229,29 +233,38 @@ const RichTextEditor = () => {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
   // Keyboard Shortcuts Effect
   useEffect(() => {
     const handleKeyDown = (event) => {
-      if (event.ctrlKey || event.metaKey) {
-        switch (event.code) {
-          case 'Space':
-            event.preventDefault();
-            togglePlayPause();
-            break;
-          case 'ArrowLeft':
-            event.preventDefault();
-            skipTime(-5);
-            break;
-          case 'ArrowRight':
-            event.preventDefault();
-            skipTime(5);
-            break;
-          case 'KeyT':
-            event.preventDefault();
-            insertTimestamp();
-            break;
-          default:
-            break;
+      // Allow shortcuts only if a Quill editor is focused
+      if (quillRef.current && quillRef.current.getEditor().hasFocus()) {
+        if (event.ctrlKey || event.metaKey) {
+          switch (event.code) {
+            case 'Space':
+              event.preventDefault();
+              togglePlayPause();
+              break;
+            case 'ArrowLeft':
+              event.preventDefault();
+              skipTime(-5);
+              break;
+            case 'ArrowRight':
+              event.preventDefault();
+              skipTime(5);
+              break;
+            case 'KeyT':
+              event.preventDefault();
+              // Ensure audio is loaded before inserting timestamp
+              if (audioRef.current && !isNaN(audioRef.current.currentTime)) {
+                insertTimestamp();
+              } else {
+                alert('Please load an audio file first to use timestamps.');
+              }
+              break;
+            default:
+              break;
+          }
         }
       }
     };
@@ -315,46 +328,9 @@ const RichTextEditor = () => {
     boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
     padding: '24px'
   };
-  // Guard clause for non-authenticated users
-  if (!currentUser) {
-    return (
-      <div style={containerStyle}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: '50vh'
-        }}>
-          <div style={{
-            textAlign: 'center',
-            padding: '32px',
-            background: 'white',
-            borderRadius: '12px',
-            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-          }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
-              Access Denied
-            </h2>
-            <p style={{ color: '#6b7280', marginBottom: '16px' }}>Please log in to use the Transcription Editor.</p>
-            <button 
-              onClick={() => navigate('/')}
-              style={{
-                background: '#7c3aed',
-                color: 'white',
-                padding: '12px 24px',
-                borderRadius: '8px',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '16px'
-              }}
-            >
-              Go to Login
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+
+  // --- No longer redirecting if not logged in ---
+  // The editor will always render. Features requiring login will be disabled.
 
   return (
     <div style={containerStyle}>
@@ -473,7 +449,7 @@ const RichTextEditor = () => {
                   }}
                   title="Rewind 10s"
                 >
-                  ⏪
+                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.334 4z" /></svg>
                 </button>
                 
                 <button
@@ -489,7 +465,20 @@ const RichTextEditor = () => {
                     opacity: (isLoading || audioError) ? 0.5 : 1
                   }}
                 >
-                  {isLoading ? '⏳' : isPlaying ? '⏸️' : '▶️'}
+                  {isLoading ? (
+                    <div style={{
+                      width: '20px',
+                      height: '20px',
+                      border: '2px solid white',
+                      borderTop: '2px solid transparent',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite'
+                    }} />
+                  ) : isPlaying ? (
+                    <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" /></svg>
+                  ) : (
+                    <svg style={{ width: '20px', height: '20px' }} fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                  )}
                 </button>
                 
                 <button
@@ -505,7 +494,7 @@ const RichTextEditor = () => {
                   }}
                   title="Forward 10s"
                 >
-                  ⏩
+                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4z" /></svg>
                 </button>
               </div>
 
@@ -543,7 +532,7 @@ const RichTextEditor = () => {
                   Volume
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>🔊</span>
+                  <svg style={{ width: '12px', height: '12px', color: '#9ca3af' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M9 12a1 1 0 01-.707-.293L6.586 10H4a1 1 0 01-1-1V8a1 1 0 011-1h2.586l1.707-1.707A1 1 0 019 6v6z" /></svg>
                   <input
                     type="range"
                     min="0"
@@ -625,15 +614,18 @@ const RichTextEditor = () => {
               </button>
               <button
                 onClick={exportAsWord}
+                // Disable if not logged in
+                disabled={!currentUser}
                 style={{
-                  background: '#2563eb',
+                  background: !currentUser ? '#9ca3af' : '#2563eb', // Gray out if disabled
                   color: 'white',
                   padding: '6px 12px',
                   borderRadius: '6px',
                   border: 'none',
-                  cursor: 'pointer',
+                  cursor: !currentUser ? 'not-allowed' : 'pointer',
                   fontSize: '12px'
                 }}
+                title={!currentUser ? 'Login to enable Word export' : 'Export to MS Word'}
               >
                 📄 Export Word
               </button>
@@ -655,18 +647,57 @@ const RichTextEditor = () => {
             }}
           />
 
+          {!currentUser && (
+            <p style={{ 
+                textAlign: 'center', 
+                fontSize: '14px', 
+                color: '#ef4444', 
+                marginTop: '10px',
+                padding: '10px',
+                backgroundColor: '#fee2e2',
+                borderRadius: '8px'
+            }}>
+                Some features (like Word export) require you to be logged in.
+                <button 
+                    onClick={() => window.open('/', '_blank')}
+                    style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#3b82f6',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        marginLeft: '5px'
+                    }}
+                >
+                    Login here
+                </button>
+            </p>
+          )}
+
           <div style={{ marginTop: '20px', fontSize: '12px', color: '#6b7280', textAlign: 'center' }}>
             <strong>Keyboard Shortcuts:</strong> Ctrl+Space (Play/Pause) | Ctrl+← (Rewind 5s) | Ctrl+→ (Forward 5s) | Ctrl+T (Insert Timestamp)
           </div>
         </div>
       </div>
 
-      {/* Custom CSS for Quill */}
+      {/* Global CSS for spin animation */}
       <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
         .ql-editor {
+          min-height: 400px; /* Ensure a minimum height for the editor area */
           font-size: 16px;
           line-height: 1.6;
           font-family: system-ui, -apple-system, sans-serif;
+          text-align: left; /* Ensure left alignment */
+          direction: ltr; /* Left-to-right text direction */
+          unicode-bidi: plaintext; /* Handle mixed text directions properly */
+          white-space: pre-wrap; /* Preserve whitespace and line breaks */
+          word-wrap: break-word; /* Handle long words */
+          cursor: text; /* Show text cursor */
         }
         .ql-toolbar {
           border-top: 1px solid #ccc;
@@ -679,8 +710,14 @@ const RichTextEditor = () => {
           border-right: 1px solid #ccc;
         }
         .ql-editor.ql-blank::before {
+          content: attr(data-placeholder);
           color: #9ca3af;
           font-style: italic;
+          left: 15px; /* Adjust placeholder position */
+          right: 15px;
+        }
+        .ql-tooltip {
+          z-index: 1000; /* Ensure tooltip is above other elements */
         }
       `}</style>
     </div>
