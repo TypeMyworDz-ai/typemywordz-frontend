@@ -35,7 +35,6 @@ const Dashboard = ({ setCurrentView }) => {
   useEffect(() => {
     loadTranscriptions();
   }, [loadTranscriptions]);
-
   const handleDelete = useCallback(async (transcriptionId, e) => {
     e.stopPropagation();
     if (window.confirm("Are you sure you want to delete this transcription?")) {
@@ -104,17 +103,24 @@ const Dashboard = ({ setCurrentView }) => {
     }
   }, [setCurrentView, navigate]);
 
-  const filteredTranscriptions = transcriptions.filter(transcription =>
-    transcription.fileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    transcription.text?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // UPDATED: filteredTranscriptions with robust checks
+  const filteredTranscriptions = transcriptions.filter(transcription => {
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    const fileName = transcription.fileName ? transcription.fileName.toLowerCase() : '';
+    const text = transcription.text ? transcription.text.toLowerCase() : '';
+
+    return fileName.includes(lowerSearchTerm) || text.includes(lowerSearchTerm);
+  });
 
   const sortedTranscriptions = [...filteredTranscriptions].sort((a, b) => {
     switch (sortBy) {
       case 'oldest':
         return a.createdAt.toDate().getTime() - b.createdAt.toDate().getTime();
       case 'name':
-        return a.fileName.localeCompare(b.fileName);
+        // Add null/undefined checks for fileName before localeCompare
+        const fileNameA = a.fileName || '';
+        const fileNameB = b.fileName || '';
+        return fileNameA.localeCompare(fileNameB);
       case 'duration':
         return (b.duration || 0) - (a.duration || 0);
       default:
@@ -264,9 +270,7 @@ const Dashboard = ({ setCurrentView }) => {
                 }}
               />
               <div style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
-                <svg style={{ width: '1rem', height: '1rem', color: '#9ca3af' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+                <svg style={{ width: '1rem', height: '1rem', color: '#9ca3af' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -294,9 +298,7 @@ const Dashboard = ({ setCurrentView }) => {
           <div style={{ backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <div style={{ padding: '0.5rem', backgroundColor: '#dbeafe', borderRadius: '0.5rem', marginRight: '1rem' }}>
-                <svg style={{ width: '1.25rem', height: '1.25rem', color: '#2563eb' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+                <svg style={{ width: '1.25rem', height: '1.25rem', color: '#2563eb' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
               </div>
               <div>
                 <p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#6b7280', margin: 0 }}>Total</p>
@@ -306,124 +308,7 @@ const Dashboard = ({ setCurrentView }) => {
           </div>
           <div style={{ backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              <div style={{ padding: '0.5rem', backgroundColor: '#dcfce7', borderRadius: '0.5rem', marginRight: '1rem' }}>
-                <svg style={{ width: '1.25rem', height: '1.25rem', color: '#16a34a' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#6b7280', margin: 0 }}>Minutes</p>
-                <p style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', margin: 0 }}>
-                  {Math.round(transcriptions.reduce((sum, t) => sum + (t.duration || 0), 0) / 60)}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div style={{ backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <div style={{ padding: '0.5rem', backgroundColor: '#f3e8ff', borderRadius: '0.5rem', marginRight: '1rem' }}>
-                <svg style={{ width: '1.25rem', height: '1.25rem', color: '#9333ea' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <div>
-                <p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#6b7280', margin: 0 }}>This Week</p>
-                <p style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', margin: 0 }}>
-                  {transcriptions.filter(t => t.createdAt.toDate() > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).length}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Rich Text Editor Modal */}
-        {editingId && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            zIndex: 1000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1rem'
-          }}>
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '0.5rem',
-              boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
-              maxWidth: '90vw',
-              maxHeight: '90vh',
-              width: '100%',
-              overflow: 'hidden'
-            }}>
-              <textarea
-                value={editingText}
-                onChange={(e) => setEditingText(e.target.value)}
-                style={{
-                  width: '100%',
-                  height: 'calc(90vh - 100px)',
-                  padding: '20px',
-                  border: '2px solid #d1d5db',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  lineHeight: '1.6',
-                  fontFamily: 'system-ui, -apple-system, sans-serif',
-                  outline: 'none',
-                  backgroundColor: 'white',
-                  overflowY: 'auto',
-                  resize: 'vertical'
-                }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '10px', gap: '10px' }}>
-                <button
-                  onClick={() => handleSaveEdit(editingText)}
-                  disabled={isSaving}
-                  style={{
-                    backgroundColor: '#10b981',
-                    color: 'white',
-                    padding: '10px 20px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    opacity: isSaving ? 0.7 : 1
-                  }}
-                >
-                  {isSaving ? 'Saving...' : 'Save Changes'}
-                </button>
-                <button
-                  onClick={handleCancelEdit}
-                  style={{
-                    backgroundColor: '#6b7280',
-                    color: 'white',
-                    padding: '10px 20px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: '500'
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Transcriptions List */}
-        {sortedTranscriptions.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: '500', color: '#111827', marginBottom: '0.5rem' }}>No Transcriptions Yet</h3>
-            <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>Start by uploading your first audio file to get transcribed.</p>
-            <button 
-              onClick={handleTranscribeNewAudio}
-              style={{ 
+              <div style={{ padding: '0.5rem', backgroundColor: '#dcfce7', borderRadius: '0.5rem', marginRight: '1rem' }}><svg style={{ width: '1.25rem', height: '1.25rem', color: '#16a34a' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div><div><p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#6b7280', margin: 0 }}>Minutes</p><p style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', margin: 0 }}>{Math.round(transcriptions.reduce((sum, t) => sum + (t.duration || 0), 0) / 60)}</p></div></div></div><div style={{ backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1.5rem' }}><div style={{ display: 'flex', alignItems: 'center' }}><div style={{ padding: '0.5rem', backgroundColor: '#f3e8ff', borderRadius: '0.5rem', marginRight: '1rem' }}><svg style={{ width: '1.25rem', height: '1.25rem', color: '#9333ea' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div><div><p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#6b7280', margin: 0 }}>This Week</p><p style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', margin: 0 }}>{transcriptions.filter(t => t.createdAt.toDate() > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).length}</p></div></div></div></div><div style={{ textAlign: 'center', padding: '4rem 1rem' }}><h3 style={{ fontSize: '1.125rem', fontWeight: '500', color: '#111827', marginBottom: '0.5rem' }}>No Transcriptions Yet</h3><p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>Start by uploading your first audio file to get transcribed.</p><button onClick={handleTranscribeNewAudio} style={{ 
                 backgroundColor: '#3b82f6', 
                 color: 'white', 
                 padding: '0.75rem 1.5rem', 
@@ -432,140 +317,7 @@ const Dashboard = ({ setCurrentView }) => {
                 cursor: 'pointer',
                 fontSize: '0.875rem',
                 fontWeight: '500'
-              }}
-            >
-              Start Transcribing
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem' }}>
-            {sortedTranscriptions.map((transcription) => (
-              <div
-                key={transcription.id}
-                onClick={() => handleTranscriptionClick(transcription)}
-                style={{ 
-                  backgroundColor: 'white', 
-                  borderRadius: '0.5rem', 
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)', 
-                  border: '1px solid #e5e7eb',
-                  cursor: editingId === transcription.id ? 'default' : 'pointer',
-                  transition: 'all 0.2s',
-                  opacity: editingId && editingId !== transcription.id ? 0.5 : 1
-                }}
-                onMouseEnter={(e) => {
-                  if (editingId !== transcription.id) {
-                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (editingId !== transcription.id) {
-                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                  }
-                }}
-              >
-                <div style={{ padding: '1.5rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                    <div style={{ flex: 1 }}>
-                      <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#111827', marginBottom: '0.5rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {transcription.fileName}
-                      </h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.875rem', color: '#6b7280' }}>
-                          <svg style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          {formatDuration(transcription.duration)}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.875rem', color: '#6b7280' }}>
-                          <svg style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          {transcription.createdAt?.toDate().toLocaleDateString()}
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button
-                        onClick={(e) => handleEdit(transcription, e)}
-                        style={{ 
-                          color: '#3b82f6', 
-                          padding: '0.5rem',
-                          border: 'none',
-                          background: 'none',
-                          cursor: 'pointer',
-                          borderRadius: '0.25rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.25rem'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.target.style.backgroundColor = '#eff6ff';
-                          e.target.style.color = '#1d4ed8';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.target.style.backgroundColor = 'transparent';
-                          e.target.style.color = '#3b82f6';
-                        }}
-                        title="Edit transcription"
-                      >
-                        <svg style={{ width: '1rem', height: '1rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={(e) => handleDelete(transcription.id, e)}
-                        style={{ 
-                          color: '#9ca3af', 
-                          padding: '0.5rem',
-                          border: 'none',
-                          background: 'none',
-                          cursor: 'pointer',
-                          borderRadius: '0.25rem'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.target.style.backgroundColor = '#fef2f2';
-                          e.target.style.color = '#ef4444';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.target.style.backgroundColor = 'transparent';
-                          e.target.style.color = '#9ca3af';
-                        }}
-                        title="Delete transcription"
-                      >
-                        <svg style={{ width: '1.25rem', height: '1.25rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div style={{ backgroundColor: '#f9fafb', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem' }}>
-                    <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
-                      {transcription.text ? 
-                        transcription.text.substring(0, 150) + (transcription.text.length > 150 ? '...' : '') :
-                        'No transcription text available'
-                      }
-                    </p>
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.75rem', color: '#6b7280' }}>
-                      Click to edit
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#3b82f6', fontWeight: '500' }}>
-                      Open →
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        
-        {/* CSS for animations */}
-        <style>{`
+              }}>Start Transcribing</button></div><style>{`
           @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -574,8 +326,7 @@ const Dashboard = ({ setCurrentView }) => {
             0%, 100% { transform: translateX(-50%) translateY(0px); }
             50% { transform: translateX(-50%) translateY(-3px); }
           }
-        `}</style>
-      </div>
+        `}</style></div>
     </div>
   );
 };
