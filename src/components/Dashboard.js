@@ -46,7 +46,6 @@ const Dashboard = ({ setCurrentView }) => {
   useEffect(() => {
     loadTranscriptions();
   }, [loadTranscriptions]);
-
   const handleDelete = useCallback(async (transcriptionId, e) => {
     e.stopPropagation();
     if (window.confirm("Are you sure you want to delete this transcription?")) {
@@ -114,7 +113,6 @@ const Dashboard = ({ setCurrentView }) => {
       navigate('/');
     }
   }, [setCurrentView, navigate]);
-
   // UPDATED: filteredTranscriptions with robust checks and DEBUG LOGS
   const filteredTranscriptions = transcriptions.filter(transcription => {
     console.log('DEBUG FILTER: Processing transcription:', transcription); // NEW LOG
@@ -213,7 +211,6 @@ const Dashboard = ({ setCurrentView }) => {
 
   // Check if we're on standalone dashboard route (no setCurrentView prop)
   const isStandaloneDashboard = !setCurrentView;
-
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb', position: 'relative' }}>
       {/* FLOATING TRANSCRIBE BUTTON - ONLY for standalone dashboard */}
@@ -279,6 +276,76 @@ const Dashboard = ({ setCurrentView }) => {
           </div>
         </div>
 
+        {/* NEW: Transcription Editor Button */}
+        <div style={{ 
+          backgroundColor: 'white', 
+          borderRadius: '0.5rem', 
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)', 
+          padding: '1.5rem', 
+          marginBottom: '2rem',
+          textAlign: 'center',
+          border: '2px solid #7c3aed'
+        }}>
+          <h3 style={{ 
+            fontSize: '1.125rem', 
+            fontWeight: '600', 
+            color: '#7c3aed', 
+            marginBottom: '0.5rem' 
+          }}>
+            ✏️ Advanced Text Editor
+          </h3>
+          <p style={{ 
+            color: '#6b7280', 
+            marginBottom: '1rem', 
+            fontSize: '0.875rem' 
+          }}>
+            Use our advanced transcription editor with audio playback, rich text formatting, and professional editing tools.
+          </p>
+          <button
+            onClick={() => navigate('/transcription-editor')}
+            style={{
+              backgroundColor: '#7c3aed',
+              color: 'white',
+              padding: '12px 24px',
+              borderRadius: '8px',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              margin: '0 auto',
+              boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = '#6d28d9';
+              e.target.style.transform = 'translateY(-2px)';
+              e.target.style.boxShadow = '0 6px 20px rgba(124, 58, 237, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = '#7c3aed';
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = '0 4px 12px rgba(124, 58, 237, 0.3)';
+            }}
+          >
+            <svg 
+              style={{ width: '20px', height: '20px' }} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
+              />
+            </svg>
+            Open Transcription Editor
+          </button>
+        </div>
         {/* Search and Filter */}
         <div style={{ backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1.5rem', marginBottom: '2rem' }}>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -323,6 +390,7 @@ const Dashboard = ({ setCurrentView }) => {
             </div>
           </div>
         </div>
+
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
           <div style={{ backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1.5rem' }}>
@@ -338,8 +406,27 @@ const Dashboard = ({ setCurrentView }) => {
           </div>
           <div style={{ backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              <div style={{ padding: '0.5rem', backgroundColor: '#dcfce7', borderRadius: '0.5rem', marginRight: '1rem' }}><svg style={{ width: '1.25rem', height: '1.25rem', color: '#16a34a' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div><div><p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#6b7280', margin: 0 }}>Minutes</p><p style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', margin: 0 }}>{Math.round(transcriptions.reduce((sum, t) => sum + (t.duration || 0), 0) / 60)}</p></div></div></div><div style={{ backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1.5rem' }}><div style={{ display: 'flex', alignItems: 'center' }}><div style={{ padding: '0.5rem', backgroundColor: '#f3e8ff', borderRadius: '0.5rem', marginRight: '1rem' }}><svg style={{ width: '1.25rem', height: '1.25rem', color: '#9333ea' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div><div><p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#6b7280', margin: 0 }}>This Week</p><p style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', margin: 0 }}>{transcriptions.filter(t => t.createdAt && (t.createdAt.getTime() > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).getTime())).length}</p></div></div></div></div>
-        
+              <div style={{ padding: '0.5rem', backgroundColor: '#dcfce7', borderRadius: '0.5rem', marginRight: '1rem' }}>
+                <svg style={{ width: '1.25rem', height: '1.25rem', color: '#16a34a' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </div>
+              <div>
+                <p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#6b7280', margin: 0 }}>Minutes</p>
+                <p style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', margin: 0 }}>{Math.round(transcriptions.reduce((sum, t) => sum + (t.duration || 0), 0) / 60)}</p>
+              </div>
+            </div>
+          </div>
+          <div style={{ backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <div style={{ padding: '0.5rem', backgroundColor: '#f3e8ff', borderRadius: '0.5rem', marginRight: '1rem' }}>
+                <svg style={{ width: '1.25rem', height: '1.25rem', color: '#9333ea' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              </div>
+              <div>
+                <p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#6b7280', margin: 0 }}>This Week</p>
+                <p style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', margin: 0 }}>{transcriptions.filter(t => t.createdAt && (t.createdAt.getTime() > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).getTime())).length}</p>
+              </div>
+            </div>
+          </div>
+        </div>
         {/* Conditional rendering for Transcriptions List */}
         {sortedTranscriptions.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
@@ -479,7 +566,6 @@ const Dashboard = ({ setCurrentView }) => {
             ))}
           </div>
         )}
-        
         {/* CSS for animations */}
         <style>{`
           @keyframes spin {

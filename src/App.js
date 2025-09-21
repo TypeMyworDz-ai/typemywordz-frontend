@@ -6,10 +6,11 @@ import Signup from './components/Signup';
 import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
+import RichTextEditor from './components/RichTextEditor'; // NEW IMPORT
 import StripePayment from './components/StripePayment';
 import CreditPurchase from './components/SubscriptionPlans';
 import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan } from './userService';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'; // UPDATED IMPORT
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 
 // Configuration
@@ -121,8 +122,9 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   }, intervalTime);
   return interval; 
 };
-
 function AppContent() {
+  const navigate = useNavigate(); // NEW: Add navigate hook
+  
   // State declarations
   const [selectedFile, setSelectedFile] = useState(null);
   const [jobId, setJobId] = useState(null);
@@ -149,7 +151,6 @@ function AppContent() {
     '24hours': { amount: 1.00, currency: 'USD' }, 
     '5days': { amount: 2.50, currency: 'USD' } 
   });
-
   // Refs
   const mediaRecorderRef = useRef(null);
   const recordingIntervalRef = useRef(null);
@@ -462,7 +463,6 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
-
   // UPDATED: Improved cancel function with page refresh (No change)
   const handleCancelUpload = useCallback(async () => {
     console.log('🛑 FORCE CANCEL - Stopping everything immediately');
@@ -521,6 +521,7 @@ function AppContent() {
     
     console.log('✅ Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage]);
+
   // UPDATED: handleTranscriptionComplete with debugging logs for saveTranscription
   // and accepting jobId as a parameter
   const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => { // NEW: added completedJobId
@@ -583,7 +584,6 @@ function AppContent() {
       showMessage('Payment successful but there was an error updating your account. Please contact support.');
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
-
   // UPDATED: checkJobStatus to pass jobId to handleTranscriptionComplete
   const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => { // NEW: Renamed jobId to jobIdToPass for clarity
     // FIRST thing - check if cancelled
@@ -935,7 +935,7 @@ function AppContent() {
     };
   }, []);
 
-  // Login screen for non-authenticated users (No change)
+  // Login screen for non-authenticated users - UPDATED WITH TRANSCRIPTION EDITOR BUTTON
   if (!currentUser) {
     return (
       <div style={{ 
@@ -944,6 +944,56 @@ function AppContent() {
         display: 'flex',
         flexDirection: 'column'
       }}>
+        {/* NEW: Transcription Editor Button at top */}
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '20px 20px 0 20px'
+        }}>
+          <button
+            onClick={() => navigate('/transcription-editor')}
+            style={{
+              backgroundColor: '#28a745',
+              color: 'white',
+              padding: '12px 25px',
+              border: 'none',
+              borderRadius: '25px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: '600',
+              boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = '#218838';
+              e.target.style.transform = 'translateY(-2px)';
+              e.target.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.6)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = '#28a745';
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
+            }}
+          >
+            <svg 
+              style={{ width: '20px', height: '20px' }} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
+              />
+            </svg>
+            ✏️ Transcription Editor
+          </button>
+        </div>
+
         <header style={{ 
           textAlign: 'center', 
           padding: '60px 20px',
@@ -994,11 +1044,13 @@ function AppContent() {
       </div>
     );
   }
-
   return (
     <Routes>
       {/* Route for individual transcription detail page */}
       <Route path="/transcription/:id" element={<TranscriptionDetail />} />
+      
+      {/* NEW: Route for standalone Transcription Editor */}
+      <Route path="/transcription-editor" element={<RichTextEditor />} />
       
       {/* Dashboard route - separate from main app */}
       <Route path="/dashboard" element={
@@ -1096,6 +1148,7 @@ function AppContent() {
               </div>
             </header>
           )}
+
           {/* Profile Loading Indicator (No change) */}
           {profileLoading && (
             <div style={{
@@ -1184,6 +1237,59 @@ function AppContent() {
               </button>
             )}
           </div>
+
+          {/* NEW: Transcription Editor Button - appears on transcribe view */}
+          {currentView === 'transcribe' && (
+            <div style={{ 
+              textAlign: 'center', 
+              padding: '0 20px 20px',
+              marginBottom: '20px'
+            }}>
+              <button
+                onClick={() => navigate('/transcription-editor')}
+                style={{
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  padding: '12px 25px',
+                  margin: '0 10px',
+                  border: 'none',
+                  borderRadius: '25px',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.3s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = '#218838';
+                  e.target.style.transform = 'translateY(-2px)';
+                  e.target.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.6)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = '#28a745';
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
+                }}
+              >
+                <svg 
+                  style={{ width: '20px', height: '20px' }} 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={2} 
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
+                  />
+                </svg>
+                ✏️ Transcription Editor
+              </button>
+            </div>
+          )}
           {/* Show Different Views - UPDATED Pricing Section */}
           {currentView === 'pricing' ? (
             <div style={{ 
@@ -1356,7 +1462,6 @@ function AppContent() {
                           {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 1`}
                         </button>
                       </div>
-
                       {/* UPDATED: 5 Days Plan - $2.50 */}
                       <div style={{
                         backgroundColor: 'white',
@@ -1630,6 +1735,7 @@ function AppContent() {
                   )}
                 </div>
               )}
+
               {/* Record Audio Section (No change) */}
               <div style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -2016,7 +2122,6 @@ function AppContent() {
               )}
             </main>
           )}
-          
           {/* Footer for main app interface (No change) */}
           <footer style={{ 
             textAlign: 'center', 
