@@ -219,13 +219,11 @@ const TranscriptionDetail = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // NEW: Keyboard Shortcuts Effect
+  // UPDATED: Keyboard Shortcuts Effect - REMOVED FOCUS CHECK
   useEffect(() => {
     const handleKeyDown = (event) => {
-      // Prevent conflicts with text editing
-      if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
-        return;
-      }
+      // Removed: if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) { return; }
+      // The Ctrl/Cmd key acts as a sufficient modifier to prevent conflicts with regular typing.
 
       if (event.ctrlKey || event.metaKey) { // Ctrl for Windows/Linux, Cmd for Mac
         switch (event.code) {
@@ -235,7 +233,7 @@ const TranscriptionDetail = () => {
             break;
           case 'ArrowLeft':
             event.preventDefault();
-            skipTime(-5); // Skip back 5 seconds
+            skipTime(-2); // Skip back 2 seconds
             break;
           case 'ArrowRight':
             event.preventDefault();
