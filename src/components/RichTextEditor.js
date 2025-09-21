@@ -47,7 +47,6 @@ const RichTextEditor = () => {
       localStorage.setItem('richTextEditorContent', currentContent);
     }
   }, []);
-
   // Audio player logic (similar to TranscriptionDetail.js)
   useEffect(() => {
     if (localAudioFile) {
@@ -156,7 +155,6 @@ const RichTextEditor = () => {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
-
   // Keyboard Shortcuts Effect (Global)
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -290,7 +288,6 @@ const RichTextEditor = () => {
     alignItems: 'center',
     gap: '4px'
   };
-
   if (!currentUser) {
     return (
       <div style={containerStyle}>
@@ -493,7 +490,6 @@ const RichTextEditor = () => {
                   <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4z" /></svg>
                 </button>
               </div>
-
               {/* Speed Control */}
               <div>
                 <label style={{ fontSize: '12px', fontWeight: '500', color: '#374151', display: 'block', marginBottom: '8px' }}>
@@ -569,7 +565,6 @@ const RichTextEditor = () => {
             </div>
           )}
         </div>
-        
         {/* Text Editor */}
         <div style={textEditorContainerStyle}>
           <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
@@ -598,13 +593,29 @@ const RichTextEditor = () => {
               Lowercase
             </button>
           </div>
-          {/* Content Editable Area */}
+          {/* Content Editable Area - FIRST FIX APPLIED */}
           <div
             ref={editorRef}
             contentEditable="true"
             onInput={handleEditorChange}
+            onFocus={(e) => {
+              // Ensure cursor goes to the end when focusing
+              const range = document.createRange();
+              const selection = window.getSelection();
+              range.selectNodeContents(e.target);
+              range.collapse(false); // false means collapse to end
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }}
+            onKeyDown={(e) => {
+              // Handle specific key behaviors
+              if (e.key === 'Enter') {
+                // Ensure new lines work properly
+                e.preventDefault();
+                document.execCommand('insertHTML', false, '<br><br>');
+              }
+            }}
             dangerouslySetInnerHTML={{ __html: editorContent }}
-            dir="ltr"
             style={{
               width: '100%',
               minHeight: '400px',
@@ -617,9 +628,15 @@ const RichTextEditor = () => {
               outline: 'none',
               backgroundColor: '#f9fafb',
               overflowY: 'auto',
-              textAlign: 'left' // Ensure text alignment is left by default
+              textAlign: 'left', // Ensure left alignment
+              direction: 'ltr', // Left-to-right text direction
+              unicodeBidi: 'plaintext', // Handle mixed text directions properly
+              whiteSpace: 'pre-wrap', // Preserve whitespace and line breaks
+              wordWrap: 'break-word', // Handle long words
+              cursor: 'text' // Show text cursor
             }}
             placeholder="Start typing or paste your transcription here..."
+            suppressContentEditableWarning={true}
           />
         </div>
       </div>
