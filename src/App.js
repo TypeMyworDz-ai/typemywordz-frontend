@@ -122,6 +122,7 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   }, intervalTime);
   return interval; 
 };
+
 function AppContent() {
   const navigate = useNavigate(); // NEW: Add navigate hook
   
@@ -317,7 +318,6 @@ function AppContent() {
       console.log('DIAGNOSTIC: userProfile.totalMinutesUsed updated to:', userProfile.totalMinutesUsed);
     }
   }, [userProfile?.totalMinutesUsed]);
-
   // Enhanced file selection with proper job cancellation (No change)
   const handleFileSelect = useCallback(async (event) => {
     const file = event.target.files[0];
@@ -367,6 +367,7 @@ function AppContent() {
       audio.src = audioUrl;
     }
   }, [showMessage, resetTranscriptionProcessUI, jobId, status]);
+
   // Enhanced recording function with proper job cancellation
   const startRecording = useCallback(async () => {
     // FIRST: Cancel any ongoing backend job before clearing state
@@ -560,7 +561,6 @@ function AppContent() {
       showMessage('Failed to save transcription or update usage.');
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]); // Removed jobId from dependencies as it's now passed directly
-
   // Handle successful payment (No change)
   const handlePaymentSuccess = useCallback(async (subscriptionId, planType) => {
     try {
@@ -584,6 +584,7 @@ function AppContent() {
       showMessage('Payment successful but there was an error updating your account. Please contact support.');
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
+
   // UPDATED: checkJobStatus to pass jobId to handleTranscriptionComplete
   const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => { // NEW: Renamed jobId to jobIdToPass for clarity
     // FIRST thing - check if cancelled
@@ -875,7 +876,6 @@ function AppContent() {
       showMessage('No recorded audio available to download.');
     }
   }, [showMessage, downloadFormat]);
-
   const handleLogout = useCallback(async () => {
     try {
       await logout();
@@ -901,6 +901,7 @@ function AppContent() {
     setSelectedPlan(planType);
     setShowPayment(true);
   }, []);
+
   // UPDATED: useEffect to handle 30-minute trial for free users (No change)
   useEffect(() => {
     if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
@@ -934,8 +935,7 @@ function AppContent() {
       }
     };
   }, []);
-
-  // Login screen for non-authenticated users - UPDATED WITH TRANSCRIPTION EDITOR BUTTON
+  // Login screen for non-authenticated users
   if (!currentUser) {
     return (
       <div style={{ 
@@ -944,55 +944,56 @@ function AppContent() {
         display: 'flex',
         flexDirection: 'column'
       }}>
-        {/* NEW: Transcription Editor Button at top */}
+        {/* NEW: Transcription Editor Button at top-left for unauthenticated users */}
         <div style={{ 
-          textAlign: 'center', 
-          padding: '20px 20px 0 20px'
+          position: 'absolute', 
+          top: '20px', 
+          left: '20px', 
+          zIndex: 100 
         }}>
-          // AFTER (New code):
-<button
-  onClick={() => window.open('/transcription-editor', '_blank')}
-  style={{
-    backgroundColor: '#28a745',
-    color: 'white',
-    padding: '12px 25px',
-    border: 'none',
-    borderRadius: '25px',
-    cursor: 'pointer',
-    fontSize: '16px',
-    fontWeight: '600',
-    boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '8px',
-    transition: 'all 0.3s ease'
-  }}
-  onMouseEnter={(e) => {
-    e.target.style.backgroundColor = '#218838';
-    e.target.style.transform = 'translateY(-2px)';
-    e.target.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.6)';
-  }}
-  onMouseLeave={(e) => {
-    e.target.style.backgroundColor = '#28a745';
-    e.target.style.transform = 'translateY(0)';
-    e.target.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
-  }}
->
-  <svg 
-    style={{ width: '20px', height: '20px' }} 
-    fill="none" 
-    stroke="currentColor" 
-    viewBox="0 0 24 24"
-  >
-    <path 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      strokeWidth={2} 
-      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
-    />
-  </svg>
-  ✏️ Transcription Editor
-</button>
+          <button
+            onClick={() => window.open('/transcription-editor', '_blank')}
+            style={{
+              backgroundColor: '#28a745',
+              color: 'white',
+              padding: '12px 25px',
+              border: 'none',
+              borderRadius: '25px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: '600',
+              boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = '#218838';
+              e.target.style.transform = 'translateY(-2px)';
+              e.target.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.6)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = '#28a745';
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
+            }}
+          >
+            <svg 
+              style={{ width: '20px', height: '20px' }} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
+              />
+            </svg>
+            ✏️ Transcription Editor
+          </button>
         </div>
 
         <header style={{ 
@@ -1074,6 +1075,58 @@ function AppContent() {
         }}>
           <ToastNotification message={message} onClose={clearMessage} />
 
+          {/* NEW: Transcription Editor Button at top-left for authenticated users */}
+          <div style={{ 
+            position: 'absolute', 
+            top: '20px', 
+            left: '20px', 
+            zIndex: 100 
+          }}>
+            <button
+              onClick={() => window.open('/transcription-editor', '_blank')}
+              style={{
+                backgroundColor: '#28a745',
+                color: 'white',
+                padding: '12px 25px',
+                border: 'none',
+                borderRadius: '25px',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: '600',
+                boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.3s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = '#218838';
+                e.target.style.transform = 'translateY(-2px)';
+                e.target.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.6)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = '#28a745';
+                e.target.style.transform = 'translateY(0)';
+                e.target.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
+              }}
+            >
+              <svg 
+                style={{ width: '20px', height: '20px' }} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
+                />
+              </svg>
+              ✏️ Transcription Editor
+            </button>
+          </div>
+
           {currentView === 'transcribe' && (
             <header style={{ 
               textAlign: 'center', 
@@ -1149,7 +1202,6 @@ function AppContent() {
               </div>
             </header>
           )}
-
           {/* Profile Loading Indicator (No change) */}
           {profileLoading && (
             <div style={{
@@ -1238,58 +1290,7 @@ function AppContent() {
               </button>
             )}
           </div>
-          {/* NEW: Transcription Editor Button - appears on transcribe view */}
-{currentView === 'transcribe' && (
-  <div style={{ 
-    textAlign: 'center', 
-    padding: '0 20px 20px',
-    marginBottom: '20px'
-  }}>
-    <button
-      onClick={() => window.open('/transcription-editor', '_blank')}
-      style={{
-        backgroundColor: '#28a745',
-        color: 'white',
-        padding: '12px 25px',
-        margin: '0 10px',
-        border: 'none',
-        borderRadius: '25px',
-        cursor: 'pointer',
-        fontSize: '16px',
-        boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '8px',
-        transition: 'all 0.3s ease'
-      }}
-      onMouseEnter={(e) => {
-        e.target.style.backgroundColor = '#218838';
-        e.target.style.transform = 'translateY(-2px)';
-        e.target.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.6)';
-      }}
-      onMouseLeave={(e) => {
-        e.target.style.backgroundColor = '#28a745';
-        e.target.style.transform = 'translateY(0)';
-        e.target.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
-      }}
-    >
-      <svg 
-        style={{ width: '20px', height: '20px' }} 
-        fill="none" 
-        stroke="currentColor" 
-        viewBox="0 0 24 24"
-      >
-        <path 
-          strokeLinecap="round" 
-          strokeLinejoin="round" 
-          strokeWidth={2} 
-          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
-        />
-      </svg>
-      ✏️ Transcription Editor
-    </button>
-  </div>
-)}
+          {/* Removed the Transcription Editor button from here */}
           {/* Show Different Views - UPDATED Pricing Section */}
           {currentView === 'pricing' ? (
             <div style={{ 
@@ -1382,7 +1383,7 @@ function AppContent() {
                     <h2 style={{ color: '#007bff', marginBottom: '30px' }}>
                       💳 Buy Credits - Pro Feature Access
                     </h2>
-                    <p style={{ color: '#666', marginBottom: '30px' }}>
+                    <p style={{ color: '#666', marginBottom: '30px', fontSize: '14px' }}>
                       Purchase temporary access to Pro features. Available globally with local currency support
                     </p>
                     
@@ -1624,7 +1625,7 @@ function AppContent() {
                           <li>✅ High accuracy AI transcription</li>
                           <li>✅ Priority processing</li>
                           <li>✅ Copy to clipboard feature</li>
-                          <li>✅ MS Word & TXT downloads</li>
+                          <li>✅ MS Word &amp; TXT downloads</li>
                           <li>✅ 7-day file storage</li>
                           <li>✅ Email support</li>
                         </ul>
@@ -1672,7 +1673,7 @@ function AppContent() {
                   <div>✅ Fast processing times</div>
                   <div>✅ Easy-to-use interface</div>
                   <div>✅ Mobile-friendly design</div>
-                  <div>✅ Regular updates & improvements</div>
+                  <div>✅ Regular updates &amp; improvements</div>
                 </div>
               </div>
             </div>
@@ -1893,7 +1894,7 @@ function AppContent() {
                         }}></div>
                       </div>
                       <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
-                        🗜️ Compressing & Transcribing Audio...
+                        🗜️ Compressing &amp; Transcribing Audio...
                       </div>
                     </div>
                   )}
@@ -1949,9 +1950,8 @@ function AppContent() {
                         ❌ Cancel Transcribing
                       </button>
                     )}
-                  </div>
-                </div>
-              </div>
+                  </div
+                ></div>
               
               {/* Status Section (No change) */}
               {status && (status === 'completed' || status === 'failed') && (
@@ -1971,7 +1971,7 @@ function AppContent() {
                   </h3>
                   {status === 'failed' && (
                     <p style={{ margin: '10px 0 0 0', color: '#666' }}>
-                      Transcription failed. Check Your Network & Refresh the Page.
+                      Transcription failed. Check Your Network &amp; Refresh the Page.
                     </p>
                   )}
                 </div>
