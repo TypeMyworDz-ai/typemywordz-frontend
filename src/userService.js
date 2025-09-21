@@ -12,7 +12,6 @@ const getUserProfileRef = (uid) => doc(db, USERS_COLLECTION, uid);
 
 // Helper to get user transcriptions collection reference
 const getUserTranscriptionsCollectionRef = (uid) => collection(db, USERS_COLLECTION, uid, TRANSCRIPTIONS_COLLECTION);
-
 // Create or update user profile
 export const createUserProfile = async (uid, email, name = '') => {
   const userRef = getUserProfileRef(uid);
@@ -77,7 +76,7 @@ export const getUserProfile = async (uid) => {
   return null;
 };
 
-// NEW: Update user plan after successful payment
+// Update user plan after successful payment
 export const updateUserPlan = async (uid, newPlan, subscriptionId = null) => {
   const userRef = getUserProfileRef(uid);
   const updates = {
@@ -86,7 +85,7 @@ export const updateUserPlan = async (uid, newPlan, subscriptionId = null) => {
   };
   
   if (subscriptionId) {
-    updates.stripeSubscriptionId = subscriptionId;
+    updates.stripeSubscriptionId = subscriptionId; // Renamed from stripeSubscriptionId if not using Stripe
     updates.subscriptionStartDate = new Date();
   }
   
@@ -114,7 +113,7 @@ export const canUserRecord = async (uid) => {
   }
 };
 
-// FIXED: Check if user can transcribe - now includes free trial logic and correct unit conversion
+// Check if user can transcribe - now includes free trial logic and correct unit conversion
 export const canUserTranscribe = async (uid, estimatedDurationSeconds) => { // Renamed param for clarity
   try {
     console.log("🔍 canUserTranscribe called with:", { uid, estimatedDurationSeconds });
@@ -159,7 +158,7 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds) => { // R
   }
 };
 
-// FIXED: Update user usage after transcription - now correctly converts duration to minutes
+// Update user usage after transcription - now correctly converts duration to minutes
 export const updateUserUsage = async (uid, durationSeconds) => { // Renamed param for clarity
   const userRef = getUserProfileRef(uid);
   const userProfile = await getUserProfile(uid);
@@ -184,30 +183,35 @@ export const updateUserUsage = async (uid, durationSeconds) => { // Renamed para
     console.warn(`⚠️ User ${uid}: Profile not found or plan not recognized for usage update.`);
   }
 };
-
-// Save transcription to Firestore
-export const saveTranscription = async (uid, transcriptionData) => {
+// UPDATED: Save transcription to Firestore - now accepts individual fields
+export const saveTranscription = async (uid, fileName, text, duration, audioUrl) => {
   const transcriptionsCollectionRef = getUserTranscriptionsCollectionRef(uid);
   const newTranscriptionRef = doc(transcriptionsCollectionRef); // Let Firestore generate ID
 
-  await setDoc(newTranscriptionRef, {
-    ...transcriptionData,
+  const transcriptionData = {
+    fileName,
+    text,
+    duration,
+    audioUrl, // This is the AssemblyAI ID, which will be used to construct the audio URL later
     userId: uid,
     createdAt: new Date(),
-    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // Expires in 24 hours
-  });
+    // Transcriptions expire after 7 days, consistent with App.js download options
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) 
+  };
+
+  await setDoc(newTranscriptionRef, transcriptionData);
   console.log("Transcription saved with ID:", newTranscriptionRef.id);
   return newTranscriptionRef.id;
 };
 
-// Fetch user's transcriptions (for Dashboard)
+// Fetch user's transcriptions (for History/Editor)
 export const fetchUserTranscriptions = async (uid) => {
   const transcriptionsCollectionRef = getUserTranscriptionsCollectionRef(uid);
   // Query for active transcriptions, ordered by creation date
   const q = query(
     transcriptionsCollectionRef,
     where("expiresAt", ">", new Date()), // Only fetch non-expired transcriptions
-    orderBy("expiresAt", "desc") // Order by expiry to show newer first (or createdAt)
+    orderBy("createdAt", "desc") // Order by creation date to show newest first
   );
   const querySnapshot = await getDocs(q);
   const transcriptions = [];
