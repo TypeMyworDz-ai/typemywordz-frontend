@@ -2085,6 +2085,11 @@ function App() {
     <AuthProvider>
       <Router>
         <Routes>
+          {/* Standalone routes that don't require auth check */}
+          <Route path="/transcription-editor" element={<RichTextEditor />} />
+          <Route path="/transcription/:id" element={<TranscriptionDetail />} />
+          
+          {/* Main app routes */}
           <Route path="/*" element={<AppContent />} />
         </Routes>
       </Router>
