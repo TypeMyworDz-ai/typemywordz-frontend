@@ -37,7 +37,7 @@ const RichTextEditor = () => {
     localStorage.setItem('richTextEditorContent', content);
   }, []);
 
-  // Insert timestamp at current audio position
+  // Insert timestamp at current audio position - FIXED VERSION
   const insertTimestamp = useCallback(() => {
     if (quillRef.current && audioCurrentTime !== undefined) {
       const quill = quillRef.current.getEditor();
@@ -45,15 +45,30 @@ const RichTextEditor = () => {
       const timestamp = formatTime(audioCurrentTime);
       
       if (range) {
+        // Insert timestamp with specific formatting
         quill.insertText(range.index, `[${timestamp}] `, {
           'color': '#007bff',
           'bold': true
         });
-        quill.setSelection(range.index + timestamp.length + 3);
+        
+        // Move cursor to after the timestamp and reset formatting
+        const newPosition = range.index + timestamp.length + 3;
+        quill.setSelection(newPosition);
+        
+        // Reset formatting for subsequent text
+        quill.format('color', false);
+        quill.format('bold', false);
+        
+        // Ensure the next character typed will be in default format
+        setTimeout(() => {
+          if (quill.getSelection()) {
+            quill.format('color', '#000000'); // Set to default black
+            quill.format('bold', false);
+          }
+        }, 10);
       }
     }
   }, [audioCurrentTime]);
-
   // Quill modules configuration with custom toolbar
   const modules = {
     toolbar: {
@@ -81,13 +96,49 @@ const RichTextEditor = () => {
     'list', 'bullet', 'indent',
     'link', 'image', 'color', 'background', 'align', 'code-block'
   ];
-  // Export functions
+  // Export functions - FIXED Word Export
   const exportAsWord = useCallback(() => {
     if (!currentUser) {
       alert('Please log in to export as Word.');
       return;
     }
-    const blob = new Blob([editorContent], { type: 'application/msword' });
+    
+    // Convert HTML to plain text first, then format for Word
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = editorContent;
+    
+    // Create proper HTML for Word with styling
+    const wordContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Transcription</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            line-height: 1.6; 
+            margin: 40px; 
+            color: #000000;
+        }
+        .timestamp { 
+            color: #007bff; 
+            font-weight: bold; 
+        }
+        p { 
+            margin-bottom: 12px; 
+            color: #000000;
+        }
+    </style>
+</head>
+<body>
+    ${editorContent.replace(/\[(\d+:\d+)\]/g, '<span class="timestamp">[$1]</span>')}
+</body>
+</html>`;
+    
+    const blob = new Blob([wordContent], { 
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -218,7 +269,7 @@ const RichTextEditor = () => {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
-  // Keyboard Shortcuts Effect
+  // Keyboard Shortcuts Effect - UPDATED: Ctrl+T changed to Ctrl+M
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (quillRef.current && quillRef.current.getEditor().hasFocus()) {
@@ -236,7 +287,7 @@ const RichTextEditor = () => {
               event.preventDefault();
               skipTime(5);
               break;
-            case 'KeyT':
+            case 'KeyM': // CHANGED FROM KeyT TO KeyM
               event.preventDefault();
               if (audioRef.current && !isNaN(audioRef.current.currentTime)) {
                 insertTimestamp();
@@ -396,7 +447,6 @@ const RichTextEditor = () => {
                   <span>{formatTime(audioDuration)}</span>
                 </div>
               </div>
-
               {/* Play Controls */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
                 <button
@@ -570,7 +620,7 @@ const RichTextEditor = () => {
                   fontSize: '12px',
                   fontWeight: '500'
                 }}
-                title="Insert Timestamp (Ctrl+T)"
+                title="Insert Timestamp (Ctrl+M)" // UPDATED: Changed from Ctrl+T to Ctrl+M
               >
                 ⏱️ Timestamp
               </button>
@@ -650,11 +700,11 @@ const RichTextEditor = () => {
           )}
 
           <div style={{ marginTop: '20px', fontSize: '12px', color: '#6b7280', textAlign: 'center' }}>
-            <strong>Keyboard Shortcuts:</strong> Ctrl+Space (Play/Pause) | Ctrl+← (Rewind 5s) | Ctrl+→ (Forward 5s) | Ctrl+T (Insert Timestamp)
+            <strong>Keyboard Shortcuts:</strong> Ctrl+Space (Play/Pause) | Ctrl+← (Rewind 5s) | Ctrl+→ (Forward 5s) | Ctrl+M (Insert Timestamp)
           </div>
         </div>
       </div>
-      {/* Global CSS for spin animation and Quill fixes */}
+      {/* Global CSS for spin animation and Quill fixes - ENHANCED VERSION */}
       <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
@@ -672,6 +722,14 @@ const RichTextEditor = () => {
           word-wrap: break-word !important;
           cursor: text !important;
           padding: 12px 15px !important;
+          color: #000000 !important;
+        }
+        .ql-editor * {
+          color: inherit;
+        }
+        .ql-editor .timestamp {
+          color: #007bff !important;
+          font-weight: bold !important;
         }
         .ql-toolbar {
           border-top: 1px solid #ccc !important;
@@ -696,6 +754,15 @@ const RichTextEditor = () => {
         }
         .ql-editor p {
           margin-bottom: 0 !important;
+          color: #000000 !important;
+        }
+        /* Reset any color formatting that might leak */
+        .ql-editor span:not(.timestamp) {
+          color: inherit !important;
+        }
+        /* Ensure cursor maintains proper formatting */
+        .ql-cursor {
+          color: #000000 !important;
         }
       `}</style>
     </div>
