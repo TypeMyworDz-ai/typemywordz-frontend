@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react'; // FIXED: Added useCallback
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { updateTranscription, deleteTranscription } from '../userService';
@@ -9,6 +9,7 @@ const TranscriptionDetail = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const audioRef = useRef(null);
+  const fileInputRef = useRef(null); // NEW: Ref for hidden file input
   
   const [transcription, setTranscription] = useState(state?.transcription || null);
   const [editableText, setEditableText] = useState(transcription?.text || '');
@@ -21,8 +22,10 @@ const TranscriptionDetail = () => {
   const [volume, setVolume] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [audioError, setAudioError] = useState(false);
-
-  // Helper function to safely convert date
+  const [localAudioFile, setLocalAudioFile] = useState(null); // NEW: State for locally uploaded audio
+  const [localAudioUrl, setLocalAudioUrl] = useState(null);   // NEW: URL for local audio
+  const [sourceAudioUrl, setSourceAudioUrl] = useState(transcription?.audioUrl || null); // NEW: Current audio source
+  // Helper function to safely convert date (No change)
   const convertToDate = (dateValue) => {
     if (!dateValue) return null;
     try {
@@ -51,12 +54,31 @@ const TranscriptionDetail = () => {
   useEffect(() => {
     if (transcription) {
       setEditableText(transcription.text || '');
+      setSourceAudioUrl(transcription.audioUrl || null); // Ensure source is set on transcription load
     }
   }, [transcription]);
 
+  // NEW: Effect to update local audio URL when localAudioFile changes
+  useEffect(() => {
+    if (localAudioFile) {
+      const url = URL.createObjectURL(localAudioFile);
+      setLocalAudioUrl(url);
+      setSourceAudioUrl(url); // Use local audio as primary source
+      // Clean up previous URL object when component unmounts or file changes
+      return () => URL.revokeObjectURL(url);
+    } else {
+      setLocalAudioUrl(null);
+      setSourceAudioUrl(transcription?.audioUrl || null); // Fallback to original
+    }
+  }, [localAudioFile, transcription]);
+
+  // UPDATED: useEffect for audio event listeners
   useEffect(() => {
     const audio = audioRef.current;
     if (audio) {
+      // Set initial volume
+      audio.volume = volume;
+
       const updateTime = () => setAudioCurrentTime(audio.currentTime);
       const updateDuration = () => {
         if (!isNaN(audio.duration)) {
@@ -96,9 +118,8 @@ const TranscriptionDetail = () => {
         audio.removeEventListener('error', handleError);
       };
     }
-  }, []);
-
-  const handleSave = async () => {
+  }, [sourceAudioUrl, volume]); // Rerun effect if sourceAudioUrl or volume changes
+  const handleSave = useCallback(async () => { // Wrapped in useCallback
     if (!currentUser?.uid || !transcription) return;
     
     setSaving(true);
@@ -113,14 +134,14 @@ const TranscriptionDetail = () => {
     } finally {
       setSaving(false);
     }
-  };
+  }, [currentUser?.uid, transcription, editableText]); // Added dependencies
 
-  const handleCancelEdit = () => {
+  const handleCancelEdit = useCallback(() => { // Wrapped in useCallback
     setIsEditing(false);
     setEditableText(transcription?.text || '');
-  };
+  }, [transcription]); // Added dependency
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => { // Wrapped in useCallback
     if (!window.confirm('Are you sure you want to delete this transcription?')) return;
     
     try {
@@ -130,14 +151,14 @@ const TranscriptionDetail = () => {
       console.error('Error deleting transcription:', error);
       alert('Failed to delete transcription. Please try again.');
     }
-  };
+  }, [currentUser?.uid, transcription, navigate]); // Added dependencies
 
-  const handleCopy = () => {
+  const handleCopy = useCallback(() => { // Wrapped in useCallback
     navigator.clipboard.writeText(editableText);
     alert('Transcription copied to clipboard!');
-  };
+  }, [editableText]); // Added dependency
 
-  const handleDownload = (format) => {
+  const handleDownload = useCallback((format) => { // Wrapped in useCallback
     const blob = new Blob([editableText], { 
       type: format === 'word' ? 'application/msword' : 'text/plain' 
     });
@@ -147,9 +168,8 @@ const TranscriptionDetail = () => {
     a.download = `${transcription.fileName?.split('.')[0] || 'transcription'}.${format === 'word' ? 'doc' : 'txt'}`;
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const togglePlayPause = () => {
+  }, [editableText, transcription]); // Added dependencies
+  const togglePlayPause = useCallback(() => { // Wrapped in useCallback
     const audio = audioRef.current;
     if (audio && !audioError) {
       if (isPlaying) {
@@ -158,9 +178,9 @@ const TranscriptionDetail = () => {
         audio.play().catch(console.error);
       }
     }
-  };
+  }, [isPlaying, audioError]); // Dependencies for useCallback
 
-  const handleSeek = (e) => {
+  const handleSeek = (e) => { // No change
     const audio = audioRef.current;
     if (audio && audioDuration && !audioError) {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -169,36 +189,94 @@ const TranscriptionDetail = () => {
     }
   };
 
-  const skipTime = (seconds) => {
+  const skipTime = useCallback((seconds) => { // Wrapped in useCallback
     const audio = audioRef.current;
-    if (audio && !audioError) {
+    if (audio && !audioError && !isNaN(audioDuration)) { // Check audioDuration for valid number
       audio.currentTime = Math.max(0, Math.min(audio.currentTime + seconds, audioDuration));
     }
-  };
+  }, [audioError, audioDuration]); // Dependencies for useCallback
 
-  const changePlaybackRate = (rate) => {
+  const changePlaybackRate = useCallback((rate) => { // Wrapped in useCallback
     const audio = audioRef.current;
     if (audio && !audioError) {
       audio.playbackRate = rate;
       setPlaybackRate(rate);
     }
-  };
+  }, [audioError]); // Dependencies for useCallback
 
-  const changeVolume = (newVolume) => {
+  const changeVolume = useCallback((newVolume) => { // Wrapped in useCallback
     const audio = audioRef.current;
     if (audio) {
       audio.volume = newVolume;
       setVolume(newVolume);
     }
-  };
+  }, []); // Dependencies for useCallback
 
-  const formatTime = (seconds) => {
+  const formatTime = (seconds) => { // No change
     if (isNaN(seconds) || seconds === 0) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // NEW: Keyboard Shortcuts Effect
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      // Prevent conflicts with text editing
+      if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+        return;
+      }
+
+      if (event.ctrlKey || event.metaKey) { // Ctrl for Windows/Linux, Cmd for Mac
+        switch (event.code) {
+          case 'Space':
+            event.preventDefault(); // Prevent page scroll
+            togglePlayPause();
+            break;
+          case 'ArrowLeft':
+            event.preventDefault();
+            skipTime(-5); // Skip back 5 seconds
+            break;
+          case 'ArrowRight':
+            event.preventDefault();
+            skipTime(5); // Skip forward 5 seconds
+            break;
+          default:
+            break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [togglePlayPause, skipTime]); // Dependencies for useCallback functions
+
+  // NEW: Handler for local audio file selection
+  const handleLocalAudioFileSelect = useCallback((event) => { // Wrapped in useCallback
+    const file = event.target.files[0];
+    if (file && file.type.startsWith('audio/')) {
+      setLocalAudioFile(file);
+      setAudioError(false); // Clear previous audio error
+      setIsPlaying(false); // Pause if anything was playing
+      setAudioCurrentTime(0); // Reset time
+      setAudioDuration(0); // Reset duration until new metadata loads
+      console.log('DEBUG: Local audio file selected:', file.name);
+    } else {
+      setLocalAudioFile(null);
+      setLocalAudioUrl(null);
+      setSourceAudioUrl(transcription?.audioUrl || null); // Fallback to original
+      setAudioError(true);
+      console.warn('WARNING: Invalid file type selected for local audio.');
+    }
+  }, [transcription]); // Dependency for useCallback
+
+  // NEW: Trigger file input click
+  const triggerFileInput = useCallback(() => { // Wrapped in useCallback
+    fileInputRef.current.click();
+  }, []);
   // Inline styles to override any CSS conflicts
   const containerStyle = {
     minHeight: '100vh',
@@ -210,7 +288,7 @@ const TranscriptionDetail = () => {
   const headerStyle = {
     background: 'white',
     borderRadius: '12px',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)s',
     padding: '24px',
     marginBottom: '24px',
     maxWidth: '1200px',
@@ -272,7 +350,7 @@ const TranscriptionDetail = () => {
                 fontSize: '16px'
               }}
             >
-              Back to Dashboard
+              Back to History/Editor {/* UPDATED TEXT */}
             </button>
           </div>
         </div>
@@ -281,7 +359,6 @@ const TranscriptionDetail = () => {
   }
 
   const createdDate = convertToDate(transcription.createdAt);
-
   return (
     <div style={containerStyle}>
       {/* Header */}
@@ -299,10 +376,8 @@ const TranscriptionDetail = () => {
               fontSize: '16px'
             }}
           >
-            <svg style={{ width: '20px', height: '20px', marginRight: '8px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Back to Dashboard
+            <svg style={{ width: '20px', height: '20px', marginRight: '8px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            Back to History/Editor {/* UPDATED TEXT */}
           </button>
           <button
             onClick={handleDelete}
@@ -336,12 +411,21 @@ const TranscriptionDetail = () => {
           
           <audio
             ref={audioRef}
-            src={transcription.audioUrl}
+            src={localAudioUrl || sourceAudioUrl} {/* UPDATED: Dynamic audio source */}
             preload="metadata"
             crossOrigin="anonymous"
           />
           
-          {audioError ? (
+          {/* NEW: Hidden file input for local audio */}
+          <input
+            type="file"
+            accept="audio/*"
+            ref={fileInputRef}
+            onChange={handleLocalAudioFileSelect}
+            style={{ display: 'none' }}
+          />
+
+          {audioError || !sourceAudioUrl ? ( {/* UPDATED: Check for !sourceAudioUrl */}
             <div style={{ textAlign: 'center', padding: '24px' }}>
               <div style={{
                 width: '64px',
@@ -353,15 +437,38 @@ const TranscriptionDetail = () => {
                 alignItems: 'center',
                 justifyContent: 'center'
               }}>
-                <svg style={{ width: '32px', height: '32px', color: '#ef4444' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <svg style={{ width: '32px', height: '32px', color: '#ef4444' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               </div>
-              <p style={{ fontSize: '14px', color: '#ef4444', fontWeight: '500' }}>Audio file not found</p>
-              <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Check if the file exists</p>
+              <p style={{ fontSize: '14px', color: '#ef4444', fontWeight: '500' }}>
+                {localAudioFile ? 'Error loading local audio' : 'Audio file not found'}
+              </p>
+              <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                {localAudioFile ? 'Check file format' : 'Original audio may have expired'}
+              </p>
+              {/* NEW: Upload Local Audio button when audio not found */}
+              <button 
+                onClick={triggerFileInput}
+                style={{
+                  background: '#3b82f6',
+                  color: 'white',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  marginTop: '16px'
+                }}
+              >
+                Upload Local Audio
+              </button>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* NEW: Currently playing from indicator */}
+              {localAudioFile && (
+                <p style={{ fontSize: '12px', color: '#10b981', fontWeight: '500', textAlign: 'center', marginBottom: '-8px' }}>
+                  Playing from: {localAudioFile.name}
+                </p>
+              )}
               {/* Progress Bar */}
               <div>
                 <div 
@@ -406,9 +513,7 @@ const TranscriptionDetail = () => {
                   }}
                   title="Rewind 10s"
                 >
-                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
-                  </svg>
+                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.334 4z" /></svg>
                 </button>
                 
                 <button
@@ -434,13 +539,9 @@ const TranscriptionDetail = () => {
                       animation: 'spin 1s linear infinite'
                     }} />
                   ) : isPlaying ? (
-                    <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" />
-                    </svg>
+                    <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" /></svg>
                   ) : (
-                    <svg style={{ width: '20px', height: '20px' }} fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
+                    <svg style={{ width: '20px', height: '20px' }} fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                   )}
                 </button>
                 
@@ -457,9 +558,7 @@ const TranscriptionDetail = () => {
                   }}
                   title="Forward 10s"
                 >
-                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4z" />
-                  </svg>
+                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4z" /></svg>
                 </button>
               </div>
 
@@ -497,9 +596,7 @@ const TranscriptionDetail = () => {
                   Volume
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <svg style={{ width: '12px', height: '12px', color: '#9ca3af' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M9 12a1 1 0 01-.707-.293L6.586 10H4a1 1 0 01-1-1V8a1 1 0 011-1h2.586l1.707-1.707A1 1 0 019 6v6z" />
-                  </svg>
+                  <svg style={{ width: '12px', height: '12px', color: '#9ca3af' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M9 12a1 1 0 01-.707-.293L6.586 10H4a1 1 0 01-1-1V8a1 1 0 011-1h2.586l1.707-1.707A1 1 0 019 6v6z" /></svg>
                   <input
                     type="range"
                     min="0"
@@ -523,6 +620,21 @@ const TranscriptionDetail = () => {
                   </span>
                 </div>
               </div>
+              {/* NEW: Upload Local Audio Button */}
+              <button 
+                onClick={triggerFileInput}
+                style={{
+                  background: '#3b82f6',
+                  color: 'white',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  marginTop: '8px'
+                }}
+              >
+                Upload Local Audio
+              </button>
             </div>
           )}
         </div>
@@ -585,9 +697,7 @@ const TranscriptionDetail = () => {
                     fontWeight: '500'
                   }}
                 >
-                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
+                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                   <span>Edit</span>
                 </button>
               )}
@@ -652,9 +762,7 @@ const TranscriptionDetail = () => {
                       height: '64px', 
                       margin: '0 auto 16px', 
                       color: '#d1d5db' 
-                    }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
+                    }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                     <p style={{ color: '#6b7280', fontSize: '18px', marginBottom: '8px' }}>
                       No transcription text available
                     </p>
@@ -703,9 +811,7 @@ const TranscriptionDetail = () => {
                   fontWeight: '500'
                 }}
               >
-                <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
+                <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                 <span>Copy to Clipboard</span>
               </button>
               
@@ -724,9 +830,7 @@ const TranscriptionDetail = () => {
                   fontWeight: '500'
                 }}
               >
-                <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+                <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                 <span>Download as TXT</span>
               </button>
               
@@ -745,9 +849,7 @@ const TranscriptionDetail = () => {
                   fontWeight: '500'
                 }}
               >
-                <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+                <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                 <span>Download as DOC</span>
               </button>
             </div>
