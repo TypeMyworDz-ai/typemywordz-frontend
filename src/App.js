@@ -162,43 +162,34 @@ function AppContent() {
   // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
-  // NEW: Paystack payment functions
+  // UPDATED: Paystack payment functions - using backend endpoint
   const initializePaystackPayment = async (email, amount, planName) => {
     try {
       console.log('Initializing Paystack payment:', { email, amount, planName });
       
-      const response = await fetch('https://api.paystack.co/transaction/initialize', {
+      // Call our backend instead of Paystack directly
+      const response = await fetch(`${BACKEND_URL}/api/initialize-paystack-payment`, {
         method: 'POST',
         headers: {
-          'Authorization': 'Bearer pk_test_305e52e090e0da3cd2acb5f6fddf4f9b5d4b8e52',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           email: email,
-          amount: amount * 100, // Convert to kobo (Paystack uses kobo)
+          amount: amount,
           currency: 'USD',
-          callback_url: `${window.location.origin}/?payment=success`,
-          metadata: {
-            plan: planName,
-            user_id: currentUser.uid,
-            custom_fields: [
-              {
-                display_name: "Plan Type",
-                variable_name: "plan_type", 
-                value: planName
-              }
-            ]
-          }
+          plan_name: planName,
+          user_id: currentUser.uid,
+          callback_url: `${window.location.origin}/?payment=success`
         })
       });
 
       const data = await response.json();
-      console.log('Paystack response:', data);
+      console.log('Backend payment initialization response:', data);
       
-      if (data.status) {
+      if (response.ok && data.status) {
         showMessage('Redirecting to payment page...');
         // Redirect to Paystack payment page
-        window.location.href = data.data.authorization_url;
+        window.location.href = data.authorization_url;
       } else {
         throw new Error(data.message || 'Payment initialization failed');
       }
@@ -208,7 +199,7 @@ function AppContent() {
     }
   };
 
-  // NEW: Handle payment success callback
+  // Handle payment success callback
   const handlePaystackCallback = async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const reference = urlParams.get('reference');
@@ -253,7 +244,7 @@ function AppContent() {
     }
   };
 
-  // NEW: useEffect to handle payment callbacks
+  // useEffect to handle payment callbacks
   useEffect(() => {
     // Check if we're returning from a payment
     const urlParams = new URLSearchParams(window.location.search);
@@ -544,7 +535,7 @@ function AppContent() {
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]); // Added userProfile to dependencies for logging
 
-  // NEW: Handle successful payment
+  // Handle successful payment
   const handlePaymentSuccess = useCallback(async (subscriptionId, planType) => {
     try {
       // Update user plan in Firestore
@@ -1095,7 +1086,7 @@ function AppContent() {
             </div>
           )}
 
-          {/* Navigation Tabs */}
+          {/* UPDATED: Navigation Tabs with History/Editor */}
           <div style={{ 
             textAlign: 'center', 
             padding: currentView === 'transcribe' ? '0 20px 40px' : '20px',
@@ -1168,7 +1159,8 @@ function AppContent() {
               </button>
             )}
           </div>
-          {/* Show Different Views - Pricing Section and Main Interface */}
+          
+          {/* Show Different Views - UPDATED Pricing Section */}
           {currentView === 'pricing' ? (
             <div style={{ 
               padding: '40px 20px', 
@@ -1230,7 +1222,7 @@ function AppContent() {
               {/* Conditional Content Based on Selected View */}
               {pricingView === 'credits' ? (
                 <>
-                  {/* UPDATED: Cleaner Credit System */}
+                  {/* UPDATED: Credit System with new prices */}
                   <div style={{ marginTop: '20px' }}>
                     <h2 style={{ color: '#007bff', marginBottom: '30px' }}>
                       💳 Buy Credits - Pro Feature Access
@@ -1240,7 +1232,7 @@ function AppContent() {
                     </p>
                     
                     <div style={{ display: 'flex', gap: '30px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                      {/* 24 Hours Plan - UPDATED with cleaner design */}
+                      {/* UPDATED: 24 Hours Plan - $1 */}
                       <div style={{
                         backgroundColor: 'white',
                         padding: '40px 30px',
@@ -1297,7 +1289,7 @@ function AppContent() {
                               showMessage('Please log in first to purchase credits.');
                               return;
                             }
-                            initializePaystackPayment(currentUser.email, 3, '24 Hours Pro Access');
+                            initializePaystackPayment(currentUser.email, 1, '24 Hours Pro Access');
                           }}
                           disabled={!currentUser?.email}
                           style={{
@@ -1312,10 +1304,11 @@ function AppContent() {
                             fontWeight: 'bold'
                           }}
                         >
-                          {!currentUser?.email ? 'Login Required' : 'Pay with Paystack - $3'}
+                          {!currentUser?.email ? 'Login Required' : 'Pay with Paystack - $1'}
                         </button>
                       </div>
-                      {/* 5 Days Plan - UPDATED with cleaner design */}
+
+                      {/* UPDATED: 5 Days Plan - $2.50 */}
                       <div style={{
                         backgroundColor: 'white',
                         padding: '40px 30px',
@@ -1386,7 +1379,7 @@ function AppContent() {
                               showMessage('Please log in first to purchase credits.');
                               return;
                             }
-                            initializePaystackPayment(currentUser.email, 5, '5 Days Pro Access');
+                            initializePaystackPayment(currentUser.email, 2.5, '5 Days Pro Access');
                           }}
                           disabled={!currentUser?.email}
                           style={{
@@ -1401,7 +1394,7 @@ function AppContent() {
                             fontWeight: 'bold'
                           }}
                         >
-                          {!currentUser?.email ? 'Login Required' : 'Pay with Paystack - $5'}
+                          {!currentUser?.email ? 'Login Required' : 'Pay with Paystack - $2.50'}
                         </button>
                       </div>
                     </div>
@@ -1409,17 +1402,17 @@ function AppContent() {
                 </>
               ) : (
                 <>
-                  {/* Pro Plan */}
+                  {/* UPDATED: Simplified Pro Plans (no Free plan shown) */}
                   <div style={{ marginTop: '20px' }}>
                     <h2 style={{ color: '#28a745', marginBottom: '30px' }}>
                       🔄 Monthly Pro Plans
                     </h2>
                     <p style={{ color: '#666', marginBottom: '30px' }}>
-                      Go Pro
+                      Recurring monthly plans with 2Checkout integration
                     </p>
                     
                     <div style={{ display: 'flex', gap: '30px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                      {/* Pro Plan */}
+                      {/* UPDATED: Only Pro Plan shown */}
                       <div style={{
                         backgroundColor: 'white',
                         padding: '40px 30px',
@@ -1501,6 +1494,7 @@ function AppContent() {
                   </div>
                 </>
               )}
+
               {/* Common Features Section */}
               <div style={{
                 marginTop: '60px',
@@ -1587,7 +1581,6 @@ function AppContent() {
                   )}
                 </div>
               )}
-
               {/* Record Audio Section */}
               <div style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -1943,6 +1936,7 @@ function AppContent() {
                     {transcription}
                   </div>
                   
+                  {/* UPDATED: Changed Dashboard to History/Editor */}
                   <div style={{ 
                     marginTop: '15px', 
                     textAlign: 'center', 
@@ -1965,9 +1959,9 @@ function AppContent() {
                       onMouseEnter={(e) => e.target.style.color = '#0056b3'}
                       onMouseLeave={(e) => e.target.style.color = '#007bff'}
                     >
-                      Dashboard
+                      History/Editor
                     </button>
-                    {' '}for your transcripts history.
+                    {' '}for your transcripts.
                   </div>
                 </div>
               )}
@@ -1992,7 +1986,7 @@ function AppContent() {
             </div>
           )}
 
-          {/* NEW: Payment Modal */}
+          {/* Payment Modal */}
           {showPayment && selectedPlan && (
             <div style={{
               position: 'fixed',
@@ -2031,7 +2025,6 @@ function AppContent() {
     </Routes>
   );
 }
-
 // Main App Component with AuthProvider
 function App() {
   return (
