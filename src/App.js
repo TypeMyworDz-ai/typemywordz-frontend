@@ -123,6 +123,7 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   }, intervalTime);
   return interval; 
 };
+
 function AppContent() {
   const navigate = useNavigate();
   
@@ -142,7 +143,6 @@ function AppContent() {
   const [downloadFormat, setDownloadFormat] = useState('mp3');
   const [message, setMessage] = useState('');
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
-  // NEW: Language selection state
   const [selectedLanguage, setSelectedLanguage] = useState('en'); 
   
   // Payment states
@@ -162,7 +162,6 @@ function AppContent() {
   const transcriptionIntervalRef = useRef(null);
   const statusCheckTimeoutRef = useRef(null);
   const isCancelledRef = useRef(false);
-
   // Auth and user setup
   const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithMicrosoft, profileLoading } = useAuth();
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
@@ -171,6 +170,7 @@ function AppContent() {
   // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
+
   // Paystack payment functions
   const initializePaystackPayment = async (email, amount, planName, countryCode) => {
     try {
@@ -205,9 +205,8 @@ function AppContent() {
       showMessage('Payment initialization failed: ' + error.message);
     }
   };
-
-  // Handle payment success callback (UPDATED to pass plan name)
-  const handlePaystackCallback = async () => {
+  // Handle payment success callback
+  const handlePaystackCallback = useCallback(async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const reference = urlParams.get('reference');
     const paymentStatus = urlParams.get('payment');
@@ -230,7 +229,6 @@ function AppContent() {
         console.log('Payment verification result:', data);
         
         if (response.ok && data.status === 'success') {
-          // NEW: Pass the actual plan name from payment verification result
           await updateUserPlan(currentUser.uid, data.data.plan, reference); 
           await refreshUserProfile();
           
@@ -248,7 +246,7 @@ function AppContent() {
     } else if (paymentStatus === 'success') {
       showMessage('Payment completed! Please wait for verification...');
     }
-  };
+  }, [currentUser, showMessage, refreshUserProfile, setCurrentView]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -259,8 +257,7 @@ function AppContent() {
       console.log('Payment callback detected');
       handlePaystackCallback();
     }
-  }, [currentUser, handlePaystackCallback]); // Add handlePaystackCallback to dependencies
-
+  }, [currentUser, handlePaystackCallback]);
   // Enhanced reset function with better job cancellation
   const resetTranscriptionProcessUI = useCallback(() => { 
     console.log('🔄 Resetting transcription UI and cancelling any ongoing processes');
@@ -303,12 +300,12 @@ function AppContent() {
       console.log('✅ Reset complete, ready for new operations');
     }, 500);
   }, []);
-
   useEffect(() => {
     if (userProfile) {
       console.log('DIAGNOSTIC: userProfile.totalMinutesUsed updated to:', userProfile.totalMinutesUsed);
     }
   }, [userProfile?.totalMinutesUsed]);
+
   // Enhanced file selection with proper job cancellation
   const handleFileSelect = useCallback(async (event) => {
     const file = event.target.files[0];
@@ -354,7 +351,6 @@ function AppContent() {
       audio.src = audioUrl;
     }
   }, [showMessage, resetTranscriptionProcessUI, jobId, status]);
-
   // Enhanced recording function with proper job cancellation
   const startRecording = useCallback(async () => {
     if (jobId && (status === 'processing' || status === 'uploading')) {
@@ -439,7 +435,6 @@ function AppContent() {
       showMessage('Could not access microphone: ' + error.message);
     }
   }, [resetTranscriptionProcessUI, showMessage, isUploading, userProfile, profileLoading, jobId, status]);
-
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
@@ -447,6 +442,7 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
+
   // Improved cancel function with page refresh
   const handleCancelUpload = useCallback(async () => {
     console.log('🛑 FORCE CANCEL - Stopping everything immediately');
@@ -497,7 +493,6 @@ function AppContent() {
     
     console.log('✅ Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage]);
-
   // handleTranscriptionComplete with debugging logs
   const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
     try {
@@ -533,18 +528,17 @@ function AppContent() {
       showMessage('Failed to save transcription or update usage.');
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]);
-
-  // Handle successful payment (UPDATED to pass plan name)
-  const handlePaymentSuccess = useCallback(async (subscriptionId, planType) => {
+  // Handle successful payment
+  const handlePaymentSuccess = useCallback(async (planName, subscriptionId) => { // Swapped order to match backend
     try {
-      await updateUserPlan(currentUser.uid, planType, subscriptionId);
+      await updateUserPlan(currentUser.uid, planName, subscriptionId); // Pass planName directly
       
       await refreshUserProfile();
       
       setShowPayment(false);
       setSelectedPlan(null);
       
-      showMessage(`🎉 Successfully upgraded to ${planType.charAt(0).toUpperCase() + planType.slice(1)} plan! You now have unlimited transcription access.`);
+      showMessage(`🎉 Successfully upgraded to ${planName.charAt(0).toUpperCase() + planName.slice(1)} plan! You now have unlimited transcription access.`);
       
       setCurrentView('transcribe');
     } catch (error) {
@@ -552,7 +546,6 @@ function AppContent() {
       showMessage('Payment successful but there was an error updating your account. Please contact support.');
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
-
   // checkJobStatus to pass jobId to handleTranscriptionComplete
   const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => {
     if (isCancelledRef.current) {
@@ -669,8 +662,7 @@ function AppContent() {
       abortControllerRef.current = null;
     }
   }, [handleTranscriptionComplete, showMessage]);
-
-  // Enhanced upload function with proper interval tracking (UPDATED to send language)
+  // Enhanced upload function with proper interval tracking
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
@@ -710,7 +702,7 @@ function AppContent() {
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
-      formData.append('language_code', selectedLanguage); // NEW: Append selected language
+      formData.append('language_code', selectedLanguage); 
 
       const response = await fetch(`${BACKEND_URL}/transcribe`, {
         method: 'POST',
@@ -753,8 +745,7 @@ function AppContent() {
     } finally {
       abortControllerRef.current = null;
     }
-  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile, profileLoading, selectedLanguage]); // NEW: Add selectedLanguage to dependencies
-
+  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile, profileLoading, selectedLanguage]);
   // Copy to clipboard - only for paid users
   const copyToClipboard = useCallback(() => { 
     if (userProfile?.plan === 'free') {
@@ -826,7 +817,6 @@ function AppContent() {
       showMessage('No recorded audio available to download.');
     }
   }, [showMessage, downloadFormat]);
-
   const handleLogout = useCallback(async () => {
     try {
       await logout();
@@ -851,11 +841,12 @@ function AppContent() {
     setSelectedPlan(planType);
     setShowPayment(true);
   }, []);
+
   // useEffect to handle 30-minute trial for free users
   useEffect(() => {
     if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
       const remainingMinutes = 30 - (userProfile.totalMinutesUsed || 0);
-      if (userProfile.plan === 'business' || userProfile.plan === 'pro' || (userProfile.plan === 'free' && remainingMinutes > 0)) { // Include 'pro' for auto-upload
+      if (userProfile.plan === 'business' || userProfile.plan === 'pro' || (userProfile.plan === 'free' && remainingMinutes > 0)) {
         console.log('DIAGNOSTIC: Auto-upload triggered. User plan:', userProfile.plan, 'Remaining minutes:', remainingMinutes);
         const timer = setTimeout(() => {
           handleUpload();
@@ -880,7 +871,6 @@ function AppContent() {
       }
     };
   }, []);
-
   // Login screen for non-authenticated users
   if (!currentUser) {
     return (
@@ -1060,10 +1050,10 @@ function AppContent() {
                   strokeLinejoin="round" 
                   strokeWidth={2} 
                   d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
-                />
-              </svg>
-              ✏️ Transcription Editor
-            </button>
+              />
+            </svg>
+            ✏️ Transcription Editor
+          </button>
           </div>
           {currentView === 'transcribe' && (
             <header style={{ 
@@ -1100,7 +1090,7 @@ function AppContent() {
                 {userProfile && userProfile.plan === 'business' ? (
                   <span>Plan: Unlimited Transcription</span>
                 ) : userProfile && userProfile.plan === 'pro' ? (
-                  <span>Plan: Pro (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt.toDate()).toLocaleDateString()}`}</span> // NEW: Show expiry date
+                  <span>Plan: Pro (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt.toDate()).toLocaleDateString()}`}</span>
                 ) : userProfile && userProfile.plan === 'free' ? (
                   <span>Plan: Free Trial ({Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining)</span>
                 ) : (
@@ -1137,7 +1127,7 @@ function AppContent() {
                     Fix Profile
                   </button>
                 )}
-              &lt;/div&gt;
+              </div>
             </header>
           )}
           {profileLoading && (
@@ -1796,7 +1786,7 @@ function AppContent() {
                     )}
                   </div>
 
-                  {/* NEW: Language Selection Dropdown */}
+                  {/* Language Selection Dropdown */}
                   <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
                     <label htmlFor="languageSelect" style={{ color: '#6c5ce7', fontWeight: 'bold', fontSize: '1.1rem' }}>
                       Transcription Language:
@@ -1823,7 +1813,6 @@ function AppContent() {
                       <option value="zh">Chinese</option>
                       <option value="ja">Japanese</option>
                       <option value="ko">Korean</option>
-                      {/* Add more languages as supported by Whisper/AssemblyAI */}
                     </select>
                   </div>
                   
@@ -2119,6 +2108,7 @@ function AppContent() {
     </Routes>
   );
 }
+
 // Main App Component with AuthProvider
 function App() {
   return (
