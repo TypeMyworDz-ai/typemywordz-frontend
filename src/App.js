@@ -233,6 +233,11 @@ function AppContent() {
   }, [RENDER_WHISPER_URL]);
 
   const transcribeWithOpenAIWhisper = useCallback(async (audioFile, language = 'en') => {
+    const openaiApiKey = process.env.REACT_APP_OPENAI_API_KEY;
+    if (!openaiApiKey) {
+      throw new Error('OpenAI API key is not configured.');
+    }
+
     const formData = new FormData();
     formData.append('file', audioFile);
     formData.append('model', 'whisper-1');
@@ -242,7 +247,7 @@ function AppContent() {
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.REACT_APP_OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${openaiApiKey}`,
       },
       body: formData,
       signal: abortControllerRef.current?.signal
@@ -257,7 +262,7 @@ function AppContent() {
       status: 'completed',
       transcript: result.text
     };
-  }, []);
+  }, []); // openaiApiKey is a static value from process.env, no need to include in dependencies.
 
   const transcribeWithRailwayAssemblyAI = useCallback(async (formData) => {
     const response = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, {
@@ -1186,59 +1191,59 @@ function AppContent() {
                 strokeLinejoin="round" 
                 strokeWidth={2} 
                 d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
-              />
-            </svg>
-            ✏️ Transcription Editor
-          </button>
-        </div>
-        <header style={{ 
-          textAlign: 'center', 
-          padding: '60px 20px',
-          color: 'white'
-        }}>
-          <h1 style={{ 
-            fontSize: '3.5rem', 
-            margin: '0 0 20px 0',
-            fontWeight: '300',
-            textShadow: '0 2px 4px rgba(0,0,0,0.3)'
-          }}>
-            TypeMyworDz
-          </h1>
-          <p style={{ 
-            fontSize: '1.5rem', 
-            margin: '0 0 10px 0',
-            opacity: '0.9'
-          }}>
-            You Talk, We Type
-          </p>
-          <p style={{ 
-            fontSize: '1.1rem', 
-            margin: '0',
-            opacity: '0.8'
-          }}>
-            Speech to Text AI • Simple, Accurate, Powerful • Now with 30-Minute Free Trial
-          </p>
-        </header>
-        
-        <div style={{ 
-          flex: 1, 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'flex-start',
-          padding: '0 20px'
-        }}>
-          <Login />
-        </div>
-        <ToastNotification message={message} onClose={clearMessage} />
-        <footer style={{ 
-          textAlign: 'center', 
-          padding: '20px', 
-          color: 'rgba(255, 255, 255, 0.7)', 
-          fontSize: '0.9rem' 
-        }}>
-          © {new Date().getFullYear()} TypeMyworDz, Inc.
-        </footer>
+            />
+          </svg>
+          ✏️ Transcription Editor
+        </button>
       </div>
+      <header style={{ 
+        textAlign: 'center', 
+        padding: '60px 20px',
+        color: 'white'
+      }}>
+        <h1 style={{ 
+          fontSize: '3.5rem', 
+          margin: '0 0 20px 0',
+          fontWeight: '300',
+          textShadow: '0 2px 4px rgba(0,0,0,0.3)'
+        }}>
+          TypeMyworDz
+        </h1>
+        <p style={{ 
+          fontSize: '1.5rem', 
+          margin: '0 0 10px 0',
+          opacity: '0.9'
+        }}>
+          You Talk, We Type
+        </p>
+        <p style={{ 
+          fontSize: '1.1rem', 
+          margin: '0',
+          opacity: '0.8'
+        }}>
+          Speech to Text AI • Simple, Accurate, Powerful • Now with 30-Minute Free Trial
+        </p>
+      </header>
+      
+      <div style={{ 
+        flex: 1, 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'flex-start',
+        padding: '0 20px'
+      }}>
+        <Login />
+      </div>
+      <ToastNotification message={message} onClose={clearMessage} />
+      <footer style={{ 
+        textAlign: 'center', 
+        padding: '20px', 
+        color: 'rgba(255, 255, 255, 0.7)', 
+        fontSize: '0.9rem' 
+      }}>
+        © {new Date().getFullYear()} TypeMyworDz, Inc.
+      </footer>
+    </div>
     );
   }
 
