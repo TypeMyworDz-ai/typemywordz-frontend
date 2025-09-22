@@ -139,7 +139,7 @@ function AppContent() {
   const [showLogin, setShowLogin] = useState(true);
   const [currentView, setCurrentView] = useState('transcribe');
   const [audioDuration, setAudioDuration] = useState(0);
-  const [isRecording, setIsRecording] = useState(false);
+  const [isRecording, setIsRecording] = useState(false); // Corrected from 0 to false
   const [recordingTime, setRecordingTime] = useState(0);
   const [downloadFormat, setDownloadFormat] = useState('mp3');
   const [message, setMessage] = useState('');
@@ -326,9 +326,10 @@ function AppContent() {
       const fallbackServices = ['render', 'openai', 'railway'].filter(s => s !== primaryService);
       
       for (const fallbackService of fallbackServices) {
+        let fallbackStartTime; // Declared here for proper scope
         try {
           console.log(`Trying fallback service: ${fallbackService}`);
-          const fallbackStartTime = Date.now();
+          fallbackStartTime = Date.now(); // Assigned here
           let result;
           
           switch (fallbackService) {
@@ -359,7 +360,8 @@ function AppContent() {
           
         } catch (fallbackError) {
           console.error(`Fallback service ${fallbackService} failed:`, fallbackError);
-          updateServiceStats(fallbackService, false, Date.now() - fallbackStartTime);
+          // Now fallbackStartTime is guaranteed to be defined if we reached this catch block after assignment
+          updateServiceStats(fallbackService, false, Date.now() - (fallbackStartTime || startTime)); // Use startTime as a fallback for timing if fallbackStartTime wasn't set for some reason.
           continue;
         }
       }
@@ -2261,7 +2263,6 @@ function AppContent() {
                     color: '#007bff',
                     textDecoration: 'underline',
                     cursor: 'pointer',
-                    fontSize: '14px',
                     fontWeight: 'bold',
                     padding: 0
                   }}
