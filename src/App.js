@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'; // Added useMemo
 import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
@@ -162,8 +162,12 @@ function AppContent() {
   const isCancelledRef = useRef(false);
   // Auth and user setup
   const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithMicrosoft, profileLoading } = useAuth();
-  const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; 
-  const isAdmin = ADMIN_EMAILS.includes(currentUser?.email); 
+  
+  // Derive isAdmin safely AFTER currentUser is available, using useMemo
+  const isAdmin = useMemo(() => {
+    const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; 
+    return currentUser && ADMIN_EMAILS.includes(currentUser.email);
+  }, [currentUser]);
 
   // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
@@ -1120,7 +1124,15 @@ function AppContent() {
       }
     };
   }, []);
-  // Login screen for non-authenticated users
+  // Main JSX return for AppContent
+  if (profileLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', fontSize: '2rem' }}>
+        <h1>Loading authentication...</h1>
+      </div>
+    );
+  }
+
   if (!currentUser) {
     return (
       <div style={{ 
@@ -1215,7 +1227,6 @@ function AppContent() {
           alignItems: 'flex-start',
           padding: '0 20px'
         }}>
-          <h2 style={{color: 'red'}}>LOGIN SCREEN SHOULD BE HERE</h2> {/* TEMPORARY DEBUG TEXT */}
           <Login />
         </div>
         <ToastNotification message={message} onClose={clearMessage} />
@@ -1231,7 +1242,7 @@ function AppContent() {
     );
   }
 
-  // CORRECTED: AppContent directly returns the main UI structure, not nested <Routes>
+  // Authenticated User UI
   return (
     <div style={{ 
       minHeight: '100vh',
