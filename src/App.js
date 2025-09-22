@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
 import Signup from './components/Signup';
 import Dashboard from './components/Dashboard';
-import AdminDashboard from './components/AdminDashboard';  // ✅ Fixed - removed duplicate "components/"
+import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
 import StripePayment from './components/StripePayment';
@@ -15,6 +15,7 @@ import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 
 // Configuration
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
+
 // Enhanced Toast Notification Component
 const ToastNotification = ({ message, onClose }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -141,6 +142,8 @@ function AppContent() {
   const [downloadFormat, setDownloadFormat] = useState('mp3');
   const [message, setMessage] = useState('');
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
+  // NEW: Language selection state
+  const [selectedLanguage, setSelectedLanguage] = useState('en'); 
   
   // Payment states
   const [showPayment, setShowPayment] = useState(false);
@@ -203,7 +206,7 @@ function AppContent() {
     }
   };
 
-  // Handle payment success callback
+  // Handle payment success callback (UPDATED to pass plan name)
   const handlePaystackCallback = async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const reference = urlParams.get('reference');
@@ -226,8 +229,9 @@ function AppContent() {
         const data = await response.json();
         console.log('Payment verification result:', data);
         
-        if (data.status === 'success') {
-          await updateUserPlan(currentUser.uid, 'pro', reference);
+        if (response.ok && data.status === 'success') {
+          // NEW: Pass the actual plan name from payment verification result
+          await updateUserPlan(currentUser.uid, data.data.plan, reference); 
           await refreshUserProfile();
           
           showMessage(`🎉 Payment successful! ${data.data.plan} activated.`);
@@ -255,7 +259,8 @@ function AppContent() {
       console.log('Payment callback detected');
       handlePaystackCallback();
     }
-  }, [currentUser]);
+  }, [currentUser, handlePaystackCallback]); // Add handlePaystackCallback to dependencies
+
   // Enhanced reset function with better job cancellation
   const resetTranscriptionProcessUI = useCallback(() => { 
     console.log('🔄 Resetting transcription UI and cancelling any ongoing processes');
@@ -529,7 +534,7 @@ function AppContent() {
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]);
 
-  // Handle successful payment
+  // Handle successful payment (UPDATED to pass plan name)
   const handlePaymentSuccess = useCallback(async (subscriptionId, planType) => {
     try {
       await updateUserPlan(currentUser.uid, planType, subscriptionId);
@@ -547,6 +552,7 @@ function AppContent() {
       showMessage('Payment successful but there was an error updating your account. Please contact support.');
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
+
   // checkJobStatus to pass jobId to handleTranscriptionComplete
   const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => {
     if (isCancelledRef.current) {
@@ -663,7 +669,8 @@ function AppContent() {
       abortControllerRef.current = null;
     }
   }, [handleTranscriptionComplete, showMessage]);
-  // Enhanced upload function with proper interval tracking
+
+  // Enhanced upload function with proper interval tracking (UPDATED to send language)
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
@@ -703,6 +710,7 @@ function AppContent() {
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
+      formData.append('language_code', selectedLanguage); // NEW: Append selected language
 
       const response = await fetch(`${BACKEND_URL}/transcribe`, {
         method: 'POST',
@@ -745,7 +753,8 @@ function AppContent() {
     } finally {
       abortControllerRef.current = null;
     }
-  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile, profileLoading]);
+  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile, profileLoading, selectedLanguage]); // NEW: Add selectedLanguage to dependencies
+
   // Copy to clipboard - only for paid users
   const copyToClipboard = useCallback(() => { 
     if (userProfile?.plan === 'free') {
@@ -846,7 +855,7 @@ function AppContent() {
   useEffect(() => {
     if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
       const remainingMinutes = 30 - (userProfile.totalMinutesUsed || 0);
-      if (userProfile.plan === 'business' || (userProfile.plan === 'free' && remainingMinutes > 0)) {
+      if (userProfile.plan === 'business' || userProfile.plan === 'pro' || (userProfile.plan === 'free' && remainingMinutes > 0)) { // Include 'pro' for auto-upload
         console.log('DIAGNOSTIC: Auto-upload triggered. User plan:', userProfile.plan, 'Remaining minutes:', remainingMinutes);
         const timer = setTimeout(() => {
           handleUpload();
@@ -1091,7 +1100,7 @@ function AppContent() {
                 {userProfile && userProfile.plan === 'business' ? (
                   <span>Plan: Unlimited Transcription</span>
                 ) : userProfile && userProfile.plan === 'pro' ? (
-                  <span>Plan: Pro (Unlimited Transcription)</span>
+                  <span>Plan: Pro (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt.toDate()).toLocaleDateString()}`}</span> // NEW: Show expiry date
                 ) : userProfile && userProfile.plan === 'free' ? (
                   <span>Plan: Free Trial ({Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining)</span>
                 ) : (
@@ -1128,7 +1137,7 @@ function AppContent() {
                     Fix Profile
                   </button>
                 )}
-              </div>
+              &lt;/div&gt;
             </header>
           )}
           {profileLoading && (
@@ -1540,7 +1549,7 @@ function AppContent() {
                           <li>✅ High accuracy AI transcription</li>
                           <li>✅ Priority processing</li>
                           <li>✅ Copy to clipboard feature</li>
-                          <li>✅ MS Word & TXT downloads</li>
+                          <li>✅ MS Word &amp; TXT downloads</li>
                           <li>✅ 7-day file storage</li>
                           <li>✅ Email support</li>
                         </ul>
@@ -1587,7 +1596,7 @@ function AppContent() {
                   <div>✅ Fast processing times</div>
                   <div>✅ Easy-to-use interface</div>
                   <div>✅ Mobile-friendly design</div>
-                  <div>✅ Regular updates & improvements</div>
+                  <div>✅ Regular updates &amp; improvements</div>
                 </div>
               </div>
             </div>
@@ -1786,6 +1795,37 @@ function AppContent() {
                       </div>
                     )}
                   </div>
+
+                  {/* NEW: Language Selection Dropdown */}
+                  <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
+                    <label htmlFor="languageSelect" style={{ color: '#6c5ce7', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                      Transcription Language:
+                    </label>
+                    <select
+                      id="languageSelect"
+                      value={selectedLanguage}
+                      onChange={(e) => setSelectedLanguage(e.target.value)}
+                      style={{
+                        padding: '8px 15px',
+                        borderRadius: '8px',
+                        border: '1px solid #6c5ce7',
+                        fontSize: '16px',
+                        minWidth: '150px'
+                      }}
+                    >
+                      <option value="en">English (Default)</option>
+                      <option value="es">Spanish</option>
+                      <option value="fr">French</option>
+                      <option value="de">German</option>
+                      <option value="it">Italian</option>
+                      <option value="pt">Portuguese</option>
+                      <option value="ru">Russian</option>
+                      <option value="zh">Chinese</option>
+                      <option value="ja">Japanese</option>
+                      <option value="ko">Korean</option>
+                      {/* Add more languages as supported by Whisper/AssemblyAI */}
+                    </select>
+                  </div>
                   
                   {(status === 'processing' || status === 'uploading') && (
                     <div style={{ marginBottom: '20px' }}>
@@ -1804,7 +1844,7 @@ function AppContent() {
                         }}></div>
                       </div>
                       <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
-                        🗜️ Compressing & Transcribing Audio...
+                        🗜️ Compressing &amp; Transcribing Audio...
                       </div>
                     </div>
                   )}
@@ -1879,7 +1919,7 @@ function AppContent() {
                   </h3>
                   {status === 'failed' && (
                     <p style={{ margin: '10px 0 0 0', color: '#666' }}>
-                      Transcription failed. Check Your Network & Refresh the Page.
+                      Transcription failed. Check Your Network &amp; Refresh the Page.
                     </p>
                   )}
                 </div>
