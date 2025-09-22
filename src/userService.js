@@ -31,7 +31,7 @@ export const createUserProfile = async (uid, email, name = '') => {
       lastAccessed: new Date(),
       expiresAt: ADMIN_EMAILS.includes(email) ? null : null, 
       subscriptionStartDate: ADMIN_EMAILS.includes(email) ? new Date() : null,
-      // stripeSubscriptionId: ADMIN_EMAILS.includes(email) ? 'ADMIN_UNLIMITED' : null, // REMOVED Stripe reference
+      // stripeSubscriptionId: ADMIN_EMAITED_UNLIMITED' : null, // REMOVED Stripe reference
     });
     console.log("User profile created for:", email, "with plan:", userPlan);
   } else {
