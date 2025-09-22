@@ -17,6 +17,7 @@ import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 // NEW: Frontend now directly knows both Render and Railway URLs
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
 const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com'; // Your Render Whisper URL
+
 // Enhanced Toast Notification Component
 const ToastNotification = ({ message, onClose }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -124,7 +125,6 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   }, intervalTime);
   return interval; 
 };
-
 function AppContent() {
   const navigate = useNavigate();
   
@@ -168,6 +168,206 @@ function AppContent() {
   // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
+
+  // NEW: State variables for intelligent service routing
+  const [serviceRotationIndex, setServiceRotationIndex] = useState(0);
+  const [serviceStats, setServiceStats] = useState({
+    render: { successes: 0, failures: 0, avgResponseTime: 0 },
+    openai: { successes: 0, failures: 0, avgResponseTime: 0 },
+    railway: { successes: 0, failures: 0, avgResponseTime: 0 }
+  });
+
+  // NEW: Intelligent service selection based on performance and rotation
+  const getNextService = useCallback(() => {
+    const services = ['render', 'openai', 'railway'];
+    
+    // Simple round-robin with performance weighting
+    const availableServices = services.filter(service => {
+      const stats = serviceStats[service];
+      const successRate = stats.successes + stats.failures > 0 
+        ? stats.successes / (stats.successes + stats.failures) 
+        : 1;
+      return successRate > 0.3; // Only use services with >30% success rate
+    });
+
+    if (availableServices.length === 0) {
+      return 'render'; // Fallback to render if all services are failing
+    }
+
+    const selectedService = availableServices[serviceRotationIndex % availableServices.length];
+    setServiceRotationIndex(prev => prev + 1);
+    
+    console.log(`Selected service: ${selectedService} (rotation index: ${serviceRotationIndex})`);
+    return selectedService;
+  }, [serviceRotationIndex, serviceStats]);
+
+  // NEW: Update service statistics
+  const updateServiceStats = useCallback((service, success, responseTime) => {
+    setServiceStats(prev => ({
+      ...prev,
+      [service]: {
+        successes: success ? prev[service].successes + 1 : prev[service].successes,
+        failures: success ? prev[service].failures : prev[service].failures + 1,
+        avgResponseTime: responseTime || prev[service].avgResponseTime
+      }
+    }));
+  }, []);
+
+  // NEW: Individual service functions (clean, no user messages)
+  const transcribeWithRenderWhisper = useCallback(async (formData) => {
+    const response = await fetch(`${RENDER_WHISPER_URL}/transcribe`, {
+      method: 'POST',
+      body: formData,
+      signal: abortControllerRef.current.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Render Whisper failed: ${response.status}`);
+    }
+    
+    return await response.json();
+  }, [RENDER_WHISPER_URL]);
+
+  const transcribeWithOpenAIWhisper = useCallback(async (audioFile, language = 'en') => {
+    const formData = new FormData();
+    formData.append('file', audioFile);
+    formData.append('model', 'whisper-1');
+    formData.append('language', language);
+    formData.append('response_format', 'json');
+    
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.REACT_APP_OPENAI_API_KEY}`,
+      },
+      body: formData,
+      signal: abortControllerRef.current?.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenAI Whisper failed: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return {
+      status: 'completed',
+      transcript: result.text
+    };
+  }, []);
+
+  const transcribeWithRailwayAssemblyAI = useCallback(async (formData) => {
+    const response = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, {
+      method: 'POST',
+      body: formData,
+      signal: abortControllerRef.current.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`Railway AssemblyAI failed: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    
+    if (result && result.job_id) {
+      const transcriptionJobId = result.job_id;
+      setUploadProgress(100);
+      setStatus('processing');
+      setJobId(transcriptionJobId);
+      transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1);
+      checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current, 'railway');
+      return { status: 'processing', job_id: result.job_id };
+    } else {
+      throw new Error('Railway returned no job ID');
+    }
+  }, [RAILWAY_BACKEND_URL, checkJobStatus]);
+  // NEW: Handle small file transcription with intelligent routing
+  const handleSmallFileTranscription = useCallback(async (formData, fileSizeMB) => {
+    const primaryService = getNextService();
+    const startTime = Date.now();
+    
+    try {
+      let result;
+      
+      switch (primaryService) {
+        case 'render':
+          result = await transcribeWithRenderWhisper(formData);
+          break;
+        case 'openai':
+          result = await transcribeWithOpenAIWhisper(selectedFile, selectedLanguage);
+          break;
+        case 'railway':
+          result = await transcribeWithRailwayAssemblyAI(formData);
+          return; // Railway is async, so return early
+        default:
+          throw new Error('Unknown service');
+      }
+      
+      const responseTime = Date.now() - startTime;
+      updateServiceStats(primaryService, true, responseTime);
+      
+      if (result.status === 'completed' && result.transcript) {
+        const transcriptionJobId = `${primaryService.toUpperCase()}-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+        
+        setTranscription(result.transcript);
+        setTranscriptionProgress(100);
+        setStatus('completed');
+        await handleTranscriptionComplete(result.transcript, transcriptionJobId);
+        setIsUploading(false);
+        return;
+      } else {
+        throw new Error(`${primaryService} returned invalid result`);
+      }
+      
+    } catch (primaryError) {
+      console.error(`Primary service ${primaryService} failed:`, primaryError);
+      updateServiceStats(primaryService, false, Date.now() - startTime);
+      
+      // Try fallback services
+      const fallbackServices = ['render', 'openai', 'railway'].filter(s => s !== primaryService);
+      
+      for (const fallbackService of fallbackServices) {
+        try {
+          console.log(`Trying fallback service: ${fallbackService}`);
+          const fallbackStartTime = Date.now();
+          let result;
+          
+          switch (fallbackService) {
+            case 'render':
+              result = await transcribeWithRenderWhisper(formData);
+              break;
+            case 'openai':
+              result = await transcribeWithOpenAIWhisper(selectedFile, selectedLanguage);
+              break;
+            case 'railway':
+              result = await transcribeWithRailwayAssemblyAI(formData);
+              return; // Railway is async
+          }
+          
+          const responseTime = Date.now() - fallbackStartTime;
+          updateServiceStats(fallbackService, true, responseTime);
+          
+          if (result.status === 'completed' && result.transcript) {
+            const transcriptionJobId = `${fallbackService.toUpperCase()}-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+            
+            setTranscription(result.transcript);
+            setTranscriptionProgress(100);
+            setStatus('completed');
+            await handleTranscriptionComplete(result.transcript, transcriptionJobId);
+            setIsUploading(false);
+            return;
+          }
+          
+        } catch (fallbackError) {
+          console.error(`Fallback service ${fallbackService} failed:`, fallbackError);
+          updateServiceStats(fallbackService, false, Date.now() - fallbackStartTime);
+          continue;
+        }
+      }
+      
+      throw new Error('All transcription services failed');
+    }
+  }, [getNextService, updateServiceStats, selectedFile, selectedLanguage, handleTranscriptionComplete, transcribeWithRenderWhisper, transcribeWithOpenAIWhisper, transcribeWithRailwayAssemblyAI]);
+
   // Paystack payment functions
   const initializePaystackPayment = async (email, amount, planName, countryCode) => {
     try {
@@ -181,7 +381,7 @@ function AppContent() {
         body: JSON.stringify({
           email: email,
           amount: amount,
-          plan_name: planName,
+          plan_name: planName, // This uses the planName passed from the UI
           user_id: currentUser.uid,
           country_code: countryCode,
           callback_url: `${window.location.origin}/?payment=success`
@@ -256,6 +456,7 @@ function AppContent() {
       handlePaystackCallback();
     }
   }, [currentUser, handlePaystackCallback]);
+
   // Enhanced reset function with better job cancellation
   const resetTranscriptionProcessUI = useCallback(() => { 
     console.log('🔄 Resetting transcription UI and cancelling any ongoing processes');
@@ -356,6 +557,7 @@ function AppContent() {
       audio.src = audioUrl;
     }
   }, [showMessage, resetTranscriptionProcessUI, jobId, status, RAILWAY_BACKEND_URL]);
+
   // Enhanced recording function with proper job cancellation
   const startRecording = useCallback(async () => {
     if (jobId && (status === 'processing' || status === 'uploading')) {
@@ -454,6 +656,7 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
+
   // Improved cancel function with page refresh
   const handleCancelUpload = useCallback(async () => {
     console.log('🛑 FORCE CANCEL - Stopping everything immediately');
@@ -565,6 +768,7 @@ function AppContent() {
       showMessage('Payment successful but there was an error updating your account. Please contact support.');
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
+
   // checkJobStatus for frontend-orchestrated jobs
   const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval, sourceBackend) => {
     if (isCancelledRef.current) {
@@ -592,8 +796,7 @@ function AppContent() {
         // it means the initial POST to Render didn't immediately return a completed status,
         // which shouldn't happen with our current synchronous Whisper service.
         // If Render were asynchronous, we'd poll its status endpoint here.
-        // For now, if sourceBackend is 'render', it implies it was a direct Render call
-        // that either succeeded or failed immediately within handleUpload.
+        // For now, if sourceBackend is 'render', it's handled synchronously in handleSmallFileTranscription.
         clearInterval(transcriptionInterval); // Stop polling
         setStatus('failed'); // Mark as failed if we're polling Render and it's not synchronous
         showMessage('Error: Unexpected status check for Render Whisper service. Assuming failure.');
@@ -697,7 +900,7 @@ function AppContent() {
       abortControllerRef.current = null;
     }
   }, [handleTranscriptionComplete, showMessage, RAILWAY_BACKEND_URL]);
-  // NEW: Handle Upload Logic with Frontend Orchestration (Render priority, Railway fallback)
+  // NEW: Enhanced Handle Upload Logic with File Size Routing (REPLACE your existing handleUpload)
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
@@ -733,104 +936,63 @@ function AppContent() {
     setStatus('processing');
     abortControllerRef.current = new AbortController();
 
+    // File size routing logic
+    const fileSizeMB = selectedFile.size / (1024 * 1024);
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('language_code', selectedLanguage);
 
-    let finalTranscription = '';
-    let transcriptionJobId = '';
-    let selectedService = '';
-
     try {
-      // 1. Try Render Whisper Service (Priority)
-      showMessage('Attempting transcription with Render Whisper...');
-      console.log(`Attempting POST to Render Whisper: ${RENDER_WHISPER_URL}/transcribe`);
-      const renderResponse = await fetch(`${RENDER_WHISPER_URL}/transcribe`, {
-        method: 'POST',
-        body: formData,
-        signal: abortControllerRef.current.signal,
-      });
-
-      if (!renderResponse.ok) {
-        throw new Error(`Render Whisper failed with status: ${renderResponse.status} - ${renderResponse.statusText}`);
-      }
-      const renderResult = await renderResponse.json();
-      console.log('Render Whisper transcription response:', renderResult);
-
-      if (renderResult.status === 'completed' && renderResult.transcript) {
-        finalTranscription = renderResult.transcript;
-        // For synchronous Render jobs, generate a client-side Job ID
-        transcriptionJobId = `RENDER-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`; 
-        selectedService = 'render';
-        showMessage('Transcription completed successfully with Render Whisper!');
+      // Route based on file size
+      if (fileSizeMB > 25) {
+        // Large files: Only use Render Whisper (can handle large files)
+        console.log(`Large file detected (${fileSizeMB.toFixed(2)}MB). Using Render Whisper only.`);
         
-        // Immediately complete the UI and save the transcription since Render is synchronous
-        setTranscription(finalTranscription);
-        setTranscriptionProgress(100);
-        setStatus('completed');
-        await handleTranscriptionComplete(finalTranscription, transcriptionJobId); // Call to save and update usage
-        setIsUploading(false);
-        return; // Exit here if Render was successful
-      } else {
-        throw new Error(`Render Whisper returned non-completed status or no transcript: ${JSON.stringify(renderResult)}`);
-      }
-
-    } catch (renderError) {
-      console.error('Render Whisper transcription failed:', renderError);
-      showMessage('Render Whisper failed. Falling back to Railway AssemblyAI...');
-      
-      // 2. Fallback to Railway AssemblyAI Service
-      try {
-        console.log(`Attempting POST to Railway AssemblyAI fallback: ${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`);
-        const railwayResponse = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, { // NEW ENDPOINT
+        const renderResponse = await fetch(`${RENDER_WHISPER_URL}/transcribe`, {
           method: 'POST',
           body: formData,
-          signal: abortControllerRef.current.signal
+          signal: abortControllerRef.current.signal,
         });
 
-        if (!railwayResponse.ok) {
-          throw new Error(`Railway AssemblyAI fallback failed with status: ${railwayResponse.status} - ${railwayResponse.statusText}`);
+        if (!renderResponse.ok) {
+          throw new Error(`Render Whisper failed with status: ${renderResponse.status} - ${renderResponse.statusText}`);
         }
-        const railwayResult = await railwayResponse.json();
-        console.log('Railway AssemblyAI fallback transcription response:', railwayResult);
+        
+        const renderResult = await renderResponse.json();
+        console.log('Render Whisper transcription response:', renderResult);
 
-        if (railwayResult && railwayResult.job_id) {
-          transcriptionJobId = railwayResult.job_id;
-          selectedService = 'railway';
-          showMessage('Transcription initiated with Railway AssemblyAI fallback. Checking status...');
+        if (renderResult.status === 'completed' && renderResult.transcript) {
+          const transcriptionJobId = `RENDER-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
           
-          // Start polling Railway for status
-          setUploadProgress(100);
-          setStatus('processing');
-          setJobId(transcriptionJobId);
-          transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
-          checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current, selectedService); // Pass selectedService for polling
-          return; // Exit here if Railway fallback was successful
+          setTranscription(renderResult.transcript);
+          setTranscriptionProgress(100);
+          setStatus('completed');
+          await handleTranscriptionComplete(renderResult.transcript, transcriptionJobId);
+          setIsUploading(false);
+          return;
         } else {
-          throw new Error(`Railway AssemblyAI fallback returned no job ID: ${JSON.stringify(railwayResult)}`);
+          throw new Error('Large file transcription failed. Please try a smaller file or contact support.');
         }
-
-      } catch (railwayError) {
-        console.error('Railway AssemblyAI fallback transcription failed:', railwayError);
-        showMessage('Both transcription services failed. Please try again later.');
-        setUploadProgress(0);
-        setTranscriptionProgress(0);
-        setStatus('failed'); 
-        setIsUploading(false); 
-        return;
+      } else {
+        // Small files: Use intelligent alternating system
+        await handleSmallFileTranscription(formData, fileSizeMB);
       }
+
+    } catch (error) {
+      console.error('Transcription failed:', error);
+      if (fileSizeMB > 25) {
+        showMessage('Large file transcription failed. Please try a smaller file or contact support.');
+      } else {
+        showMessage('Transcription failed. Please try again.');
+      }
+      setUploadProgress(0);
+      setTranscriptionProgress(0);
+      setStatus('failed');
+      setIsUploading(false);
     }
 
-    // This part should ideally not be reached if either service was successful.
-    // It's a final fallback for unhandled scenarios.
-    console.error("Transcription initiation failed unexpectedly. No service provided a valid response.");
-    showMessage('Transcription failed due to an unexpected error.');
-    setUploadProgress(0);
-    setTranscriptionProgress(0);
-    setStatus('failed'); 
-    setIsUploading(false);
+  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, RAILWAY_BACKEND_URL, RENDER_WHISPER_URL, handleSmallFileTranscription]);
 
-  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, RAILWAY_BACKEND_URL, RENDER_WHISPER_URL, checkJobStatus]);
   // Copy to clipboard - only for paid users
   const copyToClipboard = useCallback(() => { 
     if (userProfile?.plan === 'free') {
@@ -1065,344 +1227,336 @@ function AppContent() {
       </div>
     );
   }
-return (
-  <Routes>
-    <Route path="/transcription/:id" element={<TranscriptionDetail />} />
-    
-    <Route path="/transcription-editor" element={<RichTextEditor />} />
-    
-    <Route path="/dashboard" element={
-      <>
-        <FloatingTranscribeButton />
-        <Dashboard setCurrentView={setCurrentView} />
-      </>
-    } />
-    
-    <Route path="/admin" element={isAdmin ? <AdminDashboard /> : <Navigate to="/" />} />
-    
-    <Route path="/" element={
+
+  // CORRECTED: AppContent directly returns the main UI structure, not nested <Routes>
+  return (
+    <div style={{ 
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      background: (currentView === 'dashboard' || currentView === 'admin' || currentView === 'pricing') ? '#f8f9fa' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+    }}>
+      <ToastNotification message={message} onClose={clearMessage} />
+
       <div style={{ 
-        minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        background: (currentView === 'dashboard' || currentView === 'admin' || currentView === 'pricing') ? '#f8f9fa' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+        position: 'absolute', 
+        top: '20px', 
+        left: '20px', 
+        zIndex: 100 
       }}>
-        <ToastNotification message={message} onClose={clearMessage} />
-
-        <div style={{ 
-          position: 'absolute', 
-          top: '20px', 
-          left: '20px', 
-          zIndex: 100 
-        }}>
-          <button
-            onClick={() => window.open('/transcription-editor', '_blank')}
-            style={{
-              backgroundColor: '#28a745',
-              color: 'white',
-              padding: '12px 25px',
-              border: 'none',
-              borderRadius: '25px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: '600',
-              boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.3s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.backgroundColor = '#218838';
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.6)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.backgroundColor = '#28a745';
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
-            }}
+        <button
+          onClick={() => window.open('/transcription-editor', '_blank')}
+          style={{
+            backgroundColor: '#28a745',
+            color: 'white',
+            padding: '12px 25px',
+            border: 'none',
+            borderRadius: '25px',
+            cursor: 'pointer',
+            fontSize: '16px',
+            fontWeight: '600',
+            boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            transition: 'all 0.3s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.backgroundColor = '#218838';
+            e.target.style.transform = 'translateY(-2px)';
+            e.target.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.6)';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.backgroundColor = '#28a745';
+            e.target.style.transform = 'translateY(0)';
+            e.target.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
+          }}
+        >
+          <svg 
+            style={{ width: '20px', height: '20px' }} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
           >
-            <svg 
-              style={{ width: '20px', height: '20px' }} 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
-              />
-            </svg>
-            ✏️ Transcription Editor
-          </button>
-        </div>
-        {currentView === 'transcribe' && (
-          <header style={{ 
-            textAlign: 'center', 
-            padding: '40px 20px',
-            color: 'white'
-          }}>
-            <h1 style={{ 
-              fontSize: '3rem', 
-              margin: '0 0 15px 0',
-              fontWeight: '300',
-              textShadow: '0 2px 4px rgba(0,0,0,0.3)'
-            }}>
-              TypeMyworDz
-            </h1>
-            <p style={{ 
-              fontSize: '1.3rem', 
-              margin: '0 0 8px 0',
-              opacity: '0.9'
-            }}>
-              You Talk, We Type
-            </p>
-            
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'center', 
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '15px',
-              fontSize: '14px',
-              opacity: '0.9'
-            }}>
-              <span>Logged in as: {userProfile?.name || currentUser.email}</span>
-              {userProfile && userProfile.plan === 'pro' ? ( 
-                <span>Plan: Pro (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
-              ) : userProfile && userProfile.plan === '24 Hours Pro Access' ? (
-                <span>Plan: 24 Hours Pro Access {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
-              ) : userProfile && userProfile.plan === '5 Days Pro Access' ? (
-                <span>Plan: 5 Days Pro Access {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
-              ) : userProfile && userProfile.plan === 'free' ? (
-                <span>Plan: Free Trial ({Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining)</span>
-              ) : (
-                <span>Plan: Free (Recording Only - Upgrade for Transcription)</span>
-              )}
-              <button
-                onClick={handleLogout}
-                style={{
-                  padding: '6px 12px',
-                  backgroundColor: 'rgba(220, 53, 69, 0.8)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '12px'
-                }}
-              >
-                Logout
-              </button>
-              {isAdmin && (
-                <button
-                  onClick={createMissingProfile}
-                  style={{
-                    padding: '6px 12px',
-                    backgroundColor: 'rgba(40, 167, 69, 0.8)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '44px',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    marginLeft: '5px'
-                  }}
-                >
-                  Fix Profile
-                </button>
-              )}
-            </div>
-          </header>
-        )}
-        {profileLoading && (
-          <div style={{
-            textAlign: 'center',
-            padding: '20px',
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-            margin: '20px',
-            borderRadius: '10px'
-          }}>
-            <div style={{ color: '#6c5ce7', fontSize: '16px' }}>
-              🔄 Loading your profile...
-            </div>
-          </div>
-        )}
-
-        <div style={{ 
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth={2} 
+              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
+            />
+          </svg>
+          ✏️ Transcription Editor
+        </button>
+      </div>
+      {currentView === 'transcribe' && (
+        <header style={{ 
           textAlign: 'center', 
-          padding: currentView === 'transcribe' ? '0 20px 40px' : '20px',
-          backgroundColor: (currentView === 'dashboard' || currentView === 'admin' || currentView === 'pricing') ? 'white' : 'transparent'
+          padding: '40px 20px',
+          color: 'white'
         }}>
-          <button
-            onClick={() => setCurrentView('transcribe')}
-            style={{
-              padding: '12px 25px',
-              margin: '0 10px',
-              backgroundColor: currentView === 'transcribe' ? '#007bff' : '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '25px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
-            }}
-          >
-            🎤 Transcribe
-          </button>
-          <button
-            onClick={() => setCurrentView('dashboard')}
-            style={{
-              padding: '12px 25px',
-              margin: '0 10px',
-              backgroundColor: currentView === 'dashboard' ? '#007bff' : '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '25px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
-            }}
-          >
-            📊 History/Editor
-          </button>
-          <button
-            onClick={() => setCurrentView('pricing')}
-            style={{
-              padding: '12px 25px',
-              margin: '0 10px',
-              backgroundColor: currentView === 'pricing' ? '#28a745' : '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '25px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)'
-            }}
-          >
-            💰 Pricing
-          </button>
-          {isAdmin && (
+          <h1 style={{ 
+            fontSize: '3rem', 
+            margin: '0 0 15px 0',
+            fontWeight: '300',
+            textShadow: '0 2px 4px rgba(0,0,0,0.3)'
+          }}>
+            TypeMyworDz
+          </h1>
+          <p style={{ 
+            fontSize: '1.3rem', 
+            margin: '0 0 8px 0',
+            opacity: '0.9'
+          }}>
+            You Talk, We Type
+          </p>
+          
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '15px',
+            fontSize: '14px',
+            opacity: '0.9'
+          }}>
+            <span>Logged in as: {userProfile?.name || currentUser.email}</span>
+            {userProfile && userProfile.plan === 'pro' ? ( 
+              <span>Plan: Pro (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
+            ) : userProfile && userProfile.plan === '24 Hours Pro Access' ? (
+              <span>Plan: 24 Hours Pro Access {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
+            ) : userProfile && userProfile.plan === '5 Days Pro Access' ? (
+              <span>Plan: 5 Days Pro Access {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
+            ) : userProfile && userProfile.plan === 'free' ? (
+              <span>Plan: Free Trial ({Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining)</span>
+            ) : (
+              <span>Plan: Free (Recording Only - Upgrade for Transcription)</span>
+            )}
             <button
-              onClick={() => setCurrentView('admin')}
+              onClick={handleLogout}
               style={{
-                padding: '12px 25px',
-                margin: '0 10px',
-                backgroundColor: currentView === 'admin' ? '#dc3545' : '#6c757d',
+                padding: '6px 12px',
+                backgroundColor: 'rgba(220, 53, 69, 0.8)',
                 color: 'white',
                 border: 'none',
-                borderRadius: '25px',
+                borderRadius: '4px',
                 cursor: 'pointer',
-                fontSize: '16px',
-                boxShadow: '0 4px 15px rgba(220, 53, 69, 0.4)'
+                fontSize: '12px'
               }}
             >
-              👑 Admin
+              Logout
             </button>
-          )}
+            {isAdmin && (
+              <button
+                onClick={createMissingProfile}
+                style={{
+                  padding: '6px 12px',
+                  backgroundColor: 'rgba(40, 167, 69, 0.8)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '44px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  marginLeft: '5px'
+                }}
+              >
+                Fix Profile
+              </button>
+            )}
+          </div>
+        </header>
+      )}
+      {profileLoading && (
+        <div style={{
+          textAlign: 'center',
+          padding: '20px',
+          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+          margin: '20px',
+          borderRadius: '10px'
+        }}>
+          <div style={{ color: '#6c5ce7', fontSize: '16px' }}>
+            🔄 Loading your profile...
+          </div>
         </div>
-        {currentView === 'pricing' ? (
-          <>
-            <div style={{ 
-              padding: '40px 20px', 
-              textAlign: 'center', 
-              maxWidth: '1200px', 
-              margin: '0 auto',
-              backgroundColor: '#f8f9fa',
-              minHeight: '70vh'
+      )}
+
+      <div style={{ 
+        textAlign: 'center', 
+        padding: currentView === 'transcribe' ? '0 20px 40px' : '20px',
+        backgroundColor: (currentView === 'dashboard' || currentView === 'admin' || currentView === 'pricing') ? 'white' : 'transparent'
+      }}>
+        <button
+          onClick={() => setCurrentView('transcribe')}
+          style={{
+            padding: '12px 25px',
+            margin: '0 10px',
+            backgroundColor: currentView === 'transcribe' ? '#007bff' : '#6c757d',
+            color: 'white',
+            border: 'none',
+            borderRadius: '25px',
+            cursor: 'pointer',
+            fontSize: '16px',
+            boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
+          }}
+        >
+          🎤 Transcribe
+        </button>
+        <button
+          onClick={() => setCurrentView('dashboard')}
+          style={{
+            padding: '12px 25px',
+            margin: '0 10px',
+            backgroundColor: currentView === 'dashboard' ? '#007bff' : '#6c757d',
+            color: 'white',
+            border: 'none',
+            borderRadius: '25px',
+            cursor: 'pointer',
+            fontSize: '16px',
+            boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
+          }}
+        >
+          📊 History/Editor
+        </button>
+        <button
+          onClick={() => setCurrentView('pricing')}
+          style={{
+            padding: '12px 25px',
+            margin: '0 10px',
+            backgroundColor: currentView === 'pricing' ? '#28a745' : '#6c757d',
+            color: 'white',
+            border: 'none',
+            borderRadius: '25px',
+            cursor: 'pointer',
+            fontSize: '16px',
+            boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)'
+          }}
+        >
+          💰 Pricing
+        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setCurrentView('admin')}
+            style={{
+              padding: '12px 25px',
+              margin: '0 10px',
+              backgroundColor: currentView === 'admin' ? '#dc3545' : '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '25px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              boxShadow: '0 4px 15px rgba(220, 53, 69, 0.4)'
+            }}
+          >
+            👑 Admin
+          </button>
+        )}
+      </div>
+      {currentView === 'pricing' ? (
+        <>
+          <div style={{ 
+            padding: '40px 20px', 
+            textAlign: 'center', 
+            maxWidth: '1200px', 
+            margin: '0 auto',
+            backgroundColor: '#f8f9fa',
+            minHeight: '70vh'
+          }}>
+            <h1 style={{ 
+              color: '#6c5ce7', 
+              marginBottom: '20px',
+              fontSize: '2.5rem'
             }}>
-              <h1 style={{ 
-                color: '#6c5ce7', 
-                marginBottom: '20px',
-                fontSize: '2.5rem'
-              }}>
-                Choose Your Plan
-              </h1>
-              <p style={{
-                color: '#666',
-                fontSize: '1.2rem',
-                marginBottom: '40px'
-              }}>
-                Flexible options for different regions and needs
-              </p>
+              Choose Your Plan
+            </h1>
+            <p style={{
+              color: '#666',
+              fontSize: '1.2rem',
+              marginBottom: '40px'
+            }}>
+              Flexible options for different regions and needs
+            </p>
 
-              <div style={{ marginBottom: '40px' }}>
-                <label htmlFor="paymentRegion" style={{ color: '#6c5ce7', fontWeight: 'bold', marginRight: '10px' }}>
-                  Select Your Region:
-                </label>
-                <select
-                  id="paymentRegion"
-                  value={selectedRegion}
-                  onChange={(e) => setSelectedRegion(e.target.value)}
-                  style={{
-                    padding: '8px 15px',
-                    borderRadius: '8px',
-                    border: '1px solid #6c5ce7',
-                    fontSize: '16px',
-                    minWidth: '200px'
-                  }}
-                >
-                  <option value="KE">Kenya (M-Pesa, Card)</option>
-                  <option value="NG">Nigeria (Bank, USSD, Card)</option>
-                  <option value="GH">Ghana (Mobile Money, Card)</option>
-                  <option value="ZA">South Africa (Card, EFT)</option>
-                  <option value="OTHER_AFRICA">Other African Countries (Card USD)</option>
-                </select>
-              </div>
+            <div style={{ marginBottom: '40px' }}>
+              <label htmlFor="paymentRegion" style={{ color: '#6c5ce7', fontWeight: 'bold', marginRight: '10px' }}>
+                Select Your Region:
+              </label>
+              <select
+                id="paymentRegion"
+                value={selectedRegion}
+                onChange={(e) => setSelectedRegion(e.target.value)}
+                style={{
+                  padding: '8px 15px',
+                  borderRadius: '8px',
+                  border: '1px solid #6c5ce7',
+                  fontSize: '16px',
+                  minWidth: '200px'
+                }}
+              >
+                <option value="KE">Kenya (M-Pesa, Card)</option>
+                <option value="NG">Nigeria (Bank, USSD, Card)</option>
+                <option value="GH">Ghana (Mobile Money, Card)</option>
+                <option value="ZA">South Africa (Card, EFT)</option>
+                <option value="OTHER_AFRICA">Other African Countries (Card USD)</option>
+              </select>
+            </div>
 
-              <div style={{ marginBottom: '40px' }}>
-                <button
-                  onClick={() => setPricingView('credits')}
-                  style={{
-                    padding: '12px 30px',
-                    margin: '0 10px',
-                    backgroundColor: pricingView === 'credits' ? '#007bff' : '#6c757d',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '25px',
-                    cursor: 'pointer',
-                    fontSize: '16px'
-                  }}
-                >
-                  💳 Go Pro
-                </button>
-                <button
-                  onClick={() => setPricingView('subscription')}
-                  style={{
-                    padding: '12px 30px',
-                    margin: '0 10px',
-                    backgroundColor: pricingView === 'subscription' ? '#28a745' : '#6c757d',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '25px',
-                    cursor: 'pointer',
-                    fontSize: '16px'
-                  }}
-                >
-                  🔄 Pro Plans
-                </button>
-              </div>
-              {pricingView === 'credits' ? (
-                <>
-                  <div style={{ marginTop: '20px' }}>
-                    <h2 style={{ color: '#007bff', marginBottom: '30px' }}>
-                      💳 Go Pro
-                    </h2>
-                    <p style={{ color: '#666', marginBottom: '30px', fontSize: '14px' }}>
-                      Purchase temporary access to Pro features. Available globally with local currency support
-                    </p>
-                    
-                    <div style={{ display: 'flex', gap: '30px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                      <div style={{
-                        backgroundColor: 'white',
-                        padding: '40px 30px',
-                        borderRadius: '20px',
-                        boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
-                        maxWidth: '350px',
-                        width: '100%',
-                        border: '2px solid #e9ecef'
-                      }}>
+            <div style={{ marginBottom: '40px' }}>
+              <button
+                onClick={() => setPricingView('credits')}
+                style={{
+                  padding: '12px 30px',
+                  margin: '0 10px',
+                  backgroundColor: pricingView === 'credits' ? '#007bff' : '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '25px',
+                  cursor: 'pointer',
+                  fontSize: '16px'
+                }}
+              >
+                💳 Go Pro, Africa
+              </button>
+              <button
+                onClick={() => setPricingView('subscription')}
+                style={{
+                  padding: '12px 30px',
+                  margin: '0 10px',
+                  backgroundColor: pricingView === 'subscription' ? '#28a745' : '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '25px',
+                  cursor: 'pointer',
+                  fontSize: '16px'
+                }}
+              >
+                🔄 Go Pro Monthly
+              </button>
+            </div>
+            {pricingView === 'credits' ? (
+              <>
+                <div style={{ marginTop: '20px' }}>
+                  <h2 style={{ color: '#007bff', marginBottom: '30px' }}>
+                    💳 Go Pro for 24hrs/5-day
+                  </h2>
+                  <p style={{ color: '#666', marginBottom: '30px', fontSize: '14px' }}>
+                    Purchase temporary access to Pro features. Available globally with local currency support
+                  </p>
+                  
+                  <div style={{ display: 'flex', gap: '30px', justifyContent: 'center', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                    <div style={{
+                      backgroundColor: 'white',
+                      padding: '40px 30px',
+                      borderRadius: '20px',
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+                      maxWidth: '350px',
+                      width: '100%',
+                      border: '2px solid #e9ecef',
+                      minHeight: '450px', // Added for horizontal alignment
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between'
+                    }}>
+                      <div>
                         <h3 style={{ 
                           color: '#007bff',
                           fontSize: '1.8rem',
@@ -1428,42 +1582,47 @@ return (
                             for 24 hours
                           </span>
                         </div>
-                        
-                        <button
-                          onClick={() => {
-                            if (!currentUser?.email) {
-                              showMessage('Please log in first to purchase credits.');
-                              return;
-                            }
-                            initializePaystackPayment(currentUser.email, 1, '24 Hours Pro Access', selectedRegion);
-                          }}
-                          disabled={!currentUser?.email}
-                          style={{
-                            width: '100%',
-                            padding: '15px',
-                            backgroundColor: !currentUser?.email ? '#6c757d' : '#007bff',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '10px',
-                            cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
-                            fontSize: '16px',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 1`}
-                        </button>
                       </div>
                       
-                      <div style={{
-                        backgroundColor: 'white',
-                        padding: '40px 30px',
-                        borderRadius: '20px',
-                        boxShadow: '0 15px 40px rgba(40, 167, 69, 0.2)',
-                        maxWidth: '350px',
-                        width: '100%',
-                        border: '3px solid #28a745',
-                        transform: 'scale(1.05)'
-                      }}>
+                      <button
+                        onClick={() => {
+                          if (!currentUser?.email) {
+                            showMessage('Please log in first to purchase credits.');
+                            return;
+                          }
+                          initializePaystackPayment(currentUser.email, 1, '24 Hours Pro Access', selectedRegion);
+                        }}
+                        disabled={!currentUser?.email}
+                        style={{
+                          width: '100%',
+                          padding: '15px',
+                          backgroundColor: !currentUser?.email ? '#6c757d' : '#007bff',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '10px',
+                          cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
+                          fontSize: '16px',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 1`}
+                      </button>
+                    </div>
+                    
+                    <div style={{
+                      backgroundColor: 'white',
+                      padding: '40px 30px',
+                      borderRadius: '20px',
+                      boxShadow: '0 15px 40px rgba(40, 167, 69, 0.2)',
+                      maxWidth: '350px',
+                      width: '100%',
+                      border: '3px solid #28a745',
+                      minHeight: '450px', // Added for horizontal alignment
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between'
+                    }}>
+                      <div>
                         <div style={{
                           backgroundColor: '#28a745',
                           color: 'white',
@@ -1501,55 +1660,57 @@ return (
                             for 5 days
                           </span>
                         </div>
-                        
-                        <button
-                          onClick={() => {
-                            if (!currentUser?.email) {
-                              showMessage('Please log in first to purchase credits.');
-                              return;
-                            }
-                            initializePaystackPayment(currentUser.email, 2.5, '5 Days Pro Access', selectedRegion);
-                          }}
-                          disabled={!currentUser?.email}
-                          style={{
-                            width: '100%',
-                            padding: '15px',
-                            backgroundColor: !currentUser?.email ? '#6c757d' : '#28a745',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '10px',
-                            cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
-                            fontSize: '16px',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 2.50`}
-                        </button>
                       </div>
+                      
+                      <button
+                        onClick={() => {
+                          if (!currentUser?.email) {
+                            showMessage('Please log in first to purchase credits.');
+                            return;
+                          }
+                          initializePaystackPayment(currentUser.email, 2.5, '5 Days Pro Access', selectedRegion);
+                        }}
+                        disabled={!currentUser?.email}
+                        style={{
+                          width: '100%',
+                          padding: '15px',
+                          backgroundColor: !currentUser?.email ? '#6c757d' : '#28a745',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '10px',
+                          cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
+                          fontSize: '16px',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 2.50`}
+                      </button>
                     </div>
                   </div>
-                </>
-              ) : (
-                <>
-                  <div style={{ marginTop: '20px' }}>
-                    <h2 style={{ color: '#28a745', marginBottom: '30px' }}>
-                      🔄 Monthly Pro Plans
-                    </h2>
-                    <p style={{ color: '#666', marginBottom: '30px' }}>
-                      Recurring monthly plans with 2Checkout integration
-                    </p>
-                    
-                    <div style={{ display: 'flex', gap: '30px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                      <div style={{
-                        backgroundColor: 'white',
-                        padding: '40px 30px',
-                        borderRadius: '20px',
-                        boxShadow: '0 15px 40px rgba(40, 167, 69, 0.2)',
-                        maxWidth: '350px',
-                        width: '100%',
-                        border: '3px solid #28a745',
-                        transform: 'scale(1.05)'
-                      }}>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ marginTop: '20px' }}>
+                  <h2 style={{ color: '#28a745', marginBottom: '30px' }}>
+                    🔄 Go Pro Monthly
+                  </h2>
+                  <p style={{ color: '#666', marginBottom: '30px' }}>
+                    Recurring monthly plans with 2Checkout integration
+                  </p>
+                  
+                  <div style={{ display: 'flex', gap: '30px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <div style={{
+                      backgroundColor: 'white',
+                      padding: '40px 30px',
+                      borderRadius: '20px',
+                      boxShadow: '0 15px 40px rgba(40, 167, 69, 0.2)',
+                      maxWidth: '350px',
+                      width: '100%',
+                      border: '3px solid #28a745',
+                      transform: 'scale(1.05)'
+                    }}>
+                      <div>
                         <div style={{
                           backgroundColor: '#28a745',
                           color: 'white',
@@ -1601,532 +1762,533 @@ return (
                           <li>✅ 7-day file storage</li>
                           <li>✅ Email support</li>
                         </ul>
-                        <button 
-                          style={{
-                            width: '100%',
-                            padding: '15px',
-                            backgroundColor: '#6c757d',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '10px',
-                            cursor: 'not-allowed',
-                            fontSize: '16px',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          Coming Soon (2Checkout)
-                        </button>
                       </div>
+                      <button 
+                        style={{
+                          width: '100%',
+                          padding: '15px',
+                          backgroundColor: '#6c757d',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '10px',
+                          cursor: 'not-allowed',
+                          fontSize: '16px',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        Coming Soon (2Checkout)
+                      </button>
                     </div>
                   </div>
-                </>
-              )}
-
-              <div style={{
-                marginTop: '60px',
-                padding: '30px',
-                backgroundColor: 'white',
-                borderRadius: '15px',
-                boxShadow: '0 5px 15px rgba(0,0,0,0.1)'
-              }}>
-                <h3 style={{ color: '#6c5ce7', marginBottom: '20px' }}>
-                  🔒 All plans include:
-                </h3>
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-                  gap: '20px',
-                  textAlign: 'left',
-                  color: '#666'
-                }}>
-                  <div>✅ Backend audio compression technology</div>
-                  <div>✅ Multiple file formats supported</div>
-                  <div>✅ Easy-to-use interface</div>
-                  <div>✅ Mobile-friendly design</div>
                 </div>
-              </div>
-            </div>
-          </>
-        ) : currentView === 'admin' ? (
-          <AdminDashboard />
-        ) : currentView === 'dashboard' ? (
-          <Dashboard setCurrentView={setCurrentView} />
-        ) : (
-          <main style={{ 
-            flex: 1,
-            padding: '0 20px 40px',
-            maxWidth: '800px', 
-            margin: '0 auto'
-          }}>
-            {userProfile && userProfile.plan === 'free' && (
-              <div style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.95)', // Changed from yellow to white for consistency
-                color: '#856404',
-                padding: '15px',
-                borderRadius: '10px',
-                marginBottom: '30px',
-                textAlign: 'center',
-                backdropFilter: 'blur(10px)',
-                border: '1px solid #ffecb3' // Added a subtle border
-              }}>
-                {userProfile.totalMinutesUsed < 30 ? (
-                  <>
-                    🎉 <strong>Free Trial:</strong> {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining!{' '}
-                    <button 
-                      onClick={() => setCurrentView('pricing')}
-                      style={{
-                        backgroundColor: 'transparent',
-                        color: '#007bff',
-                        border: 'none',
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                        fontWeight: 'bold'
-                      }}
-                    >
-                      Upgrade for unlimited
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    🎵 Your free trial has ended. You have {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining.{' '}
-                    <button 
-                      onClick={() => setCurrentView('pricing')}
-                      style={{
-                        backgroundColor: 'transparent',
-                        color: '#007bff',
-                        border: 'none',
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                        fontWeight: 'bold'
-                      }}
-                    >
-                      View Plans
-                    </button>
-                  </>
-                )}
-              </div>
+              </>
             )}
 
             <div style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-              borderRadius: '15px',
+              marginTop: '60px',
               padding: '30px',
-              marginBottom: '30px',
-              textAlign: 'center',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
+              backgroundColor: 'white',
+              borderRadius: '15px',
+              boxShadow: '0 5px 15px rgba(0,0,0,0.1)'
             }}>
-              <h2 style={{ 
-                color: '#6c5ce7', 
-                margin: '0 0 20px 0',
-                fontSize: '1.5rem'
+              <h3 style={{ color: '#6c5ce7', marginBottom: '20px' }}>
+                🔒 All plans include:
+              </h3>
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+                gap: '20px',
+                textAlign: 'left',
+                color: '#666'
               }}>
-                🎤 Record Audio or 📁 Upload File
-              </h2>
-              
-              <div style={{ marginBottom: '30px' }}>
-                <h3 style={{ 
-                  color: '#6c5ce7', 
-                  margin: '0 0 15px 0',
-                  fontSize: '1.2rem'
-                }}>
-                  🎤 Record Audio
-                </h3>
-                
-                {isRecording && (
-                  <div style={{
-                    color: '#e17055',
-                    fontSize: '18px',
-                    marginBottom: '15px',
-                    fontWeight: 'bold'
-                  }}>
-                    🔴 Recording: {formatTime(recordingTime)}
-                  </div>
-                )}
-                
-                <button
-                  onClick={isRecording ? stopRecording : startRecording}
-                  style={{
-                    padding: '15px 30px',
-                    fontSize: '18px',
-                    backgroundColor: isRecording ? '#e17055' : '#e74c3c',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '25px',
-                    cursor: 'pointer',
-                    boxShadow: '0 5px 15px rgba(231, 76, 60, 0.4)',
-                    transition: 'all 0.3s ease'
-                  }}
-                >
-                  {isRecording ? '⏹️ Stop Recording' : '🎤 Start Recording'}
-                </button>
-
-                {recordedAudioBlobRef.current && !isRecording && (
-                  <div style={{ marginTop: '15px' }}>
-                    <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
-                      gap: '10px',
-                      marginBottom: '10px'
-                    }}>
-                      <label htmlFor="downloadFormat" style={{ color: '#6c5ce7', fontWeight: 'bold' }}>
-                        Download Format:
-                      </label>
-                      <select
-                        id="downloadFormat"
-                        value={downloadFormat}
-                        onChange={(e) => setDownloadFormat(e.target.value)}
-                        style={{
-                          padding: '5px 10px',
-                          borderRadius: '5px',
-                          border: '1px solid #6c5ce7'
-                        }}
-                      >
-                        <option value="mp3">MP3 (Compressed)</option>
-                        <option value="wav">WAV (Original)</option>
-                      </select>
-                    </div>
-                    <button
-                      onClick={downloadRecordedAudio}
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: '#007bff',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '5px',
-                        cursor: 'pointer',
-                        fontSize: '14px'
-                      }}
-                    >
-                      📥 Download Recording ({downloadFormat.toUpperCase()})
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div style={{
-                borderTop: '2px solid #e9ecef',
-                paddingTop: '30px'
-              }}>
-                <h3 style={{ 
-                  color: '#6c5ce7', 
-                  margin: '0 0 15px 0',
-                  fontSize: '1.2rem'
-                }}>
-                  📁 Or Upload Audio/Video File
-                </h3>
-                
-                <div style={{
-                  border: '2px dashed #6c5ce7',
-                  borderRadius: '10px',
-                  padding: '20px',
-                  marginBottom: '20px',
-                  backgroundColor: '#f8f9ff'
-                }}>
-                  <input
-                    type="file"
-                    accept="audio/mp3,audio/mpeg,audio/*,video/*"
-                    onChange={handleFileSelect}
-                    style={{ marginBottom: '10px' }}
-                  />
-                  {selectedFile && (
-                    <div style={{
-                      backgroundColor: '#d1f2eb',
-                      color: '#27ae60',
-                      padding: '10px',
-                      borderRadius: '5px',
-                      marginTop: '10px'
-                    }}>
-                      ✅ Selected: {selectedFile.name}
-                      <div style={{ fontSize: '12px', marginTop: '5px', opacity: '0.8' }}>
-                        Ready for transcription
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Language Selection Dropdown */}
-                <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
-                  <label htmlFor="languageSelect" style={{ color: '#6c5ce7', fontWeight: 'bold', fontSize: '1.1rem' }}>
-                    Transcription Language:
-                  </label>
-                  <select
-                    id="languageSelect"
-                    value={selectedLanguage}
-                    onChange={(e) => setSelectedLanguage(e.target.value)}
-                    style={{
-                      padding: '8px 15px',
-                      borderRadius: '8px',
-                      border: '1px solid #6c5ce7',
-                      fontSize: '16px',
-                      minWidth: '150px'
-                    }}
-                  >
-                    <option value="en">English (Default)</option>
-                    <option value="es">Spanish</option>
-                    <option value="fr">French</option>
-                    <option value="de">German</option>
-                    <option value="it">Italian</option>
-                    <option value="pt">Portuguese</option>
-                    <option value="ru">Russian</option>
-                    <option value="zh">Chinese</option>
-                    <option value="ja">Japanese</option>
-                    <option value="ko">Korean</option>
-                  </select>
-                </div>
-                
-                {(status === 'processing' || status === 'uploading') && (
-                  <div style={{ marginBottom: '20px' }}>
-                    <div style={{
-                      backgroundColor: '#e9ecef',
-                      height: '20px',
-                      borderRadius: '10px',
-                      overflow: 'hidden',
-                      marginBottom: '10px'
-                    }}>
-                      <div className="progress-bar-indeterminate" style={{
-                        backgroundColor: '#6c5ce7',
-                        height: '100%',
-                        width: '100%',
-                        borderRadius: '10px'
-                      }}></div>
-                    </div>
-                    <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
-                      🗜️ Compressing & Transcribing Audio...
-                    </div>
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
-                  {status === 'idle' && !isUploading && selectedFile && (
-                    <button
-                      onClick={() => {
-                        const remainingMinutes = 30 - (userProfile?.totalMinutesUsed || 0);
-                        if (userProfile?.plan === 'free' && remainingMinutes <= 0) {
-                          setCurrentView('pricing');
-                        } else {
-                          handleUpload();
-                        }
-                      }}
-                      disabled={
-                        !selectedFile || 
-                        isUploading || 
-                        (userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) <= 0)
-                      }
-                      style={{
-                        padding: '15px 30px',
-                        fontSize: '18px',
-                        backgroundColor: (!selectedFile || isUploading || (userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) <= 0)) ? '#6c757d' : 
-                          (userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) > 0) ? '#ffc107' : '#6c5ce7',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '25px',
-                        cursor: (!selectedFile || isUploading || (userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) <= 0)) ? 'not-allowed' : 'pointer',
-                        boxShadow: '0 5px 15px rgba(108, 92, 231, 0.4)'
-                      }}
-                    >
-                      {(userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) <= 0) ? 
-                        '🔒 Upgrade to Transcribe' : '🚀 Start Transcription'}
-                    </button>
-                  )}
-
-                  {(status === 'uploading' || status === 'processing') && (
-                    <button
-                      onClick={handleCancelUpload}
-                      style={{
-                        padding: '15px 30px',
-                        fontSize: '18px',
-                        backgroundColor: '#dc3545',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '25px',
-                        cursor: 'pointer',
-                        boxShadow: '0 5px 15px rgba(220, 53, 69, 0.4)'
-                      }}
-                    >
-                      ❌ Cancel Transcribing
-                    </button>
-                  )}
-                </div>
+                <div>✅ Backend audio compression technology</div>
+                <div>✅ Multiple file formats supported</div>
+                <div>✅ Fast processing times</div>
+                <div>✅ Easy-to-use interface</div>
+                <div>✅ Mobile-friendly design</div>
+                <div>✅ Regular updates & improvements</div>
               </div>
             </div>
-            {status && (status === 'completed' || status === 'failed') && (
-              <div style={{
-                backgroundColor: status === 'completed' ? 'rgba(212, 237, 218, 0.95)' : 'rgba(255, 243, 205, 0.95)',
-                border: `2px solid ${status === 'completed' ? '#27ae60' : '#f39c12'}`,
-                borderRadius: '10px',
-                padding: '20px',
-                marginBottom: '30px',
-                textAlign: 'center'
-              }}>
-                <h3 style={{ 
-                  color: status === 'completed' ? '#27ae60' : '#f39c12',
-                  margin: '0'
-                }}>
-                  {status === 'completed' ? '✅ Transcription Completed!' : `❌ Status: ${status}`}
-                </h3>
-                {status === 'failed' && (
-                  <p style={{ margin: '10px 0 0 0', color: '#666' }}>
-                    Transcription failed. Check Your Network & Refresh the Page.
-                  </p>
-                )}
-              </div>
-            )}
+          </div>
+        </>
+      ) : currentView === 'admin' ? (
+        <AdminDashboard />
+      ) : currentView === 'dashboard' ? (
+        <Dashboard setCurrentView={setCurrentView} />
+      ) : (
+        <main style={{ 
+          flex: 1,
+          padding: '0 20px 40px',
+          maxWidth: '800px', 
+          margin: '0 auto'
+        }}>
+          {userProfile && userProfile.plan === 'free' && (
+            <div style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.95)', // Changed from yellow to white for consistency
+              color: '#856404',
+              padding: '15px',
+              borderRadius: '10px',
+              marginBottom: '30px',
+              textAlign: 'center',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid #ffecb3' // Added a subtle border
+            }}>
+              {userProfile.totalMinutesUsed < 30 ? (
+                <>
+                  🎉 <strong>Free Trial:</strong> {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining!{' '}
+                  <button 
+                    onClick={() => setCurrentView('pricing')}
+                    style={{
+                      backgroundColor: 'transparent',
+                      color: '#007bff',
+                      border: 'none',
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    Upgrade for unlimited
+                  </button>
+                </>
+              ) : (
+                <>
+                  🎵 Your free trial has ended. You have {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining.{' '}
+                  <button 
+                    onClick={() => setCurrentView('pricing')}
+                    style={{
+                      backgroundColor: 'transparent',
+                      color: '#007bff',
+                      border: 'none',
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    View Plans
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          <div style={{
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            borderRadius: '15px',
+            padding: '30px',
+            marginBottom: '30px',
+            textAlign: 'center',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
+          }}>
+            <h2 style={{ 
+              color: '#6c5ce7', 
+              margin: '0 0 20px 0',
+              fontSize: '1.5rem'
+            }}>
+              🎤 Record Audio or 📁 Upload File
+            </h2>
             
-            {transcription && (
-              <div style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                borderRadius: '15px',
-                padding: '30px',
-                boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
+            <div style={{ marginBottom: '30px' }}>
+              <h3 style={{ 
+                color: '#6c5ce7', 
+                margin: '0 0 15px 0',
+                fontSize: '1.2rem'
               }}>
-                <h3 style={{ 
-                  color: '#6c5ce7',
-                  margin: '0 0 20px 0',
-                  textAlign: 'center',
-                  fontSize: '1.5rem'
-                }}>
-                  📄 Transcription Result:
-                </h3>
-                
+                🎤 Record Audio
+              </h3>
+              
+              {isRecording && (
                 <div style={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  gap: '15px',
-                  marginBottom: '20px',
-                  flexWrap: 'wrap'
+                  color: '#e17055',
+                  fontSize: '18px',
+                  marginBottom: '15px',
+                  fontWeight: 'bold'
                 }}>
+                  🔴 Recording: {formatTime(recordingTime)}
+                </div>
+              )}
+              
+              <button
+                onClick={isRecording ? stopRecording : startRecording}
+                style={{
+                  padding: '15px 30px',
+                  fontSize: '18px',
+                  backgroundColor: isRecording ? '#e17055' : '#e74c3c',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '25px',
+                  cursor: 'pointer',
+                  boxShadow: '0 5px 15px rgba(231, 76, 60, 0.4)',
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                {isRecording ? '⏹️ Stop Recording' : '🎤 Start Recording'}
+              </button>
+
+              {recordedAudioBlobRef.current && !isRecording && (
+                <div style={{ marginTop: '15px' }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    gap: '10px',
+                    marginBottom: '10px'
+                  }}>
+                    <label htmlFor="downloadFormat" style={{ color: '#6c5ce7', fontWeight: 'bold' }}>
+                      Download Format:
+                    </label>
+                    <select
+                      id="downloadFormat"
+                      value={downloadFormat}
+                      onChange={(e) => setDownloadFormat(e.target.value)}
+                      style={{
+                        padding: '5px 10px',
+                        borderRadius: '5px',
+                        border: '1px solid #6c5ce7'
+                      }}
+                    >
+                      <option value="mp3">MP3 (Compressed)</option>
+                      <option value="wav">WAV (Original)</option>
+                    </select>
+                  </div>
                   <button
-                    onClick={copyToClipboard}
+                    onClick={downloadRecordedAudio}
                     style={{
                       padding: '10px 20px',
-                      backgroundColor: userProfile?.plan === 'free' ? '#6c757d' : '#27ae60',
+                      backgroundColor: '#007bff',
                       color: 'white',
                       border: 'none',
-                      borderRadius: '8px',
-                      cursor: userProfile?.plan === 'free' ? 'not-allowed' : 'pointer',
-                      fontSize: '14px',
-                      opacity: userProfile?.plan === 'free' ? 0.6 : 1
-                    }}
-                  >
-                    {userProfile?.plan === 'free' ? '🔒 Copy (Pro Only)' : '📋 Copy to Clipboard'}
-                  </button>
-                  
-                  <button
-                    onClick={downloadAsWord}
-                    style={{
-                      padding: '10px 20px',
-                      backgroundColor: userProfile?.plan === 'free' ? '#6c757d' : '#007bff',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: userProfile?.plan === 'free' ? 'not-allowed' : 'pointer',
-                      fontSize: '14px',
-                      opacity: userProfile?.plan === 'free' ? 0.6 : 1
-                    }}
-                  >
-                    {userProfile?.plan === 'free' ? '🔒 Word (Pro Only)' : '📄 MS Word'}
-                  </button>
-                  
-                  <button
-                    onClick={downloadAsTXT}
-                    style={{
-                      padding: '10px 20px',
-                      backgroundColor: '#6c757d',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
+                      borderRadius: '5px',
                       cursor: 'pointer',
                       fontSize: '14px'
                     }}
                   >
-                    📝 TXT
+                    📥 Download Recording ({downloadFormat.toUpperCase()})
                   </button>
                 </div>
-                
-                {userProfile?.plan === 'free' && (
+              )}
+            </div>
+            <div style={{
+              borderTop: '2px solid #e9ecef',
+              paddingTop: '30px'
+            }}>
+              <h3 style={{ 
+                color: '#6c5ce7', 
+                margin: '0 0 15px 0',
+                fontSize: '1.2rem'
+              }}>
+                📁 Or Upload Audio/Video File
+              </h3>
+              
+              <div style={{
+                border: '2px dashed #6c5ce7',
+                borderRadius: '10px',
+                padding: '20px',
+                marginBottom: '20px',
+                backgroundColor: '#f8f9ff'
+              }}>
+                <input
+                  type="file"
+                  accept="audio/mp3,audio/mpeg,audio/*,video/*"
+                  onChange={handleFileSelect}
+                  style={{ marginBottom: '10px' }}
+                />
+                {selectedFile && (
                   <div style={{
-                    backgroundColor: 'rgba(255, 243, 205, 0.95)',
-                    color: '#856404',
+                    backgroundColor: '#d1f2eb',
+                    color: '#27ae60',
                     padding: '10px',
                     borderRadius: '5px',
-                    marginBottom: '20px',
-                    textAlign: 'center',
-                    fontSize: '14px'
+                    marginTop: '10px'
                   }}>
-                    🔒 Copy to clipboard and MS Word downloads are available for Pro users.{' '}
-                    <button 
-                      onClick={() => setCurrentView('pricing')}
-                      style={{
-                        backgroundColor: 'transparent',
-                        color: '#007bff',
-                        border: 'none',
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                        fontWeight: 'bold'
-                      }}
-                    >
-                      Upgrade now
-                    </button>
+                    ✅ Selected: {selectedFile.name}
+                    <div style={{ fontSize: '12px', marginTop: '5px', opacity: '0.8' }}>
+                      Ready for transcription
+                    </div>
                   </div>
                 )}
-                
-                <div style={{
-                  backgroundColor: '#f8f9fa',
-                  padding: '20px',
-                  borderRadius: '10px',
-                  textAlign: 'left',
-                  whiteSpace: 'pre-wrap',
-                  lineHeight: '1.6',
-                  border: '1px solid #dee2e6'
-                }}>
-                  {transcription}
+              </div>
+
+              {/* Language Selection Dropdown */}
+              <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
+                <label htmlFor="languageSelect" style={{ color: '#6c5ce7', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                  Transcription Language:
+                </label>
+                <select
+                  id="languageSelect"
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  style={{
+                    padding: '8px 15px',
+                    borderRadius: '8px',
+                    border: '1px solid #6c5ce7',
+                    fontSize: '16px',
+                    minWidth: '150px'
+                  }}
+                >
+                  <option value="en">English (Default)</option>
+                  <option value="es">Spanish</option>
+                  <option value="fr">French</option>
+                  <option value="de">German</option>
+                  <option value="it">Italian</option>
+                  <option value="pt">Portuguese</option>
+                  <option value="ru">Russian</option>
+                  <option value="zh">Chinese</option>
+                  <option value="ja">Japanese</option>
+                  <option value="ko">Korean</option>
+                </select>
+              </div>
+              
+              {(status === 'processing' || status === 'uploading') && (
+                <div style={{ marginBottom: '20px' }}>
+                  <div style={{
+                    backgroundColor: '#e9ecef',
+                    height: '20px',
+                    borderRadius: '10px',
+                    overflow: 'hidden',
+                    marginBottom: '10px'
+                  }}>
+                    <div className="progress-bar-indeterminate" style={{
+                      backgroundColor: '#6c5ce7',
+                      height: '100%',
+                      width: '100%',
+                      borderRadius: '10px'
+                    }}></div>
+                  </div>
+                  <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
+                    🗜️ Compressing & Transcribing Audio...
+                  </div>
                 </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
+                {status === 'idle' && !isUploading && selectedFile && (
+                  <button
+                    onClick={() => {
+                      const remainingMinutes = 30 - (userProfile?.totalMinutesUsed || 0);
+                      if (userProfile?.plan === 'free' && remainingMinutes <= 0) {
+                        setCurrentView('pricing');
+                      } else {
+                        handleUpload();
+                      }
+                    }}
+                    disabled={
+                      !selectedFile || 
+                      isUploading || 
+                      (userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) <= 0)
+                    }
+                    style={{
+                      padding: '15px 30px',
+                      fontSize: '18px',
+                      backgroundColor: (!selectedFile || isUploading || (userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) <= 0)) ? '#6c757d' : 
+                        (userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) > 0) ? '#ffc107' : '#6c5ce7',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '25px',
+                      cursor: (!selectedFile || isUploading || (userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) <= 0)) ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 5px 15px rgba(108, 92, 231, 0.4)'
+                    }}
+                  >
+                    {(userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) <= 0) ? 
+                      '🔒 Upgrade to Transcribe' : '🚀 Start Transcription'}
+                  </button>
+                )}
+
+                {(status === 'uploading' || status === 'processing') && (
+                  <button
+                    onClick={handleCancelUpload}
+                    style={{
+                      padding: '15px 30px',
+                      fontSize: '18px',
+                      backgroundColor: '#dc3545',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '25px',
+                      cursor: 'pointer',
+                      boxShadow: '0 5px 15px rgba(220, 53, 69, 0.4)'
+                    }}
+                  >
+                    ❌ Cancel Transcribing
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          {status && (status === 'completed' || status === 'failed') && (
+            <div style={{
+              backgroundColor: status === 'completed' ? 'rgba(212, 237, 218, 0.95)' : 'rgba(255, 243, 205, 0.95)',
+              border: `2px solid ${status === 'completed' ? '#27ae60' : '#f39c12'}`,
+              borderRadius: '10px',
+              padding: '20px',
+              marginBottom: '30px',
+              textAlign: 'center'
+            }}>
+              <h3 style={{ 
+                color: status === 'completed' ? '#27ae60' : '#f39c12',
+                margin: '0'
+              }}>
+                {status === 'completed' ? '✅ Transcription Completed!' : `❌ Status: ${status}`}
+              </h3>
+              {status === 'failed' && (
+                <p style={{ margin: '10px 0 0 0', color: '#666' }}>
+                  Transcription failed. Check Your Network & Refresh the Page.
+                </p>
+              )}
+            </div>
+          )}
+          
+          {transcription && (
+            <div style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              borderRadius: '15px',
+              padding: '30px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
+            }}>
+              <h3 style={{ 
+                color: '#6c5ce7',
+                margin: '0 0 20px 0',
+                textAlign: 'center',
+                fontSize: '1.5rem'
+              }}>
+                📄 Transcription Result:
+              </h3>
+              
+              <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                gap: '15px',
+                marginBottom: '20px',
+                flexWrap: 'wrap'
+              }}>
+                <button
+                  onClick={copyToClipboard}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: userProfile?.plan === 'free' ? '#6c757d' : '#27ae60',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: userProfile?.plan === 'free' ? 'not-allowed' : 'pointer',
+                    fontSize: '14px',
+                    opacity: userProfile?.plan === 'free' ? 0.6 : 1
+                  }}
+                >
+                  {userProfile?.plan === 'free' ? '🔒 Copy (Pro Only)' : '📋 Copy to Clipboard'}
+                </button>
                 
-                <div style={{ 
-                  marginTop: '15px', 
-                  textAlign: 'center', 
-                  color: '#27ae60',
+                <button
+                  onClick={downloadAsWord}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: userProfile?.plan === 'free' ? '#6c757d' : '#007bff',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: userProfile?.plan === 'free' ? 'not-allowed' : 'pointer',
+                    fontSize: '14px',
+                    opacity: userProfile?.plan === 'free' ? 0.6 : 1
+                  }}
+                >
+                  {userProfile?.plan === 'free' ? '🔒 Word (Pro Only)' : '📄 MS Word'}
+                </button>
+                
+                <button
+                  onClick={downloadAsTXT}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  📝 TXT
+                </button>
+              </div>
+              
+              {userProfile?.plan === 'free' && (
+                <div style={{
+                  backgroundColor: 'rgba(255, 243, 205, 0.95)',
+                  color: '#856404',
+                  padding: '10px',
+                  borderRadius: '5px',
+                  marginBottom: '20px',
+                  textAlign: 'center',
                   fontSize: '14px'
                 }}>
-                  ✅ Check your{' '}
-                  <button
-                    onClick={() => setCurrentView('dashboard')}
+                  🔒 Copy to clipboard and MS Word downloads are available for Pro users.{' '}
+                  <button 
+                    onClick={() => setCurrentView('pricing')}
                     style={{
-                      background: 'none',
-                      border: 'none',
+                      backgroundColor: 'transparent',
                       color: '#007bff',
+                      border: 'none',
                       textDecoration: 'underline',
                       cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: 'bold',
-                      padding: 0
+                      fontWeight: 'bold'
                     }}
-                    onMouseEnter={(e) => e.target.style.color = '#0056b3'}
-                    onMouseLeave={(e) => e.target.style.color = '#007bff'}
                   >
-                    History/Editor
+                    Upgrade now
                   </button>
-                  {' '}for your transcripts.
                 </div>
+              )}
+              
+              <div style={{
+                backgroundColor: '#f8f9fa',
+                padding: '20px',
+                borderRadius: '10px',
+                textAlign: 'left',
+                whiteSpace: 'pre-wrap',
+                lineHeight: '1.6',
+                border: '1px solid #dee2e6'
+              }}>
+                {transcription}
               </div>
-            )}
-          </main>
-        )}
-        <footer style={{ 
-          textAlign: 'center', 
-          padding: '20px', 
-          color: 'rgba(255, 255, 255, 0.7)', 
-          fontSize: '0.9rem',
-          marginTop: 'auto'
-        }}>
-          © {new Date().getFullYear()} TypeMyworDz, Inc. - Enhanced with 30-Minute Free Trial
-        </footer>
+              
+              <div style={{ 
+                marginTop: '15px', 
+                textAlign: 'center', 
+                color: '#27ae60',
+                fontSize: '14px'
+              }}>
+                ✅ Check your{' '}
+                <button
+                  onClick={() => setCurrentView('dashboard')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#007bff',
+                    textDecoration: 'underline',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    padding: 0
+                  }}
+                  onMouseEnter={(e) => e.target.style.color = '#0056b3'}
+                  onMouseLeave={(e) => e.target.style.color = '#007bff'}
+                >
+                  History/Editor
+                </button>
+                {' '}for your transcripts.
+              </div>
+            </div>
+          )}
+        </main>
+      )}
+      <footer style={{ 
+        textAlign: 'center', 
+        padding: '20px', 
+        color: 'rgba(255, 255, 255, 0.7)', 
+        fontSize: '0.9rem',
+        marginTop: 'auto'
+      }}>
+        © {new Date().getFullYear()} TypeMyworDz, Inc. - Enhanced with 30-Minute Free Trial
+      </footer>
 
-        {/* Removed StripePayment modal */}
-      </div>
-    } />
-  </Routes>
-);
+      {/* Removed StripePayment modal */}
+    </div>
+  );
 }
 
 // Main App Component with AuthProvider
