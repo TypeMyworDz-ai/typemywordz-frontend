@@ -106,6 +106,7 @@ const ToastNotification = ({ message, onClose }) => {
     </div>
   );
 };
+
 // Utility functions
 const formatTime = (seconds) => {
   const mins = Math.floor(seconds / 60);
@@ -126,30 +127,36 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   return interval; 
 };
 
-// NEW: Intelligent Model Selection Function - User won't see which model is chosen
+// 🎯 SMART ROUTING: Files > 5 minutes → AssemblyAI, Files < 5 minutes → Whisper
 const selectOptimalTranscriptionService = (file, userProfile, audioDuration, selectedLanguage) => {
   const fileSizeMB = file.size / (1024 * 1024);
   const estimatedDuration = audioDuration || Math.max(60, file.size / 100000);
   
-  let preferredService = 'render'; // Default to Whisper (Render)
+  let preferredService = 'render'; // Default to Whisper
   
-  // Decision logic - but keep it simple for user
-  if (fileSizeMB > 50 || estimatedDuration > 1800) {
-    preferredService = 'railway'; // Large files - use AssemblyAI
-  } else if (file.type.startsWith('video/')) {
-    preferredService = 'railway'; // Video files - use AssemblyAI
-  } else if (selectedLanguage !== 'en') {
-    preferredService = 'render'; // Non-English - use Whisper
-  } else if (fileSizeMB < 10 && estimatedDuration < 300) {
-    preferredService = 'render'; // Small files - use Whisper for speed
-  } else if (userProfile?.plan !== 'free' && fileSizeMB > 10 && fileSizeMB <= 50) {
-    preferredService = 'railway'; // Medium files with Pro - use AssemblyAI
+  // 🎯 PRIMARY RULE: Files > 5 minutes → AssemblyAI (faster processing)
+  if (estimatedDuration > 300) { // 5+ minutes
+    preferredService = 'railway';
+    console.log(`🎯 Smart Routing: ${Math.round(estimatedDuration/60)}-minute file → AssemblyAI (2-4 min processing)`);
+  }
+  // Large files regardless of duration → AssemblyAI
+  else if (fileSizeMB > 50) {
+    preferredService = 'railway';
+    console.log(`🎯 Smart Routing: Large file (${fileSizeMB.toFixed(1)}MB) → AssemblyAI`);
+  }
+  // Video files → AssemblyAI (better handling)
+  else if (file.type.startsWith('video/')) {
+    preferredService = 'railway';
+    console.log(`🎯 Smart Routing: Video file → AssemblyAI`);
+  }
+  // 🎯 Files < 5 minutes → Optimized Whisper (much faster now)
+  else {
+    preferredService = 'render';
+    console.log(`🎯 Smart Routing: ${Math.round(estimatedDuration/60)}-minute file → Optimized Whisper (fast processing)`);
   }
   
-  console.log(`🤖 Intelligent Selection: ${preferredService.toUpperCase()} chosen for file size: ${fileSizeMB.toFixed(2)}MB, duration: ${estimatedDuration}s, language: ${selectedLanguage}`);
   return preferredService;
 };
-
 function AppContent() {
   const navigate = useNavigate();
   
@@ -196,6 +203,7 @@ function AppContent() {
   // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
+
   // Paystack payment functions
   const initializePaystackPayment = async (email, amount, planName, countryCode) => {
     try {
@@ -284,7 +292,6 @@ function AppContent() {
       handlePaystackCallback();
     }
   }, [currentUser, handlePaystackCallback]);
-
   // Enhanced reset function with better job cancellation
   const resetTranscriptionProcessUI = useCallback(() => { 
     console.log('🔄 Resetting transcription UI and cancelling any ongoing processes');
@@ -333,6 +340,7 @@ function AppContent() {
       console.log('DIAGNOSTIC: userProfile.totalMinutesUsed updated to:', userProfile.totalMinutesUsed);
     }
   }, [userProfile?.totalMinutesUsed]);
+
   // Enhanced file selection with proper job cancellation
   const handleFileSelect = useCallback(async (event) => {
     const file = event.target.files[0];
@@ -375,7 +383,14 @@ function AppContent() {
         
         try {
           const originalSize = file.size / (1024 * 1024);
-          showMessage(`File loaded: ${originalSize.toFixed(2)} MB - ready for transcription.`);
+          const estimatedDuration = audio.duration || Math.max(60, file.size / 100000);
+          
+          // 🎯 Smart routing message for user
+          if (estimatedDuration > 300) {
+            showMessage(`📊 ${Math.round(estimatedDuration/60)}-minute file loaded (${originalSize.toFixed(2)} MB) - will use our fastest processing service.`);
+          } else {
+            showMessage(`📊 ${Math.round(estimatedDuration/60)}-minute file loaded (${originalSize.toFixed(2)} MB) - ready for quick transcription.`);
+          }
         } catch (error) {
           console.error('Error getting file info:', error);
         }
@@ -461,7 +476,7 @@ function AppContent() {
         stream.getTracks().forEach(track => track.stop());
         
         const originalSize = originalBlob.size / (1024 * 1024);
-        showMessage(`Recording saved: ${originalSize.toFixed(2)} MB - ready for transcription.`);
+        showMessage(`📊 Recording saved: ${originalSize.toFixed(2)} MB - ready for transcription.`);
       };
 
       mediaRecorderRef.current.start(1000);
@@ -483,7 +498,6 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
-
   // Improved cancel function with page refresh
   const handleCancelUpload = useCallback(async () => {
     console.log('🛑 FORCE CANCEL - Stopping everything immediately');
@@ -621,9 +635,6 @@ function AppContent() {
         // For Render Whisper, the transcription is synchronous. If we reached here,
         // it means the initial POST to Render didn't immediately return a completed status,
         // which shouldn't happen with our current synchronous Whisper service.
-        // If Render were asynchronous, we'd poll its status endpoint here.
-        // For now, if sourceBackend is 'render', it implies it was a direct Render call
-        // that either succeeded or failed immediately within handleUpload.
         clearInterval(transcriptionInterval); // Stop polling
         setStatus('failed'); // Mark as failed if we're polling Render and it's not synchronous
         showMessage('Error: Unexpected status check for Render Whisper service. Assuming failure.');
@@ -728,7 +739,7 @@ function AppContent() {
     }
   }, [handleTranscriptionComplete, showMessage, RAILWAY_BACKEND_URL]);
 
-  // NEW: Enhanced handleUpload with intelligent selection (User sees simple messages only)
+  // 🎯 SMART UPLOAD with Enhanced Intelligence and User-Friendly Messages
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
@@ -740,7 +751,7 @@ function AppContent() {
       return;
     }
 
-    const estimatedDuration = audioDuration || 60;
+    const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
     
     const remainingMinutes = 30 - (userProfile?.totalMinutesUsed || 0);
     if (userProfile.plan === 'free' && remainingMinutes <= 0) {
@@ -759,6 +770,16 @@ function AppContent() {
       return;
     }
 
+    // 🎯 Smart processing time estimates for user
+    if (estimatedDuration > 300) { // 5+ minutes
+      const estimatedProcessingTime = Math.round(estimatedDuration / 60 * 0.3); // AssemblyAI ~0.3x real-time
+      showMessage(`🎯 Processing ${Math.round(estimatedDuration/60)}-minute audio with our fastest service. Estimated time: ${Math.max(1, estimatedProcessingTime)} minutes.`);
+    } else if (estimatedDuration > 120) { // 2+ minutes
+      showMessage(`🎯 Processing ${Math.round(estimatedDuration/60)}-minute audio with optimized transcription. This should take 1-3 minutes.`);
+    } else {
+      showMessage(`🎯 Processing ${Math.round(estimatedDuration/60)}-minute audio. This should complete quickly.`);
+    }
+
     isCancelledRef.current = false;
     setIsUploading(true);
     setStatus('processing');
@@ -768,17 +789,16 @@ function AppContent() {
     formData.append('file', selectedFile);
     formData.append('language_code', selectedLanguage);
 
-    // 🤖 INTELLIGENT SERVICE SELECTION (User won't see which one is chosen)
+    // 🎯 INTELLIGENT SERVICE SELECTION (User sees simple messages only)
     const selectedService = selectOptimalTranscriptionService(selectedFile, userProfile, audioDuration, selectedLanguage);
-    showMessage('🎯 Starting transcription...'); // Simple message for user
 
     let finalTranscription = '';
     let transcriptionJobId = '';
 
     try {
       if (selectedService === 'render') {
-        // Try Render Whisper Service (Primary choice)
-        console.log(`🎯 Using Render Whisper: ${RENDER_WHISPER_URL}/transcribe`);
+        // 🎯 Use Optimized Whisper for files < 5 minutes
+        console.log(`🎯 Using Optimized Whisper: ${RENDER_WHISPER_URL}/transcribe`);
         const renderResponse = await fetch(`${RENDER_WHISPER_URL}/transcribe`, {
           method: 'POST',
           body: formData,
@@ -786,14 +806,14 @@ function AppContent() {
         });
 
         if (!renderResponse.ok) {
-          throw new Error(`Render Whisper failed with status: ${renderResponse.status} - ${renderResponse.statusText}`);
+          throw new Error(`Whisper service failed with status: ${renderResponse.status} - ${renderResponse.statusText}`);
         }
         const renderResult = await renderResponse.json();
 
         if (renderResult.status === 'completed' && renderResult.transcript) {
           finalTranscription = renderResult.transcript;
           transcriptionJobId = `RENDER-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-          showMessage('✅ Transcription completed successfully!'); // Clean message for user
+          showMessage('✅ Transcription completed successfully!');
           
           setTranscription(finalTranscription);
           setTranscriptionProgress(100);
@@ -802,12 +822,12 @@ function AppContent() {
           setIsUploading(false);
           return;
         } else {
-          throw new Error(`Render Whisper returned incomplete result: ${JSON.stringify(renderResult)}`);
+          throw new Error(`Whisper service returned incomplete result: ${JSON.stringify(renderResult)}`);
         }
 
       } else {
-        // Use Railway AssemblyAI Service (Selected by intelligence)
-        console.log(`🎯 Using Railway AssemblyAI: ${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`);
+        // 🎯 Use AssemblyAI for files > 5 minutes (faster for long files)
+        console.log(`🎯 Using AssemblyAI: ${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`);
         const railwayResponse = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, {
           method: 'POST',
           body: formData,
@@ -815,13 +835,13 @@ function AppContent() {
         });
 
         if (!railwayResponse.ok) {
-          throw new Error(`Railway AssemblyAI failed with status: ${railwayResponse.status} - ${railwayResponse.statusText}`);
+          throw new Error(`AssemblyAI service failed with status: ${railwayResponse.status} - ${railwayResponse.statusText}`);
         }
         const railwayResult = await railwayResponse.json();
 
         if (railwayResult && railwayResult.job_id) {
           transcriptionJobId = railwayResult.job_id;
-          showMessage('✅ Transcription started. Processing...'); // Clean message for user
+          showMessage('✅ Transcription started with our fastest service. Processing...');
           
           setUploadProgress(100);
           setStatus('processing');
@@ -830,13 +850,13 @@ function AppContent() {
           checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current, 'railway');
           return;
         } else {
-          throw new Error(`Railway AssemblyAI returned no job ID: ${JSON.stringify(railwayResult)}`);
+          throw new Error(`AssemblyAI service returned no job ID: ${JSON.stringify(railwayResult)}`);
         }
       }
 
     } catch (primaryError) {
       console.error(`Primary service (${selectedService}) failed:`, primaryError);
-      showMessage('⚠️ Trying alternative transcription service...'); // Clean fallback message for user
+      showMessage('⚠️ Trying alternative transcription service...');
       
       // Fallback to the other service
       const fallbackService = selectedService === 'render' ? 'railway' : 'render';
@@ -850,14 +870,14 @@ function AppContent() {
           });
 
           if (!renderResponse.ok) {
-            throw new Error(`Fallback Render Whisper failed with status: ${renderResponse.status}`);
+            throw new Error(`Fallback Whisper failed with status: ${renderResponse.status}`);
           }
           const renderResult = await renderResponse.json();
 
           if (renderResult.status === 'completed' && renderResult.transcript) {
             finalTranscription = renderResult.transcript;
             transcriptionJobId = `RENDER-FALLBACK-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-            showMessage('✅ Transcription completed successfully!'); // Clean message for user
+            showMessage('✅ Transcription completed successfully with backup service!');
             
             setTranscription(finalTranscription);
             setTranscriptionProgress(100);
@@ -866,7 +886,7 @@ function AppContent() {
             setIsUploading(false);
             return;
           } else {
-            throw new Error(`Fallback Render Whisper incomplete: ${JSON.stringify(renderResult)}`);
+            throw new Error(`Fallback Whisper incomplete: ${JSON.stringify(renderResult)}`);
           }
         } else {
           const railwayResponse = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, {
@@ -876,13 +896,13 @@ function AppContent() {
           });
 
           if (!railwayResponse.ok) {
-            throw new Error(`Fallback Railway AssemblyAI failed with status: ${railwayResponse.status}`);
+            throw new Error(`Fallback AssemblyAI failed with status: ${railwayResponse.status}`);
           }
           const railwayResult = await railwayResponse.json();
 
           if (railwayResult && railwayResult.job_id) {
             transcriptionJobId = railwayResult.job_id;
-            showMessage('✅ Transcription started. Processing...'); // Clean message for user
+            showMessage('✅ Transcription started with backup service. Processing...');
             
             setUploadProgress(100);
             setStatus('processing');
@@ -891,7 +911,7 @@ function AppContent() {
             checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current, 'railway');
             return;
           } else {
-            throw new Error(`Fallback Railway AssemblyAI no job ID: ${JSON.stringify(railwayResult)}`);
+            throw new Error(`Fallback AssemblyAI no job ID: ${JSON.stringify(railwayResult)}`);
           }
         }
       } catch (fallbackError) {
@@ -1039,7 +1059,6 @@ function AppContent() {
       }
     };
   }, []);
-
   // Login screen for non-authenticated users
   if (!currentUser) {
     return (
@@ -1149,6 +1168,7 @@ function AppContent() {
       </div>
     );
   }
+
 return (
   <Routes>
     <Route path="/transcription/:id" element={<TranscriptionDetail />} />
@@ -1349,7 +1369,7 @@ return (
               boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
             }}
           >
-            📊 History/Editor
+            📊 History
           </button>
           <button
             onClick={() => setCurrentView('pricing')}
@@ -1386,6 +1406,7 @@ return (
             </button>
           )}
         </div>
+        {/* 🎯 HORIZONTAL PAYMENT PLANS - Key Feature */}
         {currentView === 'pricing' ? (
           <>
             <div style={{ 
@@ -1467,6 +1488,7 @@ return (
                   🔄 Pro International
                 </button>
               </div>
+
               {pricingView === 'credits' ? (
                 <>
                   <div style={{ marginTop: '20px' }}>
@@ -1477,7 +1499,7 @@ return (
                       Purchase temporary access to Pro features. Available globally with local currency support
                     </p>
                     
-                    {/* HORIZONTAL LAYOUT FOR PAYMENT PLANS */}
+                    {/* 🎯 HORIZONTAL LAYOUT FOR PAYMENT PLANS - KEY FEATURE */}
                     <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
                       <div style={{
                         backgroundColor: 'white',
@@ -1990,7 +2012,7 @@ return (
                       }}></div>
                     </div>
                     <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
-                      🗜️ Processing audio...
+                      🎯 Processing audio with optimal service...
                     </div>
                   </div>
                 )}
@@ -2203,9 +2225,9 @@ return (
                     onMouseEnter={(e) => e.target.style.color = '#0056b3'}
                     onMouseLeave={(e) => e.target.style.color = '#007bff'}
                   >
-                    History/Editor
+                    History
                   </button>
-                  {' '}for your transcripts.
+                  {' '}for your saved transcripts.
                 </div>
               </div>
             )}
