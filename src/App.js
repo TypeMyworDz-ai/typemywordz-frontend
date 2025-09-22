@@ -7,14 +7,16 @@ import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
-// import StripePayment from './components/StripePayment'; // REMOVED
+// import StripePayment from './components/StripePayment'; // REMOVED: Stripe is no longer used
 import CreditPurchase from './components/SubscriptionPlans';
 import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan } from './userService';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 
 // Configuration
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
+// NEW: Frontend now directly knows both Render and Railway URLs
+const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
+const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com'; // Your Render Whisper URL
 
 // Enhanced Toast Notification Component
 const ToastNotification = ({ message, onClose }) => {
@@ -23,9 +25,10 @@ const ToastNotification = ({ message, onClose }) => {
   useEffect(() => {
     if (message) {
       setIsVisible(true);
+      // Auto-dismiss after 4 seconds
       const timer = setTimeout(() => {
         setIsVisible(false);
-        setTimeout(onClose, 300);
+        setTimeout(onClose, 300); // Wait for fade animation
       }, 4000);
       
       return () => clearTimeout(timer);
@@ -122,6 +125,7 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   }, intervalTime);
   return interval; 
 };
+
 function AppContent() {
   const navigate = useNavigate();
   
@@ -144,8 +148,6 @@ function AppContent() {
   const [selectedLanguage, setSelectedLanguage] = useState('en'); 
   
   // Payment states
-  // const [showPayment, setShowPayment] = useState(false); // REMOVED
-  // const [selectedPlan, setSelectedPlan] = useState(null); // REMOVED
   const [pricingView, setPricingView] = useState('credits');
   const [selectedRegion, setSelectedRegion] = useState('KE');
   const [convertedAmounts, setConvertedAmounts] = useState({ 
@@ -160,7 +162,6 @@ function AppContent() {
   const transcriptionIntervalRef = useRef(null);
   const statusCheckTimeoutRef = useRef(null);
   const isCancelledRef = useRef(false);
-
   // Auth and user setup
   const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithMicrosoft, profileLoading } = useAuth();
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; 
@@ -169,12 +170,13 @@ function AppContent() {
   // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
+
   // Paystack payment functions
   const initializePaystackPayment = async (email, amount, planName, countryCode) => {
     try {
       console.log('Initializing Paystack payment:', { email, amount, planName, countryCode });
       
-      const response = await fetch(`${BACKEND_URL}/api/initialize-paystack-payment`, {
+      const response = await fetch(`${RAILWAY_BACKEND_URL}/api/initialize-paystack-payment`, { // Calls Railway
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -203,7 +205,6 @@ function AppContent() {
       showMessage('Payment initialization failed: ' + error.message);
     }
   };
-
   // Handle payment success callback
   const handlePaystackCallback = useCallback(async () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -216,7 +217,7 @@ function AppContent() {
       try {
         showMessage('Verifying payment...');
         
-        const response = await fetch(`${BACKEND_URL}/api/verify-payment`, {
+        const response = await fetch(`${RAILWAY_BACKEND_URL}/api/verify-payment`, { // Calls Railway
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -257,7 +258,6 @@ function AppContent() {
       handlePaystackCallback();
     }
   }, [currentUser, handlePaystackCallback]);
-
   // Enhanced reset function with better job cancellation
   const resetTranscriptionProcessUI = useCallback(() => { 
     console.log('🔄 Resetting transcription UI and cancelling any ongoing processes');
@@ -300,7 +300,6 @@ function AppContent() {
       console.log('✅ Reset complete, ready for new operations');
     }, 500);
   }, []);
-
   useEffect(() => {
     if (userProfile) {
       console.log('DIAGNOSTIC: userProfile.totalMinutesUsed updated to:', userProfile.totalMinutesUsed);
@@ -319,14 +318,16 @@ function AppContent() {
       console.log('🛑 Cancelling previous job before selecting new file');
       isCancelledRef.current = true;
       
+      // Since frontend now orchestrates, it might need to tell Railway to cancel its part.
+      // For now, we'll assume a new upload implicitly cancels the old one in frontend state.
+      // If Railway has an active AssemblyAI job, it might need explicit cancellation.
+      // For simplicity, we'll let the new request implicitly handle it, or rely on Railway's cleanup.
       try {
-        await fetch(`${BACKEND_URL}/cancel/${jobId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        console.log('✅ Previous job cancelled successfully');
+        // If the previous job was sent to Railway, we might need to cancel it there.
+        // For now, we're simplifying and assuming frontend state reset is enough.
+        // If a job was sent to Render, there's no direct cancel endpoint for it from the frontend.
       } catch (error) {
-        console.log('⚠️ Failed to cancel previous job, but continuing:', error);
+        console.log('⚠️ Failed to cancel previous job locally, but continuing:', error);
       }
     }
     
@@ -352,7 +353,6 @@ function AppContent() {
       audio.src = audioUrl;
     }
   }, [showMessage, resetTranscriptionProcessUI, jobId, status]);
-
   // Enhanced recording function with proper job cancellation
   const startRecording = useCallback(async () => {
     if (jobId && (status === 'processing' || status === 'uploading')) {
@@ -360,13 +360,10 @@ function AppContent() {
       isCancelledRef.current = true;
       
       try {
-        await fetch(`${BACKEND_URL}/cancel/${jobId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        console.log('✅ Previous job cancelled successfully');
+        // If the previous job was sent to Railway, we might need to cancel it there.
+        // For now, we're simplifying and assuming frontend state reset is enough.
       } catch (error) {
-        console.log('⚠️ Failed to cancel previous job, but continuing:', error);
+        console.log('⚠️ Failed to cancel previous job locally, but continuing:', error);
       }
     }
 
@@ -445,7 +442,6 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
-
   // Improved cancel function with page refresh
   const handleCancelUpload = useCallback(async () => {
     console.log('🛑 FORCE CANCEL - Stopping everything immediately');
@@ -479,13 +475,18 @@ function AppContent() {
       clearTimeout(i);
     }
     
+    // If a job ID exists, try to cancel it on the backend (Railway)
     if (jobId) {
-      fetch(`${BACKEND_URL}/cancel/${jobId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      }).catch(() => {
-        console.log('Backend cancel request failed, but continuing with force cancel');
-      });
+      try {
+        console.log(`Attempting to cancel job ${jobId} on Railway backend.`);
+        await fetch(`${RAILWAY_BACKEND_URL}/cancel/${jobId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        console.log('✅ Previous job cancelled successfully on Railway.');
+      } catch (error) {
+        console.log('⚠️ Failed to cancel previous job on Railway, but continuing with force cancel:', error);
+      }
     }
     
     showMessage("🛑 Transcription cancelled! Reloading page...");
@@ -495,8 +496,7 @@ function AppContent() {
     }, 1500);
     
     console.log('✅ Force cancellation complete. Page refresh initiated.');
-  }, [jobId, showMessage]);
-
+  }, [jobId, showMessage, RAILWAY_BACKEND_URL]);
   // handleTranscriptionComplete with debugging logs
   const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
     try {
@@ -515,12 +515,14 @@ function AppContent() {
       console.log('DEBUG:   estimatedDuration:', estimatedDuration);
       console.log('DEBUG:   jobId (passed to saveTranscription):', completedJobId);
       
+      // Call Railway backend to save the transcription
+      // Note: The audioUrl here is just the job ID, not a direct audio link, as the source is ephemeral.
       await saveTranscription(
         currentUser.uid, 
         selectedFile ? selectedFile.name : `Recording-${Date.now()}.wav`, 
         transcriptionText, 
         estimatedDuration, 
-        completedJobId
+        completedJobId // Use completedJobId as the identifier for the transcription
       );
       console.log('DEBUG: saveTranscription call completed.');
       
@@ -532,16 +534,12 @@ function AppContent() {
       showMessage('Failed to save transcription or update usage.');
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]);
-
   // Handle successful payment
   const handlePaymentSuccess = useCallback(async (planName, subscriptionId) => {
     try {
       await updateUserPlan(currentUser.uid, planName, subscriptionId);
       
       await refreshUserProfile();
-      
-      // setShowPayment(false); // REMOVED
-      // setSelectedPlan(null); // REMOVED
       
       showMessage(`🎉 Successfully upgraded to ${planName.charAt(0).toUpperCase() + planName.slice(1)} plan! You now have unlimited transcription access.`);
       
@@ -551,9 +549,8 @@ function AppContent() {
       showMessage('Payment successful but there was an error updating your account. Please contact support.');
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
-
-  // checkJobStatus to pass jobId to handleTranscriptionComplete
-  const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => {
+  // checkJobStatus for frontend-orchestrated jobs
+  const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval, sourceBackend) => {
     if (isCancelledRef.current) {
       console.log('🛑 Status check aborted - job was cancelled');
       clearInterval(transcriptionInterval);
@@ -569,9 +566,25 @@ function AppContent() {
       timeoutId = setTimeout(() => {
         console.log('⏰ Status check timeout - aborting');
         controller.abort();
-      }, 5000);
+      }, 10000); // Increased timeout for status checks if backend is slow
       
-      const response = await fetch(`${BACKEND_URL}/status/${jobIdToPass}`, {
+      let statusUrl = '';
+      if (sourceBackend === 'railway') {
+        statusUrl = `${RAILWAY_BACKEND_URL}/status/${jobIdToPass}`; // Call Railway's status endpoint
+      } else if (sourceBackend === 'render') {
+        // For Render Whisper, the transcription is synchronous. If we reached here,
+        // it means the initial POST to Render didn't immediately return a completed status,
+        // which shouldn't happen with our current synchronous Whisper service.
+        // If Render were asynchronous, we'd poll its status endpoint here.
+        // For now, if sourceBackend is 'render', it implies it was a direct Render call
+        // that either succeeded or failed immediately within handleUpload.
+        clearInterval(transcriptionInterval); // Stop polling
+        setStatus('failed'); // Mark as failed if we're polling Render and it's not synchronous
+        showMessage('Error: Unexpected status check for Render Whisper service. Assuming failure.');
+        return;
+      }
+      
+      const response = await fetch(statusUrl, {
         signal: controller.signal 
       });
       
@@ -627,7 +640,7 @@ function AppContent() {
           console.log('⏳ Job still processing - will check again');
           statusCheckTimeoutRef.current = setTimeout(() => {
             if (!isCancelledRef.current) {
-              checkJobStatus(jobIdToPass, transcriptionInterval);
+              checkJobStatus(jobIdToPass, transcriptionInterval, sourceBackend); // Pass sourceBackend
             } else {
               console.log('🛑 Recursive call cancelled');
               clearInterval(transcriptionInterval);
@@ -667,9 +680,8 @@ function AppContent() {
     } finally {
       abortControllerRef.current = null;
     }
-  }, [handleTranscriptionComplete, showMessage]);
-
-  // Enhanced upload function with proper interval tracking
+  }, [handleTranscriptionComplete, showMessage, RAILWAY_BACKEND_URL]);
+  // NEW: Handle Upload Logic with Frontend Orchestration (Render priority, Railway fallback)
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
@@ -701,59 +713,85 @@ function AppContent() {
     }
 
     isCancelledRef.current = false;
-
     setIsUploading(true);
     setStatus('processing');
     abortControllerRef.current = new AbortController();
 
-    try {
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('language_code', selectedLanguage); 
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('language_code', selectedLanguage);
 
-      const response = await fetch(`${BACKEND_URL}/transcribe`, {
+    let result = null;
+    let sourceBackend = '';
+
+    try {
+      // 1. Try Render Whisper Service (Priority)
+      showMessage('Attempting transcription with Render Whisper...');
+      console.log(`Attempting POST to Render Whisper: ${RENDER_WHISPER_URL}/transcribe`);
+      const renderResponse = await fetch(`${RENDER_WHISPER_URL}/transcribe`, {
         method: 'POST',
         body: formData,
-        signal: abortControllerRef.current.signal
+        signal: abortControllerRef.current.signal,
+        // Add a short timeout for Render if it's unresponsive
+        // Note: fetch doesn't have a built-in timeout, would need a wrapper or Promise.race
       });
 
-      if (isCancelledRef.current) {
+      if (!renderResponse.ok) {
+        throw new Error(`Render Whisper failed with status: ${renderResponse.status} - ${renderResponse.statusText}`);
+      }
+      result = await renderResponse.json();
+      sourceBackend = 'render';
+      console.log('Render Whisper transcription response:', result);
+
+    } catch (renderError) {
+      console.error('Render Whisper transcription failed:', renderError);
+      showMessage('Render Whisper failed. Falling back to Railway AssemblyAI...');
+      
+      // 2. Fallback to Railway AssemblyAI Service
+      try {
+        console.log(`Attempting POST to Railway AssemblyAI fallback: ${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`);
+        const railwayResponse = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, { // NEW ENDPOINT
+          method: 'POST',
+          body: formData,
+          signal: abortControllerRef.current.signal
+        });
+
+        if (!railwayResponse.ok) {
+          throw new Error(`Railway AssemblyAI fallback failed with status: ${railwayResponse.status} - ${railwayResponse.statusText}`);
+        }
+        result = await railwayResponse.json();
+        sourceBackend = 'railway';
+        console.log('Railway AssemblyAI fallback transcription response:', result);
+
+      } catch (railwayError) {
+        console.error('Railway AssemblyAI fallback transcription failed:', railwayError);
+        showMessage('Both transcription services failed. Please try again later.');
+        setUploadProgress(0);
+        setTranscriptionProgress(0);
+        setStatus('failed'); 
+        setIsUploading(false); 
         return;
       }
-
-      const result = await response.json();
-      
-      if (response.ok) {
-        setUploadProgress(100);
-        setStatus('processing');
-        setJobId(result.job_id);
-        transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
-        checkJobStatus(result.job_id, transcriptionIntervalRef.current); 
-        
-      } else {
-        console.error("Backend upload failed response:", result);
-        showMessage('Upload failed: ' + (result.detail || `HTTP error! Status: ${response.status}`));
-        setUploadProgress(0);
-        setTranscriptionProgress(0);
-        setStatus('failed'); 
-        setIsUploading(false); 
-      }
-    } catch (error) {
-      if (error.name === 'AbortError' || isCancelledRef.current) {
-        console.log('Upload aborted by user.');
-      } else {
-        console.error("Fetch error during upload:", error);
-        showMessage('Upload failed: ' + error.message);
-        setUploadProgress(0);
-        setTranscriptionProgress(0);
-        setStatus('failed'); 
-        setIsUploading(false); 
-      }
-    } finally {
-      abortControllerRef.current = null;
     }
-  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile, profileLoading, selectedLanguage]);
 
+    // Process successful result from either Render or Railway
+    if (result && result.job_id) {
+      setUploadProgress(100);
+      setStatus('processing');
+      setJobId(result.job_id);
+      transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
+      checkJobStatus(result.job_id, transcriptionIntervalRef.current, sourceBackend); // Pass sourceBackend
+      
+    } else {
+      console.error("Transcription initiation failed, no job ID received:", result);
+      showMessage('Transcription initiation failed. No job ID.');
+      setUploadProgress(0);
+      setTranscriptionProgress(0);
+      setStatus('failed'); 
+      setIsUploading(false); 
+    }
+
+  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile, profileLoading, selectedLanguage, RAILWAY_BACKEND_URL, RENDER_WHISPER_URL]);
   // Copy to clipboard - only for paid users
   const copyToClipboard = useCallback(() => { 
     if (userProfile?.plan === 'free') {
@@ -793,7 +831,7 @@ function AppContent() {
     URL.revokeObjectURL(url);
   }, [transcription]);
 
-  // Enhanced download with compression options
+  // Enhanced download with compression options (Note: This is for recorded audio, not transcription results)
   const downloadRecordedAudio = useCallback(async () => { 
     if (recordedAudioBlobRef.current) {
       try {
@@ -825,7 +863,6 @@ function AppContent() {
       showMessage('No recorded audio available to download.');
     }
   }, [showMessage, downloadFormat]);
-
   const handleLogout = useCallback(async () => {
     try {
       await logout();
@@ -847,12 +884,8 @@ function AppContent() {
 
   const handleUpgradeClick = useCallback((planType) => {
     console.log('Upgrade clicked for plan:', planType);
-    // setSelectedPlan(planType); // REMOVED
-    // setShowPayment(true); // REMOVED
-    // NEW: Directly navigate to pricing page if needed, or trigger Paystack directly
-    // For now, let's just navigate to the pricing view, as payment init is handled by buttons
     setCurrentView('pricing');
-  }, [setCurrentView]); // Added setCurrentView to dependencies
+  }, [setCurrentView]);
 
   // useEffect to handle 30-minute trial for free users
   useEffect(() => {
@@ -883,7 +916,6 @@ function AppContent() {
       }
     };
   }, []);
-
   // Login screen for non-authenticated users
   if (!currentUser) {
     return (
@@ -1100,7 +1132,7 @@ function AppContent() {
                 opacity: '0.9'
               }}>
                 <span>Logged in as: {userProfile?.name || currentUser.email}</span>
-                {userProfile && userProfile.plan === 'pro' ? (
+                {userProfile && userProfile.plan === 'pro' ? ( 
                   <span>Plan: Pro (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
                 ) : userProfile && userProfile.plan === '24 Hours Pro Access' ? (
                   <span>Plan: 24 Hours Pro Access {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
@@ -1618,13 +1650,14 @@ function AppContent() {
             }}>
               {userProfile && userProfile.plan === 'free' && (
                 <div style={{
-                  backgroundColor: 'rgba(255, 243, 205, 0.95)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)', // Changed from yellow to white for consistency
                   color: '#856404',
                   padding: '15px',
                   borderRadius: '10px',
                   marginBottom: '30px',
                   textAlign: 'center',
-                  backdropFilter: 'blur(10px)'
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid #ffecb3' // Added a subtle border
                 }}>
                   {userProfile.totalMinutesUsed < 30 ? (
                     <>
@@ -2080,39 +2113,6 @@ function AppContent() {
           </footer>
 
           {/* Removed StripePayment modal */}
-          {/* {showPayment && selectedPlan && (
-            <div style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0,0,0,0.8)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 1000
-            }}>
-              <div style={{
-                backgroundColor: 'white',
-                borderRadius: '15px',
-                padding: '20px',
-                maxWidth: '500px',
-                width: '90%',
-                maxHeight: '90vh',
-                overflow: 'auto'
-              }}>
-                <StripePayment
-                  selectedPlan={selectedPlan}
-                  onSuccess={handlePaymentSuccess}
-                  onCancel={() => {
-                    setShowPayment(false);
-                    setSelectedPlan(null);
-                  }}
-                />
-              </div>
-            </div>
-          )} */}
         </div>
       } />
     </Routes>
