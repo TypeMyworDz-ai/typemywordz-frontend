@@ -7,7 +7,7 @@ import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
-import StripePayment from './components/StripePayment';
+// import StripePayment from './components/StripePayment'; // REMOVED
 import CreditPurchase from './components/SubscriptionPlans';
 import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan } from './userService';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
@@ -23,10 +23,9 @@ const ToastNotification = ({ message, onClose }) => {
   useEffect(() => {
     if (message) {
       setIsVisible(true);
-      // Auto-dismiss after 4 seconds
       const timer = setTimeout(() => {
         setIsVisible(false);
-        setTimeout(onClose, 300); // Wait for fade animation
+        setTimeout(onClose, 300);
       }, 4000);
       
       return () => clearTimeout(timer);
@@ -145,8 +144,8 @@ function AppContent() {
   const [selectedLanguage, setSelectedLanguage] = useState('en'); 
   
   // Payment states
-  const [showPayment, setShowPayment] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState(null);
+  // const [showPayment, setShowPayment] = useState(false); // REMOVED
+  // const [selectedPlan, setSelectedPlan] = useState(null); // REMOVED
   const [pricingView, setPricingView] = useState('credits');
   const [selectedRegion, setSelectedRegion] = useState('KE');
   const [convertedAmounts, setConvertedAmounts] = useState({ 
@@ -164,8 +163,8 @@ function AppContent() {
 
   // Auth and user setup
   const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithMicrosoft, profileLoading } = useAuth();
-  const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; // Keep local for UI checks if needed
-  const isAdmin = ADMIN_EMAILS.includes(currentUser?.email); // For AdminDashboard access only
+  const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; 
+  const isAdmin = ADMIN_EMAILS.includes(currentUser?.email); 
 
   // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
@@ -541,8 +540,8 @@ function AppContent() {
       
       await refreshUserProfile();
       
-      setShowPayment(false);
-      setSelectedPlan(null);
+      // setShowPayment(false); // REMOVED
+      // setSelectedPlan(null); // REMOVED
       
       showMessage(`🎉 Successfully upgraded to ${planName.charAt(0).toUpperCase() + planName.slice(1)} plan! You now have unlimited transcription access.`);
       
@@ -848,15 +847,18 @@ function AppContent() {
 
   const handleUpgradeClick = useCallback((planType) => {
     console.log('Upgrade clicked for plan:', planType);
-    setSelectedPlan(planType);
-    setShowPayment(true);
-  }, []);
+    // setSelectedPlan(planType); // REMOVED
+    // setShowPayment(true); // REMOVED
+    // NEW: Directly navigate to pricing page if needed, or trigger Paystack directly
+    // For now, let's just navigate to the pricing view, as payment init is handled by buttons
+    setCurrentView('pricing');
+  }, [setCurrentView]); // Added setCurrentView to dependencies
 
   // useEffect to handle 30-minute trial for free users
   useEffect(() => {
     if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
       const remainingMinutes = 30 - (userProfile.totalMinutesUsed || 0);
-      if (userProfile.plan === 'pro' || (userProfile.plan === 'free' && remainingMinutes > 0) || ['24 Hours Pro Access', '5 Days Pro Access'].includes(userProfile.plan)) { // Check explicit plans
+      if (userProfile.plan === 'pro' || (userProfile.plan === 'free' && remainingMinutes > 0) || ['24 Hours Pro Access', '5 Days Pro Access'].includes(userProfile.plan)) {
         console.log('DIAGNOSTIC: Auto-upload triggered. User plan:', userProfile.plan, 'Remaining minutes:', remainingMinutes);
         const timer = setTimeout(() => {
           handleUpload();
@@ -1098,7 +1100,7 @@ function AppContent() {
                 opacity: '0.9'
               }}>
                 <span>Logged in as: {userProfile?.name || currentUser.email}</span>
-                {userProfile && userProfile.plan === 'pro' ? ( // Simplified plan display
+                {userProfile && userProfile.plan === 'pro' ? (
                   <span>Plan: Pro (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
                 ) : userProfile && userProfile.plan === '24 Hours Pro Access' ? (
                   <span>Plan: 24 Hours Pro Access {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
@@ -2077,13 +2079,8 @@ function AppContent() {
             © {new Date().getFullYear()} TypeMyworDz, Inc. - Enhanced with 30-Minute Free Trial
           </footer>
 
-          {copiedMessageVisible && (
-            <div className="copied-message-animation">
-              Copied to clipboard!
-            </div>
-          )}
-
-          {showPayment && selectedPlan && (
+          {/* Removed StripePayment modal */}
+          {/* {showPayment && selectedPlan && (
             <div style={{
               position: 'fixed',
               top: 0,
@@ -2115,7 +2112,7 @@ function AppContent() {
                 />
               </div>
             </div>
-          )}
+          )} */}
         </div>
       } />
     </Routes>
