@@ -1215,6 +1215,7 @@ function AppContent() {
           alignItems: 'flex-start',
           padding: '0 20px'
         }}>
+          <h2 style={{color: 'red'}}>LOGIN SCREEN SHOULD BE HERE</h2> {/* TEMPORARY DEBUG TEXT */}
           <Login />
         </div>
         <ToastNotification message={message} onClose={clearMessage} />
