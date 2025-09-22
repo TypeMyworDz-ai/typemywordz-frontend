@@ -4,8 +4,8 @@ import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getD
 const USERS_COLLECTION = 'users';
 const TRANSCRIPTIONS_COLLECTION = 'transcriptions';
 
-// Admin emails - define here for consistent access
-const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
+// Admin emails - these users will always have 'pro' plan without payment/expiry
+const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; 
 
 // Helper to get user profile document reference
 const getUserProfileRef = (uid) => doc(db, USERS_COLLECTION, uid);
@@ -18,41 +18,52 @@ export const createUserProfile = async (uid, email, name = '') => {
   const userRef = getUserProfileRef(uid);
   const docSnap = await getDoc(userRef);
 
-  // Determine plan based on admin email
-  const userPlan = ADMIN_EMAILS.includes(email) ? 'business' : 'free';
+  // If email is an admin, set plan to 'pro' with no expiry. Otherwise 'free'.
+  const userPlan = ADMIN_EMAILS.includes(email) ? 'pro' : 'free';
 
   if (!docSnap.exists()) {
     await setDoc(userRef, {
       uid,
       email,
       name,
-      plan: userPlan, // Set plan based on admin status
-      totalMinutesUsed: 0, // Initialize totalMinutesUsed for new users
+      plan: userPlan,
+      totalMinutesUsed: 0,
       createdAt: new Date(),
       lastAccessed: new Date(),
-      // NEW: For time-limited plans, expiresAt will be set by updateUserPlan
-      expiresAt: null, 
+      expiresAt: ADMIN_EMAILS.includes(email) ? null : null, // Admins don't expire, others start free
+      subscriptionStartDate: ADMIN_EMAILS.includes(email) ? new Date() : null, // Admin 'pro' starts now
+      stripeSubscriptionId: ADMIN_EMAILS.includes(email) ? 'ADMIN_UNLIMITED' : null, // Identifier for admin pro
     });
     console.log("User profile created for:", email, "with plan:", userPlan);
   } else {
-    // Get existing data to preserve totalMinutesUsed if it exists
     const existingData = docSnap.data();
     const updates = {
       lastAccessed: new Date(),
     };
 
-    // If profile exists, ensure admin accounts always have business plan
-    if (ADMIN_EMAILS.includes(email) && existingData.plan !== 'business') {
-      updates.plan = 'business'; // Upgrade to business if admin and not already
-      console.log("Admin user profile updated to business plan:", email);
-    } else if (!ADMIN_EMAILS.includes(email) && existingData.plan === 'business' && existingData.totalMinutesUsed === undefined) {
-      // Edge case: if a non-admin somehow got 'business' plan but is free, ensure totalMinutesUsed is set
-      updates.totalMinutesUsed = existingData.totalMinutesUsed !== undefined ? existingData.totalMinutesUsed : 0;
+    // Admin override: ensure admin accounts always have 'pro' plan with no expiry
+    if (ADMIN_EMAILS.includes(email) && existingData.plan !== 'pro') {
+      updates.plan = 'pro';
+      updates.expiresAt = null; // Admins don't expire
+      updates.subscriptionStartDate = new Date();
+      updates.stripeSubscriptionId = 'ADMIN_UNLIMITED';
+      console.log(`Admin user profile ${email} updated to PRO plan (unlimited).`);
+    } else if (ADMIN_EMAILS.includes(email) && existingData.plan === 'pro' && existingData.stripeSubscriptionId !== 'ADMIN_UNLIMITED') {
+        // Ensure existing admin pro accounts are correctly marked as ADMIN_UNLIMITED
+        updates.stripeSubscriptionId = 'ADMIN_UNLIMITED';
+        updates.expiresAt = null;
+        console.log(`Admin user profile ${email} corrected to PRO plan (ADMIN_UNLIMITED).`);
     }
     
-    // Ensure totalMinutesUsed is initialized if it's missing for an existing user (e.g., old accounts)
     if (existingData.totalMinutesUsed === undefined || existingData.totalMinutesUsed === null) {
         updates.totalMinutesUsed = 0;
+    }
+    // For non-admin users, if their plan is not a timed pro plan and has expiry data, clear it.
+    if (!ADMIN_EMAILS.includes(email) && existingData.plan === 'free' && (existingData.expiresAt || existingData.stripeSubscriptionId || existingData.subscriptionStartDate)) {
+        updates.expiresAt = null;
+        updates.stripeSubscriptionId = null;
+        updates.subscriptionStartDate = null;
+        console.log(`DEBUG: createUserProfile - Resetting expiry fields for non-admin user ${uid} on free plan.`);
     }
 
     await updateDoc(userRef, updates);
@@ -60,33 +71,59 @@ export const createUserProfile = async (uid, email, name = '') => {
   }
 };
 
-// Get user profile (UPDATED for expiry check)
+// Get user profile (UPDATED for expiry check and admin 'pro' override)
 export const getUserProfile = async (uid) => {
-  const docSnap = await getDoc(getUserProfileRef(uid));
+  const userRef = getUserProfileRef(uid);
+  const docSnap = await getDoc(userRef);
   if (docSnap.exists()) {
-    const profileData = docSnap.data();
-    
-    // Ensure totalMinutesUsed is always a number, default to 0
+    let profileData = docSnap.data();
+    console.log("DEBUG: getUserProfile - Raw profileData from Firestore:", JSON.parse(JSON.stringify(profileData)));
+
     profileData.totalMinutesUsed = typeof profileData.totalMinutesUsed === 'number' ? profileData.totalMinutesUsed : 0;
 
-    // NEW LOGIC: Check if 'pro' plan has expired
-    if (profileData.plan === 'pro' && profileData.expiresAt && profileData.expiresAt.toDate() < new Date()) {
-      console.log(`User ${uid} PRO plan expired. Downgrading to FREE.`);
-      await updateDoc(getUserProfileRef(uid), {
-        plan: 'free',
-        expiresAt: null, // Clear expiry date
-        stripeSubscriptionId: null, // Clear subscription ID
-        subscriptionStartDate: null, // Clear subscription start date
-        totalMinutesUsed: profileData.totalMinutesUsed, // Keep existing usage
-      });
-      return { ...profileData, plan: 'free', expiresAt: null, stripeSubscriptionId: null, subscriptionStartDate: null };
+    // Convert Firestore Timestamp to Date object if it exists
+    if (profileData.expiresAt && typeof profileData.expiresAt.toDate === 'function') {
+        profileData.expiresAt = profileData.expiresAt.toDate();
+    }
+    if (profileData.subscriptionStartDate && typeof profileData.subscriptionStartDate.toDate === 'function') {
+        profileData.subscriptionStartDate = profileData.subscriptionStartDate.toDate();
     }
 
-    // Ensure admin accounts always return business plan
-    if (ADMIN_EMAILS.includes(profileData.email) && profileData.plan !== 'business') {
-      // This ensures the frontend sees 'business' immediately even if DB is not updated yet
-      return { ...profileData, plan: 'business' };
+    const currentTime = new Date();
+
+    // Admin override: ensure admin accounts always return 'pro' plan with no expiry
+    if (ADMIN_EMAILS.includes(profileData.email)) {
+      if (profileData.plan !== 'pro' || profileData.stripeSubscriptionId !== 'ADMIN_UNLIMITED' || profileData.expiresAt !== null) {
+        // Update DB if not consistent
+        await updateDoc(userRef, {
+          plan: 'pro',
+          expiresAt: null,
+          subscriptionStartDate: new Date(), // Set to current date for consistency
+          stripeSubscriptionId: 'ADMIN_UNLIMITED',
+        });
+        profileData = { ...profileData, plan: 'pro', expiresAt: null, subscriptionStartDate: new Date(), stripeSubscriptionId: 'ADMIN_UNLIMITED' };
+        console.log(`DEBUG: getUserProfile - Admin ${profileData.email} profile forced to PRO (ADMIN_UNLIMITED).`);
+      } else {
+        console.log(`DEBUG: getUserProfile - Admin ${profileData.email} is already PRO (ADMIN_UNLIMITED).`);
+      }
+      return profileData; // Return immediately for admins
     }
+
+    // For non-admin users: If a timed plan has expired, downgrade to 'free' in DB and return updated profile
+    if (['pro', '24 Hours Pro Access', '5 Days Pro Access'].includes(profileData.plan) && profileData.expiresAt && profileData.expiresAt < currentTime) {
+      console.log(`User ${uid} plan '${profileData.plan}' expired on ${profileData.expiresAt}. Downgrading to FREE.`);
+      await updateDoc(userRef, {
+        plan: 'free',
+        expiresAt: null,
+        stripeSubscriptionId: null,
+        subscriptionStartDate: null,
+        totalMinutesUsed: profileData.totalMinutesUsed,
+      });
+      // Return the newly updated profile data
+      return { ...profileData, plan: 'free', expiresAt: null, stripeSubscriptionId: null, subscriptionStartDate: null };
+    }
+    
+    console.log("DEBUG: getUserProfile - Final profileData returned (non-admin):", JSON.parse(JSON.stringify(profileData)));
     return profileData;
   }
   return null;
@@ -98,34 +135,41 @@ export const updateUserPlan = async (uid, newPlan, subscriptionId = null) => {
   const updates = {
     plan: newPlan,
     lastAccessed: new Date(),
-    subscriptionStartDate: new Date(), // NEW: Always set start date for any plan change
   };
   
   if (subscriptionId) {
     updates.stripeSubscriptionId = subscriptionId;
   }
 
-  // NEW LOGIC: Set expiresAt for time-limited plans
-  if (newPlan === 'pro') {
-    const planDetails = await getPlanDetails(subscriptionId); // Assuming subscriptionId can map to plan duration
-    if (planDetails && planDetails.durationDays) {
-      updates.expiresAt = new Date(Date.now() + planDetails.durationDays * 24 * 60 * 60 * 1000);
-      console.log(`User ${uid} PRO plan will expire on: ${updates.expiresAt}`);
-    } else if (planDetails && planDetails.durationHours) {
-        updates.expiresAt = new Date(Date.now() + planDetails.durationHours * 60 * 60 * 1000);
-        console.log(`User ${uid} PRO plan will expire on: ${updates.expiresAt}`);
-    } else {
-        // Default to 24 hours if duration not explicitly found (e.g., for '24 Hours Pro Access')
-        updates.expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-        console.warn(`Could not determine exact plan duration for ${subscriptionId}. Defaulting PRO plan expiry to 24 hours.`);
-    }
-  } else {
-    updates.expiresAt = null; // Clear expiry for free or business plans
-    updates.stripeSubscriptionId = null; // Clear subscription ID
-    updates.subscriptionStartDate = null; // Clear subscription start date
+  let planDurationHours = 0;
+  if (newPlan === '24 Hours Pro Access') {
+      planDurationHours = 24;
+  } else if (newPlan === '5 Days Pro Access') {
+      planDurationHours = 5 * 24;
+  } else if (newPlan === 'pro') { // If a generic 'pro' plan is passed, assume it's a monthly pro or default to 24hrs for credits
+      // This 'pro' might come from the frontend for the monthly subscription.
+      // For credits, the plan name should be '24 Hours Pro Access' or '5 Days Pro Access'.
+      // For monthly, we'll assume it's truly unlimited or handled by a different expiry system (e.g. Stripe webhook)
+      // For now, if it's 'pro' and not admin, we'll give it a long default expiry or treat as truly unlimited until monthly subscription logic is implemented.
+      // For the purpose of removing 'business', 'pro' becomes the highest tier.
+      planDurationHours = 365 * 24; // Default to 1 year for 'pro' if no specific duration, or set to null for truly unlimited.
+      // Or, set expiresAt to null if 'pro' means truly unlimited
+      updates.expiresAt = null; 
+      updates.subscriptionStartDate = new Date();
+      console.log(`updateUserPlan: Generic 'pro' plan received for ${uid}. Treating as effectively unlimited.`);
   }
+
+  if (planDurationHours > 0 && newPlan !== 'pro') { // Only set expiresAt for specific timed plans, not for generic 'pro'
+      updates.expiresAt = new Date(Date.now() + planDurationHours * 60 * 60 * 1000);
+      updates.subscriptionStartDate = new Date();
+      console.log(`User ${uid} ${newPlan} plan will expire on: ${updates.expiresAt}`);
+  } else if (newPlan === 'free') { // Explicitly handle free plan
+      updates.expiresAt = null;
+      updates.stripeSubscriptionId = null;
+      updates.subscriptionStartDate = null;
+  }
+  // No else needed for 'pro' plan as expiresAt is already set to null or handled above.
   
-  // Reset usage for newly upgraded users (except admins)
   const userProfile = await getUserProfile(uid);
   if (newPlan !== 'free' && !ADMIN_EMAILS.includes(userProfile?.email)) {
     updates.totalMinutesUsed = 0;
@@ -135,54 +179,12 @@ export const updateUserPlan = async (uid, newPlan, subscriptionId = null) => {
   console.log(`User ${uid} plan updated to: ${newPlan}`);
 };
 
-// NEW: Helper function to get plan details (you'll need to implement this based on your payment system)
-// For Paystack, the plan_name metadata already contains "24 Hours Pro Access" or "5 Days Pro Access"
-// This function needs to parse that or fetch from a config.
-const getPlanDetails = async (subscriptionId) => {
-    // In a real app, you might fetch this from a central config or parse the subscriptionId metadata
-    // For now, based on your previous payment logic, we can infer from the plan name
-    // This is a placeholder and should be made more robust if plans become complex
-    const userProfile = await getDoc(doc(db, USERS_COLLECTION, subscriptionId)); // Assuming subscriptionId is actually the UID for this context from handlePaystackCallback
-    const planName = userProfile.data()?.plan; // This is incorrect, planName is passed to updateUserPlan
-    
-    // We need the plan_name passed during payment. Assuming subscriptionId is actually the planName
-    // from the previous context where it was passed as 'pro' or 'business'.
-    // A better approach would be to store plan details in a separate collection or config.
-    
-    // For the sake of getting it working with current Paystack logic:
-    // When updateUserPlan is called, the 'subscriptionId' parameter is actually the Paystack reference.
-    // We need to retrieve the original plan_name from that reference's metadata.
-    // This would require another call to Paystack or storing it in the user profile during verification.
-    
-    // For now, let's assume the 'planName' that was passed to updateUserPlan can be used
-    // to determine duration. But the `subscriptionId` parameter of `updateUserPlan`
-    // is currently the Paystack reference. We need to store the plan_name associated
-    // with that reference somewhere accessible.
-    
-    // Re-reading your handlePaystackCallback, `updateUserPlan(currentUser.uid, 'pro', reference);`
-    // The 'pro' here is the `newPlan`, and `reference` is `subscriptionId`.
-    // We need to know if this 'pro' corresponds to '24 Hours Pro Access' or '5 Days Pro Access'.
-    // This information is in the `data.data.plan` from the Paystack verification result.
-    // So, we need to pass that `plan_name` (e.g., "24 Hours Pro Access") to `updateUserPlan` as well.
-    // Let's adjust `App.js` to pass `data.data.plan` to `updateUserPlan`.
-    
-    // For now, let's hardcode based on the plan string 'pro' meaning 24 hours if no other info.
-    // This part requires a slight adjustment in App.js to pass the actual plan_name from payment.
-    
-    // Placeholder logic - this needs actual plan_name from payment callback.
-    // Let's assume for 'pro' it means 24 hours if no specific plan_name is passed.
-    // We'll fix this properly when we update App.js.
-    return { durationHours: 24 }; // Default to 24 hours for 'pro' if no specific plan name
-};
-
-
 // Check recording permissions
 export const canUserRecord = async (uid) => {
   try {
     const userProfile = await getUserProfile(uid);
     if (!userProfile) return false;
     
-    // Both free and paid users can record
     return true;
   } catch (error) {
     console.error("Error checking recording permissions:", error);
@@ -191,42 +193,37 @@ export const canUserRecord = async (uid) => {
 };
 
 // Check if user can transcribe - now includes free trial logic and correct unit conversion
-export const canUserTranscribe = async (uid, estimatedDurationSeconds) => { // Renamed param for clarity
+export const canUserTranscribe = async (uid, estimatedDurationSeconds) => {
   try {
     console.log("🔍 canUserTranscribe called with:", { uid, estimatedDurationSeconds });
     
-    const userProfile = await getUserProfile(uid);
-    console.log("👤 User profile retrieved:", userProfile);
+    // Always get the latest user profile, which includes expiry checks and downgrades
+    const userProfile = await getUserProfile(uid); // This will handle admin override and expiry downgrade
+    console.log("👤 canUserTranscribe - User profile retrieved:", JSON.parse(JSON.stringify(userProfile)));
     
     if (!userProfile) {
       console.warn("❌ canUserTranscribe: User profile not found for uid:", uid);
       return false;
     }
 
-    if (userProfile.plan === 'business') { // Business plan is truly unlimited
-      console.log(`✅ ${userProfile.plan} plan user - unlimited transcription`);
-      return true;
+    // Admin users (now treated as 'pro' unlimited) or 'pro' plan (which has no expiry or is active)
+    if (userProfile.plan === 'pro') {
+        console.log(`✅ ${userProfile.plan} plan user - unlimited transcription`);
+        return true;
     }
     
-    // NEW LOGIC: For 'pro' plans, check expiry
-    if (userProfile.plan === 'pro') {
-        if (userProfile.expiresAt && userProfile.expiresAt.toDate() > new Date()) {
-            console.log(`✅ PRO plan user - plan active until ${userProfile.expiresAt.toDate()}. Allowing transcription.`);
-            return true;
-        } else {
-            console.log(`❌ PRO plan user - plan expired or no expiry date. Blocking transcription.`);
-            // This case should ideally be handled by getUserProfile already downgrading
-            // but as a failsafe, we block here.
-            return false;
-        }
+    // Then check for time-limited pro plans (which getUserProfile should have already validated/downgraded)
+    if (['24 Hours Pro Access', '5 Days Pro Access'].includes(userProfile.plan)) {
+        // If the plan is still one of these, it means getUserProfile determined it's active.
+        console.log(`✅ ${userProfile.plan} plan user - plan active. Allowing transcription.`);
+        return true;
     }
 
-    // Free users get 30 minutes
+    // Finally, check free plan limits
     if (userProfile.plan === 'free') {
       const currentMinutesUsed = userProfile.totalMinutesUsed || 0;
       const remainingMinutes = 30 - currentMinutesUsed;
 
-      // Convert estimated duration from seconds to minutes (ceil to count partial minutes)
       const estimatedDurationMinutes = Math.ceil(estimatedDurationSeconds / 60);
 
       if (estimatedDurationMinutes <= remainingMinutes) {
@@ -238,8 +235,7 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds) => { // R
       }
     }
     
-    // Default to false for any other unhandled plan or scenario
-    console.log("❌ canUserTranscribe: User plan not eligible for transcription or unhandled scenario.");
+    console.log("❌ canUserTranscribe: User plan not eligible for transcription or unhandled scenario. Current plan:", userProfile.plan);
     return false;
     
   } catch (error) {
@@ -248,46 +244,44 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds) => { // R
   }
 };
 
-// Update user usage after transcription - now correctly converts duration to minutes
-export const updateUserUsage = async (uid, durationSeconds) => { // Renamed param for clarity
+// Update user usage after transcription
+export const updateUserUsage = async (uid, durationSeconds) => {
   const userRef = getUserProfileRef(uid);
-  const userProfile = await getUserProfile(uid);
+  const userProfile = await getUserProfile(uid); // Get latest profile with admin override/expiry check
 
   if (userProfile && userProfile.plan === 'free') {
-    // Convert duration from seconds to minutes (ceil to count partial minutes as full)
     const durationMinutes = Math.ceil(durationSeconds / 60);
     const newTotalMinutes = (userProfile.totalMinutesUsed || 0) + durationMinutes;
 
     await updateDoc(userRef, {
-      totalMinutesUsed: newTotalMinutes, // Update totalMinutesUsed with minutes
+      totalMinutesUsed: newTotalMinutes,
       lastAccessed: new Date(),
     });
     console.log(`📊 User ${uid} (free plan): Updated totalMinutesUsed by ${durationMinutes} mins to ${newTotalMinutes} mins.`);
-  } else if (userProfile && (userProfile.plan === 'business' || userProfile.plan === 'pro')) {
-    // For business/pro plan, we don't update totalMinutesUsed for limits
+  } else if (userProfile && (userProfile.plan === 'pro' || ['24 Hours Pro Access', '5 Days Pro Access'].includes(userProfile.plan))) {
+    // For pro/timed pro plan, we don't update totalMinutesUsed for limits
     await updateDoc(userRef, {
       lastAccessed: new Date(),
     });
     console.log(`📊 User ${uid} (${userProfile.plan} plan): Usage not tracked for limits.`);
   } else {
-    console.warn(`⚠️ User ${uid}: Profile not found or plan not recognized for usage update.`);
+    console.warn(`⚠️ User ${uid}: Profile not found or plan not recognized for usage update. Current plan:`, userProfile?.plan);
   }
 };
 
-// UPDATED: Save transcription to Firestore - now accepts individual fields
+// Save transcription to Firestore
 export const saveTranscription = async (uid, fileName, text, duration, audioUrl) => {
   const transcriptionsCollectionRef = getUserTranscriptionsCollectionRef(uid);
-  const newTranscriptionRef = doc(transcriptionsCollectionRef); // Let Firestore generate ID
+  const newTranscriptionRef = doc(transcriptionsCollectionRef);
 
   const transcriptionData = {
     fileName,
     text,
     duration,
-    audioUrl, // This is the AssemblyAI ID, which will be used to construct the audio URL later
+    audioUrl,
     userId: uid,
     createdAt: new Date(),
-    // Transcriptions expire after 7 days, consistent with App.js download options
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) 
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   };
 
   await setDoc(newTranscriptionRef, transcriptionData);
@@ -298,16 +292,19 @@ export const saveTranscription = async (uid, fileName, text, duration, audioUrl)
 // Fetch user's transcriptions (for History/Editor)
 export const fetchUserTranscriptions = async (uid) => {
   const transcriptionsCollectionRef = getUserTranscriptionsCollectionRef(uid);
-  // Query for active transcriptions, ordered by creation date
   const q = query(
     transcriptionsCollectionRef,
-    where("expiresAt", ">", new Date()), // Only fetch non-expired transcriptions
-    orderBy("createdAt", "desc") // Order by creation date to show newest first
+    where("expiresAt", ">", new Date()),
+    orderBy("createdAt", "desc")
   );
   const querySnapshot = await getDocs(q);
   const transcriptions = [];
   querySnapshot.forEach((doc) => {
-    transcriptions.push({ id: doc.id, ...doc.data() });
+    const data = doc.data();
+    if (data.expiresAt && typeof data.expiresAt.toDate === 'function') {
+        data.expiresAt = data.expiresAt.toDate();
+    }
+    transcriptions.push({ id: doc.id, ...data });
   });
   return transcriptions;
 };

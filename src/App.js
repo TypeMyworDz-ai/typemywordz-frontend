@@ -123,7 +123,6 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   }, intervalTime);
   return interval; 
 };
-
 function AppContent() {
   const navigate = useNavigate();
   
@@ -162,15 +161,15 @@ function AppContent() {
   const transcriptionIntervalRef = useRef(null);
   const statusCheckTimeoutRef = useRef(null);
   const isCancelledRef = useRef(false);
+
   // Auth and user setup
   const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithMicrosoft, profileLoading } = useAuth();
-  const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
-  const isAdmin = ADMIN_EMAILS.includes(currentUser?.email);
+  const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; // Keep local for UI checks if needed
+  const isAdmin = ADMIN_EMAILS.includes(currentUser?.email); // For AdminDashboard access only
 
   // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
-
   // Paystack payment functions
   const initializePaystackPayment = async (email, amount, planName, countryCode) => {
     try {
@@ -205,6 +204,7 @@ function AppContent() {
       showMessage('Payment initialization failed: ' + error.message);
     }
   };
+
   // Handle payment success callback
   const handlePaystackCallback = useCallback(async () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -258,6 +258,7 @@ function AppContent() {
       handlePaystackCallback();
     }
   }, [currentUser, handlePaystackCallback]);
+
   // Enhanced reset function with better job cancellation
   const resetTranscriptionProcessUI = useCallback(() => { 
     console.log('🔄 Resetting transcription UI and cancelling any ongoing processes');
@@ -300,6 +301,7 @@ function AppContent() {
       console.log('✅ Reset complete, ready for new operations');
     }, 500);
   }, []);
+
   useEffect(() => {
     if (userProfile) {
       console.log('DIAGNOSTIC: userProfile.totalMinutesUsed updated to:', userProfile.totalMinutesUsed);
@@ -351,6 +353,7 @@ function AppContent() {
       audio.src = audioUrl;
     }
   }, [showMessage, resetTranscriptionProcessUI, jobId, status]);
+
   // Enhanced recording function with proper job cancellation
   const startRecording = useCallback(async () => {
     if (jobId && (status === 'processing' || status === 'uploading')) {
@@ -435,6 +438,7 @@ function AppContent() {
       showMessage('Could not access microphone: ' + error.message);
     }
   }, [resetTranscriptionProcessUI, showMessage, isUploading, userProfile, profileLoading, jobId, status]);
+
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
@@ -493,6 +497,7 @@ function AppContent() {
     
     console.log('✅ Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage]);
+
   // handleTranscriptionComplete with debugging logs
   const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
     try {
@@ -528,10 +533,11 @@ function AppContent() {
       showMessage('Failed to save transcription or update usage.');
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]);
+
   // Handle successful payment
-  const handlePaymentSuccess = useCallback(async (planName, subscriptionId) => { // Swapped order to match backend
+  const handlePaymentSuccess = useCallback(async (planName, subscriptionId) => {
     try {
-      await updateUserPlan(currentUser.uid, planName, subscriptionId); // Pass planName directly
+      await updateUserPlan(currentUser.uid, planName, subscriptionId);
       
       await refreshUserProfile();
       
@@ -546,6 +552,7 @@ function AppContent() {
       showMessage('Payment successful but there was an error updating your account. Please contact support.');
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
+
   // checkJobStatus to pass jobId to handleTranscriptionComplete
   const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => {
     if (isCancelledRef.current) {
@@ -662,6 +669,7 @@ function AppContent() {
       abortControllerRef.current = null;
     }
   }, [handleTranscriptionComplete, showMessage]);
+
   // Enhanced upload function with proper interval tracking
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
@@ -746,6 +754,7 @@ function AppContent() {
       abortControllerRef.current = null;
     }
   }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, checkJobStatus, userProfile, profileLoading, selectedLanguage]);
+
   // Copy to clipboard - only for paid users
   const copyToClipboard = useCallback(() => { 
     if (userProfile?.plan === 'free') {
@@ -817,6 +826,7 @@ function AppContent() {
       showMessage('No recorded audio available to download.');
     }
   }, [showMessage, downloadFormat]);
+
   const handleLogout = useCallback(async () => {
     try {
       await logout();
@@ -846,7 +856,7 @@ function AppContent() {
   useEffect(() => {
     if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
       const remainingMinutes = 30 - (userProfile.totalMinutesUsed || 0);
-      if (userProfile.plan === 'business' || userProfile.plan === 'pro' || (userProfile.plan === 'free' && remainingMinutes > 0)) {
+      if (userProfile.plan === 'pro' || (userProfile.plan === 'free' && remainingMinutes > 0) || ['24 Hours Pro Access', '5 Days Pro Access'].includes(userProfile.plan)) { // Check explicit plans
         console.log('DIAGNOSTIC: Auto-upload triggered. User plan:', userProfile.plan, 'Remaining minutes:', remainingMinutes);
         const timer = setTimeout(() => {
           handleUpload();
@@ -871,6 +881,7 @@ function AppContent() {
       }
     };
   }, []);
+
   // Login screen for non-authenticated users
   if (!currentUser) {
     return (
@@ -1087,10 +1098,12 @@ function AppContent() {
                 opacity: '0.9'
               }}>
                 <span>Logged in as: {userProfile?.name || currentUser.email}</span>
-                {userProfile && userProfile.plan === 'business' ? (
-                  <span>Plan: Unlimited Transcription</span>
-                ) : userProfile && userProfile.plan === 'pro' ? (
-                  <span>Plan: Pro (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt.toDate()).toLocaleDateString()}`}</span>
+                {userProfile && userProfile.plan === 'pro' ? ( // Simplified plan display
+                  <span>Plan: Pro (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
+                ) : userProfile && userProfile.plan === '24 Hours Pro Access' ? (
+                  <span>Plan: 24 Hours Pro Access {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
+                ) : userProfile && userProfile.plan === '5 Days Pro Access' ? (
+                  <span>Plan: 5 Days Pro Access {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
                 ) : userProfile && userProfile.plan === 'free' ? (
                   <span>Plan: Free Trial ({Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining)</span>
                 ) : (
