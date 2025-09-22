@@ -17,6 +17,7 @@ import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 // NEW: Frontend now directly knows both Render and Railway URLs
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
 const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com'; // Your Render Whisper URL
+
 // Enhanced Toast Notification Component
 const ToastNotification = ({ message, onClose }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -125,6 +126,30 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   return interval; 
 };
 
+// NEW: Intelligent Model Selection Function - User won't see which model is chosen
+const selectOptimalTranscriptionService = (file, userProfile, audioDuration, selectedLanguage) => {
+  const fileSizeMB = file.size / (1024 * 1024);
+  const estimatedDuration = audioDuration || Math.max(60, file.size / 100000);
+  
+  let preferredService = 'render'; // Default to Whisper (Render)
+  
+  // Decision logic - but keep it simple for user
+  if (fileSizeMB > 50 || estimatedDuration > 1800) {
+    preferredService = 'railway'; // Large files - use AssemblyAI
+  } else if (file.type.startsWith('video/')) {
+    preferredService = 'railway'; // Video files - use AssemblyAI
+  } else if (selectedLanguage !== 'en') {
+    preferredService = 'render'; // Non-English - use Whisper
+  } else if (fileSizeMB < 10 && estimatedDuration < 300) {
+    preferredService = 'render'; // Small files - use Whisper for speed
+  } else if (userProfile?.plan !== 'free' && fileSizeMB > 10 && fileSizeMB <= 50) {
+    preferredService = 'railway'; // Medium files with Pro - use AssemblyAI
+  }
+  
+  console.log(`🤖 Intelligent Selection: ${preferredService.toUpperCase()} chosen for file size: ${fileSizeMB.toFixed(2)}MB, duration: ${estimatedDuration}s, language: ${selectedLanguage}`);
+  return preferredService;
+};
+
 function AppContent() {
   const navigate = useNavigate();
   
@@ -145,6 +170,7 @@ function AppContent() {
   const [message, setMessage] = useState('');
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en'); 
+  
   // Payment states
   const [pricingView, setPricingView] = useState('credits');
   const [selectedRegion, setSelectedRegion] = useState('KE');
@@ -152,6 +178,7 @@ function AppContent() {
     '24hours': { amount: 1.00, currency: 'USD' }, 
     '5days': { amount: 2.50, currency: 'USD' } 
   });
+  
   // Refs
   const mediaRecorderRef = useRef(null);
   const recordingIntervalRef = useRef(null);
@@ -160,6 +187,7 @@ function AppContent() {
   const transcriptionIntervalRef = useRef(null);
   const statusCheckTimeoutRef = useRef(null);
   const isCancelledRef = useRef(false);
+  
   // Auth and user setup
   const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithMicrosoft, profileLoading } = useAuth();
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; 
@@ -256,6 +284,7 @@ function AppContent() {
       handlePaystackCallback();
     }
   }, [currentUser, handlePaystackCallback]);
+
   // Enhanced reset function with better job cancellation
   const resetTranscriptionProcessUI = useCallback(() => { 
     console.log('🔄 Resetting transcription UI and cancelling any ongoing processes');
@@ -304,7 +333,6 @@ function AppContent() {
       console.log('DIAGNOSTIC: userProfile.totalMinutesUsed updated to:', userProfile.totalMinutesUsed);
     }
   }, [userProfile?.totalMinutesUsed]);
-
   // Enhanced file selection with proper job cancellation
   const handleFileSelect = useCallback(async (event) => {
     const file = event.target.files[0];
@@ -356,6 +384,7 @@ function AppContent() {
       audio.src = audioUrl;
     }
   }, [showMessage, resetTranscriptionProcessUI, jobId, status, RAILWAY_BACKEND_URL]);
+
   // Enhanced recording function with proper job cancellation
   const startRecording = useCallback(async () => {
     if (jobId && (status === 'processing' || status === 'uploading')) {
@@ -454,6 +483,7 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
+
   // Improved cancel function with page refresh
   const handleCancelUpload = useCallback(async () => {
     console.log('🛑 FORCE CANCEL - Stopping everything immediately');
@@ -697,7 +727,8 @@ function AppContent() {
       abortControllerRef.current = null;
     }
   }, [handleTranscriptionComplete, showMessage, RAILWAY_BACKEND_URL]);
-  // NEW: Handle Upload Logic with Frontend Orchestration (Render priority, Railway fallback)
+
+  // NEW: Enhanced handleUpload with intelligent selection (User sees simple messages only)
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
@@ -737,100 +768,152 @@ function AppContent() {
     formData.append('file', selectedFile);
     formData.append('language_code', selectedLanguage);
 
+    // 🤖 INTELLIGENT SERVICE SELECTION (User won't see which one is chosen)
+    const selectedService = selectOptimalTranscriptionService(selectedFile, userProfile, audioDuration, selectedLanguage);
+    showMessage('🎯 Starting transcription...'); // Simple message for user
+
     let finalTranscription = '';
     let transcriptionJobId = '';
-    let selectedService = '';
 
     try {
-      // 1. Try Render Whisper Service (Priority)
-      showMessage('Attempting transcription with Render Whisper...');
-      console.log(`Attempting POST to Render Whisper: ${RENDER_WHISPER_URL}/transcribe`);
-      const renderResponse = await fetch(`${RENDER_WHISPER_URL}/transcribe`, {
-        method: 'POST',
-        body: formData,
-        signal: abortControllerRef.current.signal,
-      });
+      if (selectedService === 'render') {
+        // Try Render Whisper Service (Primary choice)
+        console.log(`🎯 Using Render Whisper: ${RENDER_WHISPER_URL}/transcribe`);
+        const renderResponse = await fetch(`${RENDER_WHISPER_URL}/transcribe`, {
+          method: 'POST',
+          body: formData,
+          signal: abortControllerRef.current.signal,
+        });
 
-      if (!renderResponse.ok) {
-        throw new Error(`Render Whisper failed with status: ${renderResponse.status} - ${renderResponse.statusText}`);
-      }
-      const renderResult = await renderResponse.json();
-      console.log('Render Whisper transcription response:', renderResult);
+        if (!renderResponse.ok) {
+          throw new Error(`Render Whisper failed with status: ${renderResponse.status} - ${renderResponse.statusText}`);
+        }
+        const renderResult = await renderResponse.json();
 
-      if (renderResult.status === 'completed' && renderResult.transcript) {
-        finalTranscription = renderResult.transcript;
-        // For synchronous Render jobs, generate a client-side Job ID
-        transcriptionJobId = `RENDER-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`; 
-        selectedService = 'render';
-        showMessage('Transcription completed successfully with Render Whisper!');
-        
-        // Immediately complete the UI and save the transcription since Render is synchronous
-        setTranscription(finalTranscription);
-        setTranscriptionProgress(100);
-        setStatus('completed');
-        await handleTranscriptionComplete(finalTranscription, transcriptionJobId); // Call to save and update usage
-        setIsUploading(false);
-        return; // Exit here if Render was successful
+        if (renderResult.status === 'completed' && renderResult.transcript) {
+          finalTranscription = renderResult.transcript;
+          transcriptionJobId = `RENDER-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+          showMessage('✅ Transcription completed successfully!'); // Clean message for user
+          
+          setTranscription(finalTranscription);
+          setTranscriptionProgress(100);
+          setStatus('completed');
+          await handleTranscriptionComplete(finalTranscription, transcriptionJobId);
+          setIsUploading(false);
+          return;
+        } else {
+          throw new Error(`Render Whisper returned incomplete result: ${JSON.stringify(renderResult)}`);
+        }
+
       } else {
-        throw new Error(`Render Whisper returned non-completed status or no transcript: ${JSON.stringify(renderResult)}`);
-      }
-
-    } catch (renderError) {
-      console.error('Render Whisper transcription failed:', renderError);
-      showMessage('Render Whisper failed. Falling back to Railway AssemblyAI...');
-      
-      // 2. Fallback to Railway AssemblyAI Service
-      try {
-        console.log(`Attempting POST to Railway AssemblyAI fallback: ${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`);
-        const railwayResponse = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, { // NEW ENDPOINT
+        // Use Railway AssemblyAI Service (Selected by intelligence)
+        console.log(`🎯 Using Railway AssemblyAI: ${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`);
+        const railwayResponse = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, {
           method: 'POST',
           body: formData,
           signal: abortControllerRef.current.signal
         });
 
         if (!railwayResponse.ok) {
-          throw new Error(`Railway AssemblyAI fallback failed with status: ${railwayResponse.status} - ${railwayResponse.statusText}`);
+          throw new Error(`Railway AssemblyAI failed with status: ${railwayResponse.status} - ${railwayResponse.statusText}`);
         }
         const railwayResult = await railwayResponse.json();
-        console.log('Railway AssemblyAI fallback transcription response:', railwayResult);
 
         if (railwayResult && railwayResult.job_id) {
           transcriptionJobId = railwayResult.job_id;
-          selectedService = 'railway';
-          showMessage('Transcription initiated with Railway AssemblyAI fallback. Checking status...');
+          showMessage('✅ Transcription started. Processing...'); // Clean message for user
           
-          // Start polling Railway for status
           setUploadProgress(100);
           setStatus('processing');
           setJobId(transcriptionJobId);
           transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
-          checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current, selectedService); // Pass selectedService for polling
-          return; // Exit here if Railway fallback was successful
+          checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current, 'railway');
+          return;
         } else {
-          throw new Error(`Railway AssemblyAI fallback returned no job ID: ${JSON.stringify(railwayResult)}`);
+          throw new Error(`Railway AssemblyAI returned no job ID: ${JSON.stringify(railwayResult)}`);
         }
+      }
 
-      } catch (railwayError) {
-        console.error('Railway AssemblyAI fallback transcription failed:', railwayError);
-        showMessage('Both transcription services failed. Please try again later.');
+    } catch (primaryError) {
+      console.error(`Primary service (${selectedService}) failed:`, primaryError);
+      showMessage('⚠️ Trying alternative transcription service...'); // Clean fallback message for user
+      
+      // Fallback to the other service
+      const fallbackService = selectedService === 'render' ? 'railway' : 'render';
+      
+      try {
+        if (fallbackService === 'render') {
+          const renderResponse = await fetch(`${RENDER_WHISPER_URL}/transcribe`, {
+            method: 'POST',
+            body: formData,
+            signal: abortControllerRef.current.signal,
+          });
+
+          if (!renderResponse.ok) {
+            throw new Error(`Fallback Render Whisper failed with status: ${renderResponse.status}`);
+          }
+          const renderResult = await renderResponse.json();
+
+          if (renderResult.status === 'completed' && renderResult.transcript) {
+            finalTranscription = renderResult.transcript;
+            transcriptionJobId = `RENDER-FALLBACK-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+            showMessage('✅ Transcription completed successfully!'); // Clean message for user
+            
+            setTranscription(finalTranscription);
+            setTranscriptionProgress(100);
+            setStatus('completed');
+            await handleTranscriptionComplete(finalTranscription, transcriptionJobId);
+            setIsUploading(false);
+            return;
+          } else {
+            throw new Error(`Fallback Render Whisper incomplete: ${JSON.stringify(renderResult)}`);
+          }
+        } else {
+          const railwayResponse = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, {
+            method: 'POST',
+            body: formData,
+            signal: abortControllerRef.current.signal
+          });
+
+          if (!railwayResponse.ok) {
+            throw new Error(`Fallback Railway AssemblyAI failed with status: ${railwayResponse.status}`);
+          }
+          const railwayResult = await railwayResponse.json();
+
+          if (railwayResult && railwayResult.job_id) {
+            transcriptionJobId = railwayResult.job_id;
+            showMessage('✅ Transcription started. Processing...'); // Clean message for user
+            
+            setUploadProgress(100);
+            setStatus('processing');
+            setJobId(transcriptionJobId);
+            transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
+            checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current, 'railway');
+            return;
+          } else {
+            throw new Error(`Fallback Railway AssemblyAI no job ID: ${JSON.stringify(railwayResult)}`);
+          }
+        }
+      } catch (fallbackError) {
+        console.error('Both services failed:', fallbackError);
+        showMessage('❌ Transcription services are currently unavailable. Please try again later.');
         setUploadProgress(0);
         setTranscriptionProgress(0);
         setStatus('failed'); 
-        setIsUploading(false); 
+        setIsUploading(false);
         return;
       }
     }
 
     // This part should ideally not be reached if either service was successful.
-    // It's a final fallback for unhandled scenarios.
     console.error("Transcription initiation failed unexpectedly. No service provided a valid response.");
-    showMessage('Transcription failed due to an unexpected error.');
+    showMessage('❌ Transcription failed due to an unexpected error.');
     setUploadProgress(0);
     setTranscriptionProgress(0);
     setStatus('failed'); 
     setIsUploading(false);
 
-  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, RAILWAY_BACKEND_URL, RENDER_WHISPER_URL, checkJobStatus]);
+  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, RAILWAY_BACKEND_URL, RENDER_WHISPER_URL, checkJobStatus, selectOptimalTranscriptionService]);
   // Copy to clipboard - only for paid users
   const copyToClipboard = useCallback(() => { 
     if (userProfile?.plan === 'free') {
@@ -956,6 +1039,7 @@ function AppContent() {
       }
     };
   }, []);
+
   // Login screen for non-authenticated users
   if (!currentUser) {
     return (
@@ -1365,7 +1449,7 @@ return (
                     fontSize: '16px'
                   }}
                 >
-                  💳 Go Pro
+                  💳 Go Pro for Africa
                 </button>
                 <button
                   onClick={() => setPricingView('subscription')}
@@ -1380,53 +1464,61 @@ return (
                     fontSize: '16px'
                   }}
                 >
-                  🔄 Pro Plans
+                  🔄 Pro International
                 </button>
               </div>
               {pricingView === 'credits' ? (
                 <>
                   <div style={{ marginTop: '20px' }}>
                     <h2 style={{ color: '#007bff', marginBottom: '30px' }}>
-                      💳 Go Pro
+                      💳 Go Pro 24hrs/5-day plan
                     </h2>
                     <p style={{ color: '#666', marginBottom: '30px', fontSize: '14px' }}>
                       Purchase temporary access to Pro features. Available globally with local currency support
                     </p>
                     
-                    <div style={{ display: 'flex', gap: '30px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    {/* HORIZONTAL LAYOUT FOR PAYMENT PLANS */}
+                    <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
                       <div style={{
                         backgroundColor: 'white',
-                        padding: '40px 30px',
-                        borderRadius: '20px',
-                        boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
-                        maxWidth: '350px',
-                        width: '100%',
-                        border: '2px solid #e9ecef'
+                        padding: '30px 25px',
+                        borderRadius: '15px',
+                        boxShadow: '0 8px 25px rgba(0,0,0,0.1)',
+                        minWidth: '280px',
+                        maxWidth: '320px',
+                        border: '2px solid #e9ecef',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between'
                       }}>
-                        <h3 style={{ 
-                          color: '#007bff',
-                          fontSize: '1.8rem',
-                          margin: '0 0 10px 0'
-                        }}>
-                          24 Hours Pro Access
-                        </h3>
-                        <p style={{ color: '#666', marginBottom: '20px', fontSize: '14px' }}>
-                          Full access to Pro features for 24 hours
-                        </p>
-                        <div style={{ marginBottom: '30px' }}>
-                          <span style={{ 
-                            fontSize: '3rem',
-                            fontWeight: 'bold',
-                            color: '#6c5ce7'
+                        <div>
+                          <h3 style={{ 
+                            color: '#007bff',
+                            fontSize: '1.5rem',
+                            margin: '0 0 10px 0',
+                            textAlign: 'center'
                           }}>
-                            USD 1
-                          </span>
-                          <span style={{ 
-                            color: '#666',
-                            fontSize: '1.2rem'
-                          }}>
-                            for 24 hours
-                          </span>
+                            24 Hours Pro Access
+                          </h3>
+                          <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px', textAlign: 'center' }}>
+                            Full access to Pro features for 24 hours
+                          </p>
+                          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+                            <span style={{ 
+                              fontSize: '2.5rem',
+                              fontWeight: 'bold',
+                              color: '#6c5ce7'
+                            }}>
+                              USD 1
+                            </span>
+                            <span style={{ 
+                              color: '#666',
+                              fontSize: '1rem',
+                              display: 'block'
+                            }}>
+                              for 24 hours
+                            </span>
+                          </div>
                         </div>
                         
                         <button
@@ -1456,50 +1548,57 @@ return (
                       
                       <div style={{
                         backgroundColor: 'white',
-                        padding: '40px 30px',
-                        borderRadius: '20px',
-                        boxShadow: '0 15px 40px rgba(40, 167, 69, 0.2)',
-                        maxWidth: '350px',
-                        width: '100%',
+                        padding: '30px 25px',
+                        borderRadius: '15px',
+                        boxShadow: '0 8px 25px rgba(40, 167, 69, 0.2)',
+                        minWidth: '280px',
+                        maxWidth: '320px',
                         border: '3px solid #28a745',
-                        transform: 'scale(1.05)'
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        transform: 'scale(1.02)'
                       }}>
-                        <div style={{
-                          backgroundColor: '#28a745',
-                          color: 'white',
-                          padding: '8px 20px',
-                          borderRadius: '20px',
-                          fontSize: '14px',
-                          fontWeight: 'bold',
-                          marginBottom: '20px',
-                          display: 'inline-block'
-                        }}>
-                          BEST VALUE
-                        </div>
-                        <h3 style={{ 
-                          color: '#28a745',
-                          fontSize: '1.8rem',
-                          margin: '0 0 10px 0'
-                        }}>
-                          5 Days Pro Access
-                        </h3>
-                        <p style={{ color: '#666', marginBottom: '20px', fontSize: '14px' }}>
-                          Full access to Pro features for 5 days
-                        </p>
-                        <div style={{ marginBottom: '30px' }}>
-                          <span style={{ 
-                            fontSize: '3rem',
+                        <div>
+                          <div style={{
+                            backgroundColor: '#28a745',
+                            color: 'white',
+                            padding: '8px 20px',
+                            borderRadius: '20px',
+                            fontSize: '12px',
                             fontWeight: 'bold',
-                            color: '#6c5ce7'
+                            marginBottom: '15px',
+                            display: 'inline-block'
                           }}>
-                            USD 2.5
-                          </span>
-                          <span style={{ 
-                            color: '#666',
-                            fontSize: '1.2rem'
+                            BEST VALUE
+                          </div>
+                          <h3 style={{ 
+                            color: '#28a745',
+                            fontSize: '1.5rem',
+                            margin: '0 0 10px 0',
+                            textAlign: 'center'
                           }}>
-                            for 5 days
-                          </span>
+                            5 Days Pro Access
+                          </h3>
+                          <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px', textAlign: 'center' }}>
+                            Full access to Pro features for 5 days
+                          </p>
+                          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+                            <span style={{ 
+                              fontSize: '2.5rem',
+                              fontWeight: 'bold',
+                              color: '#6c5ce7'
+                            }}>
+                              USD 2.5
+                            </span>
+                            <span style={{ 
+                              color: '#666',
+                              fontSize: '1rem',
+                              display: 'block'
+                            }}>
+                              for 5 days
+                            </span>
+                          </div>
                         </div>
                         
                         <button
@@ -1891,7 +1990,7 @@ return (
                       }}></div>
                     </div>
                     <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
-                      🗜️ Compressing & Transcribing Audio...
+                      🗜️ Processing audio...
                     </div>
                   </div>
                 )}
