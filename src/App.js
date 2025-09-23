@@ -2,12 +2,10 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
-// Removed unused imports: Signup, CreditPurchase
 import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
-import CreditPurchase from './components/SubscriptionPlans';
 import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan } from './userService';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
@@ -178,7 +176,7 @@ function AppContent() {
   const [convertedAmounts, setConvertedAmounts] = useState({ 
     '24hours': { amount: 1.00, currency: 'USD' }, 
     '5days': { amount: 2.50, currency: 'USD' },
-    '5minutes': { amount: 0.50, currency: 'USD' } // NEW: 5-minute plan default
+    '5minutes': { amount: 0.50, currency: 'USD' }
   });
   
   // Refs
@@ -198,7 +196,6 @@ function AppContent() {
   // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
-
   // Paystack payment functions
   const initializePaystackPayment = async (email, amount, planName, countryCode) => {
     try {
@@ -370,7 +367,7 @@ function AppContent() {
       const audioUrl = URL.createObjectURL(file);
       audio.src = audioUrl;
     }
-  }, [showMessage, resetTranscriptionProcessUI]); // Removed jobId, status, RAILWAY_BACKEND_URL from dependencies as they are not directly used in this function's immediate logic after reset
+  }, [showMessage, resetTranscriptionProcessUI]);
 
   // Enhanced recording function with proper job cancellation
   const startRecording = useCallback(async () => {
@@ -442,7 +439,7 @@ function AppContent() {
     } catch (error) {
       showMessage('Could not access microphone: ' + error.message);
     }
-  }, [resetTranscriptionProcessUI, showMessage]); // Removed isUploading, userProfile, profileLoading, jobId, status, RAILWAY_BACKEND_URL from dependencies as they are not directly used in this function's immediate logic after reset
+  }, [resetTranscriptionProcessUI, showMessage]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -509,7 +506,6 @@ function AppContent() {
     
     console.log('✅ Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage, RAILWAY_BACKEND_URL]);
-
   // handleTranscriptionComplete with debugging logs
   const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
     try {
@@ -695,7 +691,7 @@ function AppContent() {
     }
   }, [handleTranscriptionComplete, showMessage, RAILWAY_BACKEND_URL]);
 
-  // handleUpload logic
+  // UPDATED: handleUpload logic with new pricing validation and redirect
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
@@ -709,21 +705,35 @@ function AppContent() {
 
     const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
     
-    const remainingMinutes = 30 - (userProfile?.totalMinutesUsed || 0);
-    if (userProfile.plan === 'free' && remainingMinutes <= 0) {
-      showMessage('You have used your 30-minute free trial. Please upgrade to continue transcribing.');
-      setCurrentView('pricing');
-      resetTranscriptionProcessUI();
-      return;
-    }
-
-    const canTranscribe = await canUserTranscribe(currentUser.uid, estimatedDuration);
+    // NEW: Use the canUserTranscribe function with its new return format
+    const transcribeCheck = await canUserTranscribe(currentUser.uid, estimatedDuration);
     
-    if (!canTranscribe && !(userProfile.plan === 'free' && remainingMinutes > 0)) {
-      showMessage('You do not have permission to transcribe audio. Please upgrade your plan.');
-      setCurrentView('pricing');
-      resetTranscriptionProcessUI(); 
-      return;
+    if (!transcribeCheck.canTranscribe) {
+      if (transcribeCheck.redirectToPricing) {
+        // Auto-redirect to pricing for users who exceed limits or have exhausted trial
+        let userMessage = 'Please upgrade to continue transcribing.';
+        if (transcribeCheck.reason === 'exceeds_free_limit') {
+          userMessage = `This ${transcribeCheck.requiredMinutes}-minute audio exceeds your ${transcribeCheck.remainingMinutes} remaining free minutes. Redirecting to pricing...`;
+        } else if (transcribeCheck.reason === 'free_trial_exhausted') {
+          userMessage = 'Your 30-minute free trial has been used. Redirecting to pricing...';
+        } else if (transcribeCheck.reason === 'plan_expired') {
+          userMessage = 'Your paid plan has expired. Redirecting to pricing...';
+        }
+
+        showMessage(userMessage);
+        
+        // Redirect to pricing after 2 seconds
+        setTimeout(() => {
+          setCurrentView('pricing');
+          resetTranscriptionProcessUI();
+        }, 2000);
+        return;
+      } else {
+        // Other reasons for not transcribing (e.g., profile not found, unhandled plan)
+        showMessage('You do not have permission to transcribe audio. Please contact support if this is an error.');
+        resetTranscriptionProcessUI();
+        return;
+      }
     }
 
     console.log(`🎯 Initiating transcription for ${Math.round(estimatedDuration/60)}-minute audio.`);
@@ -821,8 +831,6 @@ function AppContent() {
     setIsUploading(false);
 
   }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, RENDER_WHISPER_URL, checkJobStatus]);
-  // END MODIFIED handleUpload
-
   // Copy to clipboard (existing, now triggers NEW CopiedNotification)
   const copyToClipboard = useCallback(() => { 
     if (userProfile?.plan === 'free') {
@@ -921,25 +929,6 @@ function AppContent() {
     console.log('Upgrade clicked for plan:', planType);
     setCurrentView('pricing');
   }, [setCurrentView]);
-
-  // REMOVED: useEffect to handle 30-minute trial for free users (auto-upload)
-  // This useEffect was responsible for automatically triggering handleUpload.
-  // By removing it, transcription will only start when the user explicitly clicks the button.
-  // useEffect(() => {
-  //   if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
-  //     const remainingMinutes = 30 - (userProfile.totalMinutesUsed || 0);
-  //     if (userProfile.plan === 'pro' || (userProfile.plan === 'free' && remainingMinutes > 0) || ['24 Hours Pro Access', '5 Days Pro Access'].includes(userProfile.plan)) {
-  //       console.log('DIAGNOSTIC: Auto-upload triggered. User plan:', userProfile.plan, 'Remaining minutes:', remainingMinutes);
-  //       const timer = setTimeout(() => {
-  //         handleUpload();
-  //       }, 200);
-  //       return () => clearTimeout(timer);
-  //     } else if (userProfile.plan === 'free' && remainingMinutes <= 0) {
-  //       console.log('DIAGNOSTIC: Free trial ended. Not auto-uploading.');
-  //     }
-  //   }
-  // }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile, profileLoading, showMessage]);
-  // END REMOVED
 
   // Cleanup effect to ensure cancellation works
   useEffect(() => {
@@ -1059,12 +1048,11 @@ function AppContent() {
           color: 'rgba(255, 255, 255, 0.7)', 
           fontSize: '0.9rem' 
         }}>
-          © {new Date().getFullYear()} TypeMyworDz, Inc.
+          © {new Date().getFullYear()} TypeMyworDz
         </footer>
       </div>
     );
   }
-
 return (
   <Routes>
     <Route path="/transcription/:id" element={<TranscriptionDetail />} />
@@ -2013,33 +2001,49 @@ return (
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
                   {status === 'idle' && !isUploading && selectedFile && (
                     <button
-                      onClick={() => {
-                        const remainingMinutes = 30 - (userProfile?.totalMinutesUsed || 0);
-                        if (userProfile?.plan === 'free' && remainingMinutes <= 0) {
-                          setCurrentView('pricing');
-                        } else {
-                          handleUpload();
+                      onClick={async () => {
+                        const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
+                        const transcribeCheck = await canUserTranscribe(currentUser.uid, estimatedDuration);
+                        
+                        if (!transcribeCheck.canTranscribe) {
+                          if (transcribeCheck.redirectToPricing) {
+                            let userMessage = 'Please upgrade to continue transcribing.';
+                            if (transcribeCheck.reason === 'exceeds_free_limit') {
+                              userMessage = `This ${transcribeCheck.requiredMinutes}-minute audio exceeds your ${transcribeCheck.remainingMinutes} remaining free minutes. Redirecting to pricing...`;
+                            } else if (transcribeCheck.reason === 'free_trial_exhausted') {
+                              userMessage = 'Your 30-minute free trial has been used. Redirecting to pricing...';
+                            } else if (transcribeCheck.reason === 'plan_expired') {
+                              userMessage = 'Your paid plan has expired. Redirecting to pricing...';
+                            }
+                            
+                            showMessage(userMessage);
+                            setTimeout(() => {
+                              setCurrentView('pricing');
+                              resetTranscriptionProcessUI();
+                            }, 2000);
+                            return; // Stop further execution
+                          } else {
+                            showMessage('You do not have permission to transcribe audio. Please contact support if this is an error.');
+                            resetTranscriptionProcessUI();
+                            return; // Stop further execution
+                          }
                         }
+                        // If canTranscribe is true, proceed with upload
+                        handleUpload();
                       }}
-                      disabled={
-                        !selectedFile || 
-                        isUploading || 
-                        (userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) <= 0)
-                      }
+                      disabled={!selectedFile || isUploading}
                       style={{
                         padding: '15px 30px',
                         fontSize: '18px',
-                        backgroundColor: (!selectedFile || isUploading || (userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) <= 0)) ? '#6c757d' : 
-                          (userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) > 0) ? '#ffc107' : '#6c5ce7',
+                        backgroundColor: (!selectedFile || isUploading) ? '#6c757d' : '#6c5ce7',
                         color: 'white',
                         border: 'none',
                         borderRadius: '25px',
-                        cursor: (!selectedFile || isUploading || (userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) <= 0)) ? 'not-allowed' : 'pointer',
+                        cursor: (!selectedFile || isUploading) ? 'not-allowed' : 'pointer',
                         boxShadow: '0 5px 15px rgba(108, 92, 231, 0.4)'
                       }}
                     >
-                      {(userProfile?.plan === 'free' && (30 - (userProfile?.totalMinutesUsed || 0)) <= 0) ? 
-                        '🔒 Upgrade to Transcribe' : '🚀 Start Transcription'}
+                      🚀 Start Transcription
                     </button>
                   )}
 
@@ -2189,11 +2193,12 @@ return (
                   padding: '20px',
                   borderRadius: '10px',
                   textAlign: 'left',
-                  whiteSpace: 'pre-wrap',
+                  // whiteSpace: 'pre-wrap', // Removed, as dangerouslySetInnerHTML handles line breaks
                   lineHeight: '1.6',
                   border: '1px solid #dee2e6'
                 }}>
-                  {transcription}
+                  {/* FIXED: Use dangerouslySetInnerHTML to render HTML bold tags */}
+                  <div dangerouslySetInnerHTML={{ __html: transcription.replace(/\n/g, '<br>') }} />
                 </div>
                 
                 <div style={{ 
