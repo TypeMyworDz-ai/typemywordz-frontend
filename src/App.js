@@ -847,26 +847,44 @@ function AppContent() {
     setTimeout(() => setCopiedMessageVisible(false), 2000); // Hide after 2 seconds
   }, [transcription, userProfile, showMessage]);
 
-  // Download as Word - only for paid users
-  const downloadAsWord = useCallback(() => { 
+  // UPDATED: Download as Word - now calls backend for formatted DOCX
+  const downloadAsWord = useCallback(async () => { 
     if (userProfile?.plan === 'free') {
       showMessage('MS Word download is only available for paid users. Please upgrade to access this feature.');
       return;
     }
     
-    // For Word download, we want plain text, so strip HTML tags
-    const tempElement = document.createElement('div');
-    tempElement.innerHTML = transcription;
-    const plainTextTranscription = tempElement.textContent || tempElement.innerText;
+    try {
+      showMessage('Generating formatted Word document...');
+      const response = await fetch(`${RAILWAY_BACKEND_URL}/generate-formatted-word`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transcription_html: transcription,
+          filename: `transcription_${Date.now()}.docx`
+        }),
+      });
 
-    const blob = new Blob([plainTextTranscription], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'transcription.doc';
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [transcription, userProfile, showMessage]);
+      if (!response.ok) {
+        throw new Error(`Failed to generate Word document: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `transcription_${Date.now()}.docx`; // Use .docx extension
+      a.click();
+      URL.revokeObjectURL(url);
+      showMessage('Word document generated successfully!');
+
+    } catch (error) {
+      console.error('Error downloading Word document:', error);
+      showMessage('Failed to generate Word document: ' + error.message);
+    }
+  }, [transcription, userProfile, showMessage, RAILWAY_BACKEND_URL]);
 
   // TXT download - available for all users
   const downloadAsTXT = useCallback(() => { 
