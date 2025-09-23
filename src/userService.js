@@ -27,7 +27,7 @@ export const createUserProfile = async (uid, email, name = '') => {
       name,
       plan: userPlan,
       totalMinutesUsed: 0, // Changed from totalMinutesUsedForFreeTrial
-      hasReceivedInitialFreeMinutes: ADMIN_EMAILS.includes(email) ? false : true, // Track if user got their one-time 30 minutes
+      hasReceivedInitialFreeMinutes: ADMIN_EMAILS.includes(email) ? false : false, // KEY CHANGE: Start as false, grant only on first login
       createdAt: new Date(),
       lastAccessed: new Date(),
       expiresAt: null, 
@@ -56,8 +56,10 @@ export const createUserProfile = async (uid, email, name = '') => {
         updates.totalMinutesUsed = existingData.totalMinutesUsedForFreeTrial || 0;
       }
       if (existingData.hasReceivedInitialFreeMinutes === undefined) {
-        // If user has used any minutes or had subscriptions, they already got their free trial
-        updates.hasReceivedInitialFreeMinutes = (existingData.totalMinutesUsedForFreeTrial > 0) || existingData.subscriptionStartDate ? true : true;
+        // KEY CHANGE: Only grant free minutes if user has NEVER used any minutes AND has no subscription history
+        const hasUsedAnyMinutes = (existingData.totalMinutesUsedForFreeTrial || 0) > 0 || (existingData.totalMinutesUsed || 0) > 0;
+        const hasSubscriptionHistory = existingData.subscriptionStartDate || existingData.expiresAt;
+        updates.hasReceivedInitialFreeMinutes = hasUsedAnyMinutes || hasSubscriptionHistory;
       }
     }
 
@@ -79,7 +81,7 @@ export const getUserProfile = async (uid) => {
 
     // Initialize new fields if they don't exist (for existing users)
     profileData.totalMinutesUsed = typeof profileData.totalMinutesUsed === 'number' ? profileData.totalMinutesUsed : (profileData.totalMinutesUsedForFreeTrial || 0);
-    profileData.hasReceivedInitialFreeMinutes = typeof profileData.hasReceivedInitialFreeMinutes === 'boolean' ? profileData.hasReceivedInitialFreeMinutes : true;
+    profileData.hasReceivedInitialFreeMinutes = typeof profileData.hasReceivedInitialFreeMinutes === 'boolean' ? profileData.hasReceivedInitialFreeMinutes : false; // KEY CHANGE: Default to false
 
     if (profileData.expiresAt && typeof profileData.expiresAt.toDate === 'function') {
         profileData.expiresAt = profileData.expiresAt.toDate();
@@ -106,25 +108,28 @@ export const getUserProfile = async (uid) => {
       return profileData;
     }
 
-    // Expiry logic for temporary paid plans - KEY CHANGE HERE
+    // KEY FIX: Expiry logic for temporary paid plans
     if (['24 Hours Pro Access', '5 Days Pro Access', '5 Minutes Pro Access'].includes(profileData.plan) && profileData.expiresAt && profileData.expiresAt < currentTime) {
       console.log(`User ${uid} plan '${profileData.plan}' expired on ${profileData.expiresAt}. Downgrading to FREE with 0 minutes.`);
       await updateDoc(userRef, {
         plan: 'free',
         expiresAt: null,
         subscriptionStartDate: null,
-        // KEY FIX: User has already received their initial free minutes, so they get 0 minutes after expiry
+        // CRITICAL FIX: User has already received their initial free minutes, so they get 0 minutes after expiry
         hasReceivedInitialFreeMinutes: true,
       });
       profileData = { ...profileData, plan: 'free', expiresAt: null, subscriptionStartDate: null, hasReceivedInitialFreeMinutes: true };
     }
     
-    // Calculate remaining free minutes - only 30 minutes if user hasn't received them yet
+    // Calculate remaining free minutes - KEY CHANGE: only 30 minutes if user hasn't received them yet
     if (profileData.plan === 'free' && !profileData.hasReceivedInitialFreeMinutes) {
       profileData.freeMinutesRemaining = Math.max(0, 30 - profileData.totalMinutesUsed);
     } else {
       profileData.freeMinutesRemaining = 0; // No free minutes for users who already got their trial or expired users
     }
+
+    // For backward compatibility, set totalMinutesUsed as the display field
+    profileData.totalMinutesUsed = profileData.totalMinutesUsed || 0;
 
     console.log("DEBUG: getUserProfile - Final profileData returned:", JSON.parse(JSON.stringify(profileData)));
     return profileData;
@@ -166,7 +171,6 @@ export const updateUserPlan = async (uid, newPlan, referenceId = null) => {
   await updateDoc(userRef, updates);
   console.log(`User ${uid} plan updated to: ${newPlan}`);
 };
-
 // Check recording permissions
 export const canUserRecord = async (uid) => {
   try {
@@ -214,7 +218,7 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds) => {
         }
     }
 
-    // Free plan logic: only if user hasn't received their initial 30 minutes yet
+    // KEY FIX: Free plan logic - only if user hasn't received their initial 30 minutes yet
     if (userProfile.plan === 'free') {
       const remainingFreeMinutes = userProfile.freeMinutesRemaining || 0;
       const estimatedDurationMinutes = Math.ceil(estimatedDurationSeconds / 60);
@@ -247,7 +251,7 @@ export const updateUserUsage = async (uid, durationSeconds) => {
     return;
   }
 
-  // Only track usage for 'free' plans who haven't received their initial free minutes yet
+  // KEY FIX: Only track usage for 'free' plans who haven't received their initial free minutes yet
   if (userProfile.plan === 'free' && !userProfile.hasReceivedInitialFreeMinutes) {
     const durationMinutes = Math.ceil(durationSeconds / 60);
     const newTotalMinutesUsed = (userProfile.totalMinutesUsed || 0) + durationMinutes;
