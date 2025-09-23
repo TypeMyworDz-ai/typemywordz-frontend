@@ -170,6 +170,8 @@ function AppContent() {
   const [message, setMessage] = useState('');
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en'); 
+  // --- NEW: State for speaker labels ---
+  const [speakerLabelsEnabled, setSpeakerLabelsEnabled] = useState(false);
   
   // Payment states
   const [pricingView, setPricingView] = useState('credits');
@@ -299,6 +301,8 @@ function AppContent() {
     setIsUploading(false);
     setUploadProgress(0);
     setTranscriptionProgress(0); 
+    // --- NEW: Reset speakerLabelsEnabled ---
+    setSpeakerLabelsEnabled(false);
     
     recordedAudioBlobRef.current = null;
     
@@ -327,7 +331,7 @@ function AppContent() {
       isCancelledRef.current = false;
       console.log('✅ Reset complete, ready for new operations');
     }, 500);
-  }, []);
+  }, []); // Added setSpeakerLabelsEnabled to dependencies
 
   useEffect(() => {
     if (userProfile) {
@@ -530,7 +534,7 @@ function AppContent() {
         });
         console.log('✅ Previous job cancelled successfully on Railway.');
       } catch (error) {
-        console.log('⚠️ Failed to cancel previous Railway job, but continuing with force cancel:', error);
+        console.log('⚠️ Failed to cancel previous job on Railway, but continuing with force cancel:', error);
       }
     } else if (jobId) {
       console.log(`No active Railway job to cancel for job ID: ${jobId}. It might be a Render job or already completed.`);
@@ -771,6 +775,8 @@ function AppContent() {
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('language_code', selectedLanguage);
+    // --- NEW: Append speaker_labels setting to formData ---
+    formData.append('speaker_labels', speakerLabelsEnabled);
 
     let finalTranscription = '';
     let transcriptionJobId = '';
@@ -854,7 +860,7 @@ function AppContent() {
     setStatus('failed'); 
     setIsUploading(false);
 
-  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, RAILWAY_BACKEND_URL, RENDER_WHISPER_URL, checkJobStatus]);
+  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, RENDER_WHISPER_URL, checkJobStatus]); // Added speakerLabelsEnabled to dependencies
   // --- END MODIFIED handleUpload ---
 
   // Copy to clipboard (existing, now triggers NEW CopiedNotification)
@@ -1895,7 +1901,7 @@ return (
                   )}
                 </div>
 
-                {/* Language Selection Dropdown (existing, no changes) */}
+                {/* Language Selection Dropdown (existing) */}
                 <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
                   <label htmlFor="languageSelect" style={{ color: '#6c5ce7', fontWeight: 'bold', fontSize: '1.1rem' }}>
                     Transcription Language:
@@ -1925,6 +1931,29 @@ return (
                   </select>
                 </div>
                 
+                {/* --- NEW: Speaker Tags Dropdown --- */}
+                <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
+                  <label htmlFor="speakerLabelsSelect" style={{ color: '#6c5ce7', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                    Speaker Tags:
+                  </label>
+                  <select
+                    id="speakerLabelsSelect"
+                    value={speakerLabelsEnabled ? "true" : "false"}
+                    onChange={(e) => setSpeakerLabelsEnabled(e.target.value === "true")}
+                    style={{
+                      padding: '8px 15px',
+                      borderRadius: '8px',
+                      border: '1px solid #6c5ce7',
+                      fontSize: '16px',
+                      minWidth: '150px'
+                    }}
+                  >
+                    <option value="false">No Speakers (Default)</option>
+                    <option value="true">With Speakers</option>
+                  </select>
+                </div>
+                {/* --- END NEW --- */}
+
                 {/* --- RESTORED & MODIFIED: Processing bar and text --- */}
                 {(status === 'processing' || status === 'uploading') && (
                   <div style={{ marginBottom: '20px' }}>
