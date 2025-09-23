@@ -1,3 +1,5 @@
+// App.js
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -7,28 +9,51 @@ import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
-// import StripePayment from './components/StripePayment'; // REMOVED: Stripe is no longer used
 import CreditPurchase from './components/SubscriptionPlans';
 import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan } from './userService';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 
 // Configuration
-// NEW: Frontend now directly knows both Render and Railway URLs
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
 const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com'; // Your Render Whisper URL
 
-// Enhanced Toast Notification Component
+// --- NEW: Copied Notification Component ---
+const CopiedNotification = ({ isVisible }) => {
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        bottom: '20px',
+        left: '50%',
+        transform: `translateX(-50%) translateY(${isVisible ? '0' : '50px'})`,
+        opacity: isVisible ? 1 : 0,
+        transition: 'all 0.3s ease-in-out',
+        backgroundColor: '#4CAF50', // Green background
+        color: 'white',
+        padding: '10px 20px',
+        borderRadius: '5px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+        zIndex: 1000,
+        pointerEvents: 'none', // Allow clicks to pass through
+      }}
+    >
+      📋 Copied to clipboard!
+    </div>
+  );
+};
+// --- END NEW COMPONENT ---
+
+// Enhanced Toast Notification Component (existing)
 const ToastNotification = ({ message, onClose }) => {
   const [isVisible, setIsVisible] = useState(false);
   
   useEffect(() => {
     if (message) {
       setIsVisible(true);
-      // Auto-dismiss after 4 seconds
       const timer = setTimeout(() => {
         setIsVisible(false);
-        setTimeout(onClose, 300); // Wait for fade animation
+        setTimeout(onClose, 300);
       }, 4000);
       
       return () => clearTimeout(timer);
@@ -107,7 +132,7 @@ const ToastNotification = ({ message, onClose }) => {
   );
 };
 
-// Utility functions
+// Utility functions (existing)
 const formatTime = (seconds) => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -127,36 +152,38 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   return interval; 
 };
 
-// 🎯 SMART ROUTING: Files > 5 minutes → AssemblyAI, Files < 5 minutes → Whisper
-const selectOptimalTranscriptionService = (file, userProfile, audioDuration, selectedLanguage) => {
-  const fileSizeMB = file.size / (1024 * 1024);
-  const estimatedDuration = audioDuration || Math.max(60, file.size / 100000);
+// --- REMOVED: selectOptimalTranscriptionService is no longer used ---
+// const selectOptimalTranscriptionService = (file, userProfile, audioDuration, selectedLanguage) => {
+//   const fileSizeMB = file.size / (1024 * 1024);
+//   const estimatedDuration = audioDuration || Math.max(60, file.size / 100000);
   
-  let preferredService = 'render'; // Default to Whisper
+//   let preferredService = 'render'; // Default to Whisper
   
-  // 🎯 PRIMARY RULE: Files > 5 minutes → AssemblyAI (faster processing)
-  if (estimatedDuration > 300) { // 5+ minutes
-    preferredService = 'railway';
-    console.log(`🎯 Smart Routing: ${Math.round(estimatedDuration/60)}-minute file → AssemblyAI (2-4 min processing)`);
-  }
-  // Large files regardless of duration → AssemblyAI
-  else if (fileSizeMB > 50) {
-    preferredService = 'railway';
-    console.log(`🎯 Smart Routing: Large file (${fileSizeMB.toFixed(1)}MB) → AssemblyAI`);
-  }
-  // Video files → AssemblyAI (better handling)
-  else if (file.type.startsWith('video/')) {
-    preferredService = 'railway';
-    console.log(`🎯 Smart Routing: Video file → AssemblyAI`);
-  }
-  // 🎯 Files < 5 minutes → Optimized Whisper (much faster now)
-  else {
-    preferredService = 'render';
-    console.log(`🎯 Smart Routing: ${Math.round(estimatedDuration/60)}-minute file → Optimized Whisper (fast processing)`);
-  }
+//   // PRIMARY RULE: Files > 5 minutes → AssemblyAI (faster processing)
+//   if (estimatedDuration > 300) { // 5+ minutes
+//     preferredService = 'railway';
+//     console.log(`🎯 Smart Routing: ${Math.round(estimatedDuration/60)}-minute file → AssemblyAI (2-4 min processing)`);
+//   }
+//   // Large files regardless of duration → AssemblyAI
+//   else if (fileSizeMB > 50) {
+//     preferredService = 'railway';
+//     console.log(`🎯 Smart Routing: Large file (${fileSizeMB.toFixed(1)}MB) → AssemblyAI`);
+//   }
+//   // Video files → AssemblyAI (better handling)
+//   else if (file.type.startsWith('video/')) {
+//     preferredService = 'railway';
+//     console.log(`🎯 Smart Routing: Video file → AssemblyAI`);
+//   }
+//   // Files < 5 minutes → Optimized Whisper (much faster now)
+//   else {
+//     preferredService = 'render';
+//     console.log(`🎯 Smart Routing: ${Math.round(estimatedDuration/60)}-minute file → Optimized Whisper (fast processing)`);
+//   }
   
-  return preferredService;
-};
+//   return preferredService;
+// };
+// --- END REMOVED SECTION ---
+
 function AppContent() {
   const navigate = useNavigate();
   
@@ -175,7 +202,7 @@ function AppContent() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [downloadFormat, setDownloadFormat] = useState('mp3');
   const [message, setMessage] = useState('');
-  const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
+  const [copiedMessageVisible, setCopiedMessageVisible] = useState(false); // NEW state for copy notification
   const [selectedLanguage, setSelectedLanguage] = useState('en'); 
   
   // Payment states
@@ -204,7 +231,7 @@ function AppContent() {
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
 
-  // Paystack payment functions
+  // Paystack payment functions (existing, no changes needed here)
   const initializePaystackPayment = async (email, amount, planName, countryCode) => {
     try {
       console.log('Initializing Paystack payment:', { email, amount, planName, countryCode });
@@ -239,7 +266,7 @@ function AppContent() {
     }
   };
 
-  // Handle payment success callback
+  // Handle payment success callback (existing, no changes needed here)
   const handlePaystackCallback = useCallback(async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const reference = urlParams.get('reference');
@@ -292,7 +319,8 @@ function AppContent() {
       handlePaystackCallback();
     }
   }, [currentUser, handlePaystackCallback]);
-  // Enhanced reset function with better job cancellation
+
+  // Enhanced reset function with better job cancellation (existing, no changes needed here)
   const resetTranscriptionProcessUI = useCallback(() => { 
     console.log('🔄 Resetting transcription UI and cancelling any ongoing processes');
     
@@ -337,11 +365,11 @@ function AppContent() {
 
   useEffect(() => {
     if (userProfile) {
-      console.log('DIAGNOSTIC: userProfile.totalMinutesUsed updated to:', userProfile.totalMinutesUsed);
+      console.log('DIAGNOSTIC: userProfile.totalMinutesUsed updated to:', userProfile?.totalMinutesUsed);
     }
   }, [userProfile?.totalMinutesUsed]);
 
-  // Enhanced file selection with proper job cancellation
+  // Enhanced file selection with proper job cancellation (existing, no changes needed here)
   const handleFileSelect = useCallback(async (event) => {
     const file = event.target.files[0];
     
@@ -354,7 +382,7 @@ function AppContent() {
       isCancelledRef.current = true;
       
       // If a job ID exists, try to cancel it on the Railway backend (if it was a Railway job)
-      if (jobId.startsWith('RAILWAY-')) { // Assuming Railway job IDs start with 'RAILWAY-' or similar
+      if (jobId.startsWith('RAILWAY-')) { 
         try {
           console.log(`Attempting to cancel job ${jobId} on Railway backend.`);
           await fetch(`${RAILWAY_BACKEND_URL}/cancel/${jobId}`, {
@@ -385,7 +413,7 @@ function AppContent() {
           const originalSize = file.size / (1024 * 1024);
           const estimatedDuration = audio.duration || Math.max(60, file.size / 100000);
           
-          // 🎯 Smart routing message for user
+          // Smart routing message for user (kept for user info, but routing logic moved)
           if (estimatedDuration > 300) {
             showMessage(`📊 ${Math.round(estimatedDuration/60)}-minute file loaded (${originalSize.toFixed(2)} MB) - will use our fastest processing service.`);
           } else {
@@ -400,14 +428,14 @@ function AppContent() {
     }
   }, [showMessage, resetTranscriptionProcessUI, jobId, status, RAILWAY_BACKEND_URL]);
 
-  // Enhanced recording function with proper job cancellation
+  // Enhanced recording function with proper job cancellation (existing, no changes needed here)
   const startRecording = useCallback(async () => {
     if (jobId && (status === 'processing' || status === 'uploading')) {
       console.log('🛑 Cancelling previous job before starting new recording');
       isCancelledRef.current = true;
       
       // If a job ID exists, try to cancel it on the Railway backend (if it was a Railway job)
-      if (jobId.startsWith('RAILWAY-')) { // Assuming Railway job IDs start with 'RAILWAY-' or similar
+      if (jobId.startsWith('RAILWAY-')) { 
         try {
           console.log(`Attempting to cancel job ${jobId} on Railway backend.`);
           await fetch(`${RAILWAY_BACKEND_URL}/cancel/${jobId}`, {
@@ -498,7 +526,8 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
-  // Improved cancel function with page refresh
+
+  // Improved cancel function with page refresh (existing, no changes needed here)
   const handleCancelUpload = useCallback(async () => {
     console.log('🛑 FORCE CANCEL - Stopping everything immediately');
     
@@ -532,7 +561,7 @@ function AppContent() {
     }
     
     // If a job ID exists, try to cancel it on the Railway backend (if it was a Railway job)
-    if (jobId && jobId.startsWith('RAILWAY-')) { // Only try to cancel if it's a Railway job
+    if (jobId && jobId.startsWith('RAILWAY-')) { 
       try {
         console.log(`Attempting to cancel job ${jobId} on Railway backend.`);
         await fetch(`${RAILWAY_BACKEND_URL}/cancel/${jobId}`, {
@@ -556,7 +585,7 @@ function AppContent() {
     console.log('✅ Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage, RAILWAY_BACKEND_URL]);
 
-  // handleTranscriptionComplete with debugging logs
+  // handleTranscriptionComplete with debugging logs (existing, no changes needed here)
   const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
     try {
       const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
@@ -575,13 +604,12 @@ function AppContent() {
       console.log('DEBUG:   jobId (passed to saveTranscription):', completedJobId);
       
       // Call Railway backend to save the transcription
-      // Note: The audioUrl here is just the job ID, not a direct audio link, as the source is ephemeral.
       await saveTranscription(
         currentUser.uid, 
         selectedFile ? selectedFile.name : `Recording-${Date.now()}.wav`, 
         transcriptionText, 
         estimatedDuration, 
-        completedJobId // Use completedJobId as the identifier for the transcription
+        completedJobId 
       );
       console.log('DEBUG: saveTranscription call completed.');
       
@@ -594,7 +622,7 @@ function AppContent() {
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]);
 
-  // Handle successful payment
+  // Handle successful payment (existing, no changes needed here)
   const handlePaymentSuccess = useCallback(async (planName, subscriptionId) => {
     try {
       await updateUserPlan(currentUser.uid, planName, subscriptionId);
@@ -609,7 +637,8 @@ function AppContent() {
       showMessage('Payment successful but there was an error updating your account. Please contact support.');
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
-  // checkJobStatus for frontend-orchestrated jobs
+
+  // checkJobStatus for frontend-orchestrated jobs (existing, no changes needed here)
   const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval, sourceBackend) => {
     if (isCancelledRef.current) {
       console.log('🛑 Status check aborted - job was cancelled');
@@ -626,17 +655,17 @@ function AppContent() {
       timeoutId = setTimeout(() => {
         console.log('⏰ Status check timeout - aborting');
         controller.abort();
-      }, 10000); // Increased timeout for status checks if backend is slow
+      }, 10000); 
       
       let statusUrl = '';
       if (sourceBackend === 'railway') {
-        statusUrl = `${RAILWAY_BACKEND_URL}/status/${jobIdToPass}`; // Call Railway's status endpoint
+        statusUrl = `${RAILWAY_BACKEND_URL}/status/${jobIdToPass}`; 
       } else if (sourceBackend === 'render') {
         // For Render Whisper, the transcription is synchronous. If we reached here,
         // it means the initial POST to Render didn't immediately return a completed status,
         // which shouldn't happen with our current synchronous Whisper service.
-        clearInterval(transcriptionInterval); // Stop polling
-        setStatus('failed'); // Mark as failed if we're polling Render and it's not synchronous
+        clearInterval(transcriptionInterval); 
+        setStatus('failed'); 
         showMessage('Error: Unexpected status check for Render Whisper service. Assuming failure.');
         return;
       }
@@ -697,7 +726,7 @@ function AppContent() {
           console.log('⏳ Job still processing - will check again');
           statusCheckTimeoutRef.current = setTimeout(() => {
             if (!isCancelledRef.current) {
-              checkJobStatus(jobIdToPass, transcriptionInterval, sourceBackend); // Pass sourceBackend
+              checkJobStatus(jobIdToPass, transcriptionInterval, sourceBackend); 
             } else {
               console.log('🛑 Recursive call cancelled');
               clearInterval(transcriptionInterval);
@@ -739,7 +768,7 @@ function AppContent() {
     }
   }, [handleTranscriptionComplete, showMessage, RAILWAY_BACKEND_URL]);
 
-  // 🎯 SMART UPLOAD with Enhanced Intelligence and User-Friendly Messages
+  // --- MODIFIED: handleUpload to always try AssemblyAI first, then Whisper as fallback ---
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
@@ -770,15 +799,9 @@ function AppContent() {
       return;
     }
 
-    // 🎯 Smart processing time estimates for user
-    if (estimatedDuration > 300) { // 5+ minutes
-      const estimatedProcessingTime = Math.round(estimatedDuration / 60 * 0.3); // AssemblyAI ~0.3x real-time
-      showMessage(`🎯 Processing ${Math.round(estimatedDuration/60)}-minute audio with our fastest service. Estimated time: ${Math.max(1, estimatedProcessingTime)} minutes.`);
-    } else if (estimatedDuration > 120) { // 2+ minutes
-      showMessage(`🎯 Processing ${Math.round(estimatedDuration/60)}-minute audio with optimized transcription. This should take 1-3 minutes.`);
-    } else {
-      showMessage(`🎯 Processing ${Math.round(estimatedDuration/60)}-minute audio. This should complete quickly.`);
-    }
+    // Processing time estimates for user (kept for user-friendliness)
+    const estimatedProcessingTime = Math.round(estimatedDuration / 60 * 0.3); // AssemblyAI ~0.3x real-time
+    showMessage(`🎯 Processing ${Math.round(estimatedDuration/60)}-minute audio with our fastest service. Estimated time: ${Math.max(1, estimatedProcessingTime)} minutes.`);
 
     isCancelledRef.current = false;
     setIsUploading(true);
@@ -789,140 +812,78 @@ function AppContent() {
     formData.append('file', selectedFile);
     formData.append('language_code', selectedLanguage);
 
-    // 🎯 INTELLIGENT SERVICE SELECTION (User sees simple messages only)
-    const selectedService = selectOptimalTranscriptionService(selectedFile, userProfile, audioDuration, selectedLanguage);
-
     let finalTranscription = '';
     let transcriptionJobId = '';
 
     try {
-      if (selectedService === 'render') {
-        // 🎯 Use Optimized Whisper for files < 5 minutes
-        console.log(`🎯 Using Optimized Whisper: ${RENDER_WHISPER_URL}/transcribe`);
-        const renderResponse = await fetch(`${RENDER_WHISPER_URL}/transcribe`, {
-          method: 'POST',
-          body: formData,
-          signal: abortControllerRef.current.signal,
-        });
-
-        if (!renderResponse.ok) {
-          throw new Error(`Whisper service failed with status: ${renderResponse.status} - ${renderResponse.statusText}`);
-        }
-        const renderResult = await renderResponse.json();
-
-        if (renderResult.status === 'completed' && renderResult.transcript) {
-          finalTranscription = renderResult.transcript;
-          transcriptionJobId = `RENDER-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-          showMessage('✅ Transcription completed successfully!');
-          
-          setTranscription(finalTranscription);
-          setTranscriptionProgress(100);
-          setStatus('completed');
-          await handleTranscriptionComplete(finalTranscription, transcriptionJobId);
-          setIsUploading(false);
-          return;
-        } else {
-          throw new Error(`Whisper service returned incomplete result: ${JSON.stringify(renderResult)}`);
-        }
-
-      } else {
-        // 🎯 Use AssemblyAI for files > 5 minutes (faster for long files)
-        console.log(`🎯 Using AssemblyAI: ${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`);
+        // --- PRIMARY ATTEMPT: AssemblyAI (Railway Backend) ---
+        console.log(`🎯 Attempting transcription with AssemblyAI (Railway): ${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`);
         const railwayResponse = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, {
-          method: 'POST',
-          body: formData,
-          signal: abortControllerRef.current.signal
+            method: 'POST',
+            body: formData,
+            signal: abortControllerRef.current.signal
         });
 
         if (!railwayResponse.ok) {
-          throw new Error(`AssemblyAI service failed with status: ${railwayResponse.status} - ${railwayResponse.statusText}`);
+            throw new Error(`AssemblyAI service failed with status: ${railwayResponse.status} - ${railwayResponse.statusText}`);
         }
         const railwayResult = await railwayResponse.json();
 
         if (railwayResult && railwayResult.job_id) {
-          transcriptionJobId = railwayResult.job_id;
-          showMessage('✅ Transcription started with our fastest service. Processing...');
-          
-          setUploadProgress(100);
-          setStatus('processing');
-          setJobId(transcriptionJobId);
-          transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
-          checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current, 'railway');
-          return;
-        } else {
-          throw new Error(`AssemblyAI service returned no job ID: ${JSON.stringify(railwayResult)}`);
-        }
-      }
-
-    } catch (primaryError) {
-      console.error(`Primary service (${selectedService}) failed:`, primaryError);
-      showMessage('⚠️ Trying alternative transcription service...');
-      
-      // Fallback to the other service
-      const fallbackService = selectedService === 'render' ? 'railway' : 'render';
-      
-      try {
-        if (fallbackService === 'render') {
-          const renderResponse = await fetch(`${RENDER_WHISPER_URL}/transcribe`, {
-            method: 'POST',
-            body: formData,
-            signal: abortControllerRef.current.signal,
-          });
-
-          if (!renderResponse.ok) {
-            throw new Error(`Fallback Whisper failed with status: ${renderResponse.status}`);
-          }
-          const renderResult = await renderResponse.json();
-
-          if (renderResult.status === 'completed' && renderResult.transcript) {
-            finalTranscription = renderResult.transcript;
-            transcriptionJobId = `RENDER-FALLBACK-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-            showMessage('✅ Transcription completed successfully with backup service!');
-            
-            setTranscription(finalTranscription);
-            setTranscriptionProgress(100);
-            setStatus('completed');
-            await handleTranscriptionComplete(finalTranscription, transcriptionJobId);
-            setIsUploading(false);
-            return;
-          } else {
-            throw new Error(`Fallback Whisper incomplete: ${JSON.stringify(renderResult)}`);
-          }
-        } else {
-          const railwayResponse = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, {
-            method: 'POST',
-            body: formData,
-            signal: abortControllerRef.current.signal
-          });
-
-          if (!railwayResponse.ok) {
-            throw new Error(`Fallback AssemblyAI failed with status: ${railwayResponse.status}`);
-          }
-          const railwayResult = await railwayResponse.json();
-
-          if (railwayResult && railwayResult.job_id) {
             transcriptionJobId = railwayResult.job_id;
-            showMessage('✅ Transcription started with backup service. Processing...');
+            showMessage('✅ Transcription started with our fastest service. Processing...');
             
             setUploadProgress(100);
             setStatus('processing');
             setJobId(transcriptionJobId);
             transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
             checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current, 'railway');
-            return;
-          } else {
-            throw new Error(`Fallback AssemblyAI no job ID: ${JSON.stringify(railwayResult)}`);
-          }
+            return; // Exit after initiating AssemblyAI job
+        } else {
+            throw new Error(`AssemblyAI service returned no job ID: ${JSON.stringify(railwayResult)}`);
         }
-      } catch (fallbackError) {
-        console.error('Both services failed:', fallbackError);
-        showMessage('❌ Transcription services are currently unavailable. Please try again later.');
-        setUploadProgress(0);
-        setTranscriptionProgress(0);
-        setStatus('failed'); 
-        setIsUploading(false);
-        return;
-      }
+
+    } catch (primaryError) {
+        console.error(`Primary service (AssemblyAI) failed:`, primaryError);
+        showMessage('⚠️ AssemblyAI failed. Trying Whisper as a fallback...');
+        
+        // --- FALLBACK ATTEMPT: Whisper (Render Backend) ---
+        try {
+            console.log(`🎯 Using Fallback Whisper: ${RENDER_WHISPER_URL}/transcribe`);
+            const renderResponse = await fetch(`${RENDER_WHISPER_URL}/transcribe`, {
+                method: 'POST',
+                body: formData,
+                signal: abortControllerRef.current.signal,
+            });
+
+            if (!renderResponse.ok) {
+                throw new Error(`Fallback Whisper failed with status: ${renderResponse.status}`);
+            }
+            const renderResult = await renderResponse.json();
+
+            if (renderResult.status === 'completed' && renderResult.transcript) {
+                finalTranscription = renderResult.transcript;
+                transcriptionJobId = `RENDER-FALLBACK-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+                showMessage('✅ Transcription completed successfully with backup service!');
+                
+                setTranscription(finalTranscription);
+                setTranscriptionProgress(100);
+                setStatus('completed');
+                await handleTranscriptionComplete(finalTranscription, transcriptionJobId);
+                setIsUploading(false);
+                return; // Exit after successful fallback
+            } else {
+                throw new Error(`Fallback Whisper incomplete: ${JSON.stringify(renderResult)}`);
+            }
+        } catch (fallbackError) {
+            console.error('Both services failed:', fallbackError);
+            showMessage('❌ Both transcription services are currently unavailable. Please try again later.');
+            setUploadProgress(0);
+            setTranscriptionProgress(0);
+            setStatus('failed'); 
+            setIsUploading(false);
+            return; // Exit after both services failed
+        }
     }
 
     // This part should ideally not be reached if either service was successful.
@@ -933,8 +894,10 @@ function AppContent() {
     setStatus('failed'); 
     setIsUploading(false);
 
-  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, RAILWAY_BACKEND_URL, RENDER_WHISPER_URL, checkJobStatus, selectOptimalTranscriptionService]);
-  // Copy to clipboard - only for paid users
+  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, RAILWAY_BACKEND_URL, RENDER_WHISPER_URL, checkJobStatus]);
+  // --- END MODIFIED handleUpload ---
+
+  // Copy to clipboard (existing, now triggers NEW CopiedNotification)
   const copyToClipboard = useCallback(() => { 
     if (userProfile?.plan === 'free') {
       showMessage('Copy to clipboard is only available for paid users. Please upgrade to access this feature.');
@@ -942,11 +905,11 @@ function AppContent() {
     }
     
     navigator.clipboard.writeText(transcription);
-    setCopiedMessageVisible(true);
-    setTimeout(() => setCopiedMessageVisible(false), 2000);
+    setCopiedMessageVisible(true); // NEW: Show copied message
+    setTimeout(() => setCopiedMessageVisible(false), 2000); // Hide after 2 seconds
   }, [transcription, userProfile, showMessage]);
 
-  // Download as Word - only for paid users
+  // Download as Word - only for paid users (existing, no changes needed here)
   const downloadAsWord = useCallback(() => { 
     if (userProfile?.plan === 'free') {
       showMessage('MS Word download is only available for paid users. Please upgrade to access this feature.');
@@ -962,7 +925,7 @@ function AppContent() {
     URL.revokeObjectURL(url);
   }, [transcription, userProfile, showMessage]);
 
-  // TXT download - available for all users
+  // TXT download - available for all users (existing, no changes needed here)
   const downloadAsTXT = useCallback(() => { 
     const blob = new Blob([transcription], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -973,7 +936,7 @@ function AppContent() {
     URL.revokeObjectURL(url);
   }, [transcription]);
 
-  // Enhanced download with compression options (Note: This is for recorded audio, not transcription results)
+  // Enhanced download with compression options (Note: This is for recorded audio, not transcription results) (existing, no changes needed here)
   const downloadRecordedAudio = useCallback(async () => { 
     if (recordedAudioBlobRef.current) {
       try {
@@ -982,7 +945,10 @@ function AppContent() {
         
         if (downloadFormat === 'mp3' && !recordedAudioBlobRef.current.type.includes('mp3')) {
           showMessage('Compressing to MP3...');
-          showMessage('MP3 compression complete!');
+          // This part of the frontend is not actually performing the compression,
+          // it's just showing a message. The backend's /compress-download endpoint would handle it.
+          // For now, we'll keep the message, but actual compression would involve a backend call here.
+          showMessage('MP3 compression complete!'); 
         }
         
         const url = URL.createObjectURL(downloadBlob);
@@ -1030,7 +996,7 @@ function AppContent() {
     setCurrentView('pricing');
   }, [setCurrentView]);
 
-  // useEffect to handle 30-minute trial for free users
+  // useEffect to handle 30-minute trial for free users (existing, no changes needed here)
   useEffect(() => {
     if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
       const remainingMinutes = 30 - (userProfile.totalMinutesUsed || 0);
@@ -1046,7 +1012,7 @@ function AppContent() {
     }
   }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile, profileLoading, showMessage]);
 
-  // Cleanup effect to ensure cancellation works
+  // Cleanup effect to ensure cancellation works (existing, no changes needed here)
   useEffect(() => {
     return () => {
       if (isCancelledRef.current) {
@@ -1059,7 +1025,8 @@ function AppContent() {
       }
     };
   }, []);
-  // Login screen for non-authenticated users
+  
+  // Login screen for non-authenticated users (existing, no changes needed here)
   if (!currentUser) {
     return (
       <div style={{ 
@@ -1192,6 +1159,7 @@ return (
         background: (currentView === 'dashboard' || currentView === 'admin' || currentView === 'pricing') ? '#f8f9fa' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
       }}>
         <ToastNotification message={message} onClose={clearMessage} />
+        <CopiedNotification isVisible={copiedMessageVisible} /> {/* NEW: Render CopiedNotification */}
 
         <div style={{ 
           position: 'absolute', 
@@ -1671,72 +1639,74 @@ return (
                         border: '3px solid #28a745',
                         transform: 'scale(1.05)'
                       }}>
-                        <div style={{
-                          backgroundColor: '#28a745',
-                          color: 'white',
-                          padding: '8px 20px',
-                          borderRadius: '20px',
-                          fontSize: '14px',
-                          fontWeight: 'bold',
-                          marginBottom: '20px',
-                          display: 'inline-block'
-                        }}>
-                          COMING SOON
-                        </div>
-                        <h3 style={{ 
-                          color: '#28a745',
-                          fontSize: '1.8rem',
-                          margin: '0 0 10px 0'
-                        }}>
-                          Pro Plan
-                        </h3>
-                        <div style={{ marginBottom: '30px' }}>
-                          <span style={{ 
-                            fontSize: '3rem',
-                            fontWeight: 'bold',
-                            color: '#6c5ce7'
-                          }}>
-                            USD 9.99
-                          </span>
-                          <span style={{ 
-                            color: '#666',
-                            fontSize: '1.2rem'
-                          }}>
-                            /month
-                          </span>
-                        </div>
-                        <ul style={{ 
-                          textAlign: 'left', 
-                          color: '#666', 
-                          lineHeight: '2.5',
-                          listStyle: 'none',
-                          padding: '0',
-                          marginBottom: '40px'
-                        }}>
-                          <li>✅ Everything in Free Plan</li>
-                          <li>✅ Unlimited transcription access</li>
-                          <li>✅ High accuracy AI transcription</li>
-                          <li>✅ Priority processing</li>
-                          <li>✅ Copy to clipboard feature</li>
-                          <li>✅ MS Word & TXT downloads</li>
-                          <li>✅ 7-day file storage</li>
-                          <li>✅ Email support</li>
-                        </ul>
-                        <button 
-                          style={{
-                            width: '100%',
-                            padding: '15px',
-                            backgroundColor: '#6c757d',
+                        <div>
+                          <div style={{
+                            backgroundColor: '#28a745',
                             color: 'white',
-                            border: 'none',
-                            borderRadius: '10px',
-                            cursor: 'not-allowed',
-                            fontSize: '16px',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          Coming Soon (2Checkout)
-                        </button>
+                            padding: '8px 20px',
+                            borderRadius: '20px',
+                            fontSize: '14px',
+                            fontWeight: 'bold',
+                            marginBottom: '20px',
+                            display: 'inline-block'
+                          }}>
+                            COMING SOON
+                          </div>
+                          <h3 style={{ 
+                            color: '#28a745',
+                            fontSize: '1.8rem',
+                            margin: '0 0 10px 0'
+                          }}>
+                            Pro Plan
+                          </h3>
+                          <div style={{ marginBottom: '30px' }}>
+                            <span style={{ 
+                              fontSize: '3rem',
+                              fontWeight: 'bold',
+                              color: '#6c5ce7'
+                            }}>
+                              USD 9.99
+                            </span>
+                            <span style={{ 
+                              color: '#666',
+                              fontSize: '1.2rem'
+                            }}>
+                              /month
+                            </span>
+                          </div>
+                          <ul style={{ 
+                            textAlign: 'left', 
+                            color: '#666', 
+                            lineHeight: '2.5',
+                            listStyle: 'none',
+                            padding: '0',
+                            marginBottom: '40px'
+                          }}>
+                            <li>✅ Everything in Free Plan</li>
+                            <li>✅ Unlimited transcription access</li>
+                            <li>✅ High accuracy AI transcription</li>
+                            <li>✅ Priority processing</li>
+                            <li>✅ Copy to clipboard feature</li>
+                            <li>✅ MS Word & TXT downloads</li>
+                            <li>✅ 7-day file storage</li>
+                            <li>✅ Email support</li>
+                          </ul>
+                          <button 
+                            style={{
+                              width: '100%',
+                              padding: '15px',
+                              backgroundColor: '#6c757d',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '10px',
+                              cursor: 'not-allowed',
+                              fontSize: '16px',
+                              fontWeight: 'bold'
+                            }}
+                          >
+                            Coming Soon (2Checkout)
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1781,14 +1751,14 @@ return (
           }}>
             {userProfile && userProfile.plan === 'free' && (
               <div style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.95)', // Changed from yellow to white for consistency
+                backgroundColor: 'rgba(255, 255, 255, 0.95)', 
                 color: '#856404',
                 padding: '15px',
                 borderRadius: '10px',
                 marginBottom: '30px',
                 textAlign: 'center',
                 backdropFilter: 'blur(10px)',
-                border: '1px solid #ffecb3' // Added a subtle border
+                border: '1px solid #ffecb3' 
               }}>
                 {userProfile.totalMinutesUsed < 30 ? (
                   <>
@@ -1965,7 +1935,7 @@ return (
                   )}
                 </div>
 
-                {/* Language Selection Dropdown */}
+                {/* Language Selection Dropdown (existing, no changes) */}
                 <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
                   <label htmlFor="languageSelect" style={{ color: '#6c5ce7', fontWeight: 'bold', fontSize: '1.1rem' }}>
                     Transcription Language:
@@ -2250,7 +2220,7 @@ return (
 );
 }
 
-// Main App Component with AuthProvider
+// Main App Component with AuthProvider (existing, no changes needed here)
 function App() {
   return (
     <AuthProvider>
