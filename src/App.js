@@ -174,9 +174,9 @@ function AppContent() {
   const [pricingView, setPricingView] = useState('credits');
   const [selectedRegion, setSelectedRegion] = useState('KE');
   const [convertedAmounts, setConvertedAmounts] = useState({ 
-    '24hours': { amount: 1.00, currency: 'USD' }, 
-    '5days': { amount: 2.50, currency: 'USD' },
-    '5minutes': { amount: 0.50, currency: 'USD' }
+    'oneday': { amount: 1.00, currency: 'USD' }, 
+    'threeday': { amount: 2.00, currency: 'USD' },
+    'oneweek': { amount: 3.00, currency: 'USD' }
   });
   
   // Refs
@@ -1194,12 +1194,12 @@ return (
               <span>Logged in as: {userProfile?.name || currentUser.email}</span>
               {userProfile && userProfile.plan === 'pro' ? ( 
                 <span>Plan: Pro (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
-              ) : userProfile && userProfile.plan === '24 Hours Pro Access' ? (
-                <span>Plan: 24 Hours Pro Access {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
-              ) : userProfile && userProfile.plan === '5 Days Pro Access' ? (
-                <span>Plan: 5 Days Pro Access {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
-              ) : userProfile && userProfile.plan === '5 Minutes Pro Access' ? ( // NEW: 5 Minutes Pro Access
-                <span>Plan: 5 Minutes Pro Access {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
+              ) : userProfile && userProfile.plan === 'One-Day Plan' ? (
+                <span>Plan: One-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
+              ) : userProfile && userProfile.plan === 'Three-Day Plan' ? (
+                <span>Plan: Three-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
+              ) : userProfile && userProfile.plan === 'One-Week Plan' ? ( // NEW: One-Week Plan
+                <span>Plan: One-Week Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
               ) : userProfile && userProfile.plan === 'free' ? (
                 <span>Plan: Free Trial ({Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining)</span>
               ) : (
@@ -1412,15 +1412,15 @@ return (
                 <>
                   <div style={{ marginTop: '20px' }}>
                     <h2 style={{ color: '#007bff', marginBottom: '30px' }}>
-                      💳 Go Pro 24hrs/5-day/5-minute plans
+                      💳 Go Pro with our One-Day, Three-Day, or One-Week Plan
                     </h2>
-                    <p style={{ color: '#666', marginBottom: '30px', fontSize: '14px' }}>
+                    <p style={{ color: '#666', marginBottom: '30px', fontSize: '14px', textAlign: 'center' }}>
                       Purchase temporary access to Pro features. Available globally with local currency support
                     </p>
                     
                     {/* 🎯 HORIZONTAL LAYOUT FOR PAYMENT PLANS - KEY FEATURE */}
                     <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                      {/* NEW: 5 Minutes Pro Access Card */}
+                      {/* One-Day Plan (formerly 24 Hours Pro Access) */}
                       <div style={{
                         backgroundColor: 'white',
                         padding: '30px 25px',
@@ -1440,78 +1440,10 @@ return (
                             margin: '0 0 10px 0',
                             textAlign: 'center'
                           }}>
-                            5 Minutes Pro Access
+                            One-Day Plan
                           </h3>
                           <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px', textAlign: 'center' }}>
-                            Full access to Pro features for 5 minutes
-                          </p>
-                          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-                            <span style={{ 
-                              fontSize: '2.5rem',
-                              fontWeight: 'bold',
-                              color: '#6c5ce7'
-                            }}>
-                              USD 0.50
-                            </span>
-                            <span style={{ 
-                              color: '#666',
-                              fontSize: '1rem',
-                              display: 'block'
-                            }}>
-                              for 5 minutes
-                            </span>
-                          </div>
-                        </div>
-                        
-                        <button
-                          onClick={() => {
-                            if (!currentUser?.email) {
-                              showMessage('Please log in first to purchase credits.');
-                              return;
-                            }
-                            initializePaystackPayment(currentUser.email, 0.5, '5 Minutes Pro Access', selectedRegion);
-                          }}
-                          disabled={!currentUser?.email}
-                          style={{
-                            width: '100%',
-                            padding: '15px',
-                            backgroundColor: !currentUser?.email ? '#6c757d' : '#007bff',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '10px',
-                            cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
-                            fontSize: '16px',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 0.50`}
-                        </button>
-                      </div>
-                      {/* End NEW: 5 Minutes Pro Access Card */}
-
-                      <div style={{
-                        backgroundColor: 'white',
-                        padding: '30px 25px',
-                        borderRadius: '15px',
-                        boxShadow: '0 8px 25px rgba(0,0,0,0.1)',
-                        minWidth: '280px',
-                        maxWidth: '320px',
-                        border: '2px solid #e9ecef',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between'
-                      }}>
-                        <div>
-                          <h3 style={{ 
-                            color: '#007bff',
-                            fontSize: '1.5rem',
-                            margin: '0 0 10px 0',
-                            textAlign: 'center'
-                          }}>
-                            24 Hours Pro Access
-                          </h3>
-                          <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px', textAlign: 'center' }}>
-                            Full access to Pro features for 24 hours
+                            Full access to Pro features for 1 day
                           </p>
                           <div style={{ marginBottom: '20px', textAlign: 'center' }}>
                             <span style={{ 
@@ -1526,7 +1458,7 @@ return (
                               fontSize: '1rem',
                               display: 'block'
                             }}>
-                              for 24 hours
+                              for 1 day
                             </span>
                           </div>
                         </div>
@@ -1537,7 +1469,7 @@ return (
                               showMessage('Please log in first to purchase credits.');
                               return;
                             }
-                            initializePaystackPayment(currentUser.email, 1, '24 Hours Pro Access', selectedRegion);
+                            initializePaystackPayment(currentUser.email, 1, 'One-Day Plan', selectedRegion);
                           }}
                           disabled={!currentUser?.email}
                           style={{
@@ -1556,6 +1488,7 @@ return (
                         </button>
                       </div>
                       
+                      {/* Three-Day Plan (formerly 5 Days Pro Access) */}
                       <div style={{
                         backgroundColor: 'white',
                         padding: '30px 25px',
@@ -1588,10 +1521,10 @@ return (
                             margin: '0 0 10px 0',
                             textAlign: 'center'
                           }}>
-                            5 Days Pro Access
+                            Three-Day Plan
                           </h3>
                           <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px', textAlign: 'center' }}>
-                            Full access to Pro features for 5 days
+                            Full access to Pro features for 3 days
                           </p>
                           <div style={{ marginBottom: '20px', textAlign: 'center' }}>
                             <span style={{ 
@@ -1599,14 +1532,14 @@ return (
                               fontWeight: 'bold',
                               color: '#6c5ce7'
                             }}>
-                              USD 2.5
+                              USD 2
                             </span>
                             <span style={{ 
                               color: '#666',
                               fontSize: '1rem',
                               display: 'block'
                             }}>
-                              for 5 days
+                              for 3 days
                             </span>
                           </div>
                         </div>
@@ -1617,7 +1550,7 @@ return (
                               showMessage('Please log in first to purchase credits.');
                               return;
                             }
-                            initializePaystackPayment(currentUser.email, 2.5, '5 Days Pro Access', selectedRegion);
+                            initializePaystackPayment(currentUser.email, 2, 'Three-Day Plan', selectedRegion);
                           }}
                           disabled={!currentUser?.email}
                           style={{
@@ -1632,7 +1565,75 @@ return (
                             fontWeight: 'bold'
                           }}
                         >
-                          {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 2.50`}
+                          {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 2`}
+                        </button>
+                      </div>
+
+                      {/* NEW: One-Week Plan */}
+                      <div style={{
+                        backgroundColor: 'white',
+                        padding: '30px 25px',
+                        borderRadius: '15px',
+                        boxShadow: '0 8px 25px rgba(0,0,0,0.1)',
+                        minWidth: '280px',
+                        maxWidth: '320px',
+                        border: '2px solid #e9ecef',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between'
+                      }}>
+                        <div>
+                          <h3 style={{ 
+                            color: '#007bff',
+                            fontSize: '1.5rem',
+                            margin: '0 0 10px 0',
+                            textAlign: 'center'
+                          }}>
+                            One-Week Plan
+                          </h3>
+                          <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px', textAlign: 'center' }}>
+                            Full access to Pro features for 7 days
+                          </p>
+                          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+                            <span style={{ 
+                              fontSize: '2.5rem',
+                              fontWeight: 'bold',
+                              color: '#6c5ce7'
+                            }}>
+                              USD 3
+                            </span>
+                            <span style={{ 
+                              color: '#666',
+                              fontSize: '1rem',
+                              display: 'block'
+                            }}>
+                              for 7 days
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <button
+                          onClick={() => {
+                            if (!currentUser?.email) {
+                              showMessage('Please log in first to purchase credits.');
+                              return;
+                            }
+                            initializePaystackPayment(currentUser.email, 3, 'One-Week Plan', selectedRegion);
+                          }}
+                          disabled={!currentUser?.email}
+                          style={{
+                            width: '100%',
+                            padding: '15px',
+                            backgroundColor: !currentUser?.email ? '#6c757d' : '#007bff',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '10px',
+                            cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
+                            fontSize: '16px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 3`}
                         </button>
                       </div>
                     </div>
