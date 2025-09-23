@@ -26,8 +26,8 @@ export const createUserProfile = async (uid, email, name = '') => {
       email,
       name,
       plan: userPlan,
-      totalMinutesUsed: 0, // Changed from totalMinutesUsedForFreeTrial
-      hasReceivedInitialFreeMinutes: ADMIN_EMAILS.includes(email) ? false : false, // KEY CHANGE: Start as false, grant only on first login
+      totalMinutesUsed: 0,
+      hasReceivedInitialFreeMinutes: ADMIN_EMAILS.includes(email) ? false : false,
       createdAt: new Date(),
       lastAccessed: new Date(),
       expiresAt: null, 
@@ -47,7 +47,7 @@ export const createUserProfile = async (uid, email, name = '') => {
         updates.expiresAt = null;
         updates.subscriptionStartDate = new Date(); 
         updates.totalMinutesUsed = 0; 
-        updates.hasReceivedInitialFreeMinutes = false; // Admins don't get/need free minutes
+        updates.hasReceivedInitialFreeMinutes = false;
         console.log(`DEBUG: createUserProfile - Admin ${email} profile forced to PRO (unlimited).`);
       }
     } else {
@@ -81,7 +81,7 @@ export const getUserProfile = async (uid) => {
 
     // Initialize new fields if they don't exist (for existing users)
     profileData.totalMinutesUsed = typeof profileData.totalMinutesUsed === 'number' ? profileData.totalMinutesUsed : (profileData.totalMinutesUsedForFreeTrial || 0);
-    profileData.hasReceivedInitialFreeMinutes = typeof profileData.hasReceivedInitialFreeMinutes === 'boolean' ? profileData.hasReceivedInitialFreeMinutes : false; // KEY CHANGE: Default to false
+    profileData.hasReceivedInitialFreeMinutes = typeof profileData.hasReceivedInitialFreeMinutes === 'boolean' ? profileData.hasReceivedInitialFreeMinutes : false;
 
     if (profileData.expiresAt && typeof profileData.expiresAt.toDate === 'function') {
         profileData.expiresAt = profileData.expiresAt.toDate();
@@ -171,6 +171,7 @@ export const updateUserPlan = async (uid, newPlan, referenceId = null) => {
   await updateDoc(userRef, updates);
   console.log(`User ${uid} plan updated to: ${newPlan}`);
 };
+
 // Check recording permissions
 export const canUserRecord = async (uid) => {
   try {
@@ -183,8 +184,7 @@ export const canUserRecord = async (uid) => {
     return false;
   }
 };
-
-// Check if user can transcribe
+// FIXED: Check if user can transcribe with proper validation and automatic pricing redirect
 export const canUserTranscribe = async (uid, estimatedDurationSeconds) => {
   try {
     console.log("🔍 canUserTranscribe called with:", { uid, estimatedDurationSeconds });
@@ -194,50 +194,69 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds) => {
     
     if (!userProfile) {
       console.warn("❌ canUserTranscribe: User profile not found for uid:", uid);
-      return false;
+      return { canTranscribe: false, reason: 'profile_not_found' };
     }
 
     // Admins always have access
     if (ADMIN_EMAILS.includes(userProfile.email)) {
         console.log(`✅ Admin user ${userProfile.email} - unlimited transcription.`);
-        return true;
+        return { canTranscribe: true, reason: 'admin_unlimited' };
     }
 
     // Check expiry for temporary paid plans
     if (['pro', '24 Hours Pro Access', '5 Days Pro Access', '5 Minutes Pro Access'].includes(userProfile.plan)) {
         if (userProfile.expiresAt === null && userProfile.plan === 'pro') {
             console.log(`✅ ${userProfile.plan} plan user - unlimited transcription.`);
-            return true;
+            return { canTranscribe: true, reason: 'pro_unlimited' };
         }
         if (userProfile.expiresAt && userProfile.expiresAt > new Date()) {
             console.log(`✅ ${userProfile.plan} plan user - plan active. Allowing transcription.`);
-            return true;
+            return { canTranscribe: true, reason: 'paid_plan_active' };
         } else {
             console.log(`❌ ${userProfile.plan} plan user - plan expired. Blocking transcription.`);
-            return false;
+            return { canTranscribe: false, reason: 'plan_expired', redirectToPricing: true };
         }
     }
 
-    // KEY FIX: Free plan logic - only if user hasn't received their initial 30 minutes yet
+    // FIXED: Free plan logic with precise validation
     if (userProfile.plan === 'free') {
       const remainingFreeMinutes = userProfile.freeMinutesRemaining || 0;
       const estimatedDurationMinutes = Math.ceil(estimatedDurationSeconds / 60);
 
-      if (estimatedDurationMinutes <= remainingFreeMinutes && !userProfile.hasReceivedInitialFreeMinutes) {
-        console.log(`✅ Free plan user - ${estimatedDurationMinutes} minutes within ${remainingFreeMinutes} remaining. Allowing transcription.`);
-        return true;
-      } else {
-        console.log(`❌ Free plan user - ${estimatedDurationMinutes} minutes exceeds ${remainingFreeMinutes} remaining or already used trial. Blocking transcription.`);
-        return false;
+      // Check if user has already used their free trial
+      if (userProfile.hasReceivedInitialFreeMinutes) {
+        console.log(`❌ Free plan user - already used their 30-minute trial. Blocking transcription.`);
+        return { canTranscribe: false, reason: 'free_trial_exhausted', redirectToPricing: true };
       }
+
+      // Check if the audio duration exceeds remaining minutes (even by seconds)
+      if (estimatedDurationMinutes > remainingFreeMinutes) {
+        console.log(`❌ Free plan user - ${estimatedDurationMinutes} minutes exceeds ${remainingFreeMinutes} remaining. Blocking transcription.`);
+        return { 
+          canTranscribe: false, 
+          reason: 'exceeds_free_limit', 
+          remainingMinutes: remainingFreeMinutes, 
+          requiredMinutes: estimatedDurationMinutes,
+          redirectToPricing: true
+        };
+      }
+
+      // User can transcribe
+      console.log(`✅ Free plan user - ${estimatedDurationMinutes} minutes within ${remainingFreeMinutes} remaining. Allowing transcription.`);
+      return { 
+        canTranscribe: true, 
+        reason: 'within_free_limit', 
+        remainingMinutes: remainingFreeMinutes, 
+        requiredMinutes: estimatedDurationMinutes 
+      };
     }
     
     console.log("❌ canUserTranscribe: User plan not eligible for transcription. Current plan:", userProfile.plan);
-    return false;
+    return { canTranscribe: false, reason: 'plan_not_eligible', redirectToPricing: true };
     
   } catch (error) {
     console.error("❌ Error in canUserTranscribe:", error);
-    return false;
+    return { canTranscribe: false, reason: 'error', error: error.message };
   }
 };
 
@@ -324,5 +343,3 @@ export const deleteTranscription = async (uid, transcriptionId) => {
   await deleteDoc(transcriptionRef);
   console.log("Transcription deleted:", transcriptionId);
 };
-
-//Testing if it will trigger Vercel deployment
