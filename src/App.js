@@ -170,7 +170,6 @@ function AppContent() {
   const [message, setMessage] = useState('');
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en'); 
-  // --- REMOVED: processingMessage state ---
   
   // Payment states
   const [pricingView, setPricingView] = useState('credits');
@@ -197,7 +196,6 @@ function AppContent() {
   // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
-  // --- REMOVED: Handler for processing messages ---
 
   // Paystack payment functions (existing, no changes needed here)
   const initializePaystackPayment = async (email, amount, planName, countryCode) => {
@@ -301,7 +299,6 @@ function AppContent() {
     setIsUploading(false);
     setUploadProgress(0);
     setTranscriptionProgress(0); 
-    // --- REMOVED: clearProcessingMessage() call ---
     
     recordedAudioBlobRef.current = null;
     
@@ -330,7 +327,7 @@ function AppContent() {
       isCancelledRef.current = false;
       console.log('✅ Reset complete, ready for new operations');
     }, 500);
-  }, []); // Removed clearProcessingMessage from dependencies
+  }, []);
 
   useEffect(() => {
     if (userProfile) {
@@ -379,7 +376,6 @@ function AppContent() {
         URL.revokeObjectURL(audio.src);
         
         try {
-          // --- REMOVED: showProcessingMessage call ---
           const originalSize = file.size / (1024 * 1024);
           console.log(`📊 ${Math.round(audio.duration/60)}-minute file loaded (${originalSize.toFixed(2)} MB) - ready for quick transcription.`);
         } catch (error) {
@@ -390,7 +386,7 @@ function AppContent() {
       const audioUrl = URL.createObjectURL(file);
       audio.src = audioUrl;
     }
-  }, [showMessage, resetTranscriptionProcessUI, jobId, status, RAILWAY_BACKEND_URL]); // Removed showProcessingMessage from dependencies
+  }, [showMessage, resetTranscriptionProcessUI, jobId, status, RAILWAY_BACKEND_URL]);
 
   // Enhanced recording function with proper job cancellation
   const startRecording = useCallback(async () => {
@@ -467,7 +463,6 @@ function AppContent() {
         setSelectedFile(file);
         stream.getTracks().forEach(track => track.stop());
         
-        // --- REMOVED: showProcessingMessage call ---
         const originalSize = originalBlob.size / (1024 * 1024);
         console.log(`📊 Recording saved: ${originalSize.toFixed(2)} MB - ready for transcription.`);
       };
@@ -482,7 +477,7 @@ function AppContent() {
     } catch (error) {
       showMessage('Could not access microphone: ' + error.message);
     }
-  }, [resetTranscriptionProcessUI, showMessage, isUploading, userProfile, profileLoading, jobId, status, RAILWAY_BACKEND_URL]); // Removed showProcessingMessage from dependencies
+  }, [resetTranscriptionProcessUI, showMessage, isUploading, userProfile, profileLoading, jobId, status, RAILWAY_BACKEND_URL]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -503,7 +498,6 @@ function AppContent() {
     setTranscriptionProgress(0);
     setStatus('idle');
     setJobId(null);
-    // --- REMOVED: clearProcessingMessage() call ---
     
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -536,7 +530,7 @@ function AppContent() {
         });
         console.log('✅ Previous job cancelled successfully on Railway.');
       } catch (error) {
-        console.log('⚠️ Failed to cancel previous job on Railway, but continuing with force cancel:', error);
+        console.log('⚠️ Failed to cancel previous Railway job, but continuing with force cancel:', error);
       }
     } else if (jobId) {
       console.log(`No active Railway job to cancel for job ID: ${jobId}. It might be a Render job or already completed.`);
@@ -549,7 +543,7 @@ function AppContent() {
     }, 1500);
     
     console.log('✅ Force cancellation complete. Page refresh initiated.');
-  }, [jobId, showMessage, RAILWAY_BACKEND_URL]); // Removed clearProcessingMessage from dependencies
+  }, [jobId, showMessage, RAILWAY_BACKEND_URL]);
 
   // handleTranscriptionComplete with debugging logs (existing, no changes needed here)
   const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
@@ -586,9 +580,9 @@ function AppContent() {
       console.error('Error updating usage or saving transcription:', error);
       showMessage('Failed to save transcription or update usage.');
     } finally {
-      // --- REMOVED: clearProcessingMessage() call ---
+      // No changes here, as processingMessage state was removed
     }
-  }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]); // Removed clearProcessingMessage from dependencies
+  }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]);
 
   // Handle successful payment (existing, no changes needed here)
   const handlePaymentSuccess = useCallback(async (planName, subscriptionId) => {
@@ -767,7 +761,6 @@ function AppContent() {
       return;
     }
 
-    // --- REMOVED: showProcessingMessage call ---
     console.log(`🎯 Initiating transcription for ${Math.round(estimatedDuration/60)}-minute audio.`);
 
     isCancelledRef.current = false;
@@ -798,7 +791,6 @@ function AppContent() {
 
         if (railwayResult && railwayResult.job_id) {
             transcriptionJobId = railwayResult.job_id;
-            // --- REMOVED: showProcessingMessage call ---
             console.log('✅ AssemblyAI transcription job started. Processing...');
             
             setUploadProgress(100);
@@ -1933,7 +1925,29 @@ return (
                   </select>
                 </div>
                 
-                {/* --- REMOVED: processingMessage display here --- */}
+                {/* --- RESTORED & MODIFIED: Processing bar and text --- */}
+                {(status === 'processing' || status === 'uploading') && (
+                  <div style={{ marginBottom: '20px' }}>
+                    <div style={{
+                      backgroundColor: '#e9ecef',
+                      height: '30px', /* Increased thickness */
+                      borderRadius: '15px', /* Adjusted for new height */
+                      overflow: 'hidden',
+                      marginBottom: '10px'
+                    }}>
+                      <div className="progress-bar-indeterminate" style={{
+                        backgroundColor: '#6c5ce7',
+                        height: '100%',
+                        width: '100%',
+                        borderRadius: '15px' /* Adjusted for new height */
+                      }}></div>
+                    </div>
+                    <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
+                      🎯 Processing audio with optimal service...
+                    </div>
+                  </div>
+                )}
+                {/* --- END RESTORED & MODIFIED --- */}
 
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
                   {status === 'idle' && !isUploading && selectedFile && (
