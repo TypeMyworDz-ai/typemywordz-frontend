@@ -1,5 +1,3 @@
-// App.js
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -152,38 +150,6 @@ const simulateProgress = (setter, intervalTime, maxProgress = 100) => {
   return interval; 
 };
 
-// --- REMOVED: selectOptimalTranscriptionService is no longer used ---
-// const selectOptimalTranscriptionService = (file, userProfile, audioDuration, selectedLanguage) => {
-//   const fileSizeMB = file.size / (1024 * 1024);
-//   const estimatedDuration = audioDuration || Math.max(60, file.size / 100000);
-  
-//   let preferredService = 'render'; // Default to Whisper
-  
-//   // PRIMARY RULE: Files > 5 minutes → AssemblyAI (faster processing)
-//   if (estimatedDuration > 300) { // 5+ minutes
-//     preferredService = 'railway';
-//     console.log(`🎯 Smart Routing: ${Math.round(estimatedDuration/60)}-minute file → AssemblyAI (2-4 min processing)`);
-//   }
-//   // Large files regardless of duration → AssemblyAI
-//   else if (fileSizeMB > 50) {
-//     preferredService = 'railway';
-//     console.log(`🎯 Smart Routing: Large file (${fileSizeMB.toFixed(1)}MB) → AssemblyAI`);
-//   }
-//   // Video files → AssemblyAI (better handling)
-//   else if (file.type.startsWith('video/')) {
-//     preferredService = 'railway';
-//     console.log(`🎯 Smart Routing: Video file → AssemblyAI`);
-//   }
-//   // Files < 5 minutes → Optimized Whisper (much faster now)
-//   else {
-//     preferredService = 'render';
-//     console.log(`🎯 Smart Routing: ${Math.round(estimatedDuration/60)}-minute file → Optimized Whisper (fast processing)`);
-//   }
-  
-//   return preferredService;
-// };
-// --- END REMOVED SECTION ---
-
 function AppContent() {
   const navigate = useNavigate();
   
@@ -202,8 +168,9 @@ function AppContent() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [downloadFormat, setDownloadFormat] = useState('mp3');
   const [message, setMessage] = useState('');
-  const [copiedMessageVisible, setCopiedMessageVisible] = useState(false); // NEW state for copy notification
+  const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en'); 
+  // --- REMOVED: processingMessage state ---
   
   // Payment states
   const [pricingView, setPricingView] = useState('credits');
@@ -230,6 +197,7 @@ function AppContent() {
   // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
+  // --- REMOVED: Handler for processing messages ---
 
   // Paystack payment functions (existing, no changes needed here)
   const initializePaystackPayment = async (email, amount, planName, countryCode) => {
@@ -320,7 +288,7 @@ function AppContent() {
     }
   }, [currentUser, handlePaystackCallback]);
 
-  // Enhanced reset function with better job cancellation (existing, no changes needed here)
+  // Enhanced reset function with better job cancellation
   const resetTranscriptionProcessUI = useCallback(() => { 
     console.log('🔄 Resetting transcription UI and cancelling any ongoing processes');
     
@@ -333,6 +301,7 @@ function AppContent() {
     setIsUploading(false);
     setUploadProgress(0);
     setTranscriptionProgress(0); 
+    // --- REMOVED: clearProcessingMessage() call ---
     
     recordedAudioBlobRef.current = null;
     
@@ -361,7 +330,7 @@ function AppContent() {
       isCancelledRef.current = false;
       console.log('✅ Reset complete, ready for new operations');
     }, 500);
-  }, []);
+  }, []); // Removed clearProcessingMessage from dependencies
 
   useEffect(() => {
     if (userProfile) {
@@ -369,7 +338,7 @@ function AppContent() {
     }
   }, [userProfile?.totalMinutesUsed]);
 
-  // Enhanced file selection with proper job cancellation (existing, no changes needed here)
+  // Enhanced file selection with proper job cancellation
   const handleFileSelect = useCallback(async (event) => {
     const file = event.target.files[0];
     
@@ -410,25 +379,20 @@ function AppContent() {
         URL.revokeObjectURL(audio.src);
         
         try {
+          // --- REMOVED: showProcessingMessage call ---
           const originalSize = file.size / (1024 * 1024);
-          const estimatedDuration = audio.duration || Math.max(60, file.size / 100000);
-          
-          // Smart routing message for user (kept for user info, but routing logic moved)
-          if (estimatedDuration > 300) {
-            showMessage(`📊 ${Math.round(estimatedDuration/60)}-minute file loaded (${originalSize.toFixed(2)} MB) - will use our fastest processing service.`);
-          } else {
-            showMessage(`📊 ${Math.round(estimatedDuration/60)}-minute file loaded (${originalSize.toFixed(2)} MB) - ready for quick transcription.`);
-          }
+          console.log(`📊 ${Math.round(audio.duration/60)}-minute file loaded (${originalSize.toFixed(2)} MB) - ready for quick transcription.`);
         } catch (error) {
           console.error('Error getting file info:', error);
+          showMessage('Error getting file info: ' + error.message); // Keep critical errors in main message modal
         }
       };
       const audioUrl = URL.createObjectURL(file);
       audio.src = audioUrl;
     }
-  }, [showMessage, resetTranscriptionProcessUI, jobId, status, RAILWAY_BACKEND_URL]);
+  }, [showMessage, resetTranscriptionProcessUI, jobId, status, RAILWAY_BACKEND_URL]); // Removed showProcessingMessage from dependencies
 
-  // Enhanced recording function with proper job cancellation (existing, no changes needed here)
+  // Enhanced recording function with proper job cancellation
   const startRecording = useCallback(async () => {
     if (jobId && (status === 'processing' || status === 'uploading')) {
       console.log('🛑 Cancelling previous job before starting new recording');
@@ -503,8 +467,9 @@ function AppContent() {
         setSelectedFile(file);
         stream.getTracks().forEach(track => track.stop());
         
+        // --- REMOVED: showProcessingMessage call ---
         const originalSize = originalBlob.size / (1024 * 1024);
-        showMessage(`📊 Recording saved: ${originalSize.toFixed(2)} MB - ready for transcription.`);
+        console.log(`📊 Recording saved: ${originalSize.toFixed(2)} MB - ready for transcription.`);
       };
 
       mediaRecorderRef.current.start(1000);
@@ -517,7 +482,7 @@ function AppContent() {
     } catch (error) {
       showMessage('Could not access microphone: ' + error.message);
     }
-  }, [resetTranscriptionProcessUI, showMessage, isUploading, userProfile, profileLoading, jobId, status, RAILWAY_BACKEND_URL]);
+  }, [resetTranscriptionProcessUI, showMessage, isUploading, userProfile, profileLoading, jobId, status, RAILWAY_BACKEND_URL]); // Removed showProcessingMessage from dependencies
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -538,6 +503,7 @@ function AppContent() {
     setTranscriptionProgress(0);
     setStatus('idle');
     setJobId(null);
+    // --- REMOVED: clearProcessingMessage() call ---
     
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -583,7 +549,7 @@ function AppContent() {
     }, 1500);
     
     console.log('✅ Force cancellation complete. Page refresh initiated.');
-  }, [jobId, showMessage, RAILWAY_BACKEND_URL]);
+  }, [jobId, showMessage, RAILWAY_BACKEND_URL]); // Removed clearProcessingMessage from dependencies
 
   // handleTranscriptionComplete with debugging logs (existing, no changes needed here)
   const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
@@ -619,8 +585,10 @@ function AppContent() {
     } catch (error) {
       console.error('Error updating usage or saving transcription:', error);
       showMessage('Failed to save transcription or update usage.');
+    } finally {
+      // --- REMOVED: clearProcessingMessage() call ---
     }
-  }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]);
+  }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]); // Removed clearProcessingMessage from dependencies
 
   // Handle successful payment (existing, no changes needed here)
   const handlePaymentSuccess = useCallback(async (planName, subscriptionId) => {
@@ -799,9 +767,8 @@ function AppContent() {
       return;
     }
 
-    // Processing time estimates for user (kept for user-friendliness)
-    const estimatedProcessingTime = Math.round(estimatedDuration / 60 * 0.3); // AssemblyAI ~0.3x real-time
-    showMessage(`🎯 Processing ${Math.round(estimatedDuration/60)}-minute audio with our fastest service. Estimated time: ${Math.max(1, estimatedProcessingTime)} minutes.`);
+    // --- REMOVED: showProcessingMessage call ---
+    console.log(`🎯 Initiating transcription for ${Math.round(estimatedDuration/60)}-minute audio.`);
 
     isCancelledRef.current = false;
     setIsUploading(true);
@@ -831,7 +798,8 @@ function AppContent() {
 
         if (railwayResult && railwayResult.job_id) {
             transcriptionJobId = railwayResult.job_id;
-            showMessage('✅ Transcription started with our fastest service. Processing...');
+            // --- REMOVED: showProcessingMessage call ---
+            console.log('✅ AssemblyAI transcription job started. Processing...');
             
             setUploadProgress(100);
             setStatus('processing');
@@ -845,7 +813,7 @@ function AppContent() {
 
     } catch (primaryError) {
         console.error(`Primary service (AssemblyAI) failed:`, primaryError);
-        showMessage('⚠️ AssemblyAI failed. Trying Whisper as a fallback...');
+        showMessage('⚠️ AssemblyAI failed. Trying Whisper as a fallback...'); // Keep this in main message modal
         
         // --- FALLBACK ATTEMPT: Whisper (Render Backend) ---
         try {
@@ -864,7 +832,7 @@ function AppContent() {
             if (renderResult.status === 'completed' && renderResult.transcript) {
                 finalTranscription = renderResult.transcript;
                 transcriptionJobId = `RENDER-FALLBACK-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-                showMessage('✅ Transcription completed successfully with backup service!');
+                showMessage('✅ Transcription completed successfully with backup service!'); // Keep this in main message modal
                 
                 setTranscription(finalTranscription);
                 setTranscriptionProgress(100);
@@ -877,7 +845,7 @@ function AppContent() {
             }
         } catch (fallbackError) {
             console.error('Both services failed:', fallbackError);
-            showMessage('❌ Both transcription services are currently unavailable. Please try again later.');
+            showMessage('❌ Both transcription services are currently unavailable. Please try again later.'); // Keep this in main message modal
             setUploadProgress(0);
             setTranscriptionProgress(0);
             setStatus('failed'); 
@@ -888,7 +856,7 @@ function AppContent() {
 
     // This part should ideally not be reached if either service was successful.
     console.error("Transcription initiation failed unexpectedly. No service provided a valid response.");
-    showMessage('❌ Transcription failed due to an unexpected error.');
+    showMessage('❌ Transcription failed due to an unexpected error.'); // Keep this in main message modal
     setUploadProgress(0);
     setTranscriptionProgress(0);
     setStatus('failed'); 
@@ -958,7 +926,7 @@ function AppContent() {
         a.click();
         URL.revokeObjectURL(url);
       } catch (error) {
-        console.error('Error compressing for download:', error);
+        console.error('Error compressing for download: ', error);
         showMessage('Download compression failed, downloading original format.');
         const url = URL.createObjectURL(recordedAudioBlobRef.current);
         const a = document.createElement('a');
@@ -1965,27 +1933,7 @@ return (
                   </select>
                 </div>
                 
-                {(status === 'processing' || status === 'uploading') && (
-                  <div style={{ marginBottom: '20px' }}>
-                    <div style={{
-                      backgroundColor: '#e9ecef',
-                      height: '20px',
-                      borderRadius: '10px',
-                      overflow: 'hidden',
-                      marginBottom: '10px'
-                    }}>
-                      <div className="progress-bar-indeterminate" style={{
-                        backgroundColor: '#6c5ce7',
-                        height: '100%',
-                        width: '100%',
-                        borderRadius: '10px'
-                      }}></div>
-                    </div>
-                    <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
-                      🎯 Processing audio with optimal service...
-                    </div>
-                  </div>
-                )}
+                {/* --- REMOVED: processingMessage display here --- */}
 
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
                   {status === 'idle' && !isUploading && selectedFile && (
