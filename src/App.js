@@ -16,7 +16,7 @@ import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
 const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com'; // Your Render Whisper URL
 
-// --- NEW: Copied Notification Component ---
+// Copied Notification Component
 const CopiedNotification = ({ isVisible }) => {
   return (
     <div
@@ -40,9 +40,8 @@ const CopiedNotification = ({ isVisible }) => {
     </div>
   );
 };
-// --- END NEW COMPONENT ---
 
-// Enhanced Toast Notification Component (existing)
+// Enhanced Toast Notification Component
 const ToastNotification = ({ message, onClose }) => {
   const [isVisible, setIsVisible] = useState(false);
   
@@ -130,7 +129,7 @@ const ToastNotification = ({ message, onClose }) => {
   );
 };
 
-// Utility functions (existing)
+// Utility functions
 const formatTime = (seconds) => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -170,7 +169,6 @@ function AppContent() {
   const [message, setMessage] = useState('');
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en'); 
-  // --- NEW: State for speaker labels ---
   const [speakerLabelsEnabled, setSpeakerLabelsEnabled] = useState(false);
   
   // Payment states
@@ -178,7 +176,8 @@ function AppContent() {
   const [selectedRegion, setSelectedRegion] = useState('KE');
   const [convertedAmounts, setConvertedAmounts] = useState({ 
     '24hours': { amount: 1.00, currency: 'USD' }, 
-    '5days': { amount: 2.50, currency: 'USD' } 
+    '5days': { amount: 2.50, currency: 'USD' },
+    '5minutes': { amount: 0.50, currency: 'USD' } // NEW: 5-minute plan default
   });
   
   // Refs
@@ -199,7 +198,7 @@ function AppContent() {
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
 
-  // Paystack payment functions (existing, no changes needed here)
+  // Paystack payment functions
   const initializePaystackPayment = async (email, amount, planName, countryCode) => {
     try {
       console.log('Initializing Paystack payment:', { email, amount, planName, countryCode });
@@ -234,7 +233,7 @@ function AppContent() {
     }
   };
 
-  // Handle payment success callback (existing, no changes needed here)
+  // Handle payment success callback
   const handlePaystackCallback = useCallback(async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const reference = urlParams.get('reference');
@@ -301,8 +300,7 @@ function AppContent() {
     setIsUploading(false);
     setUploadProgress(0);
     setTranscriptionProgress(0); 
-    // --- NEW: Reset speakerLabelsEnabled ---
-    setSpeakerLabelsEnabled(false);
+    setSpeakerLabelsEnabled(false); // Reset speaker labels to default (No Speakers)
     
     recordedAudioBlobRef.current = null;
     
@@ -331,7 +329,7 @@ function AppContent() {
       isCancelledRef.current = false;
       console.log('✅ Reset complete, ready for new operations');
     }, 500);
-  }, []); // Added setSpeakerLabelsEnabled to dependencies
+  }, []);
 
   useEffect(() => {
     if (userProfile) {
@@ -347,28 +345,9 @@ function AppContent() {
       return;
     }
     
-    if (jobId && (status === 'processing' || status === 'uploading')) {
-      console.log('🛑 Cancelling previous job before selecting new file');
-      isCancelledRef.current = true;
-      
-      // If a job ID exists, try to cancel it on the Railway backend (if it was a Railway job)
-      if (jobId.startsWith('RAILWAY-')) { 
-        try {
-          console.log(`Attempting to cancel job ${jobId} on Railway backend.`);
-          await fetch(`${RAILWAY_BACKEND_URL}/cancel/${jobId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-          });
-          console.log('✅ Previous Railway job cancelled successfully.');
-        } catch (error) {
-          console.log('⚠️ Failed to cancel previous Railway job, but continuing with force cancel:', error);
-        }
-      } else {
-        console.log(`No active Railway job to cancel for job ID: ${jobId}`);
-      }
-    }
-    
-    resetTranscriptionProcessUI();
+    // Always reset UI when a new file is selected, effectively deselecting options
+    // This also stops any ongoing transcription.
+    resetTranscriptionProcessUI(); 
     
     setSelectedFile(file);
     
@@ -390,37 +369,18 @@ function AppContent() {
       const audioUrl = URL.createObjectURL(file);
       audio.src = audioUrl;
     }
-  }, [showMessage, resetTranscriptionProcessUI, jobId, status, RAILWAY_BACKEND_URL]);
+  }, [showMessage, resetTranscriptionProcessUI]); // Removed jobId, status, RAILWAY_BACKEND_URL from dependencies as they are not directly used in this function's immediate logic after reset
 
   // Enhanced recording function with proper job cancellation
   const startRecording = useCallback(async () => {
-    if (jobId && (status === 'processing' || status === 'uploading')) {
-      console.log('🛑 Cancelling previous job before starting new recording');
-      isCancelledRef.current = true;
-      
-      // If a job ID exists, try to cancel it on the Railway backend (if it was a Railway job)
-      if (jobId.startsWith('RAILWAY-')) { 
-        try {
-          console.log(`Attempting to cancel job ${jobId} on Railway backend.`);
-          await fetch(`${RAILWAY_BACKEND_URL}/cancel/${jobId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-          });
-          console.log('✅ Previous Railway job cancelled successfully.');
-        } catch (error) {
-          console.log('⚠️ Failed to cancel previous Railway job, but continuing with force cancel:', error);
-        }
-      } else {
-        console.log(`No active Railway job to cancel for job ID: ${jobId}`);
-      }
-    }
-
-    resetTranscriptionProcessUI();
-    setSelectedFile(null);
+    // Always reset UI when starting a new recording, effectively deselecting options
+    // This also stops any ongoing transcription.
+    resetTranscriptionProcessUI(); 
+    setSelectedFile(null); // Clear any previously selected file
     
     const fileInput = document.querySelector('input[type="file"]');
     if (fileInput) {
-      fileInput.value = '';
+      fileInput.value = ''; // Clear file input
     }
     
     try {
@@ -481,7 +441,7 @@ function AppContent() {
     } catch (error) {
       showMessage('Could not access microphone: ' + error.message);
     }
-  }, [resetTranscriptionProcessUI, showMessage, isUploading, userProfile, profileLoading, jobId, status, RAILWAY_BACKEND_URL]);
+  }, [resetTranscriptionProcessUI, showMessage]); // Removed isUploading, userProfile, profileLoading, jobId, status, RAILWAY_BACKEND_URL from dependencies as they are not directly used in this function's immediate logic after reset
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -491,7 +451,7 @@ function AppContent() {
     }
   }, [isRecording]);
 
-  // Improved cancel function with page refresh (existing, no changes needed here)
+  // Improved cancel function with page refresh
   const handleCancelUpload = useCallback(async () => {
     console.log('🛑 FORCE CANCEL - Stopping everything immediately');
     
@@ -549,7 +509,7 @@ function AppContent() {
     console.log('✅ Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage, RAILWAY_BACKEND_URL]);
 
-  // handleTranscriptionComplete with debugging logs (existing, no changes needed here)
+  // handleTranscriptionComplete with debugging logs
   const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
     try {
       const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
@@ -588,7 +548,7 @@ function AppContent() {
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]);
 
-  // Handle successful payment (existing, no changes needed here)
+  // Handle successful payment
   const handlePaymentSuccess = useCallback(async (planName, subscriptionId) => {
     try {
       await updateUserPlan(currentUser.uid, planName, subscriptionId);
@@ -604,7 +564,7 @@ function AppContent() {
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
 
-  // checkJobStatus for frontend-orchestrated jobs (existing, no changes needed here)
+  // checkJobStatus for frontend-orchestrated jobs
   const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval, sourceBackend) => {
     if (isCancelledRef.current) {
       console.log('🛑 Status check aborted - job was cancelled');
@@ -734,7 +694,7 @@ function AppContent() {
     }
   }, [handleTranscriptionComplete, showMessage, RAILWAY_BACKEND_URL]);
 
-  // --- MODIFIED: handleUpload to always try AssemblyAI first, then Whisper as fallback ---
+  // handleUpload logic
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
@@ -775,14 +735,13 @@ function AppContent() {
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('language_code', selectedLanguage);
-    // --- NEW: Append speaker_labels setting to formData ---
-    formData.append('speaker_labels', speakerLabelsEnabled);
+    formData.append('speaker_labels_enabled', speakerLabelsEnabled); // Append speaker_labels setting
 
     let finalTranscription = '';
     let transcriptionJobId = '';
 
     try {
-        // --- PRIMARY ATTEMPT: AssemblyAI (Railway Backend) ---
+        // PRIMARY ATTEMPT: AssemblyAI (Railway Backend)
         console.log(`🎯 Attempting transcription with AssemblyAI (Railway): ${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`);
         const railwayResponse = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, {
             method: 'POST',
@@ -813,7 +772,7 @@ function AppContent() {
         console.error(`Primary service (AssemblyAI) failed:`, primaryError);
         showMessage('⚠️ AssemblyAI failed. Trying Whisper as a fallback...'); // Keep this in main message modal
         
-        // --- FALLBACK ATTEMPT: Whisper (Render Backend) ---
+        // FALLBACK ATTEMPT: Whisper (Render Backend)
         try {
             console.log(`🎯 Using Fallback Whisper: ${RENDER_WHISPER_URL}/transcribe`);
             const renderResponse = await fetch(`${RENDER_WHISPER_URL}/transcribe`, {
@@ -860,8 +819,8 @@ function AppContent() {
     setStatus('failed'); 
     setIsUploading(false);
 
-  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, RENDER_WHISPER_URL, checkJobStatus]); // Added speakerLabelsEnabled to dependencies
-  // --- END MODIFIED handleUpload ---
+  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, RENDER_WHISPER_URL, checkJobStatus]);
+  // END MODIFIED handleUpload
 
   // Copy to clipboard (existing, now triggers NEW CopiedNotification)
   const copyToClipboard = useCallback(() => { 
@@ -875,7 +834,7 @@ function AppContent() {
     setTimeout(() => setCopiedMessageVisible(false), 2000); // Hide after 2 seconds
   }, [transcription, userProfile, showMessage]);
 
-  // Download as Word - only for paid users (existing, no changes needed here)
+  // Download as Word - only for paid users
   const downloadAsWord = useCallback(() => { 
     if (userProfile?.plan === 'free') {
       showMessage('MS Word download is only available for paid users. Please upgrade to access this feature.');
@@ -891,7 +850,7 @@ function AppContent() {
     URL.revokeObjectURL(url);
   }, [transcription, userProfile, showMessage]);
 
-  // TXT download - available for all users (existing, no changes needed here)
+  // TXT download - available for all users
   const downloadAsTXT = useCallback(() => { 
     const blob = new Blob([transcription], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -902,7 +861,7 @@ function AppContent() {
     URL.revokeObjectURL(url);
   }, [transcription]);
 
-  // Enhanced download with compression options (Note: This is for recorded audio, not transcription results) (existing, no changes needed here)
+  // Enhanced download with compression options (Note: This is for recorded audio, not transcription results)
   const downloadRecordedAudio = useCallback(async () => { 
     if (recordedAudioBlobRef.current) {
       try {
@@ -962,23 +921,26 @@ function AppContent() {
     setCurrentView('pricing');
   }, [setCurrentView]);
 
-  // useEffect to handle 30-minute trial for free users (existing, no changes needed here)
-  useEffect(() => {
-    if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
-      const remainingMinutes = 30 - (userProfile.totalMinutesUsed || 0);
-      if (userProfile.plan === 'pro' || (userProfile.plan === 'free' && remainingMinutes > 0) || ['24 Hours Pro Access', '5 Days Pro Access'].includes(userProfile.plan)) {
-        console.log('DIAGNOSTIC: Auto-upload triggered. User plan:', userProfile.plan, 'Remaining minutes:', remainingMinutes);
-        const timer = setTimeout(() => {
-          handleUpload();
-        }, 200);
-        return () => clearTimeout(timer);
-      } else if (userProfile.plan === 'free' && remainingMinutes <= 0) {
-        console.log('DIAGNOSTIC: Free trial ended. Not auto-uploading.');
-      }
-    }
-  }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile, profileLoading, showMessage]);
+  // REMOVED: useEffect to handle 30-minute trial for free users (auto-upload)
+  // This useEffect was responsible for automatically triggering handleUpload.
+  // By removing it, transcription will only start when the user explicitly clicks the button.
+  // useEffect(() => {
+  //   if (selectedFile && status === 'idle' && !isRecording && !isUploading && !profileLoading && userProfile) {
+  //     const remainingMinutes = 30 - (userProfile.totalMinutesUsed || 0);
+  //     if (userProfile.plan === 'pro' || (userProfile.plan === 'free' && remainingMinutes > 0) || ['24 Hours Pro Access', '5 Days Pro Access'].includes(userProfile.plan)) {
+  //       console.log('DIAGNOSTIC: Auto-upload triggered. User plan:', userProfile.plan, 'Remaining minutes:', remainingMinutes);
+  //       const timer = setTimeout(() => {
+  //         handleUpload();
+  //       }, 200);
+  //       return () => clearTimeout(timer);
+  //     } else if (userProfile.plan === 'free' && remainingMinutes <= 0) {
+  //       console.log('DIAGNOSTIC: Free trial ended. Not auto-uploading.');
+  //     }
+  //   }
+  // }, [selectedFile, status, isRecording, isUploading, handleUpload, userProfile, profileLoading, showMessage]);
+  // END REMOVED
 
-  // Cleanup effect to ensure cancellation works (existing, no changes needed here)
+  // Cleanup effect to ensure cancellation works
   useEffect(() => {
     return () => {
       if (isCancelledRef.current) {
@@ -992,7 +954,7 @@ function AppContent() {
     };
   }, []);
   
-  // Login screen for non-authenticated users (existing, no changes needed here)
+  // Login screen for non-authenticated users
   if (!currentUser) {
     return (
       <div style={{ 
@@ -1215,6 +1177,8 @@ return (
                 <span>Plan: 24 Hours Pro Access {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
               ) : userProfile && userProfile.plan === '5 Days Pro Access' ? (
                 <span>Plan: 5 Days Pro Access {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
+              ) : userProfile && userProfile.plan === '5 Minutes Pro Access' ? ( // NEW: 5 Minutes Pro Access
+                <span>Plan: 5 Minutes Pro Access {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
               ) : userProfile && userProfile.plan === 'free' ? (
                 <span>Plan: Free Trial ({Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining)</span>
               ) : (
@@ -1427,7 +1391,7 @@ return (
                 <>
                   <div style={{ marginTop: '20px' }}>
                     <h2 style={{ color: '#007bff', marginBottom: '30px' }}>
-                      💳 Go Pro 24hrs/5-day plan
+                      💳 Go Pro 24hrs/5-day/5-minute plans
                     </h2>
                     <p style={{ color: '#666', marginBottom: '30px', fontSize: '14px' }}>
                       Purchase temporary access to Pro features. Available globally with local currency support
@@ -1435,6 +1399,75 @@ return (
                     
                     {/* 🎯 HORIZONTAL LAYOUT FOR PAYMENT PLANS - KEY FEATURE */}
                     <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                      {/* NEW: 5 Minutes Pro Access Card */}
+                      <div style={{
+                        backgroundColor: 'white',
+                        padding: '30px 25px',
+                        borderRadius: '15px',
+                        boxShadow: '0 8px 25px rgba(0,0,0,0.1)',
+                        minWidth: '280px',
+                        maxWidth: '320px',
+                        border: '2px solid #e9ecef',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between'
+                      }}>
+                        <div>
+                          <h3 style={{ 
+                            color: '#007bff',
+                            fontSize: '1.5rem',
+                            margin: '0 0 10px 0',
+                            textAlign: 'center'
+                          }}>
+                            5 Minutes Pro Access
+                          </h3>
+                          <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px', textAlign: 'center' }}>
+                            Full access to Pro features for 5 minutes
+                          </p>
+                          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+                            <span style={{ 
+                              fontSize: '2.5rem',
+                              fontWeight: 'bold',
+                              color: '#6c5ce7'
+                            }}>
+                              USD 0.50
+                            </span>
+                            <span style={{ 
+                              color: '#666',
+                              fontSize: '1rem',
+                              display: 'block'
+                            }}>
+                              for 5 minutes
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <button
+                          onClick={() => {
+                            if (!currentUser?.email) {
+                              showMessage('Please log in first to purchase credits.');
+                              return;
+                            }
+                            initializePaystackPayment(currentUser.email, 0.5, '5 Minutes Pro Access', selectedRegion);
+                          }}
+                          disabled={!currentUser?.email}
+                          style={{
+                            width: '100%',
+                            padding: '15px',
+                            backgroundColor: !currentUser?.email ? '#6c757d' : '#007bff',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '10px',
+                            cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
+                            fontSize: '16px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 0.50`}
+                        </button>
+                      </div>
+                      {/* End NEW: 5 Minutes Pro Access Card */}
+
                       <div style={{
                         backgroundColor: 'white',
                         padding: '30px 25px',
@@ -1901,7 +1934,7 @@ return (
                   )}
                 </div>
 
-                {/* Language Selection Dropdown (existing) */}
+                {/* Language Selection Dropdown */}
                 <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
                   <label htmlFor="languageSelect" style={{ color: '#6c5ce7', fontWeight: 'bold', fontSize: '1.1rem' }}>
                     Transcription Language:
@@ -1931,7 +1964,7 @@ return (
                   </select>
                 </div>
                 
-                {/* --- NEW: Speaker Tags Dropdown --- */}
+                {/* Speaker Tags Dropdown */}
                 <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
                   <label htmlFor="speakerLabelsSelect" style={{ color: '#6c5ce7', fontWeight: 'bold', fontSize: '1.1rem' }}>
                     Speaker Tags:
@@ -1952,9 +1985,8 @@ return (
                     <option value="true">With Speakers</option>
                   </select>
                 </div>
-                {/* --- END NEW --- */}
 
-                {/* --- RESTORED & MODIFIED: Processing bar and text --- */}
+                {/* Processing bar and text */}
                 {(status === 'processing' || status === 'uploading') && (
                   <div style={{ marginBottom: '20px' }}>
                     <div style={{
@@ -1976,7 +2008,6 @@ return (
                     </div>
                   </div>
                 )}
-                {/* --- END RESTORED & MODIFIED --- */}
 
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
                   {status === 'idle' && !isUploading && selectedFile && (
