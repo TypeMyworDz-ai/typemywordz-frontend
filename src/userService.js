@@ -56,7 +56,6 @@ export const createUserProfile = async (uid, email, name = '') => {
         updates.totalMinutesUsed = existingData.totalMinutesUsedForFreeTrial || 0;
       }
       if (existingData.hasReceivedInitialFreeMinutes === undefined) {
-        // KEY CHANGE: Only grant free minutes if user has NEVER used any minutes AND has no subscription history
         const hasUsedAnyMinutes = (existingData.totalMinutesUsedForFreeTrial || 0) > 0 || (existingData.totalMinutesUsed || 0) > 0;
         const hasSubscriptionHistory = existingData.subscriptionStartDate || existingData.expiresAt;
         updates.hasReceivedInitialFreeMinutes = hasUsedAnyMinutes || hasSubscriptionHistory;
@@ -71,7 +70,7 @@ export const createUserProfile = async (uid, email, name = '') => {
   }
 };
 
-// Get user profile (UPDATED for correct expiry logic)
+// Get user profile (UPDATED for correct expiry logic and new plan names)
 export const getUserProfile = async (uid) => {
   const userRef = getUserProfileRef(uid);
   const docSnap = await getDoc(userRef);
@@ -108,8 +107,9 @@ export const getUserProfile = async (uid) => {
       return profileData;
     }
 
-    // KEY FIX: Expiry logic for temporary paid plans
-    if (['24 Hours Pro Access', '5 Days Pro Access', '5 Minutes Pro Access'].includes(profileData.plan) && profileData.expiresAt && profileData.expiresAt < currentTime) {
+    // KEY FIX: Expiry logic for temporary paid plans (updated plan names)
+    const temporaryPlans = ['One-Day Plan', 'Three-Day Plan', 'One-Week Plan'];
+    if (temporaryPlans.includes(profileData.plan) && profileData.expiresAt && profileData.expiresAt < currentTime) {
       console.log(`User ${uid} plan '${profileData.plan}' expired on ${profileData.expiresAt}. Downgrading to FREE with 0 minutes.`);
       await updateDoc(userRef, {
         plan: 'free',
@@ -137,7 +137,7 @@ export const getUserProfile = async (uid) => {
   return null;
 };
 
-// Update user plan after successful payment
+// Update user plan after successful payment (updated plan names and durations)
 export const updateUserPlan = async (uid, newPlan, referenceId = null) => {
   const userRef = getUserProfileRef(uid);
   const updates = {
@@ -147,12 +147,12 @@ export const updateUserPlan = async (uid, newPlan, referenceId = null) => {
   };
   
   let planDurationMinutes = 0; 
-  if (newPlan === '5 Minutes Pro Access') {
-      planDurationMinutes = 5;
-  } else if (newPlan === '24 Hours Pro Access') {
-      planDurationMinutes = 24 * 60;
-  } else if (newPlan === '5 Days Pro Access') {
-      planDurationMinutes = 5 * 24 * 60;
+  if (newPlan === 'One-Day Plan') {
+      planDurationMinutes = 1 * 24 * 60; // 1 day in minutes
+  } else if (newPlan === 'Three-Day Plan') {
+      planDurationMinutes = 3 * 24 * 60; // 3 days in minutes
+  } else if (newPlan === 'One-Week Plan') {
+      planDurationMinutes = 7 * 24 * 60; // 7 days in minutes
   } else if (newPlan === 'pro') {
       updates.expiresAt = null; 
       updates.subscriptionStartDate = new Date();
@@ -184,7 +184,7 @@ export const canUserRecord = async (uid) => {
     return false;
   }
 };
-// FIXED: Check if user can transcribe with proper validation and automatic pricing redirect
+// FIXED: Check if user can transcribe with proper validation and automatic pricing redirect (updated plan names)
 export const canUserTranscribe = async (uid, estimatedDurationSeconds) => {
   try {
     console.log("🔍 canUserTranscribe called with:", { uid, estimatedDurationSeconds });
@@ -203,8 +203,9 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds) => {
         return { canTranscribe: true, reason: 'admin_unlimited' };
     }
 
-    // Check expiry for temporary paid plans
-    if (['pro', '24 Hours Pro Access', '5 Days Pro Access', '5 Minutes Pro Access'].includes(userProfile.plan)) {
+    // Check expiry for temporary paid plans (updated plan names)
+    const temporaryPlans = ['pro', 'One-Day Plan', 'Three-Day Plan', 'One-Week Plan'];
+    if (temporaryPlans.includes(userProfile.plan)) {
         if (userProfile.expiresAt === null && userProfile.plan === 'pro') {
             console.log(`✅ ${userProfile.plan} plan user - unlimited transcription.`);
             return { canTranscribe: true, reason: 'pro_unlimited' };
@@ -280,7 +281,7 @@ export const updateUserUsage = async (uid, durationSeconds) => {
       hasReceivedInitialFreeMinutes: newTotalMinutesUsed >= 30, // Mark as received if they've used 30+ minutes
       lastAccessed: new Date(),
     });
-    console.log(`📊 User ${uid} (free plan): Updated totalMinutesUsed by ${durationMinutes} mins to ${newTotalMinutesUsed} mins.`);
+    console.log(`📊 User ${uid} (free plan): Updated totalMinutesUsed by ${durationMinutes} mins to ${newTotalMinutesUsed} mins. Remaining: ${Math.max(0, 30 - newTotalMinutesUsed)} mins.`);
   } else {
     // For paid plans or users who've used their trial, just update lastAccessed
     await updateDoc(userRef, {
