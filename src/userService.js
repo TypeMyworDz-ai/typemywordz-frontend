@@ -324,3 +324,5 @@ export const deleteTranscription = async (uid, transcriptionId) => {
   await deleteDoc(transcriptionRef);
   console.log("Transcription deleted:", transcriptionId);
 };
+
+//Testing if it will trigger Vercel deployment
