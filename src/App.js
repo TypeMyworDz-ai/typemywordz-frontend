@@ -830,7 +830,7 @@ function AppContent() {
     setStatus('failed'); 
     setIsUploading(false);
 
-  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, RENDER_WHISPER_URL, checkJobStatus]);
+  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, RENDER_WHISPER_URL, checkJobStatus, canUserTranscribe]); // Added canUserTranscribe to dependencies
   // Copy to clipboard (existing, now triggers NEW CopiedNotification)
   const copyToClipboard = useCallback(() => { 
     if (userProfile?.plan === 'free') {
@@ -838,7 +838,11 @@ function AppContent() {
       return;
     }
     
-    navigator.clipboard.writeText(transcription);
+    // To copy HTML content, we need to create a temporary element
+    const tempElement = document.createElement('div');
+    tempElement.innerHTML = transcription;
+    navigator.clipboard.writeText(tempElement.textContent || tempElement.innerText); // Copy plain text content
+    
     setCopiedMessageVisible(true); // NEW: Show copied message
     setTimeout(() => setCopiedMessageVisible(false), 2000); // Hide after 2 seconds
   }, [transcription, userProfile, showMessage]);
@@ -850,7 +854,12 @@ function AppContent() {
       return;
     }
     
-    const blob = new Blob([transcription], { type: 'application/msword' });
+    // For Word download, we want plain text, so strip HTML tags
+    const tempElement = document.createElement('div');
+    tempElement.innerHTML = transcription;
+    const plainTextTranscription = tempElement.textContent || tempElement.innerText;
+
+    const blob = new Blob([plainTextTranscription], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -861,7 +870,12 @@ function AppContent() {
 
   // TXT download - available for all users
   const downloadAsTXT = useCallback(() => { 
-    const blob = new Blob([transcription], { type: 'text/plain' });
+    // For TXT download, we want plain text, so strip HTML tags
+    const tempElement = document.createElement('div');
+    tempElement.innerHTML = transcription;
+    const plainTextTranscription = tempElement.textContent || tempElement.innerText;
+
+    const blob = new Blob([plainTextTranscription], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1048,7 +1062,7 @@ function AppContent() {
           color: 'rgba(255, 255, 255, 0.7)', 
           fontSize: '0.9rem' 
         }}>
-          © {new Date().getFullYear()} TypeMyworDz
+          © {new Date().getFullYear()} TypeMyworDz, Inc.
         </footer>
       </div>
     );
