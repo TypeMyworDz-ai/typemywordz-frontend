@@ -1,69 +1,75 @@
-// Menu functionality for TypeMyworDz - Updated Version
+// Menu functionality for TypeMyworDz - Dropdown Version
 
-// Global variables for speech recognition and synthesis
-let recognition = null;
-let speechSynthesis = window.speechSynthesis;
-let isRecording = false;
-
-// Initialize speech recognition if available
-function initializeSpeechRecognition() {
-  if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
+// Toggle submenu visibility
+function toggleSubmenu(submenuId) {
+  const submenu = document.getElementById(submenuId);
+  const arrow = event.currentTarget.querySelector('.dropdown-arrow');
+  
+  if (submenu.classList.contains('open')) {
+    submenu.classList.remove('open');
+    arrow.classList.remove('rotated');
+  } else {
+    // Close all other submenus first
+    const allSubmenus = document.querySelectorAll('.submenu');
+    const allArrows = document.querySelectorAll('.dropdown-arrow');
     
-    recognition.onresult = function(event) {
-      const textarea = document.getElementById('typeMyNoteText');
-      if (textarea) {
-        let finalTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript + ' ';
-          }
-        }
-        if (finalTranscript) {
-          textarea.value += finalTranscript;
-        }
-      }
-    };
+    allSubmenus.forEach(menu => menu.classList.remove('open'));
+    allArrows.forEach(arrow => arrow.classList.remove('rotated'));
     
-    recognition.onerror = function(event) {
-      console.error('Speech recognition error:', event.error);
-      stopRecording();
-    };
-    
-    recognition.onend = function() {
-      stopRecording();
-    };
+    // Open the clicked submenu
+    submenu.classList.add('open');
+    arrow.classList.add('rotated');
   }
 }
 
-// TypeMyNote functionality - Opens in new tab
-function openTypeMyNote() {
-  window.open('about:blank', '_blank');
-  // For now, show alert until you create a separate page
+// Show coming soon notification
+function showComingSoon(productName) {
+  const toast = document.createElement('div');
+  toast.className = 'toast-notification';
+  toast.innerHTML = `
+    <div style="font-size: 24px; margin-bottom: 10px;">🚀</div>
+    <div><strong>${productName}</strong></div>
+    <div style="margin-top: 5px; opacity: 0.9;">Coming Soon!</div>
+  `;
+  
+  document.body.appendChild(toast);
+  
+  // Remove toast after animation completes
   setTimeout(() => {
-    alert('TypeMyNote will open in a separate page. Feature coming soon!');
-  }, 500);
+    if (toast.parentNode) {
+      toast.parentNode.removeChild(toast);
+    }
+  }, 3000);
 }
 
-// Text-to-Speech functionality - Opens in new tab
-function openTextToSpeech() {
-  window.open('about:blank', '_blank');
-  // For now, show alert until you create a separate page
+// Show Human Transcripts message
+function showHumanTranscripts() {
+  const toast = document.createElement('div');
+  toast.className = 'toast-notification';
+  toast.innerHTML = `
+    <div style="font-size: 24px; margin-bottom: 10px;">💬</div>
+    <div><strong>Human Transcripts</strong></div>
+    <div style="margin-top: 8px; font-size: 14px; line-height: 1.4;">
+      Send us an email or chat with us on our Live Chat for a quote
+    </div>
+  `;
+  
+  document.body.appendChild(toast);
+  
+  // Remove toast after animation completes
   setTimeout(() => {
-    alert('Text-to-Speech will open in a separate page. Feature coming soon!');
-  }, 500);
+    if (toast.parentNode) {
+      toast.parentNode.removeChild(toast);
+    }
+  }, 4000);
 }
 
-// Collaboration functionality - Simple donation form
-function openCollaborate() {
-  const collaborateHTML = `
-    <div class="collaborate-modal" id="collaborateModal">
-      <div class="collaborate-content">
-        <span class="close-btn" onclick="closeCollaborate()">&times;</span>
+// Open donation modal
+function openDonate() {
+  const donateHTML = `
+    <div class="donate-modal" id="donateModal">
+      <div class="donate-content">
+        <span class="close-btn" onclick="closeDonate()">&times;</span>
         <h2>💝 Support TypeMyworDz</h2>
         
         <p style="text-align: center; margin-bottom: 25px; font-size: 16px; line-height: 1.4;">
@@ -98,16 +104,18 @@ function openCollaborate() {
     </div>
   `;
   
-  document.body.insertAdjacentHTML('beforeend', collaborateHTML);
+  document.body.insertAdjacentHTML('beforeend', donateHTML);
 }
 
-function closeCollaborate() {
-  const modal = document.getElementById('collaborateModal');
+// Close donation modal
+function closeDonate() {
+  const modal = document.getElementById('donateModal');
   if (modal) {
     modal.remove();
   }
 }
 
+// Submit donation form
 function submitDonation(event) {
   event.preventDefault();
   
@@ -140,18 +148,39 @@ ${formData.name}
   const mailtoLink = `mailto:support@typemywordz.com?subject=${emailSubject}&body=${emailBody}`;
   window.location.href = mailtoLink;
   
-  alert('Thank you for your support! Your email client will open with a message to our team.');
-  closeCollaborate();
+  // Show success toast
+  const toast = document.createElement('div');
+  toast.className = 'toast-notification';
+  toast.innerHTML = `
+    <div style="font-size: 24px; margin-bottom: 10px;">✅</div>
+    <div><strong>Thank You!</strong></div>
+    <div style="margin-top: 5px; opacity: 0.9;">Your email client will open shortly</div>
+  `;
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    if (toast.parentNode) {
+      toast.parentNode.removeChild(toast);
+    }
+  }, 3000);
+  
+  closeDonate();
 }
 
-// Load voices when the page loads
-if (speechSynthesis && speechSynthesis.onvoiceschanged !== undefined) {
-  speechSynthesis.onvoiceschanged = function() {
-    console.log('Voices loaded');
-  };
-}
+// Close submenus when clicking outside
+document.addEventListener('click', function(event) {
+  const sidebarMenu = document.getElementById('sidebarMenu');
+  if (sidebarMenu && !sidebarMenu.contains(event.target)) {
+    const allSubmenus = document.querySelectorAll('.submenu');
+    const allArrows = document.querySelectorAll('.dropdown-arrow');
+    
+    allSubmenus.forEach(menu => menu.classList.remove('open'));
+    allArrows.forEach(arrow => arrow.classList.remove('rotated'));
+  }
+});
 
 // Initialize everything when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('TypeMyworDz menu system loaded successfully!');
+  console.log('TypeMyworDz dropdown menu system loaded successfully!');
 });

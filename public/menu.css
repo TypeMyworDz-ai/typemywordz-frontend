@@ -2,7 +2,7 @@
   background-color: rgba(255, 255, 255, 0.1);
   border-radius: 10px;
   padding: 10px;
-  width: 200px;
+  width: 220px;
   position: fixed;
   left: 20px;
   top: 200px;
@@ -21,6 +21,12 @@
   cursor: pointer;
   transition: all 0.3s ease;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+}
+
+.parent-menu {
+  background-color: rgba(255, 255, 255, 0.05);
+  font-weight: 600;
 }
 
 .menu-item:hover {
@@ -42,10 +48,88 @@
   font-weight: 500;
   text-decoration: none;
   font-size: 14px;
+  flex: 1;
 }
 
-/* Collaboration/Donation Modal Styles */
-.collaborate-modal {
+.dropdown-arrow {
+  color: white;
+  font-size: 12px;
+  transition: transform 0.3s ease;
+}
+
+.dropdown-arrow.rotated {
+  transform: rotate(180deg);
+}
+
+/* Submenu Styles */
+.submenu {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  margin: 5px 0;
+}
+
+.submenu.open {
+  max-height: 200px;
+}
+
+.submenu-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-radius: 6px;
+  margin: 2px 5px;
+}
+
+.submenu-item:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  transform: translateX(3px);
+}
+
+.submenu-icon {
+  margin-right: 10px;
+  font-size: 16px;
+}
+
+.submenu-text {
+  color: white;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+/* Toast Notification Styles */
+.toast-notification {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px 30px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  z-index: 3000;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: center;
+  min-width: 300px;
+  opacity: 0;
+  animation: fadeInOut 3s ease-in-out forwards;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+}
+
+/* Donation Modal Styles */
+.donate-modal {
   position: fixed;
   top: 0;
   left: 0;
@@ -58,7 +142,7 @@
   z-index: 2000;
 }
 
-.collaborate-content {
+.donate-content {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   padding: 30px;
   border-radius: 15px;
@@ -84,7 +168,7 @@
   color: #ff6b6b;
 }
 
-.collaborate-content h2 {
+.donate-content h2 {
   margin-bottom: 20px;
   text-align: center;
   font-size: 24px;
@@ -102,7 +186,6 @@
 }
 
 .form-group input,
-.form-group select,
 .form-group textarea {
   width: 100%;
   padding: 12px;
@@ -120,7 +203,6 @@
 }
 
 .form-group input:focus,
-.form-group select:focus,
 .form-group textarea:focus {
   outline: none;
   background-color: rgba(255, 255, 255, 1);
@@ -156,25 +238,23 @@
 /* Responsive Design */
 @media (max-width: 768px) {
   .sidebar-menu {
-    width: 180px;
+    width: 200px;
     left: 10px;
     top: 150px;
   }
   
-  .menu-text {
+  .menu-text, .submenu-text {
     font-size: 12px;
   }
   
-  .collaborate-content {
+  .donate-content {
     width: 95%;
     padding: 20px;
   }
   
-  .form-buttons {
-    flex-direction: column;
-  }
-  
-  .donate-btn-main {
-    min-width: auto;
+  .toast-notification {
+    min-width: 250px;
+    font-size: 14px;
+    padding: 15px 20px;
   }
 }
