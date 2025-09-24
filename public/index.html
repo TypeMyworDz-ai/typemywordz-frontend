@@ -34,47 +34,47 @@
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     
-    <!-- Sidebar Menu -->
+    <!-- Horizontal Top Menu -->
     <div class="sidebar-menu" id="sidebarMenu">
       <!-- Products Parent Menu -->
-      <div class="menu-item parent-menu" data-tooltip="Products" onclick="toggleSubmenu('productsSubmenu')">
+      <div class="menu-item parent-menu" onclick="toggleSubmenu('productsSubmenu')">
         <span class="menu-icon">📦</span>
         <span class="menu-text">Products</span>
         <span class="dropdown-arrow">▼</span>
-      </div>
-      
-      <!-- Products Submenu -->
-      <div class="submenu" id="productsSubmenu">
-        <div class="submenu-item" onclick="showSpeechToText()">
-          <span class="submenu-icon">🎙️</span>
-          <span class="submenu-text">Speech-to-Text</span>
-        </div>
-        <div class="submenu-item" onclick="showComingSoon('TypeMyNote')">
-          <span class="submenu-icon">🎤</span>
-          <span class="submenu-text">TypeMyNote</span>
-        </div>
-        <div class="submenu-item" onclick="showComingSoon('Text-to-Speech')">
-          <span class="submenu-icon">🔊</span>
-          <span class="submenu-text">Text-to-Speech</span>
-        </div>
-        <div class="submenu-item" onclick="showHumanTranscripts()">
-          <span class="submenu-icon">👥</span>
-          <span class="submenu-text">Human Transcripts</span>
+        
+        <!-- Products Submenu -->
+        <div class="submenu" id="productsSubmenu">
+          <div class="submenu-item" onclick="showSpeechToText()">
+            <span class="submenu-icon">🎙️</span>
+            <span class="submenu-text">Speech-to-Text</span>
+          </div>
+          <div class="submenu-item" onclick="showComingSoon('TypeMyNote')">
+            <span class="submenu-icon">🎤</span>
+            <span class="submenu-text">TypeMyNote</span>
+          </div>
+          <div class="submenu-item" onclick="showComingSoon('Text-to-Speech')">
+            <span class="submenu-icon">🔊</span>
+            <span class="submenu-text">Text-to-Speech</span>
+          </div>
+          <div class="submenu-item" onclick="showHumanTranscripts()">
+            <span class="submenu-icon">👥</span>
+            <span class="submenu-text">Human Transcripts</span>
+          </div>
         </div>
       </div>
       
       <!-- Collaborate Parent Menu -->
-      <div class="menu-item parent-menu" data-tooltip="Collaborate" onclick="toggleSubmenu('collaborateSubmenu')">
+      <div class="menu-item parent-menu" onclick="toggleSubmenu('collaborateSubmenu')">
         <span class="menu-icon">🤝</span>
         <span class="menu-text">Collaborate</span>
         <span class="dropdown-arrow">▼</span>
-      </div>
-      
-      <!-- Collaborate Submenu -->
-      <div class="submenu" id="collaborateSubmenu">
-        <div class="submenu-item" onclick="openDonate()">
-          <span class="submenu-icon">💝</span>
-          <span class="submenu-text">Donate</span>
+        
+        <!-- Collaborate Submenu -->
+        <div class="submenu" id="collaborateSubmenu">
+          <div class="submenu-item" onclick="openDonate()">
+            <span class="submenu-icon">💝</span>
+            <span class="submenu-text">Donate</span>
+          </div>
         </div>
       </div>
     </div>
