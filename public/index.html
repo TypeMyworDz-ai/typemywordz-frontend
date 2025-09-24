@@ -29,9 +29,34 @@
     -->
     <title>TypeMyworDz - You Talk, We Type | AI Transcription Service</title>
     <script src="https://js.paystack.co/v1/inline.js"></script>
+    <link rel="stylesheet" href="menu.css">
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
+    
+    <!-- Sidebar Menu -->
+    <div class="sidebar-menu" id="sidebarMenu">
+      <div class="menu-item" onclick="openTypeMyNote()">
+        <span class="menu-icon">🎤</span>
+        <span class="menu-text">TypeMyNote</span>
+      </div>
+      
+      <div class="menu-item" onclick="openTextToSpeech()">
+        <span class="menu-icon">🔊</span>
+        <span class="menu-text">Text-to-Speech</span>
+      </div>
+      
+      <div class="menu-item" onclick="window.open('https://www.typemywordz.com', '_blank')">
+        <span class="menu-icon">👥</span>
+        <span class="menu-text">Human Transcripts</span>
+      </div>
+      
+      <div class="menu-item" onclick="openCollaborate()">
+        <span class="menu-icon">🤝</span>
+        <span class="menu-text">Collaborate</span>
+      </div>
+    </div>
+
     <div id="root"></div>
     <!--
       This HTML file is a template.
@@ -43,5 +68,6 @@
       To begin the development, run `npm start` or `yarn start`.
       To create a production bundle, use `npm run build` or `yarn build`.
     -->
+    <script src="menu.js"></script>
   </body>
 </html>
