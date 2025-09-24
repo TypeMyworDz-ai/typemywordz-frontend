@@ -303,3 +303,19 @@ document.addEventListener('click', function(event) {
 document.addEventListener('DOMContentLoaded', function() {
   console.log('TypeMyworDz menu system with enhanced UI loaded successfully!');
 });
+// Check if we're on landing page and expand menu accordingly
+function checkPageAndExpandMenu() {
+  const currentPath = window.location.pathname;
+  const sidebarMenu = document.getElementById('sidebarMenu');
+  
+  // Expand menu on landing page (root) or login pages
+  if (currentPath === '/' || currentPath === '/login' || currentPath === '/register' || currentPath.includes('login')) {
+    sidebarMenu.classList.add('expanded');
+  } else {
+    sidebarMenu.classList.remove('expanded');
+  }
+}
+
+// Run on page load and when URL changes
+document.addEventListener('DOMContentLoaded', checkPageAndExpandMenu);
+window.addEventListener('popstate', checkPageAndExpandMenu);
