@@ -50,7 +50,7 @@ function showHumanTranscripts() {
     <div style="font-size: 24px; margin-bottom: 10px;">💬</div>
     <div><strong>Human Transcripts</strong></div>
     <div style="margin-top: 8px; font-size: 14px; line-height: 1.4;">
-      Send us an email or chat with us on our Live Chat for a quote
+      Send Us an Email on typemywordz@gmail.com or Chat with Us on Our Live Chat to Get a Quote
     </div>
   `;
   
@@ -73,7 +73,7 @@ function openDonate() {
         <h2>💝 Support TypeMyworDz</h2>
         
         <p style="text-align: center; margin-bottom: 25px; font-size: 16px; line-height: 1.4;">
-          Support us make Transcription AI affordable to Many
+          Support Us To Make Transcription AI affordable to Many
         </p>
         
         <form id="donationForm" onsubmit="submitDonation(event)">
