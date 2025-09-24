@@ -1,4 +1,4 @@
-// Menu functionality for TypeMyworDz - Dropdown Version with Paystack Integration
+// Menu functionality for TypeMyworDz - Dropdown Version with Enhanced UI
 
 let selectedAmount = 0;
 
@@ -66,7 +66,7 @@ function showHumanTranscripts() {
     <div style="font-size: 24px; margin-bottom: 10px;">💬</div>
     <div><strong>Human Transcripts</strong></div>
     <div style="margin-top: 8px; font-size: 14px; line-height: 1.4;">
-      Send us an email or chat with us on our Live Chat for a quote
+      Send Us an Email on typemywordz@gmail.com or Chat with Us on Our Live Chat to Get a Quote
     </div>
   `;
   
@@ -74,6 +74,43 @@ function showHumanTranscripts() {
   setTimeout(() => {
     if (toast.parentNode) toast.parentNode.removeChild(toast);
   }, 4000);
+}
+
+// Select donation amount with visual feedback
+function selectAmount(amount) {
+  selectedAmount = amount;
+  
+  // Remove selected class from all buttons
+  document.querySelectorAll('.amount-btn').forEach(btn => {
+    btn.classList.remove('selected');
+  });
+  
+  // Add selected class to clicked button
+  event.target.classList.add('selected');
+  
+  // Clear custom amount input
+  const customInput = document.getElementById('customAmount');
+  if (customInput) {
+    customInput.value = '';
+  }
+  
+  // Provide immediate feedback
+  console.log(`Selected amount: USD ${amount}`);
+}
+
+// Handle custom amount input
+function handleCustomAmount() {
+  const customInput = document.getElementById('customAmount');
+  const customValue = parseFloat(customInput.value);
+  
+  if (customValue && customValue > 0) {
+    selectedAmount = customValue;
+    
+    // Remove selected class from preset buttons
+    document.querySelectorAll('.amount-btn').forEach(btn => {
+      btn.classList.remove('selected');
+    });
+  }
 }
 
 // Open donation modal
@@ -85,28 +122,31 @@ function openDonate() {
         <h2>💝 Support TypeMyworDz</h2>
         
         <p style="text-align: center; margin-bottom: 25px; font-size: 16px; line-height: 1.4;">
-          Support us make Transcription AI affordable to Many
+          Support Us To Make Transcription AI affordable to Everyone Around the World
         </p>
         
         <div class="donation-amounts">
-          <div class="amount-btn" onclick="donateAmount(5)">USD 5</div>
-          <div class="amount-btn" onclick="donateAmount(10)">USD 10</div>
-          <div class="amount-btn" onclick="donateAmount(25)">USD 25</div>
-          <div class="amount-btn" onclick="donateAmount(50)">USD 50</div>
+          <div class="amount-btn" onclick="selectAmount(5)">USD 5</div>
+          <div class="amount-btn" onclick="selectAmount(10)">USD 10</div>
+          <div class="amount-btn" onclick="selectAmount(25)">USD 25</div>
+          <div class="amount-btn" onclick="selectAmount(50)">USD 50</div>
         </div>
         
-        <div style="margin: 20px 0; text-align: center;">
+        <div class="custom-amount-section">
           <input 
             type="number" 
             id="customAmount" 
+            class="custom-amount"
             placeholder="Enter custom amount (USD)" 
-            style="padding: 12px; border-radius: 8px; border: none; width: 200px; text-align: center; background-color: rgba(255, 255, 255, 0.9); color: #333;"
             min="1"
             step="0.01"
+            oninput="handleCustomAmount()"
           >
-          <br><br>
-          <button onclick="donateCustomAmount()" class="donate-btn-main">
-            💝 Donate Custom Amount
+        </div>
+        
+        <div style="text-align: center; margin-top: 20px;">
+          <button onclick="processDonation()" class="donate-btn-main" id="donateBtn">
+            💝 Donate Now
           </button>
         </div>
         
@@ -124,24 +164,31 @@ function openDonate() {
 function closeDonate() {
   const modal = document.getElementById('donateModal');
   if (modal) modal.remove();
+  selectedAmount = 0;
 }
 
-// Donate specific amount
-function donateAmount(amount) {
-  processPaystackPayment(amount);
-}
-
-// Donate custom amount
-function donateCustomAmount() {
+// Process donation
+function processDonation() {
   const customAmount = document.getElementById('customAmount').value;
-  const amount = parseFloat(customAmount);
+  const finalAmount = customAmount && parseFloat(customAmount) > 0 ? parseFloat(customAmount) : selectedAmount;
   
-  if (!amount || amount < 1) {
-    showErrorToast('Please enter a valid amount (minimum USD 1)');
+  if (!finalAmount || finalAmount <= 0) {
+    showErrorToast('Please select or enter a donation amount');
     return;
   }
   
-  processPaystackPayment(amount);
+  if (finalAmount < 1) {
+    showErrorToast('Minimum donation amount is USD 1');
+    return;
+  }
+  
+  // Disable button and show loading
+  const donateBtn = document.getElementById('donateBtn');
+  donateBtn.disabled = true;
+  donateBtn.innerHTML = '<span class="loading-spinner"></span>Processing...';
+  
+  // Process Paystack payment
+  processPaystackPayment(finalAmount);
 }
 
 // Process Paystack payment
@@ -191,6 +238,14 @@ function processPaystackPayment(amount) {
     },
     onClose: function() {
       console.log('Payment cancelled');
+      
+      // Re-enable button
+      const donateBtn = document.getElementById('donateBtn');
+      if (donateBtn) {
+        donateBtn.disabled = false;
+        donateBtn.innerHTML = '💝 Donate Now';
+      }
+      
       showErrorToast('Payment was cancelled. You can try again anytime.');
     }
   });
@@ -246,5 +301,5 @@ document.addEventListener('click', function(event) {
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('TypeMyworDz menu system with Paystack (USD) loaded successfully!');
+  console.log('TypeMyworDz menu system with enhanced UI loaded successfully!');
 });

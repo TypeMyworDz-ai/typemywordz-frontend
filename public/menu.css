@@ -174,65 +174,138 @@
   font-size: 24px;
 }
 
-.form-group {
-  margin-bottom: 15px;
+/* Improved Donation Amount Buttons */
+.donation-amounts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin: 25px 0;
 }
 
-.form-group label {
-  display: block;
-  margin-bottom: 5px;
+.amount-btn {
+  padding: 15px 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+  color: white;
+  cursor: pointer;
   font-weight: bold;
-  font-size: 14px;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
 }
 
-.form-group input,
-.form-group textarea {
+.amount-btn:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
+  border-color: rgba(255, 255, 255, 0.6);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+.amount-btn.selected {
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+  border-color: #4CAF50;
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 8px 25px rgba(76, 175, 80, 0.4);
+}
+
+.amount-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
   width: 100%;
-  padding: 12px;
-  border: none;
-  border-radius: 8px;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.amount-btn:hover::before {
+  left: 100%;
+}
+
+/* Custom Amount Input */
+.custom-amount-section {
+  margin: 25px 0;
+  text-align: center;
+}
+
+.custom-amount {
+  width: 100%;
+  max-width: 250px;
+  padding: 15px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
   background-color: rgba(255, 255, 255, 0.9);
   color: #333;
-  font-size: 14px;
+  font-size: 16px;
+  text-align: center;
   box-sizing: border-box;
+  transition: all 0.3s ease;
 }
 
-.form-group input::placeholder,
-.form-group textarea::placeholder {
-  color: rgba(0, 0, 0, 0.6);
-}
-
-.form-group input:focus,
-.form-group textarea:focus {
+.custom-amount:focus {
   outline: none;
   background-color: rgba(255, 255, 255, 1);
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
 }
 
-.form-buttons {
-  display: flex;
-  gap: 10px;
-  margin-top: 20px;
-  justify-content: center;
+.custom-amount::placeholder {
+  color: rgba(0, 0, 0, 0.6);
+  font-style: italic;
 }
 
+/* Donation Buttons */
 .donate-btn-main {
-  background-color: #FF6B6B !important;
+  background: linear-gradient(135deg, #FF6B6B 0%, #ff5252 100%);
   color: white !important;
   padding: 15px 30px;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   cursor: pointer;
   font-weight: bold;
   font-size: 16px;
   transition: all 0.3s ease;
   min-width: 200px;
+  position: relative;
+  overflow: hidden;
 }
 
 .donate-btn-main:hover {
-  background-color: #ff5252 !important;
+  background: linear-gradient(135deg, #ff5252 0%, #f44336 100%);
   transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+  box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4);
+}
+
+.donate-btn-main:active {
+  transform: translateY(0);
+}
+
+.donate-btn-main:disabled {
+  background: linear-gradient(135deg, #ccc 0%, #999 100%);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Loading spinner */
+.loading-spinner {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top: 2px solid white;
+  width: 20px;
+  height: 20px;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  margin-right: 10px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* Responsive Design */
@@ -256,5 +329,27 @@
     min-width: 250px;
     font-size: 14px;
     padding: 15px 20px;
+  }
+  
+  .donation-amounts {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
+  .amount-btn {
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+  
+  .custom-amount {
+    max-width: 200px;
+    padding: 12px;
+    font-size: 14px;
+  }
+  
+  .donate-btn-main {
+    min-width: 150px;
+    padding: 12px 20px;
+    font-size: 14px;
   }
 }
