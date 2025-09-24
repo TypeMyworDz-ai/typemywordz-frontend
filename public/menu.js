@@ -22,6 +22,28 @@ function toggleSubmenu(submenuId) {
   }
 }
 
+// Show Speech-to-Text message (you are already here)
+function showSpeechToText() {
+  const toast = document.createElement('div');
+  toast.className = 'toast-notification';
+  toast.innerHTML = `
+    <div style="font-size: 24px; margin-bottom: 10px;">🎙️</div>
+    <div><strong>Speech-to-Text</strong></div>
+    <div style="margin-top: 8px; font-size: 14px; line-height: 1.4;">
+      You are already here! Record/Upload your audios/videos and get transcripts in minutes.
+    </div>
+  `;
+  
+  document.body.appendChild(toast);
+  
+  // Remove toast after animation completes
+  setTimeout(() => {
+    if (toast.parentNode) {
+      toast.parentNode.removeChild(toast);
+    }
+  }, 4000);
+}
+
 // Show coming soon notification
 function showComingSoon(productName) {
   const toast = document.createElement('div');
@@ -73,7 +95,7 @@ function openDonate() {
         <h2>💝 Support TypeMyworDz</h2>
         
         <p style="text-align: center; margin-bottom: 25px; font-size: 16px; line-height: 1.4;">
-          Support Us To Make Transcription AI affordable to Many
+          Support Us to make Transcription AI Affordable to People Around the World
         </p>
         
         <form id="donationForm" onsubmit="submitDonation(event)">
