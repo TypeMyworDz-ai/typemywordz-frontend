@@ -189,7 +189,7 @@ function AppContent() {
   const isCancelledRef = useRef(false);
   
   // Auth and user setup
-  const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithMicrosoft, profileLoading } = useAuth();
+  const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithApple, profileLoading } = useAuth();
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; 
   const isAdmin = ADMIN_EMAILS.includes(currentUser?.email); 
 
@@ -1080,7 +1080,7 @@ function AppContent() {
           color: 'rgba(255, 255, 255, 0.7)', 
           fontSize: '0.9rem' 
         }}>
-          © {new Date().getFullYear()} TypeMyworDz, Inc.
+          © {new Date().getFullYear()} TypeMyworDz
         </footer>
       </div>
     );
@@ -2271,7 +2271,7 @@ return (
           fontSize: '0.9rem',
           marginTop: 'auto'
         }}>
-          © {new Date().getFullYear()} TypeMyworDz, Inc. - Enhanced with 30-Minute Free Trial
+          © {new Date().getFullYear()} TypeMyworDz
         </footer>
 
         {/* Removed StripePayment modal */}
