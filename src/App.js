@@ -51,7 +51,7 @@ const ToastNotification = ({ message, onClose }) => {
       const timer = setTimeout(() => {
         setIsVisible(false);
         setTimeout(onClose, 300);
-      }, 4000);
+      }, 5000); // Changed to 5 seconds
       
       return () => clearTimeout(timer);
     }
@@ -61,8 +61,8 @@ const ToastNotification = ({ message, onClose }) => {
   
   return (
     <div 
-      className={`fixed top-4 right-4 max-w-sm w-full bg-white border-l-4 border-blue-500 rounded-lg shadow-lg p-4 transform transition-all duration-300 z-50 ${
-        isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
+      className={`fixed bottom-4 right-4 max-w-sm w-full bg-white border-l-4 border-blue-500 rounded-lg shadow-lg p-4 transform transition-all duration-300 z-50 ${
+        isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0' // Changed 'translate-x' to 'translate-y'
       }`}
       style={{
         backgroundColor: 'white',
@@ -73,10 +73,10 @@ const ToastNotification = ({ message, onClose }) => {
         maxWidth: '384px',
         width: '100%',
         position: 'fixed',
-        top: '16px',
+        bottom: '16px', // Changed from 'top' to 'bottom'
         right: '16px',
         zIndex: 1000,
-        transform: isVisible ? 'translateX(0)' : 'translateX(100%)',
+        transform: isVisible ? 'translateY(0)' : 'translateY(100%)', // Changed 'translateX' to 'translateY'
         opacity: isVisible ? 1 : 0,
         transition: 'all 0.3s ease-in-out'
       }}
@@ -1031,7 +1031,7 @@ function AppContent() {
                 position: 'fixed',
                 right: '20px', 
                 top: '20px',
-                left: 'auto', /* Added left: 'auto' */
+                left: 'auto', 
                 display: 'flex', 
                 flexDirection: 'row', 
                 width: 'fit-content', 
@@ -1190,7 +1190,7 @@ return (
                 position: 'fixed',
                 right: '20px', 
                 top: '20px',
-                left: 'auto', /* Added left: 'auto' */
+                left: 'auto', 
                 display: 'flex', 
                 flexDirection: 'row', 
                 width: 'fit-content', 
@@ -2131,7 +2131,7 @@ return (
                     <option value="it">Italian</option>
                     <option value="pt">Portuguese</option>
                     <option value="ru">Russian</option>
-                    <option value="zh" /* Changed from 'zh-CN' to 'zh' as it was not present in the options provided in the prompt */ >Chinese</option>
+                    <option value="zh">Chinese</option>
                     <option value="ja">Japanese</option>
                     <option value="ko">Korean</option>
                   </select>
