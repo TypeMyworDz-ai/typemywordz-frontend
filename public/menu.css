@@ -61,11 +61,11 @@
   transform: rotate(180deg);
 }
 
-/* Vertical Submenu Styles - Positioned to the right of menu items */
+/* Submenu Styles - Changed to dropdown */
 .submenu {
   position: absolute;
-  top: 0;
-  left: calc(100% + 8px); /* Position to the right */
+  top: 100%; /* Position below the parent menu item */
+  left: 0; /* Align with the left edge of the parent menu item */
   background-color: rgba(255, 255, 255, 0.95);
   border-radius: 6px;
   padding: 6px 0;
@@ -73,7 +73,7 @@
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
   opacity: 0;
   visibility: hidden;
-  transform: translateX(-10px);
+  transform: translateY(10px); /* Adjust initial position for dropdown animation */
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -82,7 +82,7 @@
 .submenu.open {
   opacity: 1;
   visibility: visible;
-  transform: translateX(0);
+  transform: translateY(0); /* Final position for dropdown animation */
 }
 
 .submenu-item {
