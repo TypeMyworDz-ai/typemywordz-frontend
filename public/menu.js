@@ -32,7 +32,7 @@ function showSpeechToText() {
     <div style="font-size: 24px; margin-bottom: 10px;">🎙️</div>
     <div><strong>Speech-to-Text</strong></div>
     <div style="margin-top: 8px; font-size: 14px; line-height: 1.4;">
-      You are already here! Record/Upload your audios/videos and get transcripts in minutes.
+      Record/Upload your audios/videos and get transcripts in minutes!
     </div>
   `;
   
