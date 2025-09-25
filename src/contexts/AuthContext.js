@@ -56,26 +56,6 @@ export const AuthProvider = ({ children }) => {
     return result;
   };
 
-  const signInWithMicrosoft = async () => {
-    const { OAuthProvider, signInWithPopup } = await import('firebase/auth');
-    const provider = new OAuthProvider('microsoft.com');
-    const result = await signInWithPopup(auth, provider);
-    
-    // Ensure profile is created and loaded immediately
-    setProfileLoading(true);
-    try {
-      await createUserProfile(result.user.uid, result.user.email, result.user.displayName);
-      const profile = await getUserProfile(result.user.uid);
-      setUserProfile(profile);
-    } catch (error) {
-      console.error('Error creating/loading profile after Microsoft sign-in:', error);
-    } finally {
-      setProfileLoading(false);
-    }
-    
-    return result;
-  };
-
   const logout = async () => {
     const { signOut } = await import('firebase/auth');
     await signOut(auth);
@@ -112,7 +92,6 @@ export const AuthProvider = ({ children }) => {
     loading,
     profileLoading,
     signInWithGoogle,
-    signInWithMicrosoft,
     logout,
     refreshUserProfile
   };
