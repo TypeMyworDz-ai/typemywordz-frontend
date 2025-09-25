@@ -90,26 +90,8 @@ const PrivacyPolicy = () => {
           borderRadius: '8px',
           marginBottom: '30px'
         }}>
-          <p style={{ margin: 0, fontWeight: 'bold' }}>Email: njokigituku@gmail.com</p>
+          <p style={{ margin: 0, fontWeight: 'bold' }}>Email: typemywordz@gmail.com</p>
           <p style={{ margin: '5px 0 0 0' }}>TypeMyworDz Support Team</p>
-        </div>
-        
-        <div style={{ textAlign: 'center', marginTop: '40px' }}>
-          <button
-            onClick={() => window.history.back()}
-            style={{
-              padding: '12px 30px',
-              backgroundColor: '#6c5ce7',
-              color: 'white',
-              border: 'none',
-              borderRadius: '25px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: 'bold'
-            }}
-          >
-            ← Back to App
-          </button>
         </div>
       </div>
     </div>
