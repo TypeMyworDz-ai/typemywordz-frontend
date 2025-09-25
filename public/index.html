@@ -29,7 +29,8 @@
     -->
     <title>TypeMyworDz - You Talk, We Type | AI Transcription Service</title>
     <script src="https://js.paystack.co/v1/inline.js"></script>
-    <link rel="stylesheet" href="menu.css">
+    <!-- menu.css will still be linked for general menu item styling, but positioning will be inline in App.js -->
+    <link rel="stylesheet" href="menu.css"> 
 
     <!-- Google tag (gtag.js) - Google Analytics 4 -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-72EJFBQVV5"></script>
@@ -46,68 +47,10 @@
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     
-    <!-- Horizontal Top Menu -->
-    <div class="sidebar-menu" id="sidebarMenu">
-      <!-- Products Parent Menu -->
-      <div class="menu-item parent-menu" onclick="toggleSubmenu('productsSubmenu')">
-        <span class="menu-icon">📦</span>
-        <span class="menu-text">Products</span>
-        <span class="dropdown-arrow">▼</span>
-        
-        <!-- Products Submenu -->
-        <div class="submenu" id="productsSubmenu">
-          <div class="submenu-item" onclick="showSpeechToText()">
-            <span class="submenu-icon">🎙️</span>
-            <span class="submenu-text">Speech-to-Text</span>
-          </div>
-          <div class="submenu-item" onclick="showComingSoon('TypeMyNote')">
-            <span class="submenu-icon">🎤</span>
-            <span class="submenu-text">TypeMyNote</span>
-          </div>
-          <div class="submenu-item" onclick="showComingSoon('Text-to-Speech')">
-            <span class="submenu-icon">🔊</span>
-            <span class="submenu-text">Text-to-Speech</span>
-          </div>
-          <div class="submenu-item" onclick="showHumanTranscripts()">
-            <span class="submenu-icon">👥</span>
-            <span class="submenu-text">Human Transcripts</span>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Collaborate Parent Menu -->
-      <div class="menu-item parent-menu" onclick="toggleSubmenu('collaborateSubmenu')">
-        <span class="menu-icon">🤝</span>
-        <span class="menu-text">Collaborate</span>
-        <span class="dropdown-arrow">▼</span>
-        
-        <!-- Collaborate Submenu -->
-        <div class="submenu" id="collaborateSubmenu">
-          <div class="submenu-item" onclick="openDonate()">
-            <span class="submenu-icon">💝</span>
-            <span class="submenu-text">Donate</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Privacy Policy Menu Item (NEW) -->
-      <div class="menu-item" onclick="openPrivacyPolicy()">
-        <span class="menu-icon">📋</span>
-        <span class="menu-text">Privacy Policy</span>
-      </div>
-    </div>
-
+    <!-- The menu will now be rendered entirely by React within the #root div -->
     <div id="root"></div>
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
 
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the body tag.
-
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-    -->
+    <!-- The menu.js script is still needed for menu functionality (toast, donate, etc.) -->
     <script src="menu.js"></script>
   </body>
 </html>
