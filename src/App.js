@@ -1047,7 +1047,7 @@ function AppContent() {
                 
                 {/* Products Submenu */}
                 {openSubmenu === 'productsSubmenu' && (
-                    <div className="submenu" id="productsSubmenu">
+                    <div className={`submenu ${openSubmenu === 'productsSubmenu' ? 'open' : ''}`} id="productsSubmenu">
                         <div className="submenu-item" onClick={() => window.showSpeechToText()}>
                             <span className="submenu-icon">🎙️</span>
                             <span className="submenu-text">Speech-to-Text</span>
@@ -1076,7 +1076,7 @@ function AppContent() {
                 
                 {/* Collaborate Submenu */}
                 {openSubmenu === 'collaborateSubmenu' && (
-                    <div className="submenu" id="collaborateSubmenu">
+                    <div className={`submenu ${openSubmenu === 'collaborateSubmenu' ? 'open' : ''}`} id="collaborateSubmenu">
                         <div className="submenu-item" onClick={() => window.openDonate()}>
                             <span className="submenu-icon">💝</span>
                             <span className="submenu-text">Donate</span>
@@ -1206,7 +1206,7 @@ return (
                 
                 {/* Products Submenu */}
                 {openSubmenu === 'productsSubmenu' && (
-                    <div className="submenu" id="productsSubmenu">
+                    <div className={`submenu ${openSubmenu === 'productsSubmenu' ? 'open' : ''}`} id="productsSubmenu">
                         <div className="submenu-item" onClick={() => window.showSpeechToText()}>
                             <span className="submenu-icon">🎙️</span>
                             <span className="submenu-text">Speech-to-Text</span>
@@ -1235,7 +1235,7 @@ return (
                 
                 {/* Collaborate Submenu */}
                 {openSubmenu === 'collaborateSubmenu' && (
-                    <div className="submenu" id="collaborateSubmenu">
+                    <div className={`submenu ${openSubmenu === 'collaborateSubmenu' ? 'open' : ''}`} id="collaborateSubmenu">
                         <div className="submenu-item" onClick={() => window.openDonate()}>
                             <span className="submenu-icon">💝</span>
                             <span className="submenu-text">Donate</span>
