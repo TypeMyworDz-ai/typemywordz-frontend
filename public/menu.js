@@ -1,27 +1,12 @@
 // Menu functionality for TypeMyworDz - Dropdown Version with Enhanced UI
+// Adapted to be called from React components.
 
-let selectedAmount = 0;
+let selectedAmount = 0; // Still used for donation logic
 
-// Toggle submenu visibility
+// This function will now simply return the ID of the submenu to toggle
+// React component will handle the actual class manipulation
 function toggleSubmenu(submenuId) {
-  const submenu = document.getElementById(submenuId);
-  const arrow = event.currentTarget.querySelector('.dropdown-arrow');
-  
-  if (submenu.classList.contains('open')) {
-    submenu.classList.remove('open');
-    arrow.classList.remove('rotated');
-  } else {
-    // Close all other submenus first
-    const allSubmenus = document.querySelectorAll('.submenu');
-    const allArrows = document.querySelectorAll('.dropdown-arrow');
-    
-    allSubmenus.forEach(menu => menu.classList.remove('open'));
-    allArrows.forEach(arrow => arrow.classList.remove('rotated'));
-    
-    // Open the clicked submenu
-    submenu.classList.add('open');
-    arrow.classList.add('rotated');
-  }
+  return submenuId; // React component will interpret this
 }
 
 // Show Speech-to-Text message
@@ -76,7 +61,7 @@ function showHumanTranscripts() {
   }, 4000);
 }
 
-// Open Privacy Policy in new tab (NEW FUNCTION)
+// Open Privacy Policy in new tab
 function openPrivacyPolicy() {
   window.open('/privacy-policy', '_blank');
 }
@@ -85,21 +70,22 @@ function openPrivacyPolicy() {
 function selectAmount(amount) {
   selectedAmount = amount;
   
-  // Remove selected class from all buttons
+  // These DOM manipulations will need to be handled by React state
+  // when the donation modal is moved into React. For now, they remain
+  // here if the modal is still plain HTML.
   document.querySelectorAll('.amount-btn').forEach(btn => {
     btn.classList.remove('selected');
   });
   
-  // Add selected class to clicked button
-  event.target.classList.add('selected');
+  // event.target is not available when called from React if not passed
+  // The React component will manage selection state.
+  // event.target.classList.add('selected'); 
   
-  // Clear custom amount input
   const customInput = document.getElementById('customAmount');
   if (customInput) {
     customInput.value = '';
   }
   
-  // Provide immediate feedback
   console.log(`Selected amount: USD ${amount}`);
 }
 
@@ -111,7 +97,6 @@ function handleCustomAmount() {
   if (customValue && customValue > 0) {
     selectedAmount = customValue;
     
-    // Remove selected class from preset buttons
     document.querySelectorAll('.amount-btn').forEach(btn => {
       btn.classList.remove('selected');
     });
@@ -292,36 +277,15 @@ function showErrorToast(message) {
   }, 4000);
 }
 
-// Close submenus when clicking outside
-document.addEventListener('click', function(event) {
-  const sidebarMenu = document.getElementById('sidebarMenu');
-  if (sidebarMenu && !sidebarMenu.contains(event.target)) {
-    const allSubmenus = document.querySelectorAll('.submenu');
-    const allArrows = document.querySelectorAll('.dropdown-arrow');
-    
-    allSubmenus.forEach(menu => menu.classList.remove('open'));
-    allArrows.forEach(arrow => arrow.classList.remove('rotated'));
-  }
-});
-
-// Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-  console.log('TypeMyworDz menu system with enhanced UI loaded successfully!');
-});
-
-// Check if we're on landing page and expand menu accordingly
-function checkPageAndExpandMenu() {
-  const currentPath = window.location.pathname;
-  const sidebarMenu = document.getElementById('sidebarMenu');
-  
-  // Expand menu on landing page (root) or login pages
-  if (currentPath === '/' || currentPath === '/login' || currentPath === '/register' || currentPath.includes('login')) {
-    sidebarMenu.classList.add('expanded');
-  } else {
-    sidebarMenu.classList.remove('expanded');
-  }
-}
-
-// Run on page load and when URL changes
-document.addEventListener('DOMContentLoaded', checkPageAndExpandMenu);
-window.addEventListener('popstate', checkPageAndExpandMenu);
+// Expose functions to global scope for React to call
+window.toggleSubmenu = toggleSubmenu;
+window.showSpeechToText = showSpeechToText;
+window.showComingSoon = showComingSoon;
+window.showHumanTranscripts = showHumanTranscripts;
+window.openPrivacyPolicy = openPrivacyPolicy;
+window.openDonate = openDonate; // Expose openDonate if the modal is still handled by plain JS/HTML
+window.selectAmount = selectAmount; // If donation modal is still plain HTML
+window.handleCustomAmount = handleCustomAmount; // If donation modal is still plain HTML
+window.closeDonate = closeDonate; // If donation modal is still plain HTML
+window.processDonation = processDonation; // If donation modal is still plain HTML
+window.showErrorToast = showErrorToast; // If needed by other plain JS functions

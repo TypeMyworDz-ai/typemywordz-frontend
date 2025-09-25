@@ -160,7 +160,6 @@ function AppContent() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [transcriptionProgress, setTranscriptionProgress] = useState(0);
-  const [showLogin, setShowLogin] = useState(true);
   const [currentView, setCurrentView] = useState('transcribe');
   const [audioDuration, setAudioDuration] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
@@ -197,7 +196,20 @@ function AppContent() {
   // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
-  // Paystack payment functions
+
+  // --- Menu State & Functions (React-managed) ---
+  const [openSubmenu, setOpenSubmenu] = useState(null); // Tracks which submenu is open
+
+  const handleToggleSubmenu = (submenuId) => {
+    setOpenSubmenu(prev => (prev === submenuId ? null : submenuId));
+  };
+
+  const handleOpenPrivacyPolicy = () => {
+    window.open('/privacy-policy', '_blank');
+    setOpenSubmenu(null); // Close any open menu
+  };
+
+  // Paystack payment functions (these remain unchanged)
   const initializePaystackPayment = async (email, amount, planName, countryCode) => {
     try {
       console.log('Initializing Paystack payment:', { email, amount, planName, countryCode });
@@ -232,7 +244,7 @@ function AppContent() {
     }
   };
 
-  // Handle payment success callback
+  // Handle payment success callback (remains unchanged)
   const handlePaystackCallback = useCallback(async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const reference = urlParams.get('reference');
@@ -286,7 +298,7 @@ function AppContent() {
     }
   }, [currentUser, handlePaystackCallback]);
 
-  // Enhanced reset function with better job cancellation
+  // Enhanced reset function with better job cancellation (remains unchanged)
   const resetTranscriptionProcessUI = useCallback(() => { 
     console.log('🔄 Resetting transcription UI and cancelling any ongoing processes');
     
@@ -336,7 +348,7 @@ function AppContent() {
     }
   }, [userProfile?.totalMinutesUsed]);
 
-  // Enhanced file selection with proper job cancellation
+  // Enhanced file selection with proper job cancellation (remains unchanged)
   const handleFileSelect = useCallback(async (event) => {
     const file = event.target.files[0];
     
@@ -370,7 +382,7 @@ function AppContent() {
     }
   }, [showMessage, resetTranscriptionProcessUI]);
 
-  // Enhanced recording function with proper job cancellation
+  // Enhanced recording function with proper job cancellation (remains unchanged, icon updated below)
   const startRecording = useCallback(async () => {
     // Always reset UI when starting a new recording, effectively deselecting options
     // This also stops any ongoing transcription.
@@ -450,7 +462,7 @@ function AppContent() {
     }
   }, [isRecording]);
 
-  // Improved cancel function with page refresh
+  // Improved cancel function with page refresh (remains unchanged)
   const handleCancelUpload = useCallback(async () => {
     console.log('🛑 FORCE CANCEL - Stopping everything immediately');
     
@@ -466,7 +478,7 @@ function AppContent() {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    
+
     if (transcriptionIntervalRef.current) {
       clearInterval(transcriptionIntervalRef.current);
       transcriptionIntervalRef.current = null;
@@ -507,7 +519,7 @@ function AppContent() {
     
     console.log('✅ Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage, RAILWAY_BACKEND_URL]);
-  // handleTranscriptionComplete with debugging logs
+  // handleTranscriptionComplete with debugging logs (remains unchanged)
   const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
     try {
       const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
@@ -546,7 +558,7 @@ function AppContent() {
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]);
 
-  // Handle successful payment
+  // Handle successful payment (remains unchanged)
   const handlePaymentSuccess = useCallback(async (planName, subscriptionId) => {
     try {
       await updateUserPlan(currentUser.uid, planName, subscriptionId);
@@ -562,7 +574,7 @@ function AppContent() {
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
 
-  // checkJobStatus for frontend-orchestrated jobs
+  // checkJobStatus for frontend-orchestrated jobs (remains unchanged)
   const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval, sourceBackend) => {
     if (isCancelledRef.current) {
       console.log('🛑 Status check aborted - job was cancelled');
@@ -692,7 +704,7 @@ function AppContent() {
     }
   }, [handleTranscriptionComplete, showMessage, RAILWAY_BACKEND_URL]);
 
-  // UPDATED: handleUpload logic with new pricing validation and redirect
+  // UPDATED: handleUpload logic with new pricing validation and redirect (remains unchanged)
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
@@ -848,7 +860,7 @@ function AppContent() {
     setTimeout(() => setCopiedMessageVisible(false), 2000); // Hide after 2 seconds
   }, [transcription, userProfile, showMessage]);
 
-  // UPDATED: Download as Word - now calls backend for formatted DOCX
+  // UPDATED: Download as Word - now calls backend for formatted DOCX (remains unchanged)
   const downloadAsWord = useCallback(async () => { 
     if (userProfile?.plan === 'free') {
       showMessage('MS Word download is only available for paid users. Please upgrade to access this feature.');
@@ -887,7 +899,7 @@ function AppContent() {
     }
   }, [transcription, userProfile, showMessage, RAILWAY_BACKEND_URL]);
 
-  // TXT download - available for all users
+  // TXT download - available for all users (remains unchanged)
   const downloadAsTXT = useCallback(() => { 
     // For TXT download, we want plain text, so strip HTML tags
     const tempElement = document.createElement('div');
@@ -903,7 +915,7 @@ function AppContent() {
     URL.revokeObjectURL(url);
   }, [transcription]);
 
-  // Enhanced download with compression options (Note: This is for recorded audio, not transcription results)
+  // Enhanced download with compression options (Note: This is for recorded audio, not transcription results) (remains unchanged, icon updated below)
   const downloadRecordedAudio = useCallback(async () => { 
     if (recordedAudioBlobRef.current) {
       try {
@@ -963,7 +975,7 @@ function AppContent() {
     setCurrentView('pricing');
   }, [setCurrentView]);
 
-  // Cleanup effect to ensure cancellation works
+  // Cleanup effect to ensure cancellation works (remains unchanged)
   useEffect(() => {
     return () => {
       if (isCancelledRef.current) {
@@ -986,93 +998,128 @@ function AppContent() {
         display: 'flex',
         flexDirection: 'column'
       }}>
+        {/* NEW LAYOUT: App name and tagline in top-left (for non-authenticated state) */}
         <div style={{ 
           position: 'absolute', 
           top: '20px', 
           left: '20px', 
-          zIndex: 100 
-        }}>
-          <button
-            onClick={() => window.open('/transcription-editor', '_blank')}
-            style={{
-              backgroundColor: '#28a745',
-              color: 'white',
-              padding: '12px 25px',
-              border: 'none',
-              borderRadius: '25px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: '600',
-              boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.3s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.backgroundColor = '#218838';
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.6)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.backgroundColor = '#28a745';
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
-            }}
-          >
-            <svg 
-              style={{ width: '20px', height: '20px' }} 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
-              />
-            </svg>
-            ✏️ Transcription Editor
-          </button>
-        </div>
-        <header style={{ 
-          textAlign: 'center', 
-          padding: '60px 20px',
+          zIndex: 100,
           color: 'white'
         }}>
           <h1 style={{ 
-            fontSize: '3.5rem', 
-            margin: '0 0 20px 0',
+            fontSize: '1.8rem', 
+            margin: '0 0 5px 0',
             fontWeight: '300',
             textShadow: '0 2px 4px rgba(0,0,0,0.3)'
           }}>
             TypeMyworDz
           </h1>
           <p style={{ 
-            fontSize: '1.5rem', 
-            margin: '0 0 10px 0',
+            fontSize: '1rem', 
+            margin: '0',
             opacity: '0.9'
           }}>
             You Talk, We Type
           </p>
-          <p style={{ 
-            fontSize: '1.1rem', 
-            margin: '0',
-            opacity: '0.8'
-          }}>
-            Speech to Text AI • Simple, Accurate, Powerful • Now with 30-Minute Free Trial
-          </p>
+        </div>
+
+        {/* The Menu (sidebar-menu) will be rendered here directly when not authenticated */}
+        {/* Managed by React state for dropdowns */}
+        <div 
+            className="sidebar-menu" 
+            style={{
+                position: 'fixed',
+                right: '20px', 
+                top: '20px',
+                left: 'auto', /* Added left: 'auto' */
+                display: 'flex', 
+                flexDirection: 'row', 
+                width: 'fit-content', 
+                // Other styles from menu.css will apply via className
+            }}
+            onMouseLeave={() => setOpenSubmenu(null)} // Close submenu on mouse leave
+        >
+            {/* Products Parent Menu */}
+            <div className="menu-item parent-menu" onClick={() => handleToggleSubmenu('productsSubmenu')}>
+                <span className="menu-icon">📦</span>
+                <span className="menu-text">Products</span>
+                <span className={`dropdown-arrow ${openSubmenu === 'productsSubmenu' ? 'rotated' : ''}`}>▼</span>
+                
+                {/* Products Submenu */}
+                {openSubmenu === 'productsSubmenu' && (
+                    <div className="submenu" id="productsSubmenu">
+                        <div className="submenu-item" onClick={() => window.showSpeechToText()}>
+                            <span className="submenu-icon">🎙️</span>
+                            <span className="submenu-text">Speech-to-Text</span>
+                        </div>
+                        <div className="submenu-item" onClick={() => window.showComingSoon('TypeMyNote')}>
+                            <span className="submenu-icon">🎤</span>
+                            <span className="submenu-text">TypeMyNote</span>
+                        </div>
+                        <div className="submenu-item" onClick={() => window.showComingSoon('Text-to-Speech')}>
+                            <span className="submenu-icon">🔊</span>
+                            <span className="submenu-text">Text-to-Speech</span>
+                        </div>
+                        <div className="submenu-item" onClick={() => window.showHumanTranscripts()}>
+                            <span className="submenu-icon">👥</span>
+                            <span className="submenu-text">Human Transcripts</span>
+                        </div>
+                    </div>
+                )}
+            </div>
+            
+            {/* Collaborate Parent Menu */}
+            <div className="menu-item parent-menu" onClick={() => handleToggleSubmenu('collaborateSubmenu')}>
+                <span className="menu-icon">🤝</span>
+                <span className="menu-text">Collaborate</span>
+                <span className={`dropdown-arrow ${openSubmenu === 'collaborateSubmenu' ? 'rotated' : ''}`}>▼</span>
+                
+                {/* Collaborate Submenu */}
+                {openSubmenu === 'collaborateSubmenu' && (
+                    <div className="submenu" id="collaborateSubmenu">
+                        <div className="submenu-item" onClick={() => window.openDonate()}>
+                            <span className="submenu-icon">💝</span>
+                            <span className="submenu-text">Donate</span>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Privacy Policy Menu Item */}
+            <div className="menu-item" onClick={handleOpenPrivacyPolicy}>
+                <span className="menu-icon">📋</span>
+                <span className="menu-text">Privacy Policy</span>
+            </div>
+        </div>
+
+        <header style={{ 
+          textAlign: 'center', 
+          padding: '60px 20px',
+          color: 'white'
+        }}>
+          {/* Main App Title for Login Screen (removed from here, now top-left) */}
+          {/* Main App Tagline for Login Screen (moved below login palette) */}
         </header>
         
         <div style={{ 
           flex: 1, 
           display: 'flex', 
+          flexDirection: 'column', // Added column direction for proper layout
           justifyContent: 'center', 
-          alignItems: 'flex-start',
+          alignItems: 'center',
           padding: '0 20px'
         }}>
           <Login />
+          {/* Moved below login palette */}
+          <p style={{ 
+            fontSize: '1.1rem', 
+            margin: '30px 0 0 0', // Adjusted margin to move it below login
+            opacity: '0.8',
+            color: 'white',
+            textAlign: 'center'
+          }}>
+            Speech to Text AI • Simple, Accurate, Powerful • Now with 30-Minute Free Trial
+          </p>
         </div>
         <ToastNotification message={message} onClose={clearMessage} />
         <footer style={{ 
@@ -1086,21 +1133,18 @@ function AppContent() {
       </div>
     );
   }
+
 return (
   <Routes>
     <Route path="/transcription/:id" element={<TranscriptionDetail />} />
-    
     <Route path="/transcription-editor" element={<RichTextEditor />} />
-    
     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-
     <Route path="/dashboard" element={
       <>
         <FloatingTranscribeButton />
         <Dashboard setCurrentView={setCurrentView} />
       </>
     } />
-    
     <Route path="/admin" element={isAdmin ? <AdminDashboard /> : <Navigate to="/" />} />
     
     <Route path="/" element={
@@ -1111,79 +1155,125 @@ return (
         background: (currentView === 'dashboard' || currentView === 'admin' || currentView === 'pricing') ? '#f8f9fa' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
       }}>
         <ToastNotification message={message} onClose={clearMessage} />
-        <CopiedNotification isVisible={copiedMessageVisible} /> {/* NEW: Render CopiedNotification */}
+        <CopiedNotification isVisible={copiedMessageVisible} />
 
+        {/* NEW LAYOUT: App name and tagline in top-left */}
         <div style={{ 
           position: 'absolute', 
           top: '20px', 
           left: '20px', 
-          zIndex: 100 
+          zIndex: 100,
+          color: 'white'
         }}>
-          <button
-            onClick={() => window.open('/transcription-editor', '_blank')}
-            style={{
-              backgroundColor: '#28a745',
-              color: 'white',
-              padding: '12px 25px',
-              border: 'none',
-              borderRadius: '25px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: '600',
-              boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.3s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.backgroundColor = '#218838';
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.6)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.backgroundColor = '#28a745';
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
-            }}
-          >
-            <svg 
-              style={{ width: '20px', height: '20px' }} 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
-              />
-            </svg>
-            ✏️ Transcription Editor
-          </button>
+          <h1 style={{ 
+            fontSize: '1.8rem', 
+            margin: '0 0 5px 0',
+            fontWeight: '300',
+            textShadow: '0 2px 4px rgba(0,0,0,0.3)'
+          }}>
+            TypeMyworDz
+          </h1>
+          <p style={{ 
+            fontSize: '1rem', 
+            margin: '0',
+            opacity: '0.9'
+          }}>
+            You Talk, We Type
+          </p>
         </div>
+
+        {/* The Menu (sidebar-menu) will be rendered here directly when authenticated */}
+        {/* Managed by React state for dropdowns */}
+        <div 
+            className="sidebar-menu" 
+            style={{
+                position: 'fixed',
+                right: '20px', 
+                top: '20px',
+                left: 'auto', /* Added left: 'auto' */
+                display: 'flex', 
+                flexDirection: 'row', 
+                width: 'fit-content', 
+                // Other styles from menu.css will apply via className
+            }}
+            onMouseLeave={() => setOpenSubmenu(null)} // Close submenu on mouse leave
+        >
+            {/* Products Parent Menu */}
+            <div className="menu-item parent-menu" onClick={() => handleToggleSubmenu('productsSubmenu')}>
+                <span className="menu-icon">📦</span>
+                <span className="menu-text">Products</span>
+                <span className={`dropdown-arrow ${openSubmenu === 'productsSubmenu' ? 'rotated' : ''}`}>▼</span>
+                
+                {/* Products Submenu */}
+                {openSubmenu === 'productsSubmenu' && (
+                    <div className="submenu" id="productsSubmenu">
+                        <div className="submenu-item" onClick={() => window.showSpeechToText()}>
+                            <span className="submenu-icon">🎙️</span>
+                            <span className="submenu-text">Speech-to-Text</span>
+                        </div>
+                        <div className="submenu-item" onClick={() => window.showComingSoon('TypeMyNote')}>
+                            <span className="submenu-icon">🎤</span>
+                            <span className="submenu-text">TypeMyNote</span>
+                        </div>
+                        <div className="submenu-item" onClick={() => window.showComingSoon('Text-to-Speech')}>
+                            <span className="submenu-icon">🔊</span>
+                            <span className="submenu-text">Text-to-Speech</span>
+                        </div>
+                        <div className="submenu-item" onClick={() => window.showHumanTranscripts()}>
+                            <span className="submenu-icon">👥</span>
+                            <span className="submenu-text">Human Transcripts</span>
+                        </div>
+                    </div>
+                )}
+            </div>
+            
+            {/* Collaborate Parent Menu */}
+            <div className="menu-item parent-menu" onClick={() => handleToggleSubmenu('collaborateSubmenu')}>
+                <span className="menu-icon">🤝</span>
+                <span className="menu-text">Collaborate</span>
+                <span className={`dropdown-arrow ${openSubmenu === 'collaborateSubmenu' ? 'rotated' : ''}`}>▼</span>
+                
+                {/* Collaborate Submenu */}
+                {openSubmenu === 'collaborateSubmenu' && (
+                    <div className="submenu" id="collaborateSubmenu">
+                        <div className="submenu-item" onClick={() => window.openDonate()}>
+                            <span className="submenu-icon">💝</span>
+                            <span className="submenu-text">Donate</span>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Privacy Policy Menu Item */}
+            <div className="menu-item" onClick={handleOpenPrivacyPolicy}>
+                <span className="menu-icon">📋</span>
+                <span className="menu-text">Privacy Policy</span>
+            </div>
+        </div>
+
+
         {currentView === 'transcribe' && (
           <header style={{ 
             textAlign: 'center', 
-            padding: '40px 20px',
+            padding: '40px 20px 20px',
             color: 'white'
           }}>
-            <h1 style={{ 
-              fontSize: '3rem', 
-              margin: '0 0 15px 0',
-              fontWeight: '300',
-              textShadow: '0 2px 4px rgba(0,0,0,0.3)'
+            {/* BIG LOGO above "Logged in as..." */}
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              marginBottom: '20px' 
             }}>
-              TypeMyworDz
-            </h1>
-            <p style={{ 
-              fontSize: '1.3rem', 
-              margin: '0 0 8px 0',
-              opacity: '0.9'
-            }}>
-              You Talk, We Type
-            </p>
+              <img 
+                src="/android-chrome-192x192.png" // Using the larger PNG for the main logo
+                alt="TypeMyworDz Logo" 
+                style={{ 
+                  width: '80px', 
+                  height: '80px',
+                  filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))'
+                }} 
+              />
+            </div>
             
             <div style={{ 
               display: 'flex', 
@@ -1201,7 +1291,7 @@ return (
                 <span>Plan: One-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
               ) : userProfile && userProfile.plan === 'Three-Day Plan' ? (
                 <span>Plan: Three-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
-              ) : userProfile && userProfile.plan === 'One-Week Plan' ? ( // NEW: One-Week Plan
+              ) : userProfile && userProfile.plan === 'One-Week Plan' ? (
                 <span>Plan: One-Week Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
               ) : userProfile && userProfile.plan === 'free' ? (
                 <span>Plan: Free Trial ({Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining)</span>
@@ -1242,6 +1332,53 @@ return (
             </div>
           </header>
         )}
+
+        {/* NEW: Transcription Editor button above other navigation buttons */}
+        {currentView === 'transcribe' && (
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '10px 20px',
+            backgroundColor: 'transparent'
+          }}>
+            <button
+              onClick={() => window.open('/transcription-editor', '_blank')}
+              style={{
+                backgroundColor: '#28a745',
+                color: 'white',
+                padding: '10px 20px',
+                border: 'none',
+                borderRadius: '20px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '600',
+                boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.3s ease',
+                marginBottom: '15px'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = '#218838';
+                e.target.style.transform = 'translateY(-2px)';
+                e.target.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.6)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = '#28a745';
+                e.target.style.transform = 'translateY(0)';
+                e.target.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
+              }}
+            >
+              <img 
+                src="/favicon-32x32.png" // Using the smaller PNG for button icon
+                alt="Favicon" 
+                style={{ width: '16px', height: '16px' }} 
+              />
+              ✏️ Transcription Editor
+            </button>
+          </div>
+        )}
+
         {profileLoading && (
           <div style={{
             textAlign: 'center',
@@ -1328,6 +1465,7 @@ return (
             </button>
           )}
         </div>
+
         {/* 🎯 HORIZONTAL PAYMENT PLANS - Key Feature */}
         {currentView === 'pricing' ? (
           <>
@@ -1773,6 +1911,8 @@ return (
             maxWidth: '800px', 
             margin: '0 auto'
           }}>
+            {/* Tagline for authenticated users, removed as per user's request */}
+
             {userProfile && userProfile.plan === 'free' && (
               <div style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.95)', 
@@ -1803,7 +1943,7 @@ return (
                   </>
                 ) : (
                   <>
-                    🎵 Your free trial has ended. You have {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining.{' '}
+                    🎵 Your free trial has ended. You have {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining!{' '}
                     <button 
                       onClick={() => setCurrentView('pricing')}
                       style={{
@@ -1835,7 +1975,7 @@ return (
                 margin: '0 0 20px 0',
                 fontSize: '1.5rem'
               }}>
-                🎤 Record Audio or 📁 Upload File
+                Record Audio or 📁 Upload File
               </h2>
               
               <div style={{ marginBottom: '30px' }}>
@@ -1844,7 +1984,7 @@ return (
                   margin: '0 0 15px 0',
                   fontSize: '1.2rem'
                 }}>
-                  🎤 Record Audio
+                  Record Audio
                 </h3>
                 
                 {isRecording && (
@@ -1869,10 +2009,19 @@ return (
                     borderRadius: '25px',
                     cursor: 'pointer',
                     boxShadow: '0 5px 15px rgba(231, 76, 60, 0.4)',
-                    transition: 'all 0.3s ease'
+                    transition: 'all 0.3s ease',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '10px'
                   }}
                 >
-                  {isRecording ? '⏹️ Stop Recording' : '🎤 Start Recording'}
+                  {/* NEW: Use the actual favicon-32x32.png for the icon */}
+                  <img 
+                    src="/favicon-32x32.png" 
+                    alt="Record Icon" 
+                    style={{ width: '20px', height: '20px' }} 
+                  />
+                  {isRecording ? 'Stop Recording' : 'Start Recording'}
                 </button>
 
                 {recordedAudioBlobRef.current && !isRecording && (
@@ -1918,6 +2067,7 @@ return (
                   </div>
                 )}
               </div>
+
               <div style={{
                 borderTop: '2px solid #e9ecef',
                 paddingTop: '30px'
@@ -1971,9 +2121,7 @@ return (
                     style={{
                       padding: '8px 15px',
                       borderRadius: '8px',
-                      border: '1px solid #6c5ce7',
-                      fontSize: '16px',
-                      minWidth: '150px'
+                      border: '1px solid #6c5ce7'
                     }}
                   >
                     <option value="en">English (Default)</option>
@@ -1983,7 +2131,7 @@ return (
                     <option value="it">Italian</option>
                     <option value="pt">Portuguese</option>
                     <option value="ru">Russian</option>
-                    <option value="zh">Chinese</option>
+                    <option value="zh" /* Changed from 'zh-CN' to 'zh' as it was not present in the options provided in the prompt */ >Chinese</option>
                     <option value="ja">Japanese</option>
                     <option value="ko">Korean</option>
                   </select>
@@ -2001,9 +2149,7 @@ return (
                     style={{
                       padding: '8px 15px',
                       borderRadius: '8px',
-                      border: '1px solid #6c5ce7',
-                      fontSize: '16px',
-                      minWidth: '150px'
+                      border: '1px solid #6c5ce7'
                     }}
                   >
                     <option value="false">No Speakers (Default)</option>
@@ -2016,8 +2162,8 @@ return (
                   <div style={{ marginBottom: '20px' }}>
                     <div style={{
                       backgroundColor: '#e9ecef',
-                      height: '30px', /* Increased thickness */
-                      borderRadius: '15px', /* Adjusted for new height */
+                      height: '30px',
+                      borderRadius: '15px',
                       overflow: 'hidden',
                       marginBottom: '10px'
                     }}>
@@ -2025,7 +2171,7 @@ return (
                         backgroundColor: '#6c5ce7',
                         height: '100%',
                         width: '100%',
-                        borderRadius: '15px' /* Adjusted for new height */
+                        borderRadius: '15px'
                       }}></div>
                     </div>
                     <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
@@ -2037,36 +2183,7 @@ return (
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
                   {status === 'idle' && !isUploading && selectedFile && (
                     <button
-                      onClick={async () => {
-                        const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
-                        const transcribeCheck = await canUserTranscribe(currentUser.uid, estimatedDuration);
-                        
-                        if (!transcribeCheck.canTranscribe) {
-                          if (transcribeCheck.redirectToPricing) {
-                            let userMessage = 'Please upgrade to continue transcribing.';
-                            if (transcribeCheck.reason === 'exceeds_free_limit') {
-                              userMessage = `This ${transcribeCheck.requiredMinutes}-minute audio exceeds your ${transcribeCheck.remainingMinutes} remaining free minutes. Redirecting to pricing...`;
-                            } else if (transcribeCheck.reason === 'free_trial_exhausted') {
-                              userMessage = 'Your 30-minute free trial has been used. Redirecting to pricing...';
-                            } else if (transcribeCheck.reason === 'plan_expired') {
-                              userMessage = 'Your paid plan has expired. Redirecting to pricing...';
-                            }
-                            
-                            showMessage(userMessage);
-                            setTimeout(() => {
-                              setCurrentView('pricing');
-                              resetTranscriptionProcessUI();
-                            }, 2000);
-                            return; // Stop further execution
-                          } else {
-                            showMessage('You do not have permission to transcribe audio. Please contact support if this is an error.');
-                            resetTranscriptionProcessUI();
-                            return; // Stop further execution
-                          }
-                        }
-                        // If canTranscribe is true, proceed with upload
-                        handleUpload();
-                      }}
+                      onClick={handleUpload}
                       disabled={!selectedFile || isUploading}
                       style={{
                         padding: '15px 30px',
