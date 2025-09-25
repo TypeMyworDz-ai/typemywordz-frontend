@@ -9,6 +9,7 @@ import RichTextEditor from './components/RichTextEditor';
 import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan } from './userService';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
+import PrivacyPolicy from './components/PrivacyPolicy';
 
 
 // Configuration
@@ -189,7 +190,7 @@ function AppContent() {
   const isCancelledRef = useRef(false);
   
   // Auth and user setup
-  const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, signInWithApple, profileLoading } = useAuth();
+  const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, profileLoading } = useAuth();
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; 
   const isAdmin = ADMIN_EMAILS.includes(currentUser?.email); 
 
@@ -1091,6 +1092,8 @@ return (
     
     <Route path="/transcription-editor" element={<RichTextEditor />} />
     
+    <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+
     <Route path="/dashboard" element={
       <>
         <FloatingTranscribeButton />

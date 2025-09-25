@@ -76,6 +76,11 @@ function showHumanTranscripts() {
   }, 4000);
 }
 
+// Open Privacy Policy in new tab (NEW FUNCTION)
+function openPrivacyPolicy() {
+  window.open('/privacy-policy', '_blank');
+}
+
 // Select donation amount with visual feedback
 function selectAmount(amount) {
   selectedAmount = amount;
@@ -303,6 +308,7 @@ document.addEventListener('click', function(event) {
 document.addEventListener('DOMContentLoaded', function() {
   console.log('TypeMyworDz menu system with enhanced UI loaded successfully!');
 });
+
 // Check if we're on landing page and expand menu accordingly
 function checkPageAndExpandMenu() {
   const currentPath = window.location.pathname;
