@@ -285,7 +285,7 @@ function AppContent() {
     } else if (paymentStatus === 'success') {
       showMessage('Payment completed! Please wait for verification...');
     }
-  }, [currentUser, showMessage, refreshUserProfile, setCurrentView, RAILWAY_BACK2END_URL]);
+  }, [currentUser, showMessage, refreshUserProfile, setCurrentView, RAILWAY_BACKEND_URL]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
