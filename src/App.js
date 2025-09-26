@@ -783,7 +783,7 @@ function AppContent() {
             if (renderResult.status === 'completed' && renderResult.transcript) {
                 finalTranscription = renderResult.transcript;
                 transcriptionJobId = `RENDER-PRIMARY-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-                showMessage('✅ Transcription completed successfully with Whisper!');
+                showMessage('✅ Transcription completed successfully!');
                 
                 setTranscription(finalTranscription);
                 setTranscriptionProgress(100);
