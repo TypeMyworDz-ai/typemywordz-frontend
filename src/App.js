@@ -190,7 +190,7 @@ function AppContent() {
   
   // Auth and user setup
   const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, profileLoading } = useAuth();
-  const ADMIN_EMAILS = []; // Removed admin emails
+  const ADMIN_EMAILS = ['typemywordz@gmail.com']; // 'typemywordz@gmail.com' is an admin for functionality
   const isAdmin = ADMIN_EMAILS.includes(currentUser?.email); 
 
   // Message handlers
@@ -285,7 +285,7 @@ function AppContent() {
     } else if (paymentStatus === 'success') {
       showMessage('Payment completed! Please wait for verification...');
     }
-  }, [currentUser, showMessage, refreshUserProfile, setCurrentView, RAILWAY_BACKEND_URL]);
+  }, [currentUser, showMessage, refreshUserProfile, setCurrentView, RAILWAY_BACK2END_URL]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);

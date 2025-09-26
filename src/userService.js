@@ -4,8 +4,8 @@ import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getD
 const USERS_COLLECTION = 'users';
 const TRANSCRIPTIONS_COLLECTION = 'transcriptions';
 
-// Admin emails - these users will always have 'pro' plan without payment/expiry
-const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; 
+// Admin emails - these users will have admin panel access but their plan is managed like regular users
+const ADMIN_EMAILS = ['typemywordz@gmail.com']; 
 
 // Helper to get user profile document reference
 const getUserProfileRef = (uid) => doc(db, USERS_COLLECTION, uid);
@@ -18,7 +18,8 @@ export const createUserProfile = async (uid, email, name = '') => {
   const userRef = getUserProfileRef(uid);
   const docSnap = await getDoc(userRef);
 
-  const userPlan = ADMIN_EMAILS.includes(email) ? 'pro' : 'free';
+  // Default plan is 'free' for all new users, even if they are in ADMIN_EMAILS
+  const userPlan = 'free'; 
 
   if (!docSnap.exists()) {
     await setDoc(userRef, {
@@ -27,7 +28,7 @@ export const createUserProfile = async (uid, email, name = '') => {
       name,
       plan: userPlan,
       totalMinutesUsed: 0,
-      hasReceivedInitialFreeMinutes: ADMIN_EMAILS.includes(email) ? false : false,
+      hasReceivedInitialFreeMinutes: false, // All new users start with free minutes
       createdAt: new Date(),
       lastAccessed: new Date(),
       expiresAt: null, 
@@ -40,30 +41,19 @@ export const createUserProfile = async (uid, email, name = '') => {
       lastAccessed: new Date(),
     };
 
-    // Ensure admin users always have 'pro' plan with null expiry
-    if (ADMIN_EMAILS.includes(email)) {
-      if (existingData.plan !== 'pro' || existingData.expiresAt !== null) {
-        updates.plan = 'pro';
-        updates.expiresAt = null;
-        updates.subscriptionStartDate = new Date(); 
-        updates.totalMinutesUsed = 0; 
-        updates.hasReceivedInitialFreeMinutes = false;
-        console.log(`DEBUG: createUserProfile - Admin ${email} profile forced to PRO (unlimited).`);
-      }
-    } else {
-      // Initialize new fields for existing users
-      if (existingData.totalMinutesUsed === undefined) {
-        updates.totalMinutesUsed = existingData.totalMinutesUsedForFreeTrial || 0;
-      }
-      if (existingData.hasReceivedInitialFreeMinutes === undefined) {
-        const hasUsedAnyMinutes = (existingData.totalMinutesUsedForFreeTrial || 0) > 0 || (existingData.totalMinutesUsed || 0) > 0;
-        const hasSubscriptionHistory = existingData.subscriptionStartDate || existingData.expiresAt;
-        updates.hasReceivedInitialFreeMinutes = hasUsedAnyMinutes || hasSubscriptionHistory;
-      }
+    // No special 'pro' plan logic for ADMIN_EMAILS here. They are treated as regular users plan-wise.
+    // Initialize new fields for existing users if they don't exist
+    if (existingData.totalMinutesUsed === undefined) {
+      updates.totalMinutesUsed = existingData.totalMinutesUsedForFreeTrial || 0;
+    }
+    if (existingData.hasReceivedInitialFreeMinutes === undefined) {
+      const hasUsedAnyMinutes = (existingData.totalMinutesUsedForFreeTrial || 0) > 0 || (existingData.totalMinutesUsed || 0) > 0;
+      const hasSubscriptionHistory = existingData.subscriptionStartDate || existingData.expiresAt;
+      updates.hasReceivedInitialFreeMinutes = hasUsedAnyMinutes || hasSubscriptionHistory;
     }
 
     // Only update if there are actual changes
-    if (Object.keys(updates).length > 1) {
+    if (Object.keys(updates).length > 1 || (Object.keys(updates).length === 1 && updates.lastAccessed)) {
         await updateDoc(userRef, updates);
         console.log("User profile updated for:", email);
     }
@@ -91,21 +81,7 @@ export const getUserProfile = async (uid) => {
 
     const currentTime = new Date();
 
-    // Admin logic: always 'pro', no expiry, no usage tracking
-    if (ADMIN_EMAILS.includes(profileData.email)) {
-      if (profileData.plan !== 'pro' || profileData.expiresAt !== null) {
-        await updateDoc(userRef, {
-          plan: 'pro',
-          expiresAt: null,
-          subscriptionStartDate: new Date(),
-          totalMinutesUsed: 0, 
-          hasReceivedInitialFreeMinutes: false,
-        });
-        profileData = { ...profileData, plan: 'pro', expiresAt: null, subscriptionStartDate: new Date(), totalMinutesUsed: 0, hasReceivedInitialFreeMinutes: false };
-        console.log(`DEBUG: getUserProfile - Admin ${profileData.email} profile forced to PRO (unlimited).`);
-      }
-      return profileData;
-    }
+    // No special 'pro' plan logic for ADMIN_EMAILS here. They are treated as regular users plan-wise.
 
     // KEY FIX: Expiry logic for temporary paid plans (updated plan names)
     const temporaryPlans = ['One-Day Plan', 'Three-Day Plan', 'One-Week Plan'];
@@ -153,7 +129,7 @@ export const updateUserPlan = async (uid, newPlan, referenceId = null) => {
       planDurationMinutes = 3 * 24 * 60; // 3 days in minutes
   } else if (newPlan === 'One-Week Plan') {
       planDurationMinutes = 7 * 24 * 60; // 7 days in minutes
-  } else if (newPlan === 'pro') {
+  } else if (newPlan === 'pro') { // 'pro' plan is now treated as a paid subscription with no expiry.
       updates.expiresAt = null; 
       updates.subscriptionStartDate = new Date();
       console.log(`updateUserPlan: Generic 'pro' plan received for ${uid}. Treating as effectively unlimited.`);
@@ -197,11 +173,8 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds) => {
       return { canTranscribe: false, reason: 'profile_not_found' };
     }
 
-    // Admins always have access
-    if (ADMIN_EMAILS.includes(userProfile.email)) {
-        console.log(`✅ Admin user ${userProfile.email} - unlimited transcription.`);
-        return { canTranscribe: true, reason: 'admin_unlimited' };
-    }
+    // Admins only get admin panel access, their transcription limits are handled like regular users.
+    // No special 'admin_unlimited' transcription here.
 
     // Check expiry for temporary paid plans (updated plan names)
     const temporaryPlans = ['pro', 'One-Day Plan', 'Three-Day Plan', 'One-Week Plan'];
