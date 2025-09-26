@@ -172,7 +172,7 @@ function AppContent() {
   
   // Payment states
   const [pricingView, setPricingView] = useState('credits');
-  const [selectedRegion, setSelectedRegion] = useState('KE');
+  const [selectedRegion, setSelectedRegion] = useState('KE'); // Default to Kenya
   const [convertedAmounts, setConvertedAmounts] = useState({ 
     'oneday': { amount: 1.00, currency: 'USD' }, 
     'threeday': { amount: 2.00, currency: 'USD' },
@@ -190,7 +190,7 @@ function AppContent() {
   
   // Auth and user setup
   const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, profileLoading } = useAuth();
-  const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; 
+  const ADMIN_EMAILS = []; // Removed admin emails
   const isAdmin = ADMIN_EMAILS.includes(currentUser?.email); 
 
   // Message handlers
@@ -1509,9 +1509,6 @@ return (
                   }}
                 >
                   <option value="KE">Kenya (M-Pesa, Card)</option>
-                  <option value="NG">Nigeria (Bank, USSD, Card)</option>
-                  <option value="GH">Ghana (Mobile Money, Card)</option>
-                  <option value="ZA">South Africa (Card, EFT)</option>
                   <option value="OTHER_AFRICA">Other African Countries (Card USD)</option>
                 </select>
               </div>
