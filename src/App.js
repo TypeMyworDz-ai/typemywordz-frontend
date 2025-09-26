@@ -717,7 +717,8 @@ function AppContent() {
     }
 
     const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
-    
+    const estimatedDurationMinutes = Math.ceil(estimatedDuration / 60);
+
     // NEW: Use the canUserTranscribe function with its new return format
     const transcribeCheck = await canUserTranscribe(currentUser.uid, estimatedDuration);
     
@@ -764,41 +765,10 @@ function AppContent() {
     let finalTranscription = '';
     let transcriptionJobId = '';
 
-    try {
-        // PRIMARY ATTEMPT: AssemblyAI (Railway Backend)
-        console.log(`🎯 Attempting transcription with AssemblyAI (Railway): ${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`);
-        const railwayResponse = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, {
-            method: 'POST',
-            body: formData,
-            signal: abortControllerRef.current.signal
-        });
-
-        if (!railwayResponse.ok) {
-            throw new Error(`AssemblyAI service failed with status: ${railwayResponse.status} - ${railwayResponse.statusText}`);
-        }
-        const railwayResult = await railwayResponse.json();
-
-        if (railwayResult && railwayResult.job_id) {
-            transcriptionJobId = railwayResult.job_id;
-            console.log('✅ AssemblyAI transcription job started. Processing...');
-            
-            setUploadProgress(100);
-            setStatus('processing');
-            setJobId(transcriptionJobId);
-            transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
-            checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current, 'railway');
-            return; // Exit after initiating AssemblyAI job
-        } else {
-            throw new Error(`AssemblyAI service returned no job ID: ${JSON.stringify(railwayResult)}`);
-        }
-
-    } catch (primaryError) {
-        console.error(`Primary service (AssemblyAI) failed:`, primaryError);
-        showMessage('⚠️ AssemblyAI failed. Trying Whisper as a fallback...'); // Keep this in main message modal
-        
-        // FALLBACK ATTEMPT: Whisper (Render Backend)
+    if (estimatedDurationMinutes <= 2) {
+        // NEW LOGIC: Whisper primary, AssemblyAI fallback for short audios
         try {
-            console.log(`🎯 Using Fallback Whisper: ${RENDER_WHISPER_URL}/transcribe`);
+            console.log(`🎯 Attempting transcription with Whisper (Render) for <= 2 min audio: ${RENDER_WHISPER_URL}/transcribe`);
             const renderResponse = await fetch(`${RENDER_WHISPER_URL}/transcribe`, {
                 method: 'POST',
                 body: formData,
@@ -806,38 +776,141 @@ function AppContent() {
             });
 
             if (!renderResponse.ok) {
-                throw new Error(`Fallback Whisper failed with status: ${renderResponse.status}`);
+                throw new Error(`Whisper service failed with status: ${renderResponse.status}`);
             }
             const renderResult = await renderResponse.json();
 
             if (renderResult.status === 'completed' && renderResult.transcript) {
                 finalTranscription = renderResult.transcript;
-                transcriptionJobId = `RENDER-FALLBACK-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-                showMessage('✅ Transcription completed successfully with backup service!'); // Keep this in main message modal
+                transcriptionJobId = `RENDER-PRIMARY-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+                showMessage('✅ Transcription completed successfully with Whisper!');
                 
                 setTranscription(finalTranscription);
                 setTranscriptionProgress(100);
                 setStatus('completed');
                 await handleTranscriptionComplete(finalTranscription, transcriptionJobId);
                 setIsUploading(false);
-                return; // Exit after successful fallback
+                return; // Exit after successful Whisper job
             } else {
-                throw new Error(`Fallback Whisper incomplete: ${JSON.stringify(renderResult)}`);
+                throw new Error(`Whisper incomplete: ${JSON.stringify(renderResult)}`);
             }
-        } catch (fallbackError) {
-            console.error('Both services failed:', fallbackError);
-            showMessage('❌ Both transcription services are currently unavailable. Please try again later.'); // Keep this in main message modal
-            setUploadProgress(0);
-            setTranscriptionProgress(0);
-            setStatus('failed'); 
-            setIsUploading(false);
-            return; // Exit after both services failed
+        } catch (whisperPrimaryError) {
+            console.error(`Primary service (Whisper) failed for short audio:`, whisperPrimaryError);
+            showMessage('⚠️ Whisper failed for short audio. Trying AssemblyAI as a fallback...');
+
+            // FALLBACK ATTEMPT FOR SHORT AUDIO: AssemblyAI
+            try {
+                console.log(`🎯 Attempting fallback transcription with AssemblyAI (Railway) for <= 2 min audio: ${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`);
+                const railwayResponse = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, {
+                    method: 'POST',
+                    body: formData,
+                    signal: abortControllerRef.current.signal
+                });
+
+                if (!railwayResponse.ok) {
+                    throw new Error(`AssemblyAI service failed with status: ${railwayResponse.status} - ${railwayResponse.statusText}`);
+                }
+                const railwayResult = await railwayResponse.json();
+
+                if (railwayResult && railwayResult.job_id) {
+                    transcriptionJobId = railwayResult.job_id;
+                    console.log('✅ AssemblyAI transcription job started (fallback for short audio). Processing...');
+                    
+                    setUploadProgress(100);
+                    setStatus('processing');
+                    setJobId(transcriptionJobId);
+                    transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
+                    checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current, 'railway');
+                    return; // Exit after initiating AssemblyAI job
+                } else {
+                    throw new Error(`AssemblyAI service returned no job ID: ${JSON.stringify(railwayResult)}`);
+                }
+            } catch (assemblyFallbackError) {
+                console.error('Both services failed for short audio:', assemblyFallbackError);
+                showMessage('❌ Both transcription services are currently unavailable for short audio. Please try again later.');
+                setUploadProgress(0);
+                setTranscriptionProgress(0);
+                setStatus('failed'); 
+                setIsUploading(false);
+                return; // Exit after both services failed for short audio
+            }
+        }
+    } else {
+        // ORIGINAL LOGIC: AssemblyAI primary, Whisper fallback for longer audios
+        try {
+            console.log(`🎯 Attempting transcription with AssemblyAI (Railway) for > 2 min audio: ${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`);
+            const railwayResponse = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, {
+                method: 'POST',
+                body: formData,
+                signal: abortControllerRef.current.signal
+            });
+
+            if (!railwayResponse.ok) {
+                throw new Error(`AssemblyAI service failed with status: ${railwayResponse.status} - ${railwayResponse.statusText}`);
+            }
+            const railwayResult = await railwayResponse.json();
+
+            if (railwayResult && railwayResult.job_id) {
+                transcriptionJobId = railwayResult.job_id;
+                console.log('✅ AssemblyAI transcription job started. Processing...');
+                
+                setUploadProgress(100);
+                setStatus('processing');
+                setJobId(transcriptionJobId);
+                transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
+                checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current, 'railway');
+                return; // Exit after initiating AssemblyAI job
+            } else {
+                throw new Error(`AssemblyAI service returned no job ID: ${JSON.stringify(railwayResult)}`);
+            }
+
+        } catch (primaryError) {
+            console.error(`Primary service (AssemblyAI) failed for long audio:`, primaryError);
+            showMessage('⚠️ AssemblyAI failed. Trying Whisper as a fallback...');
+            
+            // FALLBACK ATTEMPT FOR LONG AUDIO: Whisper (Render Backend)
+            try {
+                console.log(`🎯 Using Fallback Whisper for > 2 min audio: ${RENDER_WHISPER_URL}/transcribe`);
+                const renderResponse = await fetch(`${RENDER_WHISPER_URL}/transcribe`, {
+                    method: 'POST',
+                    body: formData,
+                    signal: abortControllerRef.current.signal,
+                });
+
+                if (!renderResponse.ok) {
+                    throw new Error(`Fallback Whisper failed with status: ${renderResponse.status}`);
+                }
+                const renderResult = await renderResponse.json();
+
+                if (renderResult.status === 'completed' && renderResult.transcript) {
+                    finalTranscription = renderResult.transcript;
+                    transcriptionJobId = `RENDER-FALLBACK-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+                    showMessage('✅ Transcription completed successfully with backup service!');
+                    
+                    setTranscription(finalTranscription);
+                    setTranscriptionProgress(100);
+                    setStatus('completed');
+                    await handleTranscriptionComplete(finalTranscription, transcriptionJobId);
+                    setIsUploading(false);
+                    return; // Exit after successful fallback
+                } else {
+                    throw new Error(`Fallback Whisper incomplete: ${JSON.stringify(renderResult)}`);
+                }
+            } catch (fallbackError) {
+                console.error('Both services failed for long audio:', fallbackError);
+                showMessage('❌ Both transcription services are currently unavailable for long audio. Please try again later.');
+                setUploadProgress(0);
+                setTranscriptionProgress(0);
+                setStatus('failed'); 
+                setIsUploading(false);
+                return; // Exit after both services failed for long audio
+            }
         }
     }
 
     // This part should ideally not be reached if either service was successful.
     console.error("Transcription initiation failed unexpectedly. No service provided a valid response.");
-    showMessage('❌ Transcription failed due to an unexpected error.'); // Keep this in main message modal
+    showMessage('❌ Transcription failed due to an unexpected error.');
     setUploadProgress(0);
     setTranscriptionProgress(0);
     setStatus('failed'); 
