@@ -11,10 +11,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'r
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 import PrivacyPolicy from './components/PrivacyPolicy';
 
-
-// Configuration
+// UPDATED Configuration - Removed Render Whisper URL
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
-const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com'; // Your Render Whisper URL
 
 // Copied Notification Component
 const CopiedNotification = ({ isVisible }) => {
@@ -208,7 +206,6 @@ function AppContent() {
     window.open('/privacy-policy', '_blank');
     setOpenSubmenu(null); // Close any open menu
   };
-
   // Paystack payment functions (these remain unchanged)
   const initializePaystackPayment = async (email, amount, planName, countryCode) => {
     try {
@@ -461,8 +458,7 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
-
-  // Improved cancel function with page refresh (remains unchanged)
+  // Improved cancel function with page refresh (updated for new backend)
   const handleCancelUpload = useCallback(async () => {
     console.log('🛑 FORCE CANCEL - Stopping everything immediately');
     
@@ -495,8 +491,8 @@ function AppContent() {
       clearTimeout(i);
     }
     
-    // If a job ID exists, try to cancel it on the Railway backend (if it was a Railway job)
-    if (jobId && jobId.startsWith('RAILWAY-')) { 
+    // Try to cancel job on Railway backend
+    if (jobId) { 
       try {
         console.log(`Attempting to cancel job ${jobId} on Railway backend.`);
         await fetch(`${RAILWAY_BACKEND_URL}/cancel/${jobId}`, {
@@ -507,8 +503,6 @@ function AppContent() {
       } catch (error) {
         console.log('⚠️ Failed to cancel previous job on Railway, but continuing with force cancel:', error);
       }
-    } else if (jobId) {
-      console.log(`No active Railway job to cancel for job ID: ${jobId}. It might be a Render job or already completed.`);
     }
     
     showMessage("🛑 Transcription cancelled! Reloading page...");
@@ -519,6 +513,7 @@ function AppContent() {
     
     console.log('✅ Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage, RAILWAY_BACKEND_URL]);
+
   // handleTranscriptionComplete with debugging logs (remains unchanged)
   const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
     try {
@@ -574,8 +569,8 @@ function AppContent() {
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
 
-  // checkJobStatus for frontend-orchestrated jobs (remains unchanged)
-  const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval, sourceBackend) => {
+  // UPDATED: checkJobStatus for new unified backend
+  const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => {
     if (isCancelledRef.current) {
       console.log('🛑 Status check aborted - job was cancelled');
       clearInterval(transcriptionInterval);
@@ -593,18 +588,7 @@ function AppContent() {
         controller.abort();
       }, 10000); 
       
-      let statusUrl = '';
-      if (sourceBackend === 'railway') {
-        statusUrl = `${RAILWAY_BACKEND_URL}/status/${jobIdToPass}`; 
-      } else if (sourceBackend === 'render') {
-        // For Render Whisper, the transcription is synchronous. If we reached here,
-        // it means the initial POST to Render didn't immediately return a completed status,
-        // which shouldn't happen with our current synchronous Whisper service.
-        clearInterval(transcriptionInterval); 
-        setStatus('failed'); 
-        showMessage('Error: Unexpected status check for Render Whisper service. Assuming failure.');
-        return;
-      }
+      const statusUrl = `${RAILWAY_BACKEND_URL}/status/${jobIdToPass}`;
       
       const response = await fetch(statusUrl, {
         signal: controller.signal 
@@ -662,7 +646,7 @@ function AppContent() {
           console.log('⏳ Job still processing - will check again');
           statusCheckTimeoutRef.current = setTimeout(() => {
             if (!isCancelledRef.current) {
-              checkJobStatus(jobIdToPass, transcriptionInterval, sourceBackend); 
+              checkJobStatus(jobIdToPass, transcriptionInterval); 
             } else {
               console.log('🛑 Recursive call cancelled');
               clearInterval(transcriptionInterval);
@@ -703,8 +687,7 @@ function AppContent() {
       abortControllerRef.current = null;
     }
   }, [handleTranscriptionComplete, showMessage, RAILWAY_BACKEND_URL]);
-
-  // UPDATED: handleUpload logic with new pricing validation and redirect
+  // NEW: Updated handleUpload with new backend logic
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
@@ -719,7 +702,7 @@ function AppContent() {
     const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
     const estimatedDurationMinutes = Math.ceil(estimatedDuration / 60);
 
-    // NEW: Use the canUserTranscribe function with its new return format
+    // Use the canUserTranscribe function with its new return format
     const transcribeCheck = await canUserTranscribe(currentUser.uid, estimatedDuration);
     
     if (!transcribeCheck.canTranscribe) {
@@ -760,236 +743,49 @@ function AppContent() {
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('language_code', selectedLanguage);
-    formData.append('speaker_labels_enabled', speakerLabelsEnabled); // Append speaker_labels setting
+    formData.append('speaker_labels_enabled', speakerLabelsEnabled);
+    formData.append('user_plan', userProfile?.plan || 'free'); // NEW: Send user plan
 
-    let finalTranscription = '';
-    let transcriptionJobId = '';
+    try {
+      // NEW: Call unified transcription endpoint
+      console.log(`🎯 Using unified transcription endpoint: ${RAILWAY_BACKEND_URL}/transcribe`);
+      const response = await fetch(`${RAILWAY_BACKEND_URL}/transcribe`, {
+        method: 'POST',
+        body: formData,
+        signal: abortControllerRef.current.signal
+      });
 
-    // NEW LOGIC: Prioritize AssemblyAI if speaker labels are enabled, regardless of duration
-    if (speakerLabelsEnabled) {
-        console.log(`🎯 Speaker labels requested. Attempting transcription with AssemblyAI (Railway) first: ${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`);
-        try {
-            const railwayResponse = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, {
-                method: 'POST',
-                body: formData,
-                signal: abortControllerRef.current.signal
-            });
+      if (!response.ok) {
+        throw new Error(`Transcription service failed with status: ${response.status} - ${response.statusText}`);
+      }
 
-            if (!railwayResponse.ok) {
-                throw new Error(`AssemblyAI service failed with status: ${railwayResponse.status} - ${railwayResponse.statusText}`);
-            }
-            const railwayResult = await railwayResponse.json();
+      const result = await response.json();
 
-            if (railwayResult && railwayResult.job_id) {
-                transcriptionJobId = railwayResult.job_id;
-                console.log('✅ AssemblyAI transcription job started (for speaker labels). Processing...');
-                
-                setUploadProgress(100);
-                setStatus('processing');
-                setJobId(transcriptionJobId);
-                transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
-                checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current, 'railway');
-                return;
-            } else {
-                throw new Error(`AssemblyAI service returned no job ID: ${JSON.stringify(railwayResult)}`);
-            }
+      if (result && result.job_id) {
+        const transcriptionJobId = result.job_id;
+        console.log('✅ Transcription job started. Processing...');
+        console.log(`📊 Logic used: ${result.logic_used || 'Smart service selection'}`);
+        
+        setUploadProgress(100);
+        setStatus('processing');
+        setJobId(transcriptionJobId);
+        transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
+        checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current);
+      } else {
+        throw new Error(`Transcription service returned no job ID: ${JSON.stringify(result)}`);
+      }
 
-        } catch (assemblyPrimaryError) {
-            console.error(`Primary service (AssemblyAI) failed for speaker labels:`, assemblyPrimaryError);
-            showMessage('⚠️ AssemblyAI failed for speaker labels. Trying Whisper as a fallback (will not have speaker labels)...');
-            
-            // FALLBACK ATTEMPT: Whisper (Render Backend) - even though it might not provide speaker labels
-            try {
-                console.log(`🎯 Using Fallback Whisper (Render) for speaker labels request: ${RENDER_WHISPER_URL}/transcribe`);
-                const renderResponse = await fetch(`${RENDER_WHISPER_URL}/transcribe`, {
-                    method: 'POST',
-                    body: formData,
-                    signal: abortControllerRef.current.signal,
-                });
-
-                if (!renderResponse.ok) {
-                    throw new Error(`Fallback Whisper failed with status: ${renderResponse.status}`);
-                }
-                const renderResult = await renderResponse.json();
-
-                if (renderResult.status === 'completed' && renderResult.transcript) {
-                    finalTranscription = renderResult.transcript;
-                    transcriptionJobId = `RENDER-FALLBACK-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-                    showMessage('✅ Transcription completed successfully with backup service (no speaker labels from Whisper)!');
-                    
-                    setTranscription(finalTranscription);
-                    setTranscriptionProgress(100);
-                    setStatus('completed');
-                    await handleTranscriptionComplete(finalTranscription, transcriptionJobId);
-                    setIsUploading(false);
-                    return;
-                } else {
-                    throw new Error(`Fallback Whisper incomplete: ${JSON.stringify(renderResult)}`);
-                }
-            } catch (whisperFallbackError) {
-                console.error('Both services failed for speaker labels request:', whisperFallbackError);
-                showMessage('❌ Both transcription services are currently unavailable for speaker labels. Please try again later.');
-                setUploadProgress(0);
-                setTranscriptionProgress(0);
-                setStatus('failed'); 
-                setIsUploading(false);
-                return;
-            }
-        }
-    } else { // Speaker labels are NOT enabled
-        if (estimatedDurationMinutes <= 2) {
-            // Whisper primary, AssemblyAI fallback for short audios (no speaker labels)
-            try {
-                console.log(`🎯 Attempting transcription with Whisper (Render) for <= 2 min audio: ${RENDER_WHISPER_URL}/transcribe`);
-                const renderResponse = await fetch(`${RENDER_WHISPER_URL}/transcribe`, {
-                    method: 'POST',
-                    body: formData,
-                    signal: abortControllerRef.current.signal,
-                });
-
-                if (!renderResponse.ok) {
-                    throw new Error(`Whisper service failed with status: ${renderResponse.status}`);
-                }
-                const renderResult = await renderResponse.json();
-
-                if (renderResult.status === 'completed' && renderResult.transcript) {
-                    finalTranscription = renderResult.transcript;
-                    transcriptionJobId = `RENDER-PRIMARY-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-                    showMessage('✅ Transcription completed successfully with Whisper!');
-                    
-                    setTranscription(finalTranscription);
-                    setTranscriptionProgress(100);
-                    setStatus('completed');
-                    await handleTranscriptionComplete(finalTranscription, transcriptionJobId);
-                    setIsUploading(false);
-                    return; // Exit after successful Whisper job
-                } else {
-                    throw new Error(`Whisper incomplete: ${JSON.stringify(renderResult)}`);
-                }
-            } catch (whisperPrimaryError) {
-                console.error(`Primary service (Whisper) failed for short audio:`, whisperPrimaryError);
-                showMessage('⚠️ Whisper failed for short audio. Trying AssemblyAI as a fallback...');
-
-                // FALLBACK ATTEMPT FOR SHORT AUDIO: AssemblyAI
-                try {
-                    console.log(`🎯 Attempting fallback transcription with AssemblyAI (Railway) for <= 2 min audio: ${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`);
-                    const railwayResponse = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, {
-                        method: 'POST',
-                        body: formData,
-                        signal: abortControllerRef.current.signal
-                    });
-
-                    if (!railwayResponse.ok) {
-                        throw new Error(`AssemblyAI service failed with status: ${railwayResponse.status} - ${railwayResponse.statusText}`);
-                    }
-                    const railwayResult = await railwayResponse.json();
-
-                    if (railwayResult && railwayResult.job_id) {
-                        transcriptionJobId = railwayResult.job_id;
-                        console.log('✅ AssemblyAI transcription job started (fallback for short audio). Processing...');
-                        
-                        setUploadProgress(100);
-                        setStatus('processing');
-                        setJobId(transcriptionJobId);
-                        transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
-                        checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current, 'railway');
-                        return; // Exit after initiating AssemblyAI job
-                    } else {
-                        throw new Error(`AssemblyAI service returned no job ID: ${JSON.stringify(railwayResult)}`);
-                    }
-                } catch (assemblyFallbackError) {
-                    console.error('Both services failed for short audio:', assemblyFallbackError);
-                    showMessage('❌ Both transcription services are currently unavailable for short audio. Please try again later.');
-                    setUploadProgress(0);
-                    setTranscriptionProgress(0);
-                    setStatus('failed'); 
-                    setIsUploading(false);
-                    return; // Exit after both services failed for short audio
-                }
-            }
-        } else {
-            // ORIGINAL LOGIC: AssemblyAI primary, Whisper fallback for longer audios (no speaker labels)
-            try {
-                console.log(`🎯 Attempting transcription with AssemblyAI (Railway) for > 2 min audio: ${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`);
-                const railwayResponse = await fetch(`${RAILWAY_BACKEND_URL}/transcribe-assemblyai-fallback`, {
-                    method: 'POST',
-                    body: formData,
-                    signal: abortControllerRef.current.signal
-                });
-
-                if (!railwayResponse.ok) {
-                    throw new Error(`AssemblyAI service failed with status: ${railwayResponse.status} - ${railwayResponse.statusText}`);
-                }
-                const railwayResult = await railwayResponse.json();
-
-                if (railwayResult && railwayResult.job_id) {
-                    transcriptionJobId = railwayResult.job_id;
-                    console.log('✅ AssemblyAI transcription job started. Processing...');
-                    
-                    setUploadProgress(100);
-                    setStatus('processing');
-                    setJobId(transcriptionJobId);
-                    transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
-                    checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current, 'railway');
-                    return; // Exit after initiating AssemblyAI job
-                } else {
-                    throw new Error(`AssemblyAI service returned no job ID: ${JSON.stringify(railwayResult)}`);
-                }
-
-            } catch (primaryError) {
-                console.error(`Primary service (AssemblyAI) failed for long audio:`, primaryError);
-                showMessage('⚠️ AssemblyAI failed. Trying Whisper as a fallback...');
-                
-                // FALLBACK ATTEMPT FOR LONG AUDIO: Whisper (Render Backend)
-                try {
-                    console.log(`🎯 Using Fallback Whisper for > 2 min audio: ${RENDER_WHISPER_URL}/transcribe`);
-                    const renderResponse = await fetch(`${RENDER_WHISPER_URL}/transcribe`, {
-                        method: 'POST',
-                        body: formData,
-                        signal: abortControllerRef.current.signal,
-                    });
-
-                    if (!renderResponse.ok) {
-                        throw new Error(`Fallback Whisper failed with status: ${renderResponse.status}`);
-                    }
-                    const renderResult = await renderResponse.json();
-
-                    if (renderResult.status === 'completed' && renderResult.transcript) {
-                        finalTranscription = renderResult.transcript;
-                        transcriptionJobId = `RENDER-FALLBACK-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-                        showMessage('✅ Transcription completed successfully with backup service!');
-                        
-                        setTranscription(finalTranscription);
-                        setTranscriptionProgress(100);
-                        setStatus('completed');
-                        await handleTranscriptionComplete(finalTranscription, transcriptionJobId);
-                        setIsUploading(false);
-                        return; // Exit after successful fallback
-                    } else {
-                        throw new Error(`Fallback Whisper incomplete: ${JSON.stringify(renderResult)}`);
-                    }
-                } catch (fallbackError) {
-                    console.error('Both services failed for long audio:', fallbackError);
-                    showMessage('❌ Both transcription services are currently unavailable for long audio. Please try again later.');
-                    setUploadProgress(0);
-                    setTranscriptionProgress(0);
-                    setStatus('failed'); 
-                    setIsUploading(false);
-                    return; // Exit after both services failed for long audio
-                }
-            }
-        }
+    } catch (transcriptionError) {
+      console.error('Transcription failed:', transcriptionError);
+      showMessage('❌ Transcription service is currently unavailable. Please try again later.');
+      setUploadProgress(0);
+      setTranscriptionProgress(0);
+      setStatus('failed'); 
+      setIsUploading(false);
     }
 
-    // This part should ideally not be reached if either service was successful.
-    console.error("Transcription initiation failed unexpectedly. No service provided a valid response.");
-    showMessage('❌ Transcription failed due to an unexpected error.');
-    setUploadProgress(0);
-    setTranscriptionProgress(0);
-    setStatus('failed'); 
-    setIsUploading(false);
+  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, checkJobStatus, canUserTranscribe]);
 
-  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, RENDER_WHISPER_URL, checkJobStatus, canUserTranscribe]); // Added canUserTranscribe to dependencies
   // Copy to clipboard (existing, now triggers NEW CopiedNotification)
   const copyToClipboard = useCallback(() => { 
     if (userProfile?.plan === 'free') {
@@ -1134,7 +930,6 @@ function AppContent() {
       }
     };
   }, []);
-  
   // Login screen for non-authenticated users
   if (!currentUser) {
     return (
@@ -1234,7 +1029,7 @@ function AppContent() {
             {/* Privacy Policy Menu Item */}
             <div className="menu-item" onClick={handleOpenPrivacyPolicy}>
                 <span className="menu-icon">📋</span>
-                <span className="menu-text">Privacy Policy</span>
+                <span className="submenu-text">Privacy Policy</span>
             </div>
         </div>
 
@@ -1279,7 +1074,6 @@ function AppContent() {
       </div>
     );
   }
-
 return (
   <Routes>
     <Route path="/transcription/:id" element={<TranscriptionDetail />} />
@@ -1396,7 +1190,6 @@ return (
                 <span className="menu-text">Privacy Policy</span>
             </div>
         </div>
-
 
         {currentView === 'transcribe' && (
           <header style={{ 
@@ -1524,7 +1317,6 @@ return (
             </button>
           </div>
         )}
-
         {profileLoading && (
           <div style={{
             textAlign: 'center',
@@ -2035,7 +1827,7 @@ return (
                   textAlign: 'left',
                   color: '#666'
                 }}>
-                  <div>✅ Backend audio compression technology</div>
+                  <div>✅ Smart service selection (OpenAI + AssemblyAI)</div>
                   <div>✅ Multiple file formats supported</div>
                   <div>✅ Easy-to-use interface</div>
                   <div>✅ Mobile-friendly design</div>
@@ -2210,7 +2002,6 @@ return (
                   </div>
                 )}
               </div>
-
               <div style={{
                 borderTop: '2px solid #e9ecef',
                 paddingTop: '30px'
@@ -2318,7 +2109,7 @@ return (
                       }}></div>
                     </div>
                     <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
-                      🎯 Processing audio with optimal service...
+                      🎯 Processing audio with smart service selection...
                     </div>
                   </div>
                 )}
