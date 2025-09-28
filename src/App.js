@@ -101,8 +101,10 @@ const ToastNotification = ({ message, onClose }) => {
             fontSize: '14px', 
             lineHeight: '1.4',
             fontWeight: '500'
-          }}>
-            {message}
+          }}
+            dangerouslySetInnerHTML={{ __html: message }} // ADD THIS LINE for HTML rendering
+          >
+            {/* The actual message content will now be rendered by dangerouslySetInnerHTML */}
           </p>
         </div>
         <button
@@ -546,8 +548,8 @@ function AppContent() {
       await refreshUserProfile();
       console.log('DIAGNOSTIC: After refreshUserProfile - userProfile.totalMinutesUsed:', userProfile?.totalMinutesUsed);
 
-      // UPDATED: Success message
-      showMessage('✅ Transcription completed by TypeMyworDz!');
+      // UPDATED: Success message with favicon and brand name
+      showMessage('✅ <img src="/favicon-32x32.png" alt="TypeMyworDz Logo" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 5px;"> TypeMyworDz, Done!');
 
     } catch (error) {
       console.error('Error updating usage or saving transcription:', error);
