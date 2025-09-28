@@ -2113,7 +2113,7 @@ return (
                       }}></div>
                     </div>
                     <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
-                      🎯 TypeMyworDz in action...
+                      🎯 Processing...
                     </div>
                   </div>
                 )}
@@ -2175,7 +2175,7 @@ return (
                 </h3>
                 {status === 'failed' && (
                   <p style={{ margin: '10px 0 0 0', color: '#666' }}>
-                    Transcription failed. Check Your Network & Refresh the Page.
+                    Transcription failed: 1. Ensure Your Internet is Good and Connected; 2. Refresh the Page.
                   </p>
                 )}
               </div>
