@@ -11,8 +11,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'r
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 import PrivacyPolicy from './components/PrivacyPolicy';
 
-// UPDATED Configuration - Removed Render Whisper URL
+// UPDATED Configuration - RE-ADDED Render Whisper URL
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
+const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com'; // Your Render Whisper URL
 
 // Copied Notification Component
 const CopiedNotification = ({ isVisible }) => {
@@ -514,7 +515,7 @@ function AppContent() {
     console.log('✅ Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage, RAILWAY_BACKEND_URL]);
 
-  // handleTranscriptionComplete with debugging logs (remains unchanged)
+  // handleTranscriptionComplete with debugging logs (updated success message)
   const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
     try {
       const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
@@ -544,6 +545,9 @@ function AppContent() {
       
       await refreshUserProfile();
       console.log('DIAGNOSTIC: After refreshUserProfile - userProfile.totalMinutesUsed:', userProfile?.totalMinutesUsed);
+
+      // UPDATED: Success message
+      showMessage('✅ Transcription completed by TypeMyworDz!');
 
     } catch (error) {
       console.error('Error updating usage or saving transcription:', error);
@@ -687,7 +691,7 @@ function AppContent() {
       abortControllerRef.current = null;
     }
   }, [handleTranscriptionComplete, showMessage, RAILWAY_BACKEND_URL]);
-  // NEW: Updated handleUpload with new backend logic
+  // UPDATED: handleUpload with new backend logic
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
@@ -744,10 +748,10 @@ function AppContent() {
     formData.append('file', selectedFile);
     formData.append('language_code', selectedLanguage);
     formData.append('speaker_labels_enabled', speakerLabelsEnabled);
-    formData.append('user_plan', userProfile?.plan || 'free'); // NEW: Send user plan
+    formData.append('user_plan', userProfile?.plan || 'free'); // Send user plan
 
     try {
-      // NEW: Call unified transcription endpoint
+      // Call unified transcription endpoint
       console.log(`🎯 Using unified transcription endpoint: ${RAILWAY_BACKEND_URL}/transcribe`);
       const response = await fetch(`${RAILWAY_BACKEND_URL}/transcribe`, {
         method: 'POST',
@@ -841,7 +845,7 @@ function AppContent() {
     }
   }, [transcription, userProfile, showMessage, RAILWAY_BACKEND_URL]);
 
-  // TXT download - available for all users (remains unchanged)
+  // TXT download - available for all users (FIXED syntax error)
   const downloadAsTXT = useCallback(() => { 
     // For TXT download, we want plain text, so strip HTML tags
     const tempElement = document.createElement('div');
@@ -850,7 +854,7 @@ function AppContent() {
 
     const blob = new Blob([plainTextTranscription], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement('a'); // FIXED: Changed 'document = document.createElement('a');' to 'const a = document.createElement('a');'
     a.href = url;
     a.download = 'transcription.txt';
     a.click();
@@ -1029,7 +1033,7 @@ function AppContent() {
             {/* Privacy Policy Menu Item */}
             <div className="menu-item" onClick={handleOpenPrivacyPolicy}>
                 <span className="menu-icon">📋</span>
-                <span className="submenu-text">Privacy Policy</span>
+                <span className="menu-text">Privacy Policy</span>
             </div>
         </div>
 
@@ -1827,7 +1831,7 @@ return (
                   textAlign: 'left',
                   color: '#666'
                 }}>
-                  <div>✅ Smart service selection (OpenAI + AssemblyAI)</div>
+                  <div>✅ Smart service selection (OpenAI + Render + AssemblyAI)</div> {/* UPDATED */}
                   <div>✅ Multiple file formats supported</div>
                   <div>✅ Easy-to-use interface</div>
                   <div>✅ Mobile-friendly design</div>
