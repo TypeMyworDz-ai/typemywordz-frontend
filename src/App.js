@@ -575,7 +575,6 @@ function AppContent() {
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
 
-  // UPDATED: checkJobStatus for new unified backend
   const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => {
     if (isCancelledRef.current) {
       console.log('🛑 Status check aborted - job was cancelled');
@@ -633,19 +632,26 @@ function AppContent() {
         
       } else if (response.ok && result.status === 'failed') {
         if (!isCancelledRef.current) {
-          showMessage('Transcription failed: ' + result.error);
+          // --- BEGIN MODIFIED BLOCK for FAILED status ---
+          showMessage('❌ Transcription failed: ' + result.error + '. Please try again.'); // More explicit message
           clearInterval(transcriptionInterval); 
           setTranscriptionProgress(0);
           setStatus('failed'); 
           setIsUploading(false);
+          resetTranscriptionProcessUI(); // Immediately reset UI on definitive failure
+          // --- END MODIFIED BLOCK ---
         }
         
       } else if (response.ok && (result.status === 'cancelled' || result.status === 'canceled')) {
+        // --- BEGIN MODIFIED BLOCK for CANCELLED status ---
         console.log('✅ Backend confirmed job cancellation');
         clearInterval(transcriptionInterval);
         setTranscriptionProgress(0);
-        setStatus('idle');
+        setStatus('idle'); // Set to idle, as it's cancelled
         setIsUploading(false);
+        showMessage('🛑 Transcription was cancelled. Please start a new one.'); // Clear message
+        resetTranscriptionProcessUI(); // Immediately reset UI on cancellation
+        // --- END MODIFIED BLOCK ---
         
       } else {
         if (result.status === 'processing' && !isCancelledRef.current) {
@@ -656,18 +662,29 @@ function AppContent() {
             } else {
               console.log('🛑 Recursive call cancelled');
               clearInterval(transcriptionInterval);
+              // --- BEGIN MODIFIED BLOCK for recursive call cancelled ---
+              showMessage('🛑 Transcription process interrupted. Please start a new one.');
+              resetTranscriptionProcessUI(); // Reset UI if recursive call is cancelled
+              // --- END MODIFIED BLOCK ---
             }
           }, 2000);
         } else if (isCancelledRef.current) {
           console.log('🛑 Job cancelled - stopping status checks');
           clearInterval(transcriptionInterval);
+          // --- BEGIN MODIFIED BLOCK for job cancelled ---
+          showMessage('🛑 Transcription process interrupted. Please start a new one.');
+          resetTranscriptionProcessUI(); // Reset UI if job is cancelled during polling
+          // --- END MODIFIED BLOCK ---
         } else {
+          // --- BEGIN MODIFIED BLOCK for unexpected status ---
           const errorDetail = result.detail || `Unexpected status: ${result.status}`;
-          showMessage('Status check failed: ' + errorDetail);
+          showMessage('❌ Status check failed: ' + errorDetail + '. Please try again.'); // More explicit
           clearInterval(transcriptionInterval); 
           setTranscriptionProgress(0);
           setStatus('failed'); 
           setIsUploading(false); 
+          resetTranscriptionProcessUI(); // Immediately reset UI on definitive failure
+          // --- END MODIFIED BLOCK ---
         }
       }
       
@@ -680,19 +697,27 @@ function AppContent() {
         if (!isCancelledRef.current) {
           setIsUploading(false);
         }
+        // --- BEGIN MODIFIED BLOCK for AbortError/Cancellation ---
+        showMessage('🛑 Transcription process interrupted. Please start a new one.');
+        resetTranscriptionProcessUI(); // Immediately reset UI on any abort/cancellation
+        // --- END MODIFIED BLOCK ---
         return;
       } else if (!isCancelledRef.current) {
+        // --- BEGIN MODIFIED BLOCK for general error ---
         console.error('❌ Status check error:', error);
         clearInterval(transcriptionInterval); 
         setTranscriptionProgress(0);
         setStatus('failed'); 
         setIsUploading(false); 
-        showMessage('Status check failed: ' + error.message);
+        showMessage('❌ Status check failed: ' + error.message + '. Please try again.'); // More explicit
+        resetTranscriptionProcessUI(); // Immediately reset UI on general error
+        // --- END MODIFIED BLOCK ---
       }
     } finally {
       abortControllerRef.current = null;
     }
-  }, [handleTranscriptionComplete, showMessage, RAILWAY_BACKEND_URL]);
+  }, [handleTranscriptionComplete, showMessage, RAILWAY_BACKEND_URL, resetTranscriptionProcessUI]); // Added resetTranscriptionProcessUI to dependencies
+
   // UPDATED: handleUpload with new backend logic
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
