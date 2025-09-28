@@ -13,7 +13,7 @@ import PrivacyPolicy from './components/PrivacyPolicy';
 
 // UPDATED Configuration - RE-ADDED Render Whisper URL
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
-const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com'; // Your Render Whisper URL
+const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com/'; // Re-added Render Whisper URL with trailing slash
 
 // Copied Notification Component
 const CopiedNotification = ({ isVisible }) => {
@@ -2113,7 +2113,7 @@ return (
                       }}></div>
                     </div>
                     <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
-                      🎯 Processing audio with smart service selection...
+                      🎯 TypeMyworDz in action...
                     </div>
                   </div>
                 )}
