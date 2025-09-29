@@ -998,7 +998,7 @@ function AppContent() {
       }
       // Check if user is eligible for AI features
       if (!isPaidAIUser(userProfile)) {
-          showMessage('❌ AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.');
+          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.');
           return;
       }
 
@@ -1476,7 +1476,7 @@ return (
           <button
             onClick={() => {
               if (!isPaidAIUser(userProfile)) {
-                showMessage('❌ AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.');
+                showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.');
                 return;
               }
               setCurrentView('ai_assistant');
@@ -1495,7 +1495,7 @@ return (
               transition: 'all 0.3s ease'
             }}
           >
-            ✨ AI Assistant
+            ✨ TypeMyworDz Assistant
           </button>
           {isAdmin && (
             <button
@@ -1961,11 +1961,11 @@ return (
               boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
               marginTop: '20px'
             }}>
-                <h2 style={{ color: '#6c5ce7', textAlign: 'center', marginBottom: '30px' }}>Your AI Assistant</h2>
+                <h2 style={{ color: '#6c5ce7', textAlign: 'center', marginBottom: '30px' }}>TypeMyworDz Assistant</h2>
                 {/* Conditional message for non-paid users */}
                 {!isPaidAIUser(userProfile) && (
                   <p style={{ textAlign: 'center', color: '#dc3545', marginBottom: '30px', fontWeight: 'bold' }}>
-                    ❌ AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.
+                    ❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.
                   </p>
                 )}
                 <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
@@ -2499,7 +2499,7 @@ return (
                   <button
                     onClick={() => {
                       if (!isPaidAIUser(userProfile)) {
-                        showMessage('❌ AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.');
+                        showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.');
                         return;
                       }
                       setCurrentView('ai_assistant');
@@ -2516,7 +2516,7 @@ return (
                       opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
                     }}
                   >
-                    ✨ AI Assistant
+                    ✨ TypeMyworDz Assistant
                   </button>
                 </div>
                 
