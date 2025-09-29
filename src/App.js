@@ -820,7 +820,7 @@ return (
         <Dashboard setCurrentView={setCurrentView} />
       </>
     } />
-    <Route path="/admin" element={isAdmin ? <AdminDashboard /> : <Navigate to="/" />} />
+    <Route path="/admin" element={isAdmin ? <AdminDashboard showMessage={showMessage} /> : <Navigate to="/" />} /> {/* ADDED showMessage prop to AdminDashboard */}
     
     <Route path="/" element={
       <div style={{ 
@@ -1586,7 +1586,7 @@ return (
             </div>
           </>
         ) : currentView === 'admin' ? (
-          <AdminDashboard />
+          <AdminDashboard showMessage={showMessage} />
         ) : currentView === 'ai_assistant' ? ( // ADDED: New AI Assistant View
             <div style={{
               flex: 1,
