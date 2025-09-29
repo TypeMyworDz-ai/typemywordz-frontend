@@ -1,3 +1,7 @@
+// ====================================================================================================
+// App.js - Part 1 of 10: Imports and Global Constants
+// ====================================================================================================
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -14,6 +18,9 @@ import PrivacyPolicy from './components/PrivacyPolicy';
 // UPDATED Configuration - RE-ADDED Render Whisper URL
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
 const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com/'; // Re-added Render Whisper URL with trailing slash
+// ====================================================================================================
+// App.js - Part 2 of 10: CopiedNotification and ToastNotification Components
+// ====================================================================================================
 
 // Copied Notification Component
 const CopiedNotification = ({ isVisible }) => {
@@ -129,6 +136,9 @@ const ToastNotification = ({ message, onClose }) => {
     </div>
   );
 };
+// ====================================================================================================
+// App.js - Part 3 of 10: Utility Functions and AppContent State Declarations (Part 1)
+// ====================================================================================================
 
 // Utility functions
 const formatTime = (seconds) => {
@@ -170,7 +180,10 @@ function AppContent() {
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en'); 
   const [speakerLabelsEnabled, setSpeakerLabelsEnabled] = useState(false);
-  
+// ====================================================================================================
+// App.js - Part 4 of 10: AppContent State Declarations (Part 2) and Refs
+// ====================================================================================================
+
   // Payment states
   const [pricingView, setPricingView] = useState('credits');
   const [selectedRegion, setSelectedRegion] = useState('KE'); // Default to Kenya
@@ -179,6 +192,11 @@ function AppContent() {
     'threeday': { amount: 2.00, currency: 'USD' },
     'oneweek': { amount: 3.00, currency: 'USD' }
   });
+
+  // AI Assistant states (NEW)
+  const [userPrompt, setUserPrompt] = useState('');
+  const [aiResponse, setAIResponse] = useState('');
+  const [aiLoading, setAILoading] = useState(false);
   
   // Refs
   const mediaRecorderRef = useRef(null);
@@ -188,7 +206,6 @@ function AppContent() {
   const transcriptionIntervalRef = useRef(null);
   const statusCheckTimeoutRef = useRef(null);
   const isCancelledRef = useRef(false);
-  
   // Auth and user setup
   const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, profileLoading } = useAuth();
   const ADMIN_EMAILS = ['typemywordz@gmail.com']; // 'typemywordz@gmail.com' is an admin for functionality
@@ -201,14 +218,21 @@ function AppContent() {
   // --- Menu State & Functions (React-managed) ---
   const [openSubmenu, setOpenSubmenu] = useState(null); // Tracks which submenu is open
 
-  const handleToggleSubmenu = (submenuId) => {
+  const handleToggleSubmenu = useCallback((submenuId) => {
     setOpenSubmenu(prev => (prev === submenuId ? null : submenuId));
-  };
+  }, []);
 
-  const handleOpenPrivacyPolicy = () => {
-    window.open('/privacy-policy', '_blank');
+  const handleOpenPrivacyPolicy = useCallback(() => {
+    // Navigate directly in React Router for authenticated users, or use window.open for static link
+    navigate('/privacy-policy');
     setOpenSubmenu(null); // Close any open menu
-  };
+  }, [navigate]);
+
+  // NEW: handleOpenPricing for the menu item
+  const handleOpenPricing = useCallback(() => {
+    setCurrentView('pricing');
+    setOpenSubmenu(null); // Close any open menu
+  }, [setCurrentView]);
   // Paystack payment functions (these remain unchanged)
   const initializePaystackPayment = async (email, amount, planName, countryCode) => {
     try {
@@ -297,7 +321,6 @@ function AppContent() {
       handlePaystackCallback();
     }
   }, [currentUser, handlePaystackCallback]);
-
   // Enhanced reset function with better job cancellation (remains unchanged)
   const resetTranscriptionProcessUI = useCallback(() => { 
     console.log('🔄 Resetting transcription UI and cancelling any ongoing processes');
@@ -558,7 +581,6 @@ function AppContent() {
       // No changes here, as processingMessage state was removed
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]);
-
   // Handle successful payment (remains unchanged)
   const handlePaymentSuccess = useCallback(async (planName, subscriptionId) => {
     try {
@@ -948,6 +970,46 @@ function AppContent() {
     setCurrentView('pricing');
   }, [setCurrentView]);
 
+  // NEW: Handle AI Query for User AI Assistant
+  const handleAIQuery = useCallback(async () => {
+      if (!transcription || !userPrompt) {
+          showMessage('Please provide both a transcript and a prompt for the AI Assistant.');
+          return;
+      }
+
+      setAILoading(true);
+      setAIResponse(''); // Clear previous AI response
+
+      try {
+          const response = await fetch(`${RAILWAY_BACKEND_URL}/ai/user-query`, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                  transcript: transcription,
+                  user_prompt: userPrompt,
+                  model: 'claude-3-sonnet-20240229', // You can make this selectable in UI later
+                  max_tokens: 1000 // Adjust as needed
+              }),
+          });
+
+          if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.detail || 'Failed to get AI response from backend.');
+          }
+
+          const data = await response.json();
+          setAIResponse(data.ai_response);
+          showMessage('✨ AI response generated successfully!');
+
+      } catch (error) {
+          console.error('AI Assistant Error:', error);
+          showMessage('❌ AI Assistant failed: ' + error.message);
+      } finally {
+          setAILoading(false);
+      }
+  }, [transcription, userPrompt, showMessage, RAILWAY_BACKEND_URL]); // Dependencies for useCallback
   // Cleanup effect to ensure cancellation works (remains unchanged)
   useEffect(() => {
     return () => {
@@ -961,6 +1023,7 @@ function AppContent() {
       }
     };
   }, []);
+
   // Login screen for non-authenticated users
   if (!currentUser) {
     return (
@@ -995,8 +1058,10 @@ function AppContent() {
           </p>
         </div>
 
-        {/* The Menu (sidebar-menu) will be rendered here directly when not authenticated */}
-        {/* Managed by React state for dropdowns */}
+        {/* The Menu (sidebar-menu) for non-authenticated users - uses global window functions
+            Note: Dropdown functionality (openSubmenu state) is handled within AppContent for authenticated users.
+            For non-authenticated users, these menu items will trigger direct actions or global window functions.
+        */}
         <div 
             className="sidebar-menu" 
             style={{
@@ -1007,58 +1072,31 @@ function AppContent() {
                 display: 'flex', 
                 flexDirection: 'row', 
                 width: 'fit-content', 
-                // Other styles from menu.css will apply via className
             }}
-            onMouseLeave={() => setOpenSubmenu(null)} // Close submenu on mouse leave
+            // onMouseLeave removed as setOpenSubmenu is not in scope here
         >
-            {/* Products Parent Menu */}
-            <div className="menu-item parent-menu" onClick={() => handleToggleSubmenu('productsSubmenu')}>
+            {/* Products Menu Item (non-authenticated) */}
+            <div className="menu-item" onClick={() => window.showSpeechToText()}> {/* Direct action for now */}
                 <span className="menu-icon">📦</span>
                 <span className="menu-text">Products</span>
-                <span className={`dropdown-arrow ${openSubmenu === 'productsSubmenu' ? 'rotated' : ''}`}>▼</span>
-                
-                {/* Products Submenu */}
-                {openSubmenu === 'productsSubmenu' && (
-                    <div className={`submenu ${openSubmenu === 'productsSubmenu' ? 'open' : ''}`} id="productsSubmenu">
-                        <div className="submenu-item" onClick={() => window.showSpeechToText()}>
-                            <span className="submenu-icon">🎙️</span>
-                            <span className="submenu-text">Speech-to-Text</span>
-                        </div>
-                        <div className="submenu-item" onClick={() => window.showComingSoon('TypeMyNote')}>
-                            <span className="submenu-icon">🎤</span>
-                            <span className="submenu-text">TypeMyNote</span>
-                        </div>
-                        <div className="submenu-item" onClick={() => window.showComingSoon('Text-to-Speech')}>
-                            <span className="submenu-icon">🔊</span>
-                            <span className="submenu-text">Text-to-Speech</span>
-                        </div>
-                        <div className="submenu-item" onClick={() => window.showHumanTranscripts()}>
-                            <span className="submenu-icon">👥</span>
-                            <span className="submenu-text">Human Transcripts</span>
-                        </div>
-                    </div>
-                )}
+                {/* No dropdown arrow here as openSubmenu is not in scope */}
             </div>
             
-            {/* Collaborate Parent Menu */}
-            <div className="menu-item parent-menu" onClick={() => handleToggleSubmenu('collaborateSubmenu')}>
-                <span className="menu-icon">🤝</span>
-                <span className="menu-text">Collaborate</span>
-                <span className={`dropdown-arrow ${openSubmenu === 'collaborateSubmenu' ? 'rotated' : ''}`}>▼</span>
-                
-                {/* Collaborate Submenu */}
-                {openSubmenu === 'collaborateSubmenu' && (
-                    <div className={`submenu ${openSubmenu === 'collaborateSubmenu' ? 'open' : ''}`} id="collaborateSubmenu">
-                        <div className="submenu-item" onClick={() => window.openDonate()}>
-                            <span className="submenu-icon">💝</span>
-                            <span className="submenu-text">Donate</span>
-                        </div>
-                    </div>
-                )}
+            {/* NEW: Pricing Menu Item (non-authenticated) */}
+            <div className="menu-item" onClick={() => window.location.href = '/pricing'}> {/* Direct navigation or redirect to login */}
+                <span className="menu-icon">💰</span>
+                <span className="menu-text">Pricing</span>
             </div>
 
-            {/* Privacy Policy Menu Item */}
-            <div className="menu-item" onClick={handleOpenPrivacyPolicy}>
+            {/* MODIFIED: Social Menu Item (non-authenticated) */}
+            <div className="menu-item" onClick={() => window.openDonate()}> {/* Direct action for now */}
+                <span className="menu-icon">🤝</span>
+                <span className="menu-text">Social</span>
+                {/* No dropdown arrow here as openSubmenu is not in scope */}
+            </div>
+
+            {/* Privacy Policy Menu Item (non-authenticated) */}
+            <div className="menu-item" onClick={() => window.openPrivacyPolicy()}>
                 <span className="menu-icon">📋</span>
                 <span className="menu-text">Privacy Policy</span>
             </div>
@@ -1123,7 +1161,7 @@ return (
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        background: (currentView === 'dashboard' || currentView === 'admin' || currentView === 'pricing') ? '#f8f9fa' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+        background: (currentView === 'dashboard' || currentView === 'admin' || currentView === 'pricing' || currentView === 'ai_assistant') ? '#f8f9fa' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
       }}>
         <ToastNotification message={message} onClose={clearMessage} />
         <CopiedNotification isVisible={copiedMessageVisible} />
@@ -1198,15 +1236,21 @@ return (
                 )}
             </div>
             
-            {/* Collaborate Parent Menu */}
-            <div className="menu-item parent-menu" onClick={() => handleToggleSubmenu('collaborateSubmenu')}>
+            {/* NEW: Pricing Menu Item */}
+            <div className="menu-item" onClick={handleOpenPricing}>
+                <span className="menu-icon">💰</span>
+                <span className="menu-text">Pricing</span>
+            </div>
+
+            {/* MODIFIED: Collaborate Parent Menu renamed to Social */}
+            <div className="menu-item parent-menu" onClick={() => handleToggleSubmenu('socialSubmenu')}>
                 <span className="menu-icon">🤝</span>
-                <span className="menu-text">Collaborate</span>
-                <span className={`dropdown-arrow ${openSubmenu === 'collaborateSubmenu' ? 'rotated' : ''}`}>▼</span>
+                <span className="menu-text">Social</span>
+                <span className={`dropdown-arrow ${openSubmenu === 'socialSubmenu' ? 'rotated' : ''}`}>▼</span>
                 
-                {/* Collaborate Submenu */}
-                {openSubmenu === 'collaborateSubmenu' && (
-                    <div className={`submenu ${openSubmenu === 'collaborateSubmenu' ? 'open' : ''}`} id="collaborateSubmenu">
+                {/* MODIFIED: Social Submenu */}
+                {openSubmenu === 'socialSubmenu' && (
+                    <div className={`submenu ${openSubmenu === 'socialSubmenu' ? 'open' : ''}`} id="socialSubmenu">
                         <div className="submenu-item" onClick={() => window.openDonate()}>
                             <span className="submenu-icon">💝</span>
                             <span className="submenu-text">Donate</span>
@@ -1325,8 +1369,7 @@ return (
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
-                transition: 'all 0.3s ease',
-                marginBottom: '15px'
+                transition: 'all 0.3s ease'
               }}
               onMouseEnter={(e) => {
                 e.target.style.backgroundColor = '#218838';
@@ -1365,7 +1408,7 @@ return (
         <div style={{ 
           textAlign: 'center', 
           padding: currentView === 'transcribe' ? '0 20px 40px' : '20px',
-          backgroundColor: (currentView === 'dashboard' || currentView === 'admin' || currentView === 'pricing') ? 'white' : 'transparent'
+          backgroundColor: (currentView === 'dashboard' || currentView === 'admin' || currentView === 'pricing' || currentView === 'ai_assistant') ? 'white' : 'transparent'
         }}>
           <button
             onClick={() => setCurrentView('transcribe')}
@@ -1399,21 +1442,24 @@ return (
           >
             📊 History
           </button>
+          {/* REMOVED: Pricing button from main navigation */}
+          
+          {/* ADDED: AI Assistant Button - Positioned here as it's not in the top-right menu */}
           <button
-            onClick={() => setCurrentView('pricing')}
+            onClick={() => setCurrentView('ai_assistant')}
             style={{
               padding: '12px 25px',
               margin: '0 10px',
-              backgroundColor: currentView === 'pricing' ? '#28a745' : '#6c757d',
+              backgroundColor: currentView === 'ai_assistant' ? '#6c5ce7' : '#6c757d', // A distinct color for AI
               color: 'white',
               border: 'none',
               borderRadius: '25px',
               cursor: 'pointer',
               fontSize: '16px',
-              boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)'
+              boxShadow: '0 4px 15px rgba(108, 92, 231, 0.4)'
             }}
           >
-            💰 Pricing
+            ✨ AI Assistant
           </button>
           {isAdmin && (
             <button
@@ -1868,7 +1914,136 @@ return (
           </>
         ) : currentView === 'admin' ? (
           <AdminDashboard />
-        ) : currentView === 'dashboard' ? (
+        ) : currentView === 'ai_assistant' ? ( // ADDED: New AI Assistant View
+            <div style={{
+              flex: 1,
+              padding: '20px',
+              maxWidth: '900px',
+              margin: '0 auto',
+              backgroundColor: '#f8f9fa',
+              borderRadius: '15px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+              marginTop: '20px'
+            }}>
+                <h2 style={{ color: '#6c5ce7', textAlign: 'center', marginBottom: '30px' }}>Your AI Assistant</h2>
+                <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
+                    Paste your transcript below and tell me what you'd like me to do!
+                    I can summarize, answer questions, create bullet points, and more.
+                </p>
+
+                <div style={{ marginBottom: '20px' }}>
+                    <label htmlFor="transcriptInput" style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
+                        Your Transcript:
+                    </label>
+                    <textarea
+                        id="transcriptInput"
+                        value={transcription} // Using existing transcription state for convenience
+                        onChange={(e) => setTranscription(e.target.value)}
+                        placeholder="Paste your transcription here..."
+                        rows="10"
+                        style={{
+                            width: '100%',
+                            padding: '15px',
+                            borderRadius: '10px',
+                            border: '1px solid #ddd',
+                            fontSize: '1rem',
+                            resize: 'vertical',
+                            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
+                        }}
+                    ></textarea>
+                </div>
+
+                <div style={{ marginBottom: '30px' }}>
+                    <label htmlFor="userPromptInput" style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
+                        Your Request (e.g., "Summarize this", "What are the key points?", "Answer: What is the main topic?"):
+                    </label>
+                    <input
+                        type="text"
+                        id="userPromptInput"
+                        value={userPrompt} // New state variable
+                        onChange={(e) => setUserPrompt(e.target.value)} // New state setter
+                        placeholder="Type your request for the AI here..."
+                        style={{
+                            width: '100%',
+                            padding: '15px',
+                            borderRadius: '10px',
+                            border: '1px solid #ddd',
+                            fontSize: '1rem',
+                            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
+                        }}
+                    />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '30px', flexWrap: 'wrap' }}>
+                    <button
+                        onClick={handleAIQuery}
+                        disabled={!transcription || !userPrompt || aiLoading} // Disable if no transcript or prompt, or loading
+                        style={{
+                            padding: '12px 25px',
+                            backgroundColor: (!transcription || !userPrompt || aiLoading) ? '#6c757d' : '#6c5ce7',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '25px',
+                            cursor: (!transcription || !userPrompt || aiLoading) ? 'not-allowed' : 'pointer',
+                            fontSize: '1rem',
+                            fontWeight: 'bold',
+                            boxShadow: '0 4px 15px rgba(108, 92, 231, 0.4)',
+                            transition: 'all 0.3s ease'
+                        }}
+                    >
+                        {aiLoading ? 'Processing...' : '✨ Get AI Response'}
+                    </button>
+                    <button
+                        onClick={() => { setTranscription(''); setUserPrompt(''); setAIResponse(''); }}
+                        style={{
+                            padding: '12px 25px',
+                            backgroundColor: '#dc3545',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '25px',
+                            cursor: 'pointer',
+                            fontSize: '1rem',
+                            fontWeight: 'bold',
+                            boxShadow: '0 4px 15px rgba(220, 53, 69, 0.4)',
+                            transition: 'all 0.3s ease'
+                        }}
+                    >
+                        Clear All
+                    </button>
+                </div>
+
+                {aiLoading && (
+                    <div style={{ textAlign: 'center', color: '#6c5ce7', marginBottom: '20px' }}>
+                        <div className="progress-bar-indeterminate" style={{
+                            backgroundColor: '#6c5ce7',
+                            height: '20px',
+                            width: '100%',
+                            borderRadius: '10px',
+                            marginBottom: '10px'
+                        }}></div>
+                        Generating AI response...
+                    </div>
+                )}
+
+                {aiResponse && (
+                    <div style={{ marginTop: '30px' }}>
+                        <h3 style={{ color: '#6c5ce7', textAlign: 'center', marginBottom: '20px' }}>AI Response:</h3>
+                        <div style={{
+                            backgroundColor: 'white',
+                            padding: '20px',
+                            borderRadius: '10px',
+                            border: '1px solid #dee2e6',
+                            textAlign: 'left',
+                            lineHeight: '1.6',
+                            whiteSpace: 'pre-wrap', // Preserve line breaks and spaces
+                            boxShadow: '0 5px 15px rgba(0,0,0,0.1)'
+                        }}>
+                            {aiResponse}
+                        </div>
+                    </div>
+                )}
+            </div>
+          ) : currentView === 'dashboard' ? (
           <Dashboard setCurrentView={setCurrentView} />
         ) : (
           <main style={{ 
@@ -2125,7 +2300,7 @@ return (
                 {/* Processing bar and text */}
                 {(status === 'processing' || status === 'uploading') && (
                   <div style={{ marginBottom: '20px' }}>
-                    <div style={{
+                    <div className="progress-bar-container" style={{ // Renamed for clarity
                       backgroundColor: '#e9ecef',
                       height: '30px',
                       borderRadius: '15px',
@@ -2385,3 +2560,6 @@ function App() {
 }
 
 export default App;
+// ====================================================================================================
+// END COMPLETE AND FINAL UPDATED App.js
+// ====================================================================================================

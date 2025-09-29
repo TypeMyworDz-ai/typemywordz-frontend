@@ -1,16 +1,19 @@
 // src/components/AdminDashboard.js
 
-import React, { useState, useEffect, useCallback } from 'react'; // Corrected import
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchUserTranscriptions, deleteTranscription } from '../userService'; 
 import { collection, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../firebase';
+// ADDED: Import AdminAIFormatter
+import AdminAIFormatter from './AdminAIFormatter';
 
-const AdminDashboard = () => {
+const AdminDashboard = ({ showMessage }) => { // Added showMessage prop
   const { currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [transcriptions, setTranscriptions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('overview'); // Added activeTab state
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalRevenue: 0,
@@ -57,6 +60,9 @@ const AdminDashboard = () => {
       
     } catch (error) {
       console.error('Error fetching admin data:', error);
+      if (showMessage) {
+        showMessage('Error loading admin data: ' + error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -74,8 +80,7 @@ const AdminDashboard = () => {
       planDistribution[user.plan] = (planDistribution[user.plan] || 0) + 1;
       
       // Revenue calculation (assuming a simple model for now)
-      // For now, let's set a placeholder price for admin display
-      const planPrice = user.plan === 'business' ? 20 : 0; // Placeholder price for business plan
+      const planPrice = user.plan === 'business' ? 20 : 0;
       totalRevenue += planPrice;
       
       // Recent signups (last 7 days)
@@ -104,8 +109,8 @@ const AdminDashboard = () => {
       ...users.map(user => [
         user.email,
         user.plan,
-        user.monthlyMinutes || 0, // Default to 0 if null/undefined
-        user.totalMinutes || 0, // Default to 0 if null/undefined
+        user.monthlyMinutes || 0,
+        user.totalMinutes || 0,
         formatDate(user.createdAt),
         formatDate(user.lastActive)
       ].join(','))
@@ -146,7 +151,6 @@ const AdminDashboard = () => {
       </div>
     );
   }
-
   return (
     <div style={{ 
       backgroundColor: '#f8f9fa',
@@ -170,177 +174,239 @@ const AdminDashboard = () => {
           </p>
         </header>
 
-        {/* Stats Cards */}
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-          gap: '20px',
-          marginBottom: '30px'
-        }}>
-          <div style={{ 
-            backgroundColor: 'white', 
-            padding: '20px', 
-            borderRadius: '10px',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-            textAlign: 'center'
-          }}>
-            <h3 style={{ color: '#007bff', margin: '0 0 10px 0' }}>👥 Total Users</h3>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
-              {stats.totalUsers}
-            </p>
-          </div>
-
-          <div style={{ 
-            backgroundColor: 'white', 
-            padding: '20px', 
-            borderRadius: '10px',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-            textAlign: 'center'
-          }}>
-            <h3 style={{ color: '#28a745', margin: '0 0 10px 0' }}>💰 Monthly Revenue</h3>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
-              ${stats.totalRevenue.toFixed(2)}
-            </p>
-          </div>
-
-          <div style={{ 
-            backgroundColor: 'white', 
-            padding: '20px', 
-            borderRadius: '10px',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-            textAlign: 'center'
-          }}>
-            <h3 style={{ color: '#6c5ce7', margin: '0 0 10px 0' }}>📄 Total Transcriptions</h3>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
-              {stats.totalTranscriptions}
-            </p>
-          </div>
-
-          <div style={{ 
-            backgroundColor: 'white', 
-            padding: '20px', 
-            borderRadius: '10px',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
-          }}>
-            <h3 style={{ color: '#ffc107', margin: '0 0 10px 0' }}>🆕 New Users (7 days)</h3>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
-              {stats.recentSignups}
-            </p>
-          </div>
-        </div>
-
-        {/* Plan Distribution */}
-        <div style={{ 
-          backgroundColor: 'white', 
-          padding: '20px', 
-          borderRadius: '10px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-          marginBottom: '30px'
-        }}>
-          <h3 style={{ color: '#333', marginBottom: '20px' }}>📊 Plan Distribution</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' }}>
-            {Object.entries(stats.planDistribution).map(([plan, count]) => (
-              <div key={plan} style={{ 
-                padding: '15px', 
-                backgroundColor: '#f8f9fa', 
-                borderRadius: '8px',
-                textAlign: 'center'
-              }}>
-                <h4 style={{ margin: '0 0 5px 0', textTransform: 'capitalize' }}>{plan}</h4>
-                <p style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '0' }}>{count}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Export Button */}
-        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+        {/* Tab Navigation */}
+        <div style={{ marginBottom: '30px', textAlign: 'center' }}>
           <button
-            onClick={exportUserData}
+            onClick={() => setActiveTab('overview')}
             style={{
-              padding: '12px 30px',
-              backgroundColor: '#28a745',
+              padding: '10px 20px',
+              margin: '0 10px',
+              backgroundColor: activeTab === 'overview' ? '#6c5ce7' : '#6c757d',
               color: 'white',
               border: 'none',
-              borderRadius: '8px',
+              borderRadius: '20px',
               cursor: 'pointer',
-              fontSize: '16px',
-              boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+              fontSize: '1rem'
             }}
           >
-            📥 Export User Data (CSV)
+            📊 Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('users')}
+            style={{
+              padding: '10px 20px',
+              margin: '0 10px',
+              backgroundColor: activeTab === 'users' ? '#6c5ce7' : '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '20px',
+              cursor: 'pointer',
+              fontSize: '1rem'
+            }}
+          >
+            👥 Users
+          </button>
+          <button
+            onClick={() => setActiveTab('aiFormatter')}
+            style={{
+              padding: '10px 20px',
+              margin: '0 10px',
+              backgroundColor: activeTab === 'aiFormatter' ? '#6c5ce7' : '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '20px',
+              cursor: 'pointer',
+              fontSize: '1rem'
+            }}
+          >
+            🤖 AI Formatter
           </button>
         </div>
 
-        {/* Users Table */}
-        <div style={{ 
-          backgroundColor: 'white', 
-          padding: '20px', 
-          borderRadius: '10px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-          overflowX: 'auto'
-        }}>
-          <h3 style={{ color: '#333', marginBottom: '20px' }}>👥 All Users</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Email</th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Plan</th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Usage</th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Total Minutes</th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Joined</th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Last Active</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((user, index) => (
-                <tr key={user.id} style={{ 
-                  backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa'
-                }}>
-                  <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
-                    {user.email}
-                    {ADMIN_EMAILS.includes(user.email) && (
-                      <span style={{ 
-                        marginLeft: '5px', 
-                        fontSize: '12px', 
-                        backgroundColor: '#ffc107', 
-                        color: 'black',
-                        padding: '2px 6px', 
-                        borderRadius: '3px' 
-                      }}>
-                        ADMIN
-                      </span>
-                    )}
-                  </td>
-                  <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
-                    <span style={{ 
-                      textTransform: 'capitalize',
-                      backgroundColor: user.plan === 'free' ? '#6c757d' : '#007bff',
-                      color: 'white',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      fontSize: '12px'
-                    }}>
-                      {user.plan}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
-                    {user.monthlyMinutes || 0} / {user.plan === 'business' ? 'Unlimited' : 30}
-                  </td>
-                  <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
-                    {user.totalMinutes || 0}
-                  </td>
-                  <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
-                    {formatDate(user.createdAt)}
-                  </td>
-                  <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
-                    {formatDate(user.lastActive)}
-                  </td>
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <>
+            {/* Stats Cards */}
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+              gap: '20px',
+              marginBottom: '30px'
+            }}>
+              <div style={{ 
+                backgroundColor: 'white', 
+                padding: '20px', 
+                borderRadius: '10px',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+                textAlign: 'center'
+              }}>
+                <h3 style={{ color: '#007bff', margin: '0 0 10px 0' }}>👥 Total Users</h3>
+                <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
+                  {stats.totalUsers}
+                </p>
+              </div>
+
+              <div style={{ 
+                backgroundColor: 'white', 
+                padding: '20px', 
+                borderRadius: '10px',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+                textAlign: 'center'
+              }}>
+                <h3 style={{ color: '#28a745', margin: '0 0 10px 0' }}>💰 Monthly Revenue</h3>
+                <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
+                  USD {stats.totalRevenue.toFixed(2)}
+                </p>
+              </div>
+
+              <div style={{ 
+                backgroundColor: 'white', 
+                padding: '20px', 
+                borderRadius: '10px',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+                textAlign: 'center'
+              }}>
+                <h3 style={{ color: '#6c5ce7', margin: '0 0 10px 0' }}>📄 Total Transcriptions</h3>
+                <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
+                  {stats.totalTranscriptions}
+                </p>
+              </div>
+
+              <div style={{ 
+                backgroundColor: 'white', 
+                padding: '20px', 
+                borderRadius: '10px',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+                textAlign: 'center'
+              }}>
+                <h3 style={{ color: '#ffc107', margin: '0 0 10px 0' }}>🆕 New Users (7 days)</h3>
+                <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
+                  {stats.recentSignups}
+                </p>
+              </div>
+            </div>
+
+            {/* Plan Distribution */}
+            <div style={{ 
+              backgroundColor: 'white', 
+              padding: '20px', 
+              borderRadius: '10px',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+              marginBottom: '30px'
+            }}>
+              <h3 style={{ color: '#333', marginBottom: '20px' }}>📊 Plan Distribution</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' }}>
+                {Object.entries(stats.planDistribution).map(([plan, count]) => (
+                  <div key={plan} style={{ 
+                    padding: '15px', 
+                    backgroundColor: '#f8f9fa', 
+                    borderRadius: '8px',
+                    textAlign: 'center'
+                  }}>
+                    <h4 style={{ margin: '0 0 5px 0', textTransform: 'capitalize' }}>{plan}</h4>
+                    <p style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '0' }}>{count}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Export Button */}
+            <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+              <button
+                onClick={exportUserData}
+                style={{
+                  padding: '12px 30px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                }}
+              >
+                📥 Export User Data (CSV)
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Users Tab */}
+        {activeTab === 'users' && (
+          <div style={{ 
+            backgroundColor: 'white', 
+            padding: '20px', 
+            borderRadius: '10px',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+            overflowX: 'auto'
+          }}>
+            <h3 style={{ color: '#333', marginBottom: '20px' }}>👥 All Users</h3>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f8f9fa' }}>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Email</th>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Plan</th>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Usage</th>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Total Minutes</th>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Joined</th>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Last Active</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {users.map((user, index) => (
+                  <tr key={user.id} style={{ 
+                    backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa'
+                  }}>
+                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
+                      {user.email}
+                      {ADMIN_EMAILS.includes(user.email) && (
+                        <span style={{ 
+                          marginLeft: '5px', 
+                          fontSize: '12px', 
+                          backgroundColor: '#ffc107', 
+                          color: 'black',
+                          padding: '2px 6px', 
+                          borderRadius: '3px' 
+                        }}>
+                          ADMIN
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
+                      <span style={{ 
+                        textTransform: 'capitalize',
+                        backgroundColor: user.plan === 'free' ? '#6c757d' : '#007bff',
+                        color: 'white',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        fontSize: '12px'
+                      }}>
+                        {user.plan}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
+                      {user.monthlyMinutes || 0} / {user.plan === 'business' ? 'Unlimited' : 30}
+                    </td>
+                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
+                      {user.totalMinutes || 0}
+                    </td>
+                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
+                      {formatDate(user.createdAt)}
+                    </td>
+                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
+                      {formatDate(user.lastActive)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* AI Formatter Tab */}
+        {activeTab === 'aiFormatter' && (
+          <AdminAIFormatter showMessage={showMessage} />
+        )}
       </div>
     </div>
   );
