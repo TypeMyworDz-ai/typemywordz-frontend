@@ -22,7 +22,8 @@ const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://
 // NEW: Helper function to determine if a user has access to AI features
 const isPaidAIUser = (userProfile) => {
   if (!userProfile || !userProfile.plan) return false;
-  const paidPlansForAI = ['Three-Day Plan', 'One-Week Plan', 'Pro']; // Define eligible plans
+  // UPDATED: Only 'Three-Day Plan' and 'Pro' plans are eligible for AI features
+  const paidPlansForAI = ['Three-Day Plan', 'Pro']; 
   return paidPlansForAI.includes(userProfile.plan);
 };
 
@@ -145,7 +146,7 @@ const ToastNotification = ({ message, onClose }) => {
   );
 };
 // ===============================================================================
-// App.js - Part 3 of 10: Utility Functions and AppContent State Declarations (Part 1) (UPDATED)
+// App.js - Part 3 of 10: Utility Functions and AppContent State Declarations (Part 1) (UNCHANGED)
 // ===============================================================================
 
 // Utility functions
@@ -188,10 +189,10 @@ function AppContent() {
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en'); 
   const [speakerLabelsEnabled, setSpeakerLabelsEnabled] = useState(false);
-  // NEW: State to store the latest completed transcription for AI Assistant
+  // State to store the latest completed transcription for AI Assistant
   const [latestTranscription, setLatestTranscription] = useState(''); 
 // ===============================================================================
-// App.js - Part 4 of 10: AppContent State Declarations (Part 2) and Refs (UPDATED)
+// App.js - Part 4 of 10: AppContent State Declarations (Part 2) and Refs (UNCHANGED)
 // ===============================================================================
 
   // Payment states
@@ -861,16 +862,16 @@ function AppContent() {
       setIsUploading(false);
     }
 
-  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, checkJobStatus]); // Removed canUserTranscribe from dependencies, as it's a direct import now
+  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, checkJobStatus]);
 // ===============================================================================
 // App.js - Part 8 of 10: Clipboard, Download, Logout, Profile, AI Query Handlers (UPDATED)
 // ===============================================================================
 
   // Copy to clipboard (existing, now triggers NEW CopiedNotification)
   const copyToClipboard = useCallback(() => { 
-    // NEW: Check for AI paid user eligibility for this feature
+    // UPDATED: Check for AI paid user eligibility for this feature
     if (!isPaidAIUser(userProfile)) {
-      showMessage('Copy to clipboard is only available for paid AI users (3-Day, 1-Week, Pro plans). Please upgrade to access this feature.');
+      showMessage('Copy to clipboard is only available for paid AI users (Three-Day, Pro plans). Please upgrade to access this feature.');
       return;
     }
     
@@ -885,9 +886,9 @@ function AppContent() {
 
   // UPDATED: Download as Word - now calls backend for formatted DOCX
   const downloadAsWord = useCallback(async () => { 
-    // NEW: Check for AI paid user eligibility for this feature
+    // UPDATED: Check for AI paid user eligibility for this feature
     if (!isPaidAIUser(userProfile)) {
-      showMessage('MS Word download is only available for paid AI users (3-Day, 1-Week, Pro plans). Please upgrade to access this feature.');
+      showMessage('MS Word download is only available for paid AI users (Three-Day, Pro plans). Please upgrade to access this feature.');
       return;
     }
     
@@ -1003,7 +1004,7 @@ function AppContent() {
   const handleAIQuery = useCallback(async () => {
       // NEW: Check if user is eligible for AI features
       if (!isPaidAIUser(userProfile)) {
-          showMessage('❌ AI Assistant features are only available for paid AI users (3-Day, 1-Week, Pro plans). Please upgrade your plan.');
+          showMessage('❌ AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.');
           return;
       }
 
@@ -1485,11 +1486,11 @@ return (
             📊 History
           </button>
           
-          {/* ADDED: AI Assistant Button - Positioned here as it's not in the top-right menu */}
+          {/* ADDED: AI Assistant Button in Main Navigation */}
           <button
             onClick={() => {
               if (!isPaidAIUser(userProfile)) {
-                showMessage('❌ AI Assistant features are only available for paid AI users (3-Day, 1-Week, Pro plans). Please upgrade your plan.');
+                showMessage('❌ AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.');
                 return;
               }
               setCurrentView('ai_assistant');
@@ -1775,7 +1776,7 @@ return (
                       <div style={{
                         backgroundColor: 'white',
                         padding: '30px 25px',
-                        borderRadius: '15px',
+                        borderRadius: '10px',
                         boxShadow: '0 8px 25px rgba(0,0,0,0.1)',
                         minWidth: '280px',
                         maxWidth: '320px',
@@ -1856,11 +1857,7 @@ return (
                         backgroundColor: 'white',
                         padding: '40px 30px',
                         borderRadius: '20px',
-                        boxShadow: '0 15px 40px rgba(40, 167, 69, 0.2)',
-                        maxWidth: '350px',
-                        width: '100%',
-                        border: '3px solid #28a745',
-                        transform: 'scale(1.05)'
+                        boxShadow: '0 15px 40px rgba(40, 167, 69, 0.2)','transform': 'scale(1.05)'
                       }}>
                         <div>
                           <div style={{
@@ -1978,7 +1975,7 @@ return (
                 {/* Conditional message for non-paid users */}
                 {!isPaidAIUser(userProfile) && (
                   <p style={{ textAlign: 'center', color: '#dc3545', marginBottom: '30px', fontWeight: 'bold' }}>
-                    ❌ AI Assistant features are only available for paid AI users (3-Day, 1-Week, Pro plans). Please upgrade your plan.
+                    ❌ AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.
                   </p>
                 )}
                 <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
@@ -2085,7 +2082,8 @@ return (
 
                 {aiResponse && (
                     <div style={{ marginTop: '30px' }}>
-                        <h3 style={{ color: '#6c5ce7', textAlign: 'center', marginBottom: '20px' }}>AI Response:</h3>
+                        <h3 style={{ color: '#6c5ce7', textAlign: 'center', marginBottom: '20px' }}
+                        >AI Response:</h3>
                         <div style={{
                             backgroundColor: 'white',
                             padding: '20px',
@@ -2510,6 +2508,30 @@ return (
                   >
                     📝 TXT
                   </button>
+
+                  {/* NEW: AI Assistant button next to TXT */}
+                  <button
+                    onClick={() => {
+                      if (!isPaidAIUser(userProfile)) {
+                        showMessage('❌ AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.');
+                        return;
+                      }
+                      setCurrentView('ai_assistant');
+                    }}
+                    disabled={!isPaidAIUser(userProfile)} // Disable if not a paid AI user
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#6c5ce7', // Grey if disabled
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
+                      fontSize: '14px',
+                      opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
+                    }}
+                  >
+                    ✨ AI Assistant
+                  </button>
                 </div>
                 
                 {!isPaidAIUser(userProfile) && (
@@ -2522,7 +2544,7 @@ return (
                     textAlign: 'center',
                     fontSize: '14px'
                   }}>
-                    🔒 Copy to clipboard and MS Word downloads are available for paid AI users (3-Day, 1-Week, Pro plans).{' '}
+                    🔒 Copy to clipboard, MS Word downloads, and AI Assistant are available for paid AI users (Three-Day, Pro plans).{' '}
                     <button 
                       onClick={() => setCurrentView('pricing')}
                       style={{
