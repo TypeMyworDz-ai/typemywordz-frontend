@@ -1,6 +1,6 @@
-// ====================================================================================================
-// App.js - Part 1 of 10: Imports and Global Constants
-// ====================================================================================================
+// ===============================================================================
+// App.js - Part 1 of 10: Imports, Global Constants, and isPaidAIUser Helper (UPDATED)
+// ===============================================================================
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
@@ -18,9 +18,17 @@ import PrivacyPolicy from './components/PrivacyPolicy';
 // UPDATED Configuration - RE-ADDED Render Whisper URL
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
 const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com/'; // Re-added Render Whisper URL with trailing slash
-// ====================================================================================================
-// App.js - Part 2 of 10: CopiedNotification and ToastNotification Components
-// ====================================================================================================
+
+// NEW: Helper function to determine if a user has access to AI features
+const isPaidAIUser = (userProfile) => {
+  if (!userProfile || !userProfile.plan) return false;
+  const paidPlansForAI = ['Three-Day Plan', 'One-Week Plan', 'Pro']; // Define eligible plans
+  return paidPlansForAI.includes(userProfile.plan);
+};
+
+// ===============================================================================
+// App.js - Part 2 of 10: CopiedNotification and ToastNotification Components (UNCHANGED)
+// ===============================================================================
 
 // Copied Notification Component
 const CopiedNotification = ({ isVisible }) => {
@@ -136,9 +144,9 @@ const ToastNotification = ({ message, onClose }) => {
     </div>
   );
 };
-// ====================================================================================================
-// App.js - Part 3 of 10: Utility Functions and AppContent State Declarations (Part 1)
-// ====================================================================================================
+// ===============================================================================
+// App.js - Part 3 of 10: Utility Functions and AppContent State Declarations (Part 1) (UPDATED)
+// ===============================================================================
 
 // Utility functions
 const formatTime = (seconds) => {
@@ -180,9 +188,11 @@ function AppContent() {
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en'); 
   const [speakerLabelsEnabled, setSpeakerLabelsEnabled] = useState(false);
-// ====================================================================================================
-// App.js - Part 4 of 10: AppContent State Declarations (Part 2) and Refs
-// ====================================================================================================
+  // NEW: State to store the latest completed transcription for AI Assistant
+  const [latestTranscription, setLatestTranscription] = useState(''); 
+// ===============================================================================
+// App.js - Part 4 of 10: AppContent State Declarations (Part 2) and Refs (UPDATED)
+// ===============================================================================
 
   // Payment states
   const [pricingView, setPricingView] = useState('credits');
@@ -233,6 +243,10 @@ function AppContent() {
     setCurrentView('pricing');
     setOpenSubmenu(null); // Close any open menu
   }, [setCurrentView]);
+// ===============================================================================
+// App.js - Part 5 of 10: Paystack and Reset Functions (UNCHANGED)
+// ===============================================================================
+
   // Paystack payment functions (these remain unchanged)
   const initializePaystackPayment = async (email, amount, planName, countryCode) => {
     try {
@@ -364,6 +378,9 @@ function AppContent() {
       console.log('✅ Reset complete, ready for new operations');
     }, 500);
   }, []);
+// ===============================================================================
+// App.js - Part 6 of 10: Transcription Handlers and File Management (UPDATED)
+// ===============================================================================
 
   useEffect(() => {
     if (userProfile) {
@@ -540,7 +557,7 @@ function AppContent() {
     console.log('✅ Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage, RAILWAY_BACKEND_URL]);
 
-  // handleTranscriptionComplete with debugging logs (updated success message)
+  // UPDATED: handleTranscriptionComplete with debugging logs and saving latest transcription
   const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
     try {
       const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
@@ -573,6 +590,9 @@ function AppContent() {
 
       // UPDATED: Success message with favicon and brand name
       showMessage('✅ <img src="/favicon-32x32.png" alt="TypeMyworDz Logo" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 5px;"> TypeMyworDz, Done!');
+      
+      // NEW: Save the latest transcription for the AI Assistant
+      setLatestTranscription(transcriptionText);
 
     } catch (error) {
       console.error('Error updating usage or saving transcription:', error);
@@ -596,6 +616,9 @@ function AppContent() {
       showMessage('Payment successful but there was an error updating your account. Please contact support.');
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
+// ===============================================================================
+// App.js - Part 7 of 10: Job Status Check and Upload Logic (UPDATED)
+// ===============================================================================
 
   const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => {
     if (isCancelledRef.current) {
@@ -740,7 +763,7 @@ function AppContent() {
     }
   }, [handleTranscriptionComplete, showMessage, RAILWAY_BACKEND_URL, resetTranscriptionProcessUI]); // Added resetTranscriptionProcessUI to dependencies
 
-  // UPDATED: handleUpload with new backend logic
+  // UPDATED: handleUpload with new backend logic for model selection
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       showMessage('Please select a file first');
@@ -753,7 +776,7 @@ function AppContent() {
     }
 
     const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
-    const estimatedDurationMinutes = Math.ceil(estimatedDuration / 60);
+    // const estimatedDurationMinutes = Math.ceil(estimatedDuration / 60); // Not directly used in this logic block anymore
 
     // Use the canUserTranscribe function with its new return format
     const transcribeCheck = await canUserTranscribe(currentUser.uid, estimatedDuration);
@@ -797,7 +820,8 @@ function AppContent() {
     formData.append('file', selectedFile);
     formData.append('language_code', selectedLanguage);
     formData.append('speaker_labels_enabled', speakerLabelsEnabled);
-    formData.append('user_plan', userProfile?.plan || 'free'); // Send user plan
+    // NEW: Always send user plan to backend for transcription logic
+    formData.append('user_plan', userProfile?.plan || 'free'); 
 
     try {
       // Call unified transcription endpoint
@@ -837,12 +861,16 @@ function AppContent() {
       setIsUploading(false);
     }
 
-  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, checkJobStatus, canUserTranscribe]);
+  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, checkJobStatus]); // Removed canUserTranscribe from dependencies, as it's a direct import now
+// ===============================================================================
+// App.js - Part 8 of 10: Clipboard, Download, Logout, Profile, AI Query Handlers (UPDATED)
+// ===============================================================================
 
   // Copy to clipboard (existing, now triggers NEW CopiedNotification)
   const copyToClipboard = useCallback(() => { 
-    if (userProfile?.plan === 'free') {
-      showMessage('Copy to clipboard is only available for paid users. Please upgrade to access this feature.');
+    // NEW: Check for AI paid user eligibility for this feature
+    if (!isPaidAIUser(userProfile)) {
+      showMessage('Copy to clipboard is only available for paid AI users (3-Day, 1-Week, Pro plans). Please upgrade to access this feature.');
       return;
     }
     
@@ -855,10 +883,11 @@ function AppContent() {
     setTimeout(() => setCopiedMessageVisible(false), 2000); // Hide after 2 seconds
   }, [transcription, userProfile, showMessage]);
 
-  // UPDATED: Download as Word - now calls backend for formatted DOCX (remains unchanged)
+  // UPDATED: Download as Word - now calls backend for formatted DOCX
   const downloadAsWord = useCallback(async () => { 
-    if (userProfile?.plan === 'free') {
-      showMessage('MS Word download is only available for paid users. Please upgrade to access this feature.');
+    // NEW: Check for AI paid user eligibility for this feature
+    if (!isPaidAIUser(userProfile)) {
+      showMessage('MS Word download is only available for paid AI users (3-Day, 1-Week, Pro plans). Please upgrade to access this feature.');
       return;
     }
     
@@ -970,9 +999,15 @@ function AppContent() {
     setCurrentView('pricing');
   }, [setCurrentView]);
 
-  // NEW: Handle AI Query for User AI Assistant
+  // UPDATED: Handle AI Query for User AI Assistant with plan check
   const handleAIQuery = useCallback(async () => {
-      if (!transcription || !userPrompt) {
+      // NEW: Check if user is eligible for AI features
+      if (!isPaidAIUser(userProfile)) {
+          showMessage('❌ AI Assistant features are only available for paid AI users (3-Day, 1-Week, Pro plans). Please upgrade your plan.');
+          return;
+      }
+
+      if (!latestTranscription || !userPrompt) { // Use latestTranscription
           showMessage('Please provide both a transcript and a prompt for the AI Assistant.');
           return;
       }
@@ -987,9 +1022,9 @@ function AppContent() {
                   'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                  transcript: transcription,
+                  transcript: latestTranscription, // Use latestTranscription
                   user_prompt: userPrompt,
-                  model: 'claude-3-haiku-20240307', // You can make this selectable in UI later
+                  model: 'claude-3-haiku-20240307', // Using the working model from your test
                   max_tokens: 1000 // Adjust as needed
               }),
           });
@@ -1009,7 +1044,7 @@ function AppContent() {
       } finally {
           setAILoading(false);
       }
-  }, [transcription, userPrompt, showMessage, RAILWAY_BACKEND_URL]); // Dependencies for useCallback
+  }, [latestTranscription, userPrompt, userProfile, showMessage, RAILWAY_BACKEND_URL]); // Dependencies for useCallback
   // Cleanup effect to ensure cancellation works (remains unchanged)
   useEffect(() => {
     return () => {
@@ -1023,6 +1058,9 @@ function AppContent() {
       }
     };
   }, []);
+// ===============================================================================
+// App.js - Part 9 of 10: JSX Structure (Login Screen) (UNCHANGED)
+// ===============================================================================
 
   // Login screen for non-authenticated users
   if (!currentUser) {
@@ -1143,6 +1181,10 @@ function AppContent() {
       </div>
     );
   }
+// ===============================================================================
+// App.js - Part 10 of 10: Main Authenticated JSX Structure (Final Part) (UPDATED)
+// ===============================================================================
+
 return (
   <Routes>
     <Route path="/transcription/:id" element={<TranscriptionDetail />} />
@@ -1442,21 +1484,28 @@ return (
           >
             📊 History
           </button>
-          {/* REMOVED: Pricing button from main navigation */}
           
           {/* ADDED: AI Assistant Button - Positioned here as it's not in the top-right menu */}
           <button
-            onClick={() => setCurrentView('ai_assistant')}
+            onClick={() => {
+              if (!isPaidAIUser(userProfile)) {
+                showMessage('❌ AI Assistant features are only available for paid AI users (3-Day, 1-Week, Pro plans). Please upgrade your plan.');
+                return;
+              }
+              setCurrentView('ai_assistant');
+            }}
+            disabled={!isPaidAIUser(userProfile)} // Disable if not a paid AI user
             style={{
               padding: '12px 25px',
               margin: '0 10px',
-              backgroundColor: currentView === 'ai_assistant' ? '#6c5ce7' : '#6c757d', // A distinct color for AI
+              backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : (currentView === 'ai_assistant' ? '#6c5ce7' : '#6c757d'), // Distinct color for AI, grey if disabled
               color: 'white',
               border: 'none',
               borderRadius: '25px',
-              cursor: 'pointer',
+              cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
               fontSize: '16px',
-              boxShadow: '0 4px 15px rgba(108, 92, 231, 0.4)'
+              boxShadow: (!isPaidAIUser(userProfile)) ? 'none' : '0 4px 15px rgba(108, 92, 231, 0.4)',
+              transition: 'all 0.3s ease'
             }}
           >
             ✨ AI Assistant
@@ -1926,6 +1975,12 @@ return (
               marginTop: '20px'
             }}>
                 <h2 style={{ color: '#6c5ce7', textAlign: 'center', marginBottom: '30px' }}>Your AI Assistant</h2>
+                {/* Conditional message for non-paid users */}
+                {!isPaidAIUser(userProfile) && (
+                  <p style={{ textAlign: 'center', color: '#dc3545', marginBottom: '30px', fontWeight: 'bold' }}>
+                    ❌ AI Assistant features are only available for paid AI users (3-Day, 1-Week, Pro plans). Please upgrade your plan.
+                  </p>
+                )}
                 <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
                     Paste your transcript below and tell me what you'd like me to do!
                     I can summarize, answer questions, create bullet points, and more.
@@ -1937,8 +1992,8 @@ return (
                     </label>
                     <textarea
                         id="transcriptInput"
-                        value={transcription} // Using existing transcription state for convenience
-                        onChange={(e) => setTranscription(e.target.value)}
+                        value={latestTranscription} // FIXED: Use latestTranscription by default
+                        onChange={(e) => setLatestTranscription(e.target.value)} // Allow editing
                         placeholder="Paste your transcription here..."
                         rows="10"
                         style={{
@@ -1950,6 +2005,7 @@ return (
                             resize: 'vertical',
                             boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
                         }}
+                        disabled={!isPaidAIUser(userProfile)} // Disable if not paid
                     ></textarea>
                 </div>
 
@@ -1960,8 +2016,8 @@ return (
                     <input
                         type="text"
                         id="userPromptInput"
-                        value={userPrompt} // New state variable
-                        onChange={(e) => setUserPrompt(e.target.value)} // New state setter
+                        value={userPrompt}
+                        onChange={(e) => setUserPrompt(e.target.value)}
                         placeholder="Type your request for the AI here..."
                         style={{
                             width: '100%',
@@ -1971,40 +2027,42 @@ return (
                             fontSize: '1rem',
                             boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
                         }}
+                        disabled={!isPaidAIUser(userProfile)} // Disable if not paid
                     />
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '30px', flexWrap: 'wrap' }}>
                     <button
                         onClick={handleAIQuery}
-                        disabled={!transcription || !userPrompt || aiLoading} // Disable if no transcript or prompt, or loading
+                        disabled={!isPaidAIUser(userProfile) || !latestTranscription || !userPrompt || aiLoading} // Disable if not paid
                         style={{
                             padding: '12px 25px',
-                            backgroundColor: (!transcription || !userPrompt || aiLoading) ? '#6c757d' : '#6c5ce7',
+                            backgroundColor: (!isPaidAIUser(userProfile) || !latestTranscription || !userPrompt || aiLoading) ? '#a0a0a0' : '#6c5ce7', // Grey if disabled
                             color: 'white',
                             border: 'none',
                             borderRadius: '25px',
-                            cursor: (!transcription || !userPrompt || aiLoading) ? 'not-allowed' : 'pointer',
+                            cursor: (!isPaidAIUser(userProfile) || !latestTranscription || !userPrompt || aiLoading) ? 'not-allowed' : 'pointer',
                             fontSize: '1rem',
                             fontWeight: 'bold',
-                            boxShadow: '0 4px 15px rgba(108, 92, 231, 0.4)',
+                            boxShadow: (!isPaidAIUser(userProfile)) ? 'none' : '0 4px 15px rgba(108, 92, 231, 0.4)',
                             transition: 'all 0.3s ease'
                         }}
                     >
                         {aiLoading ? 'Processing...' : '✨ Get AI Response'}
                     </button>
                     <button
-                        onClick={() => { setTranscription(''); setUserPrompt(''); setAIResponse(''); }}
+                        onClick={() => { setLatestTranscription(''); setUserPrompt(''); setAIResponse(''); }} // Clear latest transcription
+                        disabled={!isPaidAIUser(userProfile)} // Disable if not paid
                         style={{
                             padding: '12px 25px',
-                            backgroundColor: '#dc3545',
+                            backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#dc3545', // Grey if disabled
                             color: 'white',
                             border: 'none',
                             borderRadius: '25px',
-                            cursor: 'pointer',
+                            cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
                             fontSize: '1rem',
                             fontWeight: 'bold',
-                            boxShadow: '0 4px 15px rgba(220, 53, 69, 0.4)',
+                            boxShadow: (!isPaidAIUser(userProfile)) ? 'none' : '0 4px 15px rgba(220, 53, 69, 0.4)',
                             transition: 'all 0.3s ease'
                         }}
                     >
@@ -2052,8 +2110,6 @@ return (
             maxWidth: '800px', 
             margin: '0 auto'
           }}>
-            {/* Tagline for authenticated users, removed as per user's request */}
-
             {userProfile && userProfile.plan === 'free' && (
               <div style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.95)', 
@@ -2408,34 +2464,36 @@ return (
                 }}>
                   <button
                     onClick={copyToClipboard}
+                    disabled={!isPaidAIUser(userProfile)} // Disable if not paid AI user
                     style={{
                       padding: '10px 20px',
-                      backgroundColor: userProfile?.plan === 'free' ? '#6c757d' : '#27ae60',
+                      backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#27ae60', // Grey if disabled
                       color: 'white',
                       border: 'none',
                       borderRadius: '8px',
-                      cursor: userProfile?.plan === 'free' ? 'not-allowed' : 'pointer',
+                      cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
                       fontSize: '14px',
-                      opacity: userProfile?.plan === 'free' ? 0.6 : 1
+                      opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
                     }}
                   >
-                    {userProfile?.plan === 'free' ? '🔒 Copy (Pro Only)' : '📋 Copy to Clipboard'}
+                    {!isPaidAIUser(userProfile) ? '🔒 Copy (Pro AI Only)' : '📋 Copy to Clipboard'}
                   </button>
                   
                   <button
                     onClick={downloadAsWord}
+                    disabled={!isPaidAIUser(userProfile)} // Disable if not paid AI user
                     style={{
                       padding: '10px 20px',
-                      backgroundColor: userProfile?.plan === 'free' ? '#6c757d' : '#007bff',
+                      backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#007bff', // Grey if disabled
                       color: 'white',
                       border: 'none',
                       borderRadius: '8px',
-                      cursor: userProfile?.plan === 'free' ? 'not-allowed' : 'pointer',
+                      cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
                       fontSize: '14px',
-                      opacity: userProfile?.plan === 'free' ? 0.6 : 1
+                      opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
                     }}
                   >
-                    {userProfile?.plan === 'free' ? '🔒 Word (Pro Only)' : '📄 MS Word'}
+                    {!isPaidAIUser(userProfile) ? '🔒 Word (Pro AI Only)' : '📄 MS Word'}
                   </button>
                   
                   <button
@@ -2454,7 +2512,7 @@ return (
                   </button>
                 </div>
                 
-                {userProfile?.plan === 'free' && (
+                {!isPaidAIUser(userProfile) && (
                   <div style={{
                     backgroundColor: 'rgba(255, 243, 205, 0.95)',
                     color: '#856404',
@@ -2464,7 +2522,7 @@ return (
                     textAlign: 'center',
                     fontSize: '14px'
                   }}>
-                    🔒 Copy to clipboard and MS Word downloads are available for Pro users.{' '}
+                    🔒 Copy to clipboard and MS Word downloads are available for paid AI users (3-Day, 1-Week, Pro plans).{' '}
                     <button 
                       onClick={() => setCurrentView('pricing')}
                       style={{
@@ -2560,6 +2618,3 @@ function App() {
 }
 
 export default App;
-// ====================================================================================================
-// END COMPLETE AND FINAL UPDATED App.js
-// ====================================================================================================
