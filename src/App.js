@@ -1495,7 +1495,7 @@ return (
               transition: 'all 0.3s ease'
             }}
           >
-            ✨ TypeMyworDz Assistant
+            ✨ Assistant
           </button>
           {isAdmin && (
             <button
