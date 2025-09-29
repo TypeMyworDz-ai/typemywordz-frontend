@@ -1,5 +1,5 @@
 // ===============================================================================
-// App.js - Part 1 of 10: Imports, Global Constants, and isPaidAIUser Helper (UPDATED)
+// App.js - Part 1 of 10: Imports, Global Constants, and isPaidAIUser Helper (UNCHANGED)
 // ===============================================================================
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -380,7 +380,7 @@ function AppContent() {
     }, 500);
   }, []);
 // ===============================================================================
-// App.js - Part 6 of 10: Transcription Handlers and File Management (UPDATED)
+// App.js - Part 6 of 10: Transcription Handlers and File Management (UPDATED TO FIX 422 ERROR)
 // ===============================================================================
 
   useEffect(() => {
@@ -617,391 +617,13 @@ function AppContent() {
       showMessage('Payment successful but there was an error updating your account. Please contact support.');
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
-// ===============================================================================
-// App.js - Part 7 of 10: Job Status Check and Upload Logic (UPDATED)
-// ===============================================================================
 
-  const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => {
-    if (isCancelledRef.current) {
-      console.log('🛑 Status check aborted - job was cancelled');
-      clearInterval(transcriptionInterval);
-      return;
-    }
-    
-    let timeoutId;
-    
-    try {
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-      
-      timeoutId = setTimeout(() => {
-        console.log('⏰ Status check timeout - aborting');
-        controller.abort();
-      }, 10000); 
-      
-      const statusUrl = `${RAILWAY_BACKEND_URL}/status/${jobIdToPass}`;
-      
-      const response = await fetch(statusUrl, {
-        signal: controller.signal 
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (isCancelledRef.current) {
-        console.log('🛑 Job cancelled during fetch - stopping immediately');
-        clearInterval(transcriptionInterval);
-        return;
-      }
-      
-      const result = await response.json();
-      
-      if (isCancelledRef.current) {
-        console.log('🛑 Job cancelled after response - stopping immediately');
-        clearInterval(transcriptionInterval);
-        return;
-      }
-      
-      if (response.ok && result.status === 'completed') {
-        if (isCancelledRef.current) {
-          console.log('🛑 Job cancelled - ignoring completion');
-          clearInterval(transcriptionInterval);
-          return;
-        }
-        
-        setTranscription(result.transcription);
-        clearInterval(transcriptionInterval); 
-        setTranscriptionProgress(100);
-        setStatus('completed'); 
-        
-        await handleTranscriptionComplete(result.transcription, jobIdToPass);
-        setIsUploading(false); 
-        
-      } else if (response.ok && result.status === 'failed') {
-        if (!isCancelledRef.current) {
-          // --- BEGIN MODIFIED BLOCK for FAILED status ---
-          showMessage('❌ Transcription failed: ' + result.error + '. Please try again.'); // More explicit message
-          clearInterval(transcriptionInterval); 
-          setTranscriptionProgress(0);
-          setStatus('failed'); 
-          setIsUploading(false);
-          resetTranscriptionProcessUI(); // Immediately reset UI on definitive failure
-          // --- END MODIFIED BLOCK ---
-        }
-        
-      } else if (response.ok && (result.status === 'cancelled' || result.status === 'canceled')) {
-        // --- BEGIN MODIFIED BLOCK for CANCELLED status ---
-        console.log('✅ Backend confirmed job cancellation');
-        clearInterval(transcriptionInterval);
-        setTranscriptionProgress(0);
-        setStatus('idle'); // Set to idle, as it's cancelled
-        setIsUploading(false);
-        showMessage('🛑 Transcription was cancelled. Please start a new one.'); // Clear message
-        resetTranscriptionProcessUI(); // Immediately reset UI on cancellation
-        // --- END MODIFIED BLOCK ---
-        
-      } else {
-        if (result.status === 'processing' && !isCancelledRef.current) {
-          console.log('⏳ Job still processing - will check again');
-          statusCheckTimeoutRef.current = setTimeout(() => {
-            if (!isCancelledRef.current) {
-              checkJobStatus(jobIdToPass, transcriptionInterval); 
-            } else {
-              console.log('🛑 Recursive call cancelled');
-              clearInterval(transcriptionInterval);
-              // --- BEGIN MODIFIED BLOCK for recursive call cancelled ---
-              showMessage('🛑 Transcription process interrupted. Please start a new one.');
-              resetTranscriptionProcessUI(); // Reset UI if recursive call is cancelled
-              // --- END MODIFIED BLOCK ---
-            }
-          }, 2000);
-        } else if (isCancelledRef.current) {
-          console.log('🛑 Job cancelled - stopping status checks');
-          clearInterval(transcriptionInterval);
-          // --- BEGIN MODIFIED BLOCK for job cancelled ---
-          showMessage('🛑 Transcription process interrupted. Please start a new one.');
-          resetTranscriptionProcessUI(); // Reset UI if job is cancelled during polling
-          // --- END MODIFIED BLOCK ---
-        } else {
-          // --- BEGIN MODIFIED BLOCK for unexpected status ---
-          const errorDetail = result.detail || `Unexpected status: ${result.status}`;
-          showMessage('❌ Status check failed: ' + errorDetail + '. Please try again.'); // More explicit
-          clearInterval(transcriptionInterval); 
-          setTranscriptionProgress(0);
-          setStatus('failed'); 
-          setIsUploading(false); 
-          resetTranscriptionProcessUI(); // Immediately reset UI on definitive failure
-          // --- END MODIFIED BLOCK ---
-        }
-      }
-      
-    } catch (error) {
-      clearTimeout(timeoutId);
-      
-      if (error.name === 'AbortError' || isCancelledRef.current) {
-        console.log('🛑 Request aborted or job cancelled');
-        clearInterval(transcriptionInterval);
-        if (!isCancelledRef.current) {
-          setIsUploading(false);
-        }
-        // --- BEGIN MODIFIED BLOCK for AbortError/Cancellation ---
-        showMessage('🛑 Transcription process interrupted. Please start a new one.');
-        resetTranscriptionProcessUI(); // Immediately reset UI on any abort/cancellation
-        // --- END MODIFIED BLOCK ---
-        return;
-      } else if (!isCancelledRef.current) {
-        // --- BEGIN MODIFIED BLOCK for general error ---
-        console.error('❌ Status check error:', error);
-        clearInterval(transcriptionInterval); 
-        setTranscriptionProgress(0);
-        setStatus('failed'); 
-        setIsUploading(false); 
-        showMessage('❌ Status check failed: ' + error.message + '. Please try again.'); // More explicit
-        resetTranscriptionProcessUI(); // Immediately reset UI on general error
-        // --- END MODIFIED BLOCK ---
-      }
-    } finally {
-      abortControllerRef.current = null;
-    }
-  }, [handleTranscriptionComplete, showMessage, RAILWAY_BACKEND_URL, resetTranscriptionProcessUI]); // Added resetTranscriptionProcessUI to dependencies
-
-  // UPDATED: handleUpload with new backend logic for model selection
-  const handleUpload = useCallback(async () => {
-    if (!selectedFile) {
-      showMessage('Please select a file first');
-      return;
-    }
-
-    if (profileLoading || !userProfile) {
-      showMessage('Loading user profile... Please wait.');
-      return;
-    }
-
-    const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
-    // const estimatedDurationMinutes = Math.ceil(estimatedDuration / 60); // Not directly used in this logic block anymore
-
-    // Use the canUserTranscribe function with its new return format
-    const transcribeCheck = await canUserTranscribe(currentUser.uid, estimatedDuration);
-    
-    if (!transcribeCheck.canTranscribe) {
-      if (transcribeCheck.redirectToPricing) {
-        // Auto-redirect to pricing for users who exceed limits or have exhausted trial
-        let userMessage = 'Please upgrade to continue transcribing.';
-        if (transcribeCheck.reason === 'exceeds_free_limit') {
-          userMessage = `This ${transcribeCheck.requiredMinutes}-minute audio exceeds your ${transcribeCheck.remainingMinutes} remaining free minutes. Redirecting to pricing...`;
-        } else if (transcribeCheck.reason === 'free_trial_exhausted') {
-          userMessage = 'Your 30-minute free trial has been used. Redirecting to pricing...';
-        } else if (transcribeCheck.reason === 'plan_expired') {
-          userMessage = 'Your paid plan has expired. Redirecting to pricing...';
-        }
-
-        showMessage(userMessage);
-        
-        // Redirect to pricing after 2 seconds
-        setTimeout(() => {
-          setCurrentView('pricing');
-          resetTranscriptionProcessUI();
-        }, 2000);
-        return;
-      } else {
-        // Other reasons for not transcribing (e.g., profile not found, unhandled plan)
-        showMessage('You do not have permission to transcribe audio. Please contact support if this is an error.');
-        resetTranscriptionProcessUI();
-        return;
-      }
-    }
-
-    console.log(`🎯 Initiating transcription for ${Math.round(estimatedDuration/60)}-minute audio.`);
-
-    isCancelledRef.current = false;
-    setIsUploading(true);
-    setStatus('processing');
-    abortControllerRef.current = new AbortController();
-
-    const formData = new FormData();
-    formData.append('file', selectedFile);
-    formData.append('language_code', selectedLanguage);
-    formData.append('speaker_labels_enabled', speakerLabelsEnabled);
-    // NEW: Always send user plan to backend for transcription logic
-    formData.append('user_plan', userProfile?.plan || 'free'); 
-
-    try {
-      // Call unified transcription endpoint
-      console.log(`🎯 Using unified transcription endpoint: ${RAILWAY_BACKEND_URL}/transcribe`);
-      const response = await fetch(`${RAILWAY_BACKEND_URL}/transcribe`, {
-        method: 'POST',
-        body: formData,
-        signal: abortControllerRef.current.signal
-      });
-
-      if (!response.ok) {
-        throw new Error(`Transcription service failed with status: ${response.status} - ${response.statusText}`);
-      }
-
-      const result = await response.json();
-
-      if (result && result.job_id) {
-        const transcriptionJobId = result.job_id;
-        console.log('✅ Transcription job started. Processing...');
-        console.log(`📊 Logic used: ${result.logic_used || 'Smart service selection'}`);
-        
-        setUploadProgress(100);
-        setStatus('processing');
-        setJobId(transcriptionJobId);
-        transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
-        checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current);
-      } else {
-        throw new Error(`Transcription service returned no job ID: ${JSON.stringify(result)}`);
-      }
-
-    } catch (transcriptionError) {
-      console.error('Transcription failed:', transcriptionError);
-      showMessage('❌ Transcription service is currently unavailable. Please try again later.');
-      setUploadProgress(0);
-      setTranscriptionProgress(0);
-      setStatus('failed'); 
-      setIsUploading(false);
-    }
-
-  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, checkJobStatus]);
-// ===============================================================================
-// App.js - Part 8 of 10: Clipboard, Download, Logout, Profile, AI Query Handlers (UPDATED)
-// ===============================================================================
-
-  // Copy to clipboard (existing, now triggers NEW CopiedNotification)
-  const copyToClipboard = useCallback(() => { 
-    // UPDATED: Check for AI paid user eligibility for this feature
-    if (!isPaidAIUser(userProfile)) {
-      showMessage('Copy to clipboard is only available for paid AI users (Three-Day, Pro plans). Please upgrade to access this feature.');
-      return;
-    }
-    
-    // To copy HTML content, we need to create a temporary element
-    const tempElement = document.createElement('div');
-    tempElement.innerHTML = transcription;
-    navigator.clipboard.writeText(tempElement.textContent || tempElement.innerText); // Copy plain text content
-    
-    setCopiedMessageVisible(true); // NEW: Show copied message
-    setTimeout(() => setCopiedMessageVisible(false), 2000); // Hide after 2 seconds
-  }, [transcription, userProfile, showMessage]);
-
-  // UPDATED: Download as Word - now calls backend for formatted DOCX
-  const downloadAsWord = useCallback(async () => { 
-    // UPDATED: Check for AI paid user eligibility for this feature
-    if (!isPaidAIUser(userProfile)) {
-      showMessage('MS Word download is only available for paid AI users (Three-Day, Pro plans). Please upgrade to access this feature.');
-      return;
-    }
-    
-    try {
-      showMessage('Generating formatted Word document...');
-      const response = await fetch(`${RAILWAY_BACKEND_URL}/generate-formatted-word`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          transcription_html: transcription,
-          filename: `transcription_${Date.now()}.docx`
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to generate Word document: ${response.statusText}`);
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `transcription_${Date.now()}.docx`; // Use .docx extension
-      a.click();
-      URL.revokeObjectURL(url);
-      showMessage('Word document generated successfully!');
-
-    } catch (error) {
-      console.error('Error downloading Word document:', error);
-      showMessage('Failed to generate Word document: ' + error.message);
-    }
-  }, [transcription, userProfile, showMessage, RAILWAY_BACKEND_URL]);
-
-  // TXT download - available for all users (FIXED syntax error)
-  const downloadAsTXT = useCallback(() => { 
-    // For TXT download, we want plain text, so strip HTML tags
-    const tempElement = document.createElement('div');
-    tempElement.innerHTML = transcription;
-    const plainTextTranscription = tempElement.textContent || tempElement.innerText;
-
-    const blob = new Blob([plainTextTranscription], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); // FIXED: Changed 'document = document.createElement('a');' to 'const a = document.createElement('a');'
-    a.href = url;
-    a.download = 'transcription.txt';
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [transcription]);
-
-  // Enhanced download with compression options (Note: This is for recorded audio, not transcription results) (remains unchanged, icon updated below)
-  const downloadRecordedAudio = useCallback(async () => { 
-    if (recordedAudioBlobRef.current) {
-      try {
-        let downloadBlob = recordedAudioBlobRef.current;
-        let filename = `recording-${Date.now()}.${downloadFormat}`;
-        
-        if (downloadFormat === 'mp3' && !recordedAudioBlobRef.current.type.includes('mp3')) {
-          showMessage('Compressing to MP3...');
-          // This part of the frontend is not actually performing the compression,
-          // it's just showing a message. The backend's /compress-download endpoint would handle it.
-          // For now, we'll keep the message, but actual compression would involve a backend call here.
-          showMessage('MP3 compression complete!'); 
-        }
-        
-        const url = URL.createObjectURL(downloadBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-      } catch (error) {
-        console.error('Error compressing for download: ', error);
-        showMessage('Download compression failed, downloading original format.');
-        const url = URL.createObjectURL(recordedAudioBlobRef.current);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `recording-${Date.now()}.wav`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-    } else {
-      showMessage('No recorded audio available to download.');
-    }
-  }, [showMessage, downloadFormat]);
-
-  const handleLogout = useCallback(async () => {
-    try {
-      await logout();
-    } catch (error) {
-      showMessage('Failed to log out');
-    }
-  }, [logout, showMessage]);
-
-  const createMissingProfile = useCallback(async () => {
-    try {
-      await createUserProfile(currentUser.uid, currentUser.email);
-      showMessage('Profile created successfully! Refreshing page...');
-      window.location.reload();
-    } catch (error) {
-      console.error('Error creating profile:', error);
-      showMessage('Error creating profile: ' + error.message);
-    }
-  }, [currentUser?.uid, currentUser?.email, showMessage]);
-
-  const handleUpgradeClick = useCallback((planType) => {
-    console.log('Upgrade clicked for plan:', planType);
-    setCurrentView('pricing');
-  }, [setCurrentView]);
-
-  // UPDATED: Handle AI Query for User AI Assistant with plan check
+  // UPDATED: Handle AI Query for User AI Assistant with FormData
   const handleAIQuery = useCallback(async () => {
+      if (profileLoading || !userProfile) {
+          showMessage('Loading user profile... Please wait.');
+          return;
+      }
       // NEW: Check if user is eligible for AI features
       if (!isPaidAIUser(userProfile)) {
           showMessage('❌ AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.');
@@ -1017,22 +639,23 @@ function AppContent() {
       setAIResponse(''); // Clear previous AI response
 
       try {
+          // NEW: Use FormData to send data to the backend
+          const formData = new FormData();
+          formData.append('transcript', latestTranscription);
+          formData.append('user_prompt', userPrompt);
+          formData.append('model', 'claude-3-haiku-20240307'); // Using the working model from your test
+          formData.append('max_tokens', '1000');
+          formData.append('user_plan', userProfile?.plan || 'free'); // Pass user plan to backend
+
           const response = await fetch(`${RAILWAY_BACKEND_URL}/ai/user-query`, {
               method: 'POST',
-              headers: {
-                  'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                  transcript: latestTranscription, // Use latestTranscription
-                  user_prompt: userPrompt,
-                  model: 'claude-3-haiku-20240307', // Using the working model from your test
-                  max_tokens: 1000 // Adjust as needed
-              }),
+              // No 'Content-Type' header needed for FormData; browser sets it automatically
+              body: formData, // Send FormData
           });
 
           if (!response.ok) {
               const errorData = await response.json();
-              throw new Error(errorData.detail || 'Failed to get AI response from backend.');
+              throw new Error(errorData.detail || `Backend error: ${response.status} ${response.statusText}`);
           }
 
           const data = await response.json();
@@ -1045,7 +668,7 @@ function AppContent() {
       } finally {
           setAILoading(false);
       }
-  }, [latestTranscription, userPrompt, userProfile, showMessage, RAILWAY_BACKEND_URL]); // Dependencies for useCallback
+  }, [latestTranscription, userPrompt, userProfile, profileLoading, showMessage, RAILWAY_BACKEND_URL]); // Dependencies for useCallback
   // Cleanup effect to ensure cancellation works (remains unchanged)
   useEffect(() => {
     return () => {
@@ -1857,7 +1480,11 @@ return (
                         backgroundColor: 'white',
                         padding: '40px 30px',
                         borderRadius: '20px',
-                        boxShadow: '0 15px 40px rgba(40, 167, 69, 0.2)','transform': 'scale(1.05)'
+                        boxShadow: '0 15px 40px rgba(40, 167, 69, 0.2)',
+                        maxWidth: '350px',
+                        width: '100%',
+                        border: '3px solid #28a745',
+                        transform: 'scale(1.05)'
                       }}>
                         <div>
                           <div style={{
