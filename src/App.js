@@ -989,7 +989,7 @@ function AppContent() {
               body: JSON.stringify({
                   transcript: transcription,
                   user_prompt: userPrompt,
-                  model: 'claude-3-sonnet-20240229', // You can make this selectable in UI later
+                  model: 'claude-3-haiku-20240307', // You can make this selectable in UI later
                   max_tokens: 1000 // Adjust as needed
               }),
           });

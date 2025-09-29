@@ -98,7 +98,7 @@ const AdminAIFormatter = ({ showMessage }) => {
         body: JSON.stringify({
           transcript: transcriptInput,
           formatting_instructions: formattingInstructions,
-          model: 'claude-3-5-sonnet-20241022', // Admin might use a more powerful model, or you can make it configurable
+          model: 'claude-3-5-haiku-20241022', // Admin might use a more powerful model, or you can make it configurable
           max_tokens: 4000 // Higher token limit for potentially longer formatting tasks
         }),
       });
