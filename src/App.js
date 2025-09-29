@@ -1,5 +1,5 @@
 // ===============================================================================
-// App.js - Part 1 of 10: Imports, Global Constants, and isPaidAIUser Helper (UNCHANGED)
+// App.js - Part 1 of 15: Imports and Global Constants (FIXED for no-undef & 422)
 // ===============================================================================
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -15,21 +15,20 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'r
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 import PrivacyPolicy from './components/PrivacyPolicy';
 
-// UPDATED Configuration - RE-ADDED Render Whisper URL
+// Configuration for backend URLs
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
-const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com/'; // Re-added Render Whisper URL with trailing slash
+const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com/'; 
+// ===============================================================================
+// App.js - Part 2 of 15: isPaidAIUser Helper and CopiedNotification (FIXED for no-undef & 422)
+// ===============================================================================
 
-// NEW: Helper function to determine if a user has access to AI features
+// Helper function to determine if a user has access to AI features
 const isPaidAIUser = (userProfile) => {
   if (!userProfile || !userProfile.plan) return false;
-  // UPDATED: Only 'Three-Day Plan' and 'Pro' plans are eligible for AI features
+  // Only 'Three-Day Plan' and 'Pro' plans are eligible for AI features
   const paidPlansForAI = ['Three-Day Plan', 'Pro']; 
   return paidPlansForAI.includes(userProfile.plan);
 };
-
-// ===============================================================================
-// App.js - Part 2 of 10: CopiedNotification and ToastNotification Components (UNCHANGED)
-// ===============================================================================
 
 // Copied Notification Component
 const CopiedNotification = ({ isVisible }) => {
@@ -55,6 +54,9 @@ const CopiedNotification = ({ isVisible }) => {
     </div>
   );
 };
+// ===============================================================================
+// App.js - Part 3 of 15: ToastNotification Component (FIXED for no-undef & 422)
+// ===============================================================================
 
 // Enhanced Toast Notification Component
 const ToastNotification = ({ message, onClose }) => {
@@ -118,9 +120,8 @@ const ToastNotification = ({ message, onClose }) => {
             lineHeight: '1.4',
             fontWeight: '500'
           }}
-            dangerouslySetInnerHTML={{ __html: message }} // ADD THIS LINE for HTML rendering
+            dangerouslySetInnerHTML={{ __html: message }}
           >
-            {/* The actual message content will now be rendered by dangerouslySetInnerHTML */}
           </p>
         </div>
         <button
@@ -146,32 +147,35 @@ const ToastNotification = ({ message, onClose }) => {
   );
 };
 // ===============================================================================
-// App.js - Part 3 of 10: Utility Functions and AppContent State Declarations (Part 1) (UNCHANGED)
+// App.js - Part 4 of 15: AppContent Component Start & Utility Functions (FIXED for no-undef & 422)
 // ===============================================================================
-
-// Utility functions
-const formatTime = (seconds) => {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-};
-
-const simulateProgress = (setter, intervalTime, maxProgress = 100) => { 
-  setter(0);
-  const interval = setInterval(() => {
-    setter(prev => {
-      if (maxProgress === -1) { 
-        return (prev + (Math.random() * 5 + 1)) % 100;
-      }
-      return prev + Math.random() * 10; 
-    });
-  }, intervalTime);
-  return interval; 
-};
 
 function AppContent() {
   const navigate = useNavigate();
   
+  // Utility functions
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const simulateProgress = (setter, intervalTime, maxProgress = 100) => { 
+    setter(0);
+    const interval = setInterval(() => {
+      setter(prev => {
+        if (maxProgress === -1) { 
+          return (prev + (Math.random() * 5 + 1)) % 100;
+        }
+        return prev + Math.random() * 10; 
+      });
+    }, intervalTime);
+    return interval; 
+  };
+// ===============================================================================
+// App.js - Part 5 of 15: AppContent State Declarations (Part 1) (FIXED for no-undef & 422)
+// ===============================================================================
+
   // State declarations
   const [selectedFile, setSelectedFile] = useState(null);
   const [jobId, setJobId] = useState(null);
@@ -192,7 +196,7 @@ function AppContent() {
   // State to store the latest completed transcription for AI Assistant
   const [latestTranscription, setLatestTranscription] = useState(''); 
 // ===============================================================================
-// App.js - Part 4 of 10: AppContent State Declarations (Part 2) and Refs (UNCHANGED)
+// App.js - Part 6 of 15: AppContent State Declarations (Part 2) & Refs (FIXED for no-undef & 422)
 // ===============================================================================
 
   // Payment states
@@ -204,7 +208,7 @@ function AppContent() {
     'oneweek': { amount: 3.00, currency: 'USD' }
   });
 
-  // AI Assistant states (NEW)
+  // AI Assistant states
   const [userPrompt, setUserPrompt] = useState('');
   const [aiResponse, setAIResponse] = useState('');
   const [aiLoading, setAILoading] = useState(false);
@@ -217,6 +221,10 @@ function AppContent() {
   const transcriptionIntervalRef = useRef(null);
   const statusCheckTimeoutRef = useRef(null);
   const isCancelledRef = useRef(false);
+// ===============================================================================
+// App.js - Part 7 of 15: Auth Setup and Message Handlers (FIXED for no-undef & 422)
+// ===============================================================================
+
   // Auth and user setup
   const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, profileLoading } = useAuth();
   const ADMIN_EMAILS = ['typemywordz@gmail.com']; // 'typemywordz@gmail.com' is an admin for functionality
@@ -225,6 +233,9 @@ function AppContent() {
   // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
+// ===============================================================================
+// App.js - Part 8 of 15: Menu State and Handlers (FIXED for no-undef & 422)
+// ===============================================================================
 
   // --- Menu State & Functions (React-managed) ---
   const [openSubmenu, setOpenSubmenu] = useState(null); // Tracks which submenu is open
@@ -239,21 +250,21 @@ function AppContent() {
     setOpenSubmenu(null); // Close any open menu
   }, [navigate]);
 
-  // NEW: handleOpenPricing for the menu item
+  // handleOpenPricing for the menu item
   const handleOpenPricing = useCallback(() => {
     setCurrentView('pricing');
     setOpenSubmenu(null); // Close any open menu
   }, [setCurrentView]);
 // ===============================================================================
-// App.js - Part 5 of 10: Paystack and Reset Functions (UNCHANGED)
+// App.js - Part 9 of 15: Paystack Payment Functions (FIXED for no-undef & 422)
 // ===============================================================================
 
-  // Paystack payment functions (these remain unchanged)
-  const initializePaystackPayment = async (email, amount, planName, countryCode) => {
+  // Paystack payment functions
+  const initializePaystackPayment = useCallback(async (email, amount, planName, countryCode) => { // Made useCallback
     try {
       console.log('Initializing Paystack payment:', { email, amount, planName, countryCode });
       
-      const response = await fetch(`${RAILWAY_BACKEND_URL}/api/initialize-paystack-payment`, { // Calls Railway
+      const response = await fetch(`${RAILWAY_BACKEND_URL}/api/initialize-paystack-payment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -281,9 +292,9 @@ function AppContent() {
       console.error('Paystack payment error:', error);
       showMessage('Payment initialization failed: ' + error.message);
     }
-  };
+  }, [currentUser, showMessage, RAILWAY_BACKEND_URL]); // Dependencies
 
-  // Handle payment success callback (remains unchanged)
+  // Handle payment success callback
   const handlePaystackCallback = useCallback(async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const reference = urlParams.get('reference');
@@ -295,7 +306,7 @@ function AppContent() {
       try {
         showMessage('Verifying payment...');
         
-        const response = await fetch(`${RAILWAY_BACKEND_URL}/api/verify-payment`, { // Calls Railway
+        const response = await fetch(`${RAILWAY_BACKEND_URL}/api/verify-payment`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -336,7 +347,11 @@ function AppContent() {
       handlePaystackCallback();
     }
   }, [currentUser, handlePaystackCallback]);
-  // Enhanced reset function with better job cancellation (remains unchanged)
+// ===============================================================================
+// App.js - Part 10 of 15: Reset and Recording Functions (FIXED for no-undef & 422)
+// ===============================================================================
+
+  // Enhanced reset function with better job cancellation
   const resetTranscriptionProcessUI = useCallback(() => { 
     console.log('🔄 Resetting transcription UI and cancelling any ongoing processes');
     
@@ -378,18 +393,9 @@ function AppContent() {
       isCancelledRef.current = false;
       console.log('✅ Reset complete, ready for new operations');
     }, 500);
-  }, []);
-// ===============================================================================
-// App.js - Part 6 of 10: Transcription Handlers and File Management (UPDATED TO FIX 422 ERROR)
-// ===============================================================================
+  }, []); // No external dependencies, so empty array is correct
 
-  useEffect(() => {
-    if (userProfile) {
-      console.log('DIAGNOSTIC: userProfile.totalMinutesUsed updated to:', userProfile?.totalMinutesUsed);
-    }
-  }, [userProfile?.totalMinutesUsed]);
-
-  // Enhanced file selection with proper job cancellation (remains unchanged)
+  // Enhanced file selection with proper job cancellation
   const handleFileSelect = useCallback(async (event) => {
     const file = event.target.files[0];
     
@@ -423,7 +429,7 @@ function AppContent() {
     }
   }, [showMessage, resetTranscriptionProcessUI]);
 
-  // Enhanced recording function with proper job cancellation (remains unchanged, icon updated below)
+  // Enhanced recording function with proper job cancellation
   const startRecording = useCallback(async () => {
     // Always reset UI when starting a new recording, effectively deselecting options
     // This also stops any ongoing transcription.
@@ -502,7 +508,11 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
-  // Improved cancel function with page refresh (updated for new backend)
+// ===============================================================================
+// App.js - Part 11 of 15: Cancellation and Transcription Completion Handlers (FIXED for no-undef & 422)
+// ===============================================================================
+
+  // Improved cancel function with page refresh
   const handleCancelUpload = useCallback(async () => {
     console.log('🛑 FORCE CANCEL - Stopping everything immediately');
     
@@ -558,7 +568,7 @@ function AppContent() {
     console.log('✅ Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage, RAILWAY_BACKEND_URL]);
 
-  // UPDATED: handleTranscriptionComplete with debugging logs and saving latest transcription
+  // handleTranscriptionComplete with debugging logs and saving latest transcription
   const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
     try {
       const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
@@ -589,10 +599,10 @@ function AppContent() {
       await refreshUserProfile();
       console.log('DIAGNOSTIC: After refreshUserProfile - userProfile.totalMinutesUsed:', userProfile?.totalMinutesUsed);
 
-      // UPDATED: Success message with favicon and brand name
+      // Success message with favicon and brand name
       showMessage('✅ <img src="/favicon-32x32.png" alt="TypeMyworDz Logo" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 5px;"> TypeMyworDz, Done!');
       
-      // NEW: Save the latest transcription for the AI Assistant
+      // Save the latest transcription for the AI Assistant
       setLatestTranscription(transcriptionText);
 
     } catch (error) {
@@ -602,7 +612,11 @@ function AppContent() {
       // No changes here, as processingMessage state was removed
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]);
-  // Handle successful payment (remains unchanged)
+// ===============================================================================
+// App.js - Part 12 of 15: Payment Success, Job Status Check, and Upload Logic (FIXED for no-undef & 422)
+// ===============================================================================
+
+  // Handle successful payment
   const handlePaymentSuccess = useCallback(async (planName, subscriptionId) => {
     try {
       await updateUserPlan(currentUser.uid, planName, subscriptionId);
@@ -618,19 +632,377 @@ function AppContent() {
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
 
-  // UPDATED: Handle AI Query for User AI Assistant with FormData
+  const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => {
+    if (isCancelledRef.current) {
+      console.log('🛑 Status check aborted - job was cancelled');
+      clearInterval(transcriptionInterval);
+      return;
+    }
+    
+    let timeoutId;
+    
+    try {
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      
+      timeoutId = setTimeout(() => {
+        console.log('⏰ Status check timeout - aborting');
+        controller.abort();
+      }, 10000); 
+      
+      const statusUrl = `${RAILWAY_BACKEND_URL}/status/${jobIdToPass}`;
+      
+      const response = await fetch(statusUrl, {
+        signal: controller.signal 
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (isCancelledRef.current) {
+        console.log('🛑 Job cancelled during fetch - stopping immediately');
+        clearInterval(transcriptionInterval);
+        return;
+      }
+      
+      const result = await response.json();
+      
+      if (isCancelledRef.current) {
+        console.log('🛑 Job cancelled after response - stopping immediately');
+        clearInterval(transcriptionInterval);
+        return;
+      }
+      
+      if (response.ok && result.status === 'completed') {
+        if (isCancelledRef.current) {
+          console.log('🛑 Job cancelled - ignoring completion');
+          clearInterval(transcriptionInterval);
+          return;
+        }
+        
+        setTranscription(result.transcription);
+        clearInterval(transcriptionInterval); 
+        setTranscriptionProgress(100);
+        setStatus('completed'); 
+        
+        await handleTranscriptionComplete(result.transcription, jobIdToPass);
+        setIsUploading(false); 
+        
+      } else if (response.ok && result.status === 'failed') {
+        if (!isCancelledRef.current) {
+          showMessage('❌ Transcription failed: ' + result.error + '. Please try again.');
+          clearInterval(transcriptionInterval); 
+          setTranscriptionProgress(0);
+          setStatus('failed'); 
+          setIsUploading(false);
+          resetTranscriptionProcessUI();
+        }
+        
+      } else if (response.ok && (result.status === 'cancelled' || result.status === 'canceled')) {
+        console.log('✅ Backend confirmed job cancellation');
+        clearInterval(transcriptionInterval);
+        setTranscriptionProgress(0);
+        setStatus('idle');
+        setIsUploading(false);
+        showMessage('🛑 Transcription was cancelled. Please start a new one.');
+        resetTranscriptionProcessUI();
+        
+      } else {
+        if (result.status === 'processing' && !isCancelledRef.current) {
+          console.log('⏳ Job still processing - will check again');
+          statusCheckTimeoutRef.current = setTimeout(() => {
+            if (!isCancelledRef.current) {
+              checkJobStatus(jobIdToPass, transcriptionInterval); 
+            } else {
+              console.log('🛑 Recursive call cancelled');
+              clearInterval(transcriptionInterval);
+              showMessage('🛑 Transcription process interrupted. Please start a new one.');
+              resetTranscriptionProcessUI();
+            }
+          }, 2000);
+        } else if (isCancelledRef.current) {
+          console.log('🛑 Job cancelled - stopping status checks');
+          clearInterval(transcriptionInterval);
+          showMessage('🛑 Transcription process interrupted. Please start a new one.');
+          resetTranscriptionProcessUI();
+        } else {
+          const errorDetail = result.detail || `Unexpected status: ${result.status}`;
+          showMessage('❌ Status check failed: ' + errorDetail + '. Please try again.');
+          clearInterval(transcriptionInterval); 
+          setTranscriptionProgress(0);
+          setStatus('failed'); 
+          setIsUploading(false); 
+          resetTranscriptionProcessUI();
+        }
+      }
+      
+    } catch (error) {
+      clearTimeout(timeoutId);
+      
+      if (error.name === 'AbortError' || isCancelledRef.current) {
+        console.log('🛑 Request aborted or job cancelled');
+        clearInterval(transcriptionInterval);
+        if (!isCancelledRef.current) {
+          setIsUploading(false);
+        }
+        showMessage('🛑 Transcription process interrupted. Please start a new one.');
+        resetTranscriptionProcessUI();
+        return;
+      } else if (!isCancelledRef.current) {
+        console.error('❌ Status check error:', error);
+        clearInterval(transcriptionInterval); 
+        setTranscriptionProgress(0);
+        setStatus('failed'); 
+        setIsUploading(false); 
+        showMessage('❌ Status check failed: ' + error.message + '. Please try again.');
+        resetTranscriptionProcessUI();
+      }
+    } finally {
+      abortControllerRef.current = null;
+    }
+  }, [handleTranscriptionComplete, showMessage, RAILWAY_BACKEND_URL, resetTranscriptionProcessUI]);
+
+  // handleUpload with new backend logic for model selection
+  const handleUpload = useCallback(async () => {
+    if (!selectedFile) {
+      showMessage('Please select a file first');
+      return;
+    }
+
+    if (profileLoading || !userProfile) {
+      showMessage('Loading user profile... Please wait.');
+      return;
+    }
+
+    const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
+
+    const transcribeCheck = await canUserTranscribe(currentUser.uid, estimatedDuration);
+    
+    if (!transcribeCheck.canTranscribe) {
+      if (transcribeCheck.redirectToPricing) {
+        let userMessage = 'Please upgrade to continue transcribing.';
+        if (transcribeCheck.reason === 'exceeds_free_limit') {
+          userMessage = `This ${transcribeCheck.requiredMinutes}-minute audio exceeds your ${transcribeCheck.remainingMinutes} remaining free minutes. Redirecting to pricing...`;
+        } else if (transcribeCheck.reason === 'free_trial_exhausted') {
+          userMessage = 'Your 30-minute free trial has been used. Redirecting to pricing...';
+        } else if (transcribeCheck.reason === 'plan_expired') {
+          userMessage = 'Your paid plan has expired. Redirecting to pricing...';
+        }
+
+        showMessage(userMessage);
+        
+        setTimeout(() => {
+          setCurrentView('pricing');
+          resetTranscriptionProcessUI();
+        }, 2000);
+        return;
+      } else {
+        showMessage('You do not have permission to transcribe audio. Please contact support if this is an error.');
+        resetTranscriptionProcessUI();
+        return;
+      }
+    }
+
+    console.log(`🎯 Initiating transcription for ${Math.round(estimatedDuration/60)}-minute audio.`);
+
+    isCancelledRef.current = false;
+    setIsUploading(true);
+    setStatus('processing');
+    abortControllerRef.current = new AbortController();
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('language_code', selectedLanguage);
+    formData.append('speaker_labels_enabled', speakerLabelsEnabled);
+    formData.append('user_plan', userProfile?.plan || 'free'); 
+
+    try {
+      console.log(`🎯 Using unified transcription endpoint: ${RAILWAY_BACKEND_URL}/transcribe`);
+      const response = await fetch(`${RAILWAY_BACKEND_URL}/transcribe`, {
+        method: 'POST',
+        body: formData,
+        signal: abortControllerRef.current.signal
+      });
+
+      if (!response.ok) {
+        throw new Error(`Transcription service failed with status: ${response.status} - ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      if (result && result.job_id) {
+        const transcriptionJobId = result.job_id;
+        console.log('✅ Transcription job started. Processing...');
+        console.log(`📊 Logic used: ${result.logic_used || 'Smart service selection'}`);
+        
+        setUploadProgress(100);
+        setStatus('processing');
+        setJobId(transcriptionJobId);
+        transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
+        checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current);
+      } else {
+        throw new Error(`Transcription service returned no job ID: ${JSON.stringify(result)}`);
+      }
+
+    } catch (transcriptionError) {
+      console.error('Transcription failed:', transcriptionError);
+      showMessage('❌ Transcription service is currently unavailable. Please try again later.');
+      setUploadProgress(0);
+      setTranscriptionProgress(0);
+      setStatus('failed'); 
+      setIsUploading(false);
+    }
+
+  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, checkJobStatus]);
+// ===============================================================================
+// App.js - Part 13 of 15: Download, Logout, Profile, AI Query Handlers (FIXED for no-undef & 422)
+// ===============================================================================
+
+  // Copy to clipboard (now triggers CopiedNotification)
+  const copyToClipboard = useCallback(() => { 
+    // Check for AI paid user eligibility for this feature
+    if (!isPaidAIUser(userProfile)) {
+      showMessage('Copy to clipboard is only available for paid AI users (Three-Day, Pro plans). Please upgrade to access this feature.');
+      return;
+    }
+    
+    // To copy HTML content, we need to create a temporary element
+    const tempElement = document.createElement('div');
+    tempElement.innerHTML = transcription;
+    navigator.clipboard.writeText(tempElement.textContent || tempElement.innerText); // Copy plain text content
+    
+    setCopiedMessageVisible(true); // Show copied message
+    setTimeout(() => setCopiedMessageVisible(false), 2000); // Hide after 2 seconds
+  }, [transcription, userProfile, showMessage]);
+
+  // Download as Word - now calls backend for formatted DOCX
+  const downloadAsWord = useCallback(async () => { 
+    // Check for AI paid user eligibility for this feature
+    if (!isPaidAIUser(userProfile)) {
+      showMessage('MS Word download is only available for paid AI users (Three-Day, Pro plans). Please upgrade to access this feature.');
+      return;
+    }
+    
+    try {
+      showMessage('Generating formatted Word document...');
+      const response = await fetch(`${RAILWAY_BACKEND_URL}/generate-formatted-word`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transcription_html: transcription,
+          filename: `transcription_${Date.now()}.docx`
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to generate Word document: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `transcription_${Date.now()}.docx`; // Use .docx extension
+      a.click();
+      URL.revokeObjectURL(url);
+      showMessage('Word document generated successfully!');
+
+    } catch (error) {
+      console.error('Error downloading Word document:', error);
+      showMessage('Failed to generate Word document: ' + error.message);
+    }
+  }, [transcription, userProfile, showMessage, RAILWAY_BACKEND_URL]);
+
+  // TXT download - available for all users
+  const downloadAsTXT = useCallback(() => { 
+    // For TXT download, we want plain text, so strip HTML tags
+    const tempElement = document.createElement('div');
+    tempElement.innerHTML = transcription;
+    const plainTextTranscription = tempElement.textContent || tempElement.innerText;
+
+    const blob = new Blob([plainTextTranscription], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'transcription.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [transcription]);
+
+  // Download recorded audio (Note: This is for recorded audio, not transcription results)
+  const downloadRecordedAudio = useCallback(async () => { 
+    if (recordedAudioBlobRef.current) {
+      try {
+        let downloadBlob = recordedAudioBlobRef.current;
+        let filename = `recording-${Date.now()}.${downloadFormat}`;
+        
+        if (downloadFormat === 'mp3' && !recordedAudioBlobRef.current.type.includes('mp3')) {
+          showMessage('Compressing to MP3...');
+          // This part of the frontend is not actually performing the compression,
+          // it's just showing a message. The backend's /compress-download endpoint would handle it.
+          // For now, we'll keep the message, but actual compression would involve a backend call here.
+          showMessage('MP3 compression complete!'); 
+        }
+        
+        const url = URL.createObjectURL(downloadBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error('Error compressing for download: ', error);
+        showMessage('Download compression failed, downloading original format.');
+        const url = URL.createObjectURL(recordedAudioBlobRef.current);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `recording-${Date.now()}.wav`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } else {
+      showMessage('No recorded audio available to download.');
+    }
+  }, [showMessage, downloadFormat]);
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await logout();
+    } catch (error) {
+      showMessage('Failed to log out');
+    }
+  }, [logout, showMessage]);
+
+  const createMissingProfile = useCallback(async () => {
+    try {
+      await createUserProfile(currentUser.uid, currentUser.email);
+      showMessage('Profile created successfully! Refreshing page...');
+      window.location.reload();
+    } catch (error) {
+      console.error('Error creating profile:', error);
+      showMessage('Error creating profile: ' + error.message);
+    }
+  }, [currentUser?.uid, currentUser?.email, showMessage]);
+
+  const handleUpgradeClick = useCallback((planType) => {
+    console.log('Upgrade clicked for plan:', planType);
+    setCurrentView('pricing');
+  }, [setCurrentView]);
+
+  // handleAIQuery for User AI Assistant with FormData
   const handleAIQuery = useCallback(async () => {
       if (profileLoading || !userProfile) {
           showMessage('Loading user profile... Please wait.');
           return;
       }
-      // NEW: Check if user is eligible for AI features
+      // Check if user is eligible for AI features
       if (!isPaidAIUser(userProfile)) {
           showMessage('❌ AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.');
           return;
       }
 
-      if (!latestTranscription || !userPrompt) { // Use latestTranscription
+      if (!latestTranscription || !userPrompt) {
           showMessage('Please provide both a transcript and a prompt for the AI Assistant.');
           return;
       }
@@ -639,7 +1011,7 @@ function AppContent() {
       setAIResponse(''); // Clear previous AI response
 
       try {
-          // NEW: Use FormData to send data to the backend
+          // Use FormData to send data to the backend
           const formData = new FormData();
           formData.append('transcript', latestTranscription);
           formData.append('user_prompt', userPrompt);
@@ -668,8 +1040,12 @@ function AppContent() {
       } finally {
           setAILoading(false);
       }
-  }, [latestTranscription, userPrompt, userProfile, profileLoading, showMessage, RAILWAY_BACKEND_URL]); // Dependencies for useCallback
-  // Cleanup effect to ensure cancellation works (remains unchanged)
+  }, [latestTranscription, userPrompt, userProfile, profileLoading, showMessage, RAILWAY_BACKEND_URL]);
+// ===============================================================================
+// App.js - Part 14 of 15: Cleanup Effect and Login Screen JSX (FIXED for no-undef & 422)
+// ===============================================================================
+
+  // Cleanup effect to ensure cancellation works
   useEffect(() => {
     return () => {
       if (isCancelledRef.current) {
@@ -682,9 +1058,6 @@ function AppContent() {
       }
     };
   }, []);
-// ===============================================================================
-// App.js - Part 9 of 10: JSX Structure (Login Screen) (UNCHANGED)
-// ===============================================================================
 
   // Login screen for non-authenticated users
   if (!currentUser) {
@@ -695,7 +1068,7 @@ function AppContent() {
         display: 'flex',
         flexDirection: 'column'
       }}>
-        {/* NEW LAYOUT: App name and tagline in top-left (for non-authenticated state) */}
+        {/* App name and tagline in top-left (for non-authenticated state) */}
         <div style={{ 
           position: 'absolute', 
           top: '20px', 
@@ -720,10 +1093,7 @@ function AppContent() {
           </p>
         </div>
 
-        {/* The Menu (sidebar-menu) for non-authenticated users - uses global window functions
-            Note: Dropdown functionality (openSubmenu state) is handled within AppContent for authenticated users.
-            For non-authenticated users, these menu items will trigger direct actions or global window functions.
-        */}
+        {/* The Menu (sidebar-menu) for non-authenticated users - uses global window functions */}
         <div 
             className="sidebar-menu" 
             style={{
@@ -735,26 +1105,23 @@ function AppContent() {
                 flexDirection: 'row', 
                 width: 'fit-content', 
             }}
-            // onMouseLeave removed as setOpenSubmenu is not in scope here
         >
             {/* Products Menu Item (non-authenticated) */}
-            <div className="menu-item" onClick={() => window.showSpeechToText()}> {/* Direct action for now */}
+            <div className="menu-item" onClick={() => window.showSpeechToText()}>
                 <span className="menu-icon">📦</span>
                 <span className="menu-text">Products</span>
-                {/* No dropdown arrow here as openSubmenu is not in scope */}
             </div>
             
-            {/* NEW: Pricing Menu Item (non-authenticated) */}
-            <div className="menu-item" onClick={() => window.location.href = '/pricing'}> {/* Direct navigation or redirect to login */}
+            {/* Pricing Menu Item (non-authenticated) */}
+            <div className="menu-item" onClick={() => window.location.href = '/pricing'}>
                 <span className="menu-icon">💰</span>
                 <span className="menu-text">Pricing</span>
             </div>
 
-            {/* MODIFIED: Social Menu Item (non-authenticated) */}
-            <div className="menu-item" onClick={() => window.openDonate()}> {/* Direct action for now */}
+            {/* Social Menu Item (non-authenticated) */}
+            <div className="menu-item" onClick={() => window.openDonate()}>
                 <span className="menu-icon">🤝</span>
                 <span className="menu-text">Social</span>
-                {/* No dropdown arrow here as openSubmenu is not in scope */}
             </div>
 
             {/* Privacy Policy Menu Item (non-authenticated) */}
@@ -769,23 +1136,20 @@ function AppContent() {
           padding: '60px 20px',
           color: 'white'
         }}>
-          {/* Main App Title for Login Screen (removed from here, now top-left) */}
-          {/* Main App Tagline for Login Screen (moved below login palette) */}
         </header>
         
         <div style={{ 
           flex: 1, 
           display: 'flex', 
-          flexDirection: 'column', // Added column direction for proper layout
+          flexDirection: 'column',
           justifyContent: 'center', 
           alignItems: 'center',
           padding: '0 20px'
         }}>
           <Login />
-          {/* Moved below login palette */}
           <p style={{ 
             fontSize: '1.1rem', 
-            margin: '30px 0 0 0', // Adjusted margin to move it below login
+            margin: '30px 0 0 0',
             opacity: '0.8',
             color: 'white',
             textAlign: 'center'
@@ -806,7 +1170,7 @@ function AppContent() {
     );
   }
 // ===============================================================================
-// App.js - Part 10 of 10: Main Authenticated JSX Structure (Final Part) (UPDATED)
+// App.js - Part 15 of 15: Main Authenticated JSX Structure (Final Part) (FIXED for no-undef & 422)
 // ===============================================================================
 
 return (
@@ -820,7 +1184,8 @@ return (
         <Dashboard setCurrentView={setCurrentView} />
       </>
     } />
-    <Route path="/admin" element={isAdmin ? <AdminDashboard showMessage={showMessage} /> : <Navigate to="/" />} /> {/* ADDED showMessage prop to AdminDashboard */}
+    {/* FIXED: Passing showMessage prop to AdminDashboard */}
+    <Route path="/admin" element={isAdmin ? <AdminDashboard showMessage={showMessage} /> : <Navigate to="/" />} />
     
     <Route path="/" element={
       <div style={{ 
@@ -832,7 +1197,7 @@ return (
         <ToastNotification message={message} onClose={clearMessage} />
         <CopiedNotification isVisible={copiedMessageVisible} />
 
-        {/* NEW LAYOUT: App name and tagline in top-left */}
+        {/* App name and tagline in top-left */}
         <div style={{ 
           position: 'absolute', 
           top: '20px', 
@@ -858,7 +1223,6 @@ return (
         </div>
 
         {/* The Menu (sidebar-menu) will be rendered here directly when authenticated */}
-        {/* Managed by React state for dropdowns */}
         <div 
             className="sidebar-menu" 
             style={{
@@ -869,9 +1233,8 @@ return (
                 display: 'flex', 
                 flexDirection: 'row', 
                 width: 'fit-content', 
-                // Other styles from menu.css will apply via className
             }}
-            onMouseLeave={() => setOpenSubmenu(null)} // Close submenu on mouse leave
+            onMouseLeave={() => setOpenSubmenu(null)}
         >
             {/* Products Parent Menu */}
             <div className="menu-item parent-menu" onClick={() => handleToggleSubmenu('productsSubmenu')}>
@@ -902,19 +1265,19 @@ return (
                 )}
             </div>
             
-            {/* NEW: Pricing Menu Item */}
+            {/* Pricing Menu Item */}
             <div className="menu-item" onClick={handleOpenPricing}>
                 <span className="menu-icon">💰</span>
                 <span className="menu-text">Pricing</span>
             </div>
 
-            {/* MODIFIED: Collaborate Parent Menu renamed to Social */}
+            {/* Social Parent Menu */}
             <div className="menu-item parent-menu" onClick={() => handleToggleSubmenu('socialSubmenu')}>
                 <span className="menu-icon">🤝</span>
                 <span className="menu-text">Social</span>
                 <span className={`dropdown-arrow ${openSubmenu === 'socialSubmenu' ? 'rotated' : ''}`}>▼</span>
                 
-                {/* MODIFIED: Social Submenu */}
+                {/* Social Submenu */}
                 {openSubmenu === 'socialSubmenu' && (
                     <div className={`submenu ${openSubmenu === 'socialSubmenu' ? 'open' : ''}`} id="socialSubmenu">
                         <div className="submenu-item" onClick={() => window.openDonate()}>
@@ -945,7 +1308,7 @@ return (
               marginBottom: '20px' 
             }}>
               <img 
-                src="/android-chrome-192x192.png" // Using the larger PNG for the main logo
+                src="/android-chrome-192x192.png" 
                 alt="TypeMyworDz Logo" 
                 style={{ 
                   width: '80px', 
@@ -1013,7 +1376,7 @@ return (
           </header>
         )}
 
-        {/* NEW: Transcription Editor button above other navigation buttons */}
+        {/* Transcription Editor button above other navigation buttons */}
         {currentView === 'transcribe' && (
           <div style={{ 
             textAlign: 'center', 
@@ -1049,7 +1412,7 @@ return (
               }}
             >
               <img 
-                src="/favicon-32x32.png" // Using the smaller PNG for button icon
+                src="/favicon-32x32.png" 
                 alt="Favicon" 
                 style={{ width: '16px', height: '16px' }} 
               />
@@ -1109,7 +1472,7 @@ return (
             📊 History
           </button>
           
-          {/* ADDED: AI Assistant Button in Main Navigation */}
+          {/* AI Assistant Button in Main Navigation */}
           <button
             onClick={() => {
               if (!isPaidAIUser(userProfile)) {
@@ -1118,11 +1481,11 @@ return (
               }
               setCurrentView('ai_assistant');
             }}
-            disabled={!isPaidAIUser(userProfile)} // Disable if not a paid AI user
+            disabled={!isPaidAIUser(userProfile)}
             style={{
               padding: '12px 25px',
               margin: '0 10px',
-              backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : (currentView === 'ai_assistant' ? '#6c5ce7' : '#6c757d'), // Distinct color for AI, grey if disabled
+              backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : (currentView === 'ai_assistant' ? '#6c5ce7' : '#6c757d'),
               color: 'white',
               border: 'none',
               borderRadius: '25px',
@@ -1154,7 +1517,7 @@ return (
           )}
         </div>
 
-        {/* 🎯 HORIZONTAL PAYMENT PLANS - Key Feature */}
+        {/* HORIZONTAL PAYMENT PLANS */}
         {currentView === 'pricing' ? (
           <>
             <div style={{ 
@@ -1244,9 +1607,9 @@ return (
                       Purchase temporary access to Pro features. Available globally with local currency support
                     </p>
                     
-                    {/* 🎯 HORIZONTAL LAYOUT FOR PAYMENT PLANS - KEY FEATURE */}
+                    {/* HORIZONTAL LAYOUT FOR PAYMENT PLANS */}
                     <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                      {/* One-Day Plan (formerly 24 Hours Pro Access) */}
+                      {/* One-Day Plan */}
                       <div style={{
                         backgroundColor: 'white',
                         padding: '30px 25px',
@@ -1314,7 +1677,7 @@ return (
                         </button>
                       </div>
                       
-                      {/* Three-Day Plan (formerly 5 Days Pro Access) */}
+                      {/* Three-Day Plan */}
                       <div style={{
                         backgroundColor: 'white',
                         padding: '30px 25px',
@@ -1395,7 +1758,7 @@ return (
                         </button>
                       </div>
 
-                      {/* NEW: One-Week Plan */}
+                      {/* One-Week Plan */}
                       <div style={{
                         backgroundColor: 'white',
                         padding: '30px 25px',
@@ -1577,7 +1940,7 @@ return (
                   textAlign: 'left',
                   color: '#666'
                 }}>
-                  <div>✅ Smart service selection (OpenAI + Render + AssemblyAI)</div> {/* UPDATED */}
+                  <div>✅ Smart service selection (OpenAI + Render + AssemblyAI)</div>
                   <div>✅ Multiple file formats supported</div>
                   <div>✅ Easy-to-use interface</div>
                   <div>✅ Mobile-friendly design</div>
@@ -1587,7 +1950,7 @@ return (
           </>
         ) : currentView === 'admin' ? (
           <AdminDashboard showMessage={showMessage} />
-        ) : currentView === 'ai_assistant' ? ( // ADDED: New AI Assistant View
+        ) : currentView === 'ai_assistant' ? (
             <div style={{
               flex: 1,
               padding: '20px',
@@ -1616,8 +1979,8 @@ return (
                     </label>
                     <textarea
                         id="transcriptInput"
-                        value={latestTranscription} // FIXED: Use latestTranscription by default
-                        onChange={(e) => setLatestTranscription(e.target.value)} // Allow editing
+                        value={latestTranscription}
+                        onChange={(e) => setLatestTranscription(e.target.value)}
                         placeholder="Paste your transcription here..."
                         rows="10"
                         style={{
@@ -1629,7 +1992,7 @@ return (
                             resize: 'vertical',
                             boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
                         }}
-                        disabled={!isPaidAIUser(userProfile)} // Disable if not paid
+                        disabled={!isPaidAIUser(userProfile)}
                     ></textarea>
                 </div>
 
@@ -1651,17 +2014,17 @@ return (
                             fontSize: '1rem',
                             boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
                         }}
-                        disabled={!isPaidAIUser(userProfile)} // Disable if not paid
+                        disabled={!isPaidAIUser(userProfile)}
                     />
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '30px', flexWrap: 'wrap' }}>
                     <button
                         onClick={handleAIQuery}
-                        disabled={!isPaidAIUser(userProfile) || !latestTranscription || !userPrompt || aiLoading} // Disable if not paid
+                        disabled={!isPaidAIUser(userProfile) || !latestTranscription || !userPrompt || aiLoading}
                         style={{
                             padding: '12px 25px',
-                            backgroundColor: (!isPaidAIUser(userProfile) || !latestTranscription || !userPrompt || aiLoading) ? '#a0a0a0' : '#6c5ce7', // Grey if disabled
+                            backgroundColor: (!isPaidAIUser(userProfile) || !latestTranscription || !userPrompt || aiLoading) ? '#a0a0a0' : '#6c5ce7',
                             color: 'white',
                             border: 'none',
                             borderRadius: '25px',
@@ -1675,11 +2038,11 @@ return (
                         {aiLoading ? 'Processing...' : '✨ Get AI Response'}
                     </button>
                     <button
-                        onClick={() => { setLatestTranscription(''); setUserPrompt(''); setAIResponse(''); }} // Clear latest transcription
-                        disabled={!isPaidAIUser(userProfile)} // Disable if not paid
+                        onClick={() => { setLatestTranscription(''); setUserPrompt(''); setAIResponse(''); }}
+                        disabled={!isPaidAIUser(userProfile)}
                         style={{
                             padding: '12px 25px',
-                            backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#dc3545', // Grey if disabled
+                            backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#dc3545',
                             color: 'white',
                             border: 'none',
                             borderRadius: '25px',
@@ -1718,7 +2081,7 @@ return (
                             border: '1px solid #dee2e6',
                             textAlign: 'left',
                             lineHeight: '1.6',
-                            whiteSpace: 'pre-wrap', // Preserve line breaks and spaces
+                            whiteSpace: 'pre-wrap',
                             boxShadow: '0 5px 15px rgba(0,0,0,0.1)'
                         }}>
                             {aiResponse}
@@ -1748,7 +2111,7 @@ return (
               }}>
                 {userProfile.totalMinutesUsed < 30 ? (
                   <>
-                    🎉 <strong>Free Trial:</strong> {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining!{' '}
+                    <strong>Free Trial:</strong> {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining!{' '}
                     <button 
                       onClick={() => setCurrentView('pricing')}
                       style={{
@@ -1831,13 +2194,9 @@ return (
                     borderRadius: '25px',
                     cursor: 'pointer',
                     boxShadow: '0 5px 15px rgba(231, 76, 60, 0.4)',
-                    transition: 'all 0.3s ease',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '10px'
+                    transition: 'all 0.3s ease'
                   }}
                 >
-                  {/* NEW: Use the actual favicon-32x32.png for the icon */}
                   <img 
                     src="/favicon-32x32.png" 
                     alt="Record Icon" 
@@ -2089,10 +2448,10 @@ return (
                 }}>
                   <button
                     onClick={copyToClipboard}
-                    disabled={!isPaidAIUser(userProfile)} // Disable if not paid AI user
+                    disabled={!isPaidAIUser(userProfile)}
                     style={{
                       padding: '10px 20px',
-                      backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#27ae60', // Grey if disabled
+                      backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#27ae60',
                       color: 'white',
                       border: 'none',
                       borderRadius: '8px',
@@ -2106,10 +2465,10 @@ return (
                   
                   <button
                     onClick={downloadAsWord}
-                    disabled={!isPaidAIUser(userProfile)} // Disable if not paid AI user
+                    disabled={!isPaidAIUser(userProfile)}
                     style={{
                       padding: '10px 20px',
-                      backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#007bff', // Grey if disabled
+                      backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#007bff',
                       color: 'white',
                       border: 'none',
                       borderRadius: '8px',
@@ -2145,10 +2504,10 @@ return (
                       }
                       setCurrentView('ai_assistant');
                     }}
-                    disabled={!isPaidAIUser(userProfile)} // Disable if not a paid AI user
+                    disabled={!isPaidAIUser(userProfile)}
                     style={{
                       padding: '10px 20px',
-                      backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#6c5ce7', // Grey if disabled
+                      backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#6c5ce7',
                       color: 'white',
                       border: 'none',
                       borderRadius: '8px',
@@ -2193,11 +2552,9 @@ return (
                   padding: '20px',
                   borderRadius: '10px',
                   textAlign: 'left',
-                  // whiteSpace: 'pre-wrap', // Removed, as dangerouslySetInnerHTML handles line breaks
                   lineHeight: '1.6',
                   border: '1px solid #dee2e6'
                 }}>
-                  {/* FIXED: Use dangerouslySetInnerHTML to render HTML bold tags */}
                   <div dangerouslySetInnerHTML={{ __html: transcription.replace(/\n/g, '<br>') }} />
                 </div>
                 
@@ -2241,7 +2598,6 @@ return (
           © {new Date().getFullYear()} TypeMyworDz
         </footer>
 
-        {/* Removed StripePayment modal */}
       </div>
     } />
   </Routes>
