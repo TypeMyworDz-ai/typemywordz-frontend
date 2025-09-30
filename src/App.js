@@ -1,6 +1,6 @@
-// ===============================================================================
-// App.js - Part 1 of 15: Imports and Global Constants (FIXED for no-undef & 422)
-// ===============================================================================
+// ====================================================================================================
+// frontend/src/App.js (UPDATED with the NEW Railway Backend URL)
+// ====================================================================================================
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
@@ -15,9 +15,13 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'r
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 import PrivacyPolicy from './components/PrivacyPolicy';
 
-// Configuration for backend URLs
-const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
-const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com/'; 
+// UPDATED Configuration - RE-ADDED Render Whisper URL
+// MODIFIED: Use the new Railway Backend URL
+const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
+const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com/'; // This URL is for TypeMyworDz2 (Render)
+
+// ... (rest of your App.js code remains the same) ...
+ 
 // ===============================================================================
 // App.js - Part 2 of 15: isPaidAIUser Helper and CopiedNotification (FIXED for no-undef & 422)
 // ===============================================================================
