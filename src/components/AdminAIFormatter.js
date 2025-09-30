@@ -1,6 +1,5 @@
 // ====================================================================================================
-// COMPLETE UPDATED frontend/src/components/AdminAIFormatter.js
-// This file includes Admin AI Formatter with AI model selection (Claude/OpenAI).
+// frontend/src/components/AdminAIFormatter.js - Part 1 of 3: Imports and Global Constants
 // ====================================================================================================
 
 import React, { useState, useCallback } from 'react';
@@ -79,9 +78,16 @@ Client spellings: Word, word2, Word3, XX (abbreviation), Word4; My spellings: Na
 // This should match the one in App.js and main.py
 const isPaidAIUser = (userProfile) => {
   if (!userProfile || !userProfile.plan) return false;
-  const paidPlansForAI = ['Three-Day Plan', 'One-Week Plan', 'Pro']; // Added One-Week Plan
+  const paidPlansForAI = ['Three-Day Plan', 'One-Week Plan', 'Pro'];
   return paidPlansForAI.includes(userProfile.plan);
 };
+
+// ====================================================================================================
+// END frontend/src/components/AdminAIFormatter.js - Part 1 of 3
+// ====================================================================================================
+// ====================================================================================================
+// frontend/src/components/AdminAIFormatter.js - Part 2 of 3: Component State and handleAdminFormat Logic
+// ====================================================================================================
 
 const AdminAIFormatter = ({ showMessage }) => {
   const { userProfile, profileLoading } = useAuth(); // Get userProfile from AuthContext
@@ -126,10 +132,10 @@ const AdminAIFormatter = ({ showMessage }) => {
       let defaultModel = '';
 
       if (selectedAIProvider === 'claude') {
-        endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format`;
-        defaultModel = 'claude-3-5-haiku-20241022'; // Using the latest working Haiku model
+        endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format`; // This calls Anthropic Claude endpoint on Railway
+        defaultModel = 'claude-3-5-haiku-20241022'; 
       } else if (selectedAIProvider === 'openai') {
-        endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format-openai`;
+        endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format-openai`; // This calls OpenAI GPT endpoint on Railway, which then calls Render
         defaultModel = 'gpt-4-turbo-preview'; // Or 'gpt-3.5-turbo'
       } else {
         showMessage('Invalid AI provider selected.');
@@ -158,9 +164,16 @@ const AdminAIFormatter = ({ showMessage }) => {
     } finally {
       setAILoading(false);
     }
-  }, [transcriptInput, formattingInstructions, userProfile, profileLoading, showMessage, RAILWAY_BACKEND_URL, selectedAIProvider]); // Added selectedAIProvider to dependencies
+  }, [transcriptInput, formattingInstructions, userProfile, profileLoading, showMessage, RAILWAY_BACKEND_URL, selectedAIProvider]);
 
   const isButtonDisabled = profileLoading || !userProfile || !isPaidAIUser(userProfile) || !transcriptInput || !formattingInstructions || aiLoading;
+
+// ====================================================================================================
+// END frontend/src/components/AdminAIFormatter.js - Part 2 of 3
+// ====================================================================================================
+// ====================================================================================================
+// frontend/src/components/AdminAIFormatter.js - Part 3 of 3: Component JSX Render and Export
+// ====================================================================================================
 
   return (
     <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto', backgroundColor: '#f8f9fa', borderRadius: '15px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', marginTop: '20px' }}>
@@ -329,6 +342,7 @@ const AdminAIFormatter = ({ showMessage }) => {
 };
 
 export default AdminAIFormatter;
+
 // ====================================================================================================
-// END COMPLETE UPDATED frontend/src/components/AdminAIFormatter.js
+// END frontend/src/components/AdminAIFormatter.js - Part 3 of 3
 // ====================================================================================================
