@@ -1,6 +1,6 @@
-// ====================================================================================================
-// frontend/src/App.js (UPDATED with the NEW Railway Backend URL)
-// ====================================================================================================
+// ============================================================================================================================================================================================================================================
+// frontend/src/App.js (UPDATED with the NEW Railway Backend URL and Admin Emails)
+// ============================================================================================================================================================================================================================================
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
@@ -20,17 +20,11 @@ import PrivacyPolicy from './components/PrivacyPolicy';
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com/'; // This URL is for TypeMyworDz2 (Render)
 
-// ... (rest of your App.js code remains the same) ...
- 
-// ===============================================================================
-// App.js - Part 2 of 15: isPaidAIUser Helper and CopiedNotification (FIXED for no-undef & 422)
-// ===============================================================================
-
 // Helper function to determine if a user has access to AI features
 const isPaidAIUser = (userProfile) => {
   if (!userProfile || !userProfile.plan) return false;
   // Only 'Three-Day Plan' and 'Pro' plans are eligible for AI features
-  const paidPlansForAI = ['Three-Day Plan', 'Pro']; 
+  const paidPlansForAI = ['Three-Day Plan', 'Pro', 'One-Week Plan']; // Added One-Week Plan
   return paidPlansForAI.includes(userProfile.plan);
 };
 
@@ -58,10 +52,6 @@ const CopiedNotification = ({ isVisible }) => {
     </div>
   );
 };
-// ===============================================================================
-// App.js - Part 3 of 15: ToastNotification Component (FIXED for no-undef & 422)
-// ===============================================================================
-
 // Enhanced Toast Notification Component
 const ToastNotification = ({ message, onClose }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -150,9 +140,6 @@ const ToastNotification = ({ message, onClose }) => {
     </div>
   );
 };
-// ===============================================================================
-// App.js - Part 4 of 15: AppContent Component Start & Utility Functions (FIXED for no-undef & 422)
-// ===============================================================================
 
 function AppContent() {
   const navigate = useNavigate();
@@ -176,10 +163,6 @@ function AppContent() {
     }, intervalTime);
     return interval; 
   };
-// ===============================================================================
-// App.js - Part 5 of 15: AppContent State Declarations (Part 1) (FIXED for no-undef & 422)
-// ===============================================================================
-
   // State declarations
   const [selectedFile, setSelectedFile] = useState(null);
   const [jobId, setJobId] = useState(null);
@@ -199,9 +182,6 @@ function AppContent() {
   const [speakerLabelsEnabled, setSpeakerLabelsEnabled] = useState(false);
   // State to store the latest completed transcription for AI Assistant
   const [latestTranscription, setLatestTranscription] = useState(''); 
-// ===============================================================================
-// App.js - Part 6 of 15: AppContent State Declarations (Part 2) & Refs (FIXED for no-undef & 422)
-// ===============================================================================
 
   // Payment states
   const [pricingView, setPricingView] = useState('credits');
@@ -225,22 +205,16 @@ function AppContent() {
   const transcriptionIntervalRef = useRef(null);
   const statusCheckTimeoutRef = useRef(null);
   const isCancelledRef = useRef(false);
-// ===============================================================================
-// App.js - Part 7 of 15: Auth Setup and Message Handlers (FIXED for no-undef & 422)
-// ===============================================================================
 
   // Auth and user setup
   const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, profileLoading } = useAuth();
-  const ADMIN_EMAILS = ['typemywordz@gmail.com']; // 'typemywordz@gmail.com' is an admin for functionality
+  // UPDATED: Admin emails are now referenced from your backend configuration
+  const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; 
   const isAdmin = ADMIN_EMAILS.includes(currentUser?.email); 
 
   // Message handlers
   const showMessage = useCallback((msg) => setMessage(msg), []);
   const clearMessage = useCallback(() => setMessage(''), []);
-// ===============================================================================
-// App.js - Part 8 of 15: Menu State and Handlers (FIXED for no-undef & 422)
-// ===============================================================================
-
   // --- Menu State & Functions (React-managed) ---
   const [openSubmenu, setOpenSubmenu] = useState(null); // Tracks which submenu is open
 
@@ -259,9 +233,6 @@ function AppContent() {
     setCurrentView('pricing');
     setOpenSubmenu(null); // Close any open menu
   }, [setCurrentView]);
-// ===============================================================================
-// App.js - Part 9 of 15: Paystack Payment Functions (FIXED for no-undef & 422)
-// ===============================================================================
 
   // Paystack payment functions
   const initializePaystackPayment = useCallback(async (email, amount, planName, countryCode) => { // Made useCallback
@@ -351,10 +322,6 @@ function AppContent() {
       handlePaystackCallback();
     }
   }, [currentUser, handlePaystackCallback]);
-// ===============================================================================
-// App.js - Part 10 of 15: Reset and Recording Functions (FIXED for no-undef & 422)
-// ===============================================================================
-
   // Enhanced reset function with better job cancellation
   const resetTranscriptionProcessUI = useCallback(() => { 
     console.log('🔄 Resetting transcription UI and cancelling any ongoing processes');
@@ -512,10 +479,6 @@ function AppContent() {
       clearInterval(recordingIntervalRef.current);
     }
   }, [isRecording]);
-// ===============================================================================
-// App.js - Part 11 of 15: Cancellation and Transcription Completion Handlers (FIXED for no-undef & 422)
-// ===============================================================================
-
   // Improved cancel function with page refresh
   const handleCancelUpload = useCallback(async () => {
     console.log('🛑 FORCE CANCEL - Stopping everything immediately');
@@ -616,10 +579,6 @@ function AppContent() {
       // No changes here, as processingMessage state was removed
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]);
-// ===============================================================================
-// App.js - Part 12 of 15: Payment Success, Job Status Check, and Upload Logic (FIXED for no-undef & 422)
-// ===============================================================================
-
   // Handle successful payment
   const handlePaymentSuccess = useCallback(async (planName, subscriptionId) => {
     try {
@@ -764,7 +723,6 @@ function AppContent() {
       abortControllerRef.current = null;
     }
   }, [handleTranscriptionComplete, showMessage, RAILWAY_BACKEND_URL, resetTranscriptionProcessUI]);
-
   // handleUpload with new backend logic for model selection
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
@@ -817,7 +775,8 @@ function AppContent() {
     formData.append('file', selectedFile);
     formData.append('language_code', selectedLanguage);
     formData.append('speaker_labels_enabled', speakerLabelsEnabled);
-    formData.append('user_plan', userProfile?.plan || 'free'); 
+    formData.append('user_plan', userProfile?.plan || 'free');
+    formData.append('user_email', currentUser?.email || ''); // ADDED: Send user email to backend
 
     try {
       console.log(`🎯 Using unified transcription endpoint: ${RAILWAY_BACKEND_URL}/transcribe`);
@@ -856,10 +815,7 @@ function AppContent() {
       setIsUploading(false);
     }
 
-  }, [selectedFile, audioDuration, currentUser?.uid, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, checkJobStatus]);
-// ===============================================================================
-// App.js - Part 13 of 15: Download, Logout, Profile, AI Query Handlers (FIXED for no-undef & 422)
-// ===============================================================================
+  }, [selectedFile, audioDuration, currentUser?.uid, currentUser?.email, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, checkJobStatus]);
 
   // Copy to clipboard (now triggers CopiedNotification)
   const copyToClipboard = useCallback(() => { 
@@ -917,7 +873,6 @@ function AppContent() {
       showMessage('Failed to generate Word document: ' + error.message);
     }
   }, [transcription, userProfile, showMessage, RAILWAY_BACKEND_URL]);
-
   // TXT download - available for all users
   const downloadAsTXT = useCallback(() => { 
     // For TXT download, we want plain text, so strip HTML tags
@@ -1045,10 +1000,6 @@ function AppContent() {
           setAILoading(false);
       }
   }, [latestTranscription, userPrompt, userProfile, profileLoading, showMessage, RAILWAY_BACKEND_URL]);
-// ===============================================================================
-// App.js - Part 14 of 15: Cleanup Effect and Login Screen JSX (FIXED for no-undef & 422)
-// ===============================================================================
-
   // Cleanup effect to ensure cancellation works
   useEffect(() => {
     return () => {
@@ -1173,9 +1124,6 @@ function AppContent() {
       </div>
     );
   }
-// ===============================================================================
-// App.js - Part 15 of 15: Main Authenticated JSX Structure (Final Part) (FIXED for no-undef & 422)
-// ===============================================================================
 
 return (
   <Routes>
