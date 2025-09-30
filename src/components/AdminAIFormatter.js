@@ -1,11 +1,15 @@
-import React, { useState, useCallback, useEffect } from 'react';
+// ====================================================================================================
+// COMPLETE UPDATED frontend/src/components/AdminAIFormatter.js
+// This file includes Admin AI Formatter with AI model selection (Claude/OpenAI).
+// ====================================================================================================
+
+import React, { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext'; // Import useAuth to get userProfile
 
 // Ensure this URL matches your backend's base URL
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
 
 // Define the default formatting instructions as a constant outside the component
-// UPDATED: Using the comprehensive formatting guidelines from your clipboard
 const DEFAULT_FORMATTING_INSTRUCTIONS = `STUDY THOSE GENERAL GUIDELINES AND USE THEM TO FORMAT THE TEXT I WILL GIVE YOU (Follow rule number 9. as it is):
 
 1. When a word is explicitly spelled out (Or military-phonetical spelling, e.g., "David, Lincoln, Edward, Ida, et cetera) replace the wrongly spelled word throughout the text with the correct spelled out word/words. Also, remove the spelled out part. Explicitly spelled words might look like "W-O-R-D, or W,O,R,D, w,o,r,d." in the text.
@@ -68,16 +72,16 @@ Client spellings: Word, word2, Word3, XX (abbreviation), Word4; My spellings: Na
 
 26. Always search ONLINE to confirm proper nouns. E.g., if the original text has "Cisco" but you can use context to tell that the dictation is talking about Sysco the food company, you will have to change the "Cisco" to "Sysco". Similarly, do an internet search to confirm that words or phrases are correctly spelled out and capitalized the way they should.
 
-27. Do not include YOUR summaries/notes/analysis or any kind of metainformation in the final formatted text.`;
+27. Do not include YOUR summaries/notes/analysis or any kind of metainformation in the final formatted text.
+`;
 
 // Helper function to determine if a user has access to AI features
 // This should match the one in App.js and main.py
 const isPaidAIUser = (userProfile) => {
   if (!userProfile || !userProfile.plan) return false;
-  const paidPlansForAI = ['Three-Day Plan', 'Pro']; 
+  const paidPlansForAI = ['Three-Day Plan', 'One-Week Plan', 'Pro']; // Added One-Week Plan
   return paidPlansForAI.includes(userProfile.plan);
 };
-
 
 const AdminAIFormatter = ({ showMessage }) => {
   const { userProfile, profileLoading } = useAuth(); // Get userProfile from AuthContext
@@ -85,6 +89,8 @@ const AdminAIFormatter = ({ showMessage }) => {
   const [formattingInstructions, setFormattingInstructions] = useState(DEFAULT_FORMATTING_INSTRUCTIONS);
   const [formattedOutput, setFormattedOutput] = useState('');
   const [aiLoading, setAILoading] = useState(false);
+  // NEW State: To select between AI providers
+  const [selectedAIProvider, setSelectedAIProvider] = useState('claude'); // 'claude' or 'openai'
 
   const handleAdminFormat = useCallback(async () => {
     if (profileLoading || !userProfile) {
@@ -93,7 +99,7 @@ const AdminAIFormatter = ({ showMessage }) => {
     }
     // Check if user is eligible for AI features
     if (!isPaidAIUser(userProfile)) {
-        showMessage('❌ Admin AI formatting features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.');
+        showMessage('❌ Admin AI formatting features are only available for paid AI users (Three-Day, One-Week, Pro plans). Please upgrade your plan.');
         return;
     }
 
@@ -110,22 +116,35 @@ const AdminAIFormatter = ({ showMessage }) => {
     setFormattedOutput(''); // Clear previous output
 
     try {
-      // Use FormData to send data to the backend
       const formData = new FormData();
       formData.append('transcript', transcriptInput);
       formData.append('formatting_instructions', formattingInstructions);
-      formData.append('model', 'claude-3-5-haiku-20241022'); // Using the latest working Haiku model
       formData.append('max_tokens', '4000');
       formData.append('user_plan', userProfile?.plan || 'free'); // Pass user plan to backend
 
-      const response = await fetch(`${RAILWAY_BACKEND_URL}/ai/admin-format`, {
+      let endpoint = '';
+      let defaultModel = '';
+
+      if (selectedAIProvider === 'claude') {
+        endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format`;
+        defaultModel = 'claude-3-5-haiku-20241022'; // Using the latest working Haiku model
+      } else if (selectedAIProvider === 'openai') {
+        endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format-openai`;
+        defaultModel = 'gpt-4-turbo-preview'; // Or 'gpt-3.5-turbo'
+      } else {
+        showMessage('Invalid AI provider selected.');
+        setAILoading(false);
+        return;
+      }
+      formData.append('model', defaultModel); // Append the chosen model
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         body: formData, // Send FormData
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        // Improved: More descriptive error message
         throw new Error(errorData.detail || `Backend error: ${response.status} ${response.statusText}`);
       }
 
@@ -135,12 +154,11 @@ const AdminAIFormatter = ({ showMessage }) => {
 
     } catch (error) {
       console.error('Admin AI Formatter Error:', error);
-      // Improved: Display error.message directly
       showMessage('❌ Admin AI Formatter failed: ' + error.message);
     } finally {
       setAILoading(false);
     }
-  }, [transcriptInput, formattingInstructions, userProfile, profileLoading, showMessage, RAILWAY_BACKEND_URL]);
+  }, [transcriptInput, formattingInstructions, userProfile, profileLoading, showMessage, RAILWAY_BACKEND_URL, selectedAIProvider]); // Added selectedAIProvider to dependencies
 
   const isButtonDisabled = profileLoading || !userProfile || !isPaidAIUser(userProfile) || !transcriptInput || !formattingInstructions || aiLoading;
 
@@ -150,13 +168,46 @@ const AdminAIFormatter = ({ showMessage }) => {
       {/* Conditional message for non-paid users */}
       {(!profileLoading && !isPaidAIUser(userProfile)) && (
         <p style={{ textAlign: 'center', color: '#dc3545', marginBottom: '30px', fontWeight: 'bold' }}>
-          ❌ Admin AI formatting features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.
+          ❌ Admin AI formatting features are only available for paid AI users (Three-Day, One-Week, Pro plans). Please upgrade your plan.
         </p>
       )}
       <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
         Provide a raw transcript and detailed instructions for the AI to format and polish it.
         This feature is for administrative use only.
       </p>
+
+      {/* NEW: AI Provider Selection */}
+      <div style={{ marginBottom: '30px', textAlign: 'center' }}>
+        <label style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
+          Select AI Provider:
+        </label>
+        <div style={{ display: 'inline-flex', gap: '20px' }}>
+          <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <input
+              type="radio"
+              name="aiProvider"
+              value="claude"
+              checked={selectedAIProvider === 'claude'}
+              onChange={(e) => setSelectedAIProvider(e.target.value)}
+              disabled={!isPaidAIUser(userProfile)}
+              style={{ marginRight: '8px' }}
+            />
+            Anthropic Claude
+          </label>
+          <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <input
+              type="radio"
+              name="aiProvider"
+              value="openai"
+              checked={selectedAIProvider === 'openai'}
+              onChange={(e) => setSelectedAIProvider(e.target.value)}
+              disabled={!isPaidAIUser(userProfile)}
+              style={{ marginRight: '8px' }}
+            />
+            OpenAI GPT
+          </label>
+        </div>
+      </div>
 
       <div style={{ marginBottom: '20px' }}>
         <label htmlFor="adminTranscriptInput" style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
@@ -221,7 +272,7 @@ const AdminAIFormatter = ({ showMessage }) => {
             transition: 'all 0.3s ease'
           }}
         >
-          {aiLoading ? 'Formatting...' : '👑 Format Transcript with AI'}
+          {aiLoading ? 'Formatting...' : `👑 Format with ${selectedAIProvider === 'claude' ? 'Claude' : 'OpenAI'}`}
         </button>
         <button
           onClick={() => { setTranscriptInput(''); setFormattingInstructions(DEFAULT_FORMATTING_INSTRUCTIONS); setFormattedOutput(''); }}
@@ -278,3 +329,6 @@ const AdminAIFormatter = ({ showMessage }) => {
 };
 
 export default AdminAIFormatter;
+// ====================================================================================================
+// END COMPLETE UPDATED frontend/src/components/AdminAIFormatter.js
+// ====================================================================================================
