@@ -129,7 +129,7 @@ const AdminAIFormatter = ({ showMessage }) => {
         defaultModel = 'claude-3-5-haiku-20241022'; 
       } else if (selectedAIProvider === 'gemini') { // UPDATED: Changed from 'openai' to 'gemini'
         endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format-gemini`; // NEW: This calls Google Gemini endpoint on Railway
-        defaultModel = 'gemini-pro'; // Default Gemini model
+        defaultModel = 'gemini-1.0-pro'; // Default Gemini model
       } else {
         showMessage('Invalid AI provider selected.');
         setAILoading(false);
