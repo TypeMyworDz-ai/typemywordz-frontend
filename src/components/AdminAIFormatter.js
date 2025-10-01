@@ -1,5 +1,5 @@
 // ==============================================================================
-// frontend/src/components/AdminAIFormatter.js - Part 1 of 2: Imports, Constants, Component State and handleAdminFormat Logic
+// frontend/src/components/AdminAIFormatter.js - COMPLETE UPDATED FILE
 // ==============================================================================
 
 import React, { useState, useCallback } from 'react';
@@ -129,7 +129,7 @@ const AdminAIFormatter = ({ showMessage }) => {
         defaultModel = 'claude-3-5-haiku-20241022'; 
       } else if (selectedAIProvider === 'gemini') { // UPDATED: Changed from 'openai' to 'gemini'
         endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format-gemini`; // NEW: This calls Google Gemini endpoint on Railway
-        defaultModel = 'gemini-1.0-pro'; // Default Gemini model
+        defaultModel = 'models/gemini-pro-latest'; // UPDATED: Default Gemini model to 'models/gemini-pro-latest'
       } else {
         showMessage('Invalid AI provider selected.');
         setAILoading(false);
@@ -160,9 +160,6 @@ const AdminAIFormatter = ({ showMessage }) => {
   }, [transcriptInput, formattingInstructions, userProfile, profileLoading, showMessage, RAILWAY_BACKEND_URL, selectedAIProvider]);
 
   const isButtonDisabled = profileLoading || !userProfile || !isPaidAIUser(userProfile) || !transcriptInput || !formattingInstructions || aiLoading;
-// ==============================================================================
-// frontend/src/components/AdminAIFormatter.js - Part 2 of 2: Component JSX Render and Export
-// ==============================================================================
 
   return (
     <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto', backgroundColor: '#f8f9fa', borderRadius: '15px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', marginTop: '20px' }}>
