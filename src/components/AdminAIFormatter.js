@@ -1,6 +1,6 @@
-// ====================================================================================================
-// frontend/src/components/AdminAIFormatter.js - Part 1 of 3: Imports and Global Constants
-// ====================================================================================================
+// ==============================================================================
+// frontend/src/components/AdminAIFormatter.js - Part 1 of 2: Imports, Constants, Component State and handleAdminFormat Logic
+// ==============================================================================
 
 import React, { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext'; // Import useAuth to get userProfile
@@ -55,7 +55,7 @@ const DEFAULT_FORMATTING_INSTRUCTIONS = `STUDY THOSE GENERAL GUIDELINES AND USE 
 
 22. Do not change the SENTENCE STRUCTURE; Do not add words, rearrange, substitute or paraphrase words/phrases. Only correct speech errors and follow dictation instructions ONLY.
 
-23. Always use straight quotes (' "). NEVER USE CURLY QUOTES (’).
+23. Always use straight quotes (' "). NEVER USE CURLY QUOTES (’).”
 
 24. Always remember, we use slashes in DATES unless instructed otherwise.
 
@@ -82,21 +82,14 @@ const isPaidAIUser = (userProfile) => {
   return paidPlansForAI.includes(userProfile.plan);
 };
 
-// ====================================================================================================
-// END frontend/src/components/AdminAIFormatter.js - Part 1 of 3
-// ====================================================================================================
-// ====================================================================================================
-// frontend/src/components/AdminAIFormatter.js - Part 2 of 3: Component State and handleAdminFormat Logic
-// ====================================================================================================
-
 const AdminAIFormatter = ({ showMessage }) => {
   const { userProfile, profileLoading } = useAuth(); // Get userProfile from AuthContext
   const [transcriptInput, setTranscriptInput] = useState('');
   const [formattingInstructions, setFormattingInstructions] = useState(DEFAULT_FORMATTING_INSTRUCTIONS);
   const [formattedOutput, setFormattedOutput] = useState('');
   const [aiLoading, setAILoading] = useState(false);
-  // NEW State: To select between AI providers
-  const [selectedAIProvider, setSelectedAIProvider] = useState('claude'); // 'claude' or 'openai'
+  // UPDATED State: To select between AI providers (claude or gemini)
+  const [selectedAIProvider, setSelectedAIProvider] = useState('claude'); // 'claude' or 'gemini'
 
   const handleAdminFormat = useCallback(async () => {
     if (profileLoading || !userProfile) {
@@ -134,9 +127,9 @@ const AdminAIFormatter = ({ showMessage }) => {
       if (selectedAIProvider === 'claude') {
         endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format`; // This calls Anthropic Claude endpoint on Railway
         defaultModel = 'claude-3-5-haiku-20241022'; 
-      } else if (selectedAIProvider === 'openai') {
-        endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format-openai`; // This calls OpenAI GPT endpoint on Railway, which then calls Render
-        defaultModel = 'gpt-4-turbo-preview'; // Or 'gpt-3.5-turbo'
+      } else if (selectedAIProvider === 'gemini') { // UPDATED: Changed from 'openai' to 'gemini'
+        endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format-gemini`; // NEW: This calls Google Gemini endpoint on Railway
+        defaultModel = 'gemini-pro'; // Default Gemini model
       } else {
         showMessage('Invalid AI provider selected.');
         setAILoading(false);
@@ -167,13 +160,9 @@ const AdminAIFormatter = ({ showMessage }) => {
   }, [transcriptInput, formattingInstructions, userProfile, profileLoading, showMessage, RAILWAY_BACKEND_URL, selectedAIProvider]);
 
   const isButtonDisabled = profileLoading || !userProfile || !isPaidAIUser(userProfile) || !transcriptInput || !formattingInstructions || aiLoading;
-
-// ====================================================================================================
-// END frontend/src/components/AdminAIFormatter.js - Part 2 of 3
-// ====================================================================================================
-// ====================================================================================================
-// frontend/src/components/AdminAIFormatter.js - Part 3 of 3: Component JSX Render and Export
-// ====================================================================================================
+// ==============================================================================
+// frontend/src/components/AdminAIFormatter.js - Part 2 of 2: Component JSX Render and Export
+// ==============================================================================
 
   return (
     <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto', backgroundColor: '#f8f9fa', borderRadius: '15px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', marginTop: '20px' }}>
@@ -211,13 +200,13 @@ const AdminAIFormatter = ({ showMessage }) => {
             <input
               type="radio"
               name="aiProvider"
-              value="openai"
-              checked={selectedAIProvider === 'openai'}
+              value="gemini" // UPDATED: Changed from "openai" to "gemini"
+              checked={selectedAIProvider === 'gemini'} // UPDATED: Changed from "openai" to "gemini"
               onChange={(e) => setSelectedAIProvider(e.target.value)}
               disabled={!isPaidAIUser(userProfile)}
               style={{ marginRight: '8px' }}
             />
-            OpenAI GPT
+            Google Gemini {/* UPDATED: Changed from "OpenAI GPT" to "Google Gemini" */}
           </label>
         </div>
       </div>
@@ -285,7 +274,7 @@ const AdminAIFormatter = ({ showMessage }) => {
             transition: 'all 0.3s ease'
           }}
         >
-          {aiLoading ? 'Formatting...' : `👑 Format with ${selectedAIProvider === 'claude' ? 'Claude' : 'OpenAI'}`}
+          {aiLoading ? 'Formatting...' : `👑 Format with ${selectedAIProvider === 'claude' ? 'Claude' : 'Gemini'}`} {/* UPDATED: Changed from 'OpenAI' to 'Gemini' */}
         </button>
         <button
           onClick={() => { setTranscriptInput(''); setFormattingInstructions(DEFAULT_FORMATTING_INSTRUCTIONS); setFormattedOutput(''); }}
@@ -342,7 +331,3 @@ const AdminAIFormatter = ({ showMessage }) => {
 };
 
 export default AdminAIFormatter;
-
-// ====================================================================================================
-// END frontend/src/components/AdminAIFormatter.js - Part 3 of 3
-// ====================================================================================================
