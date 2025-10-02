@@ -37,6 +37,14 @@ const messages = [
     type: 'text',
     content: "We also offer Human-Transcripts Services, talk to us!",
     color: '#5935dcff'
+  },
+  {
+    type: 'image',
+    content: "/claude_logo.png", // Ensure this path is correct in your public folder
+    text: "Translate into Spanish",
+    content: "/gemini_logo.png", // Ensure this path is correct in your public folder
+    text: "& more!",
+    alt: "Gemini AI"
   }
 ];
 
