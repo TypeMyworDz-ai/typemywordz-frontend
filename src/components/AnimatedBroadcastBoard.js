@@ -13,8 +13,8 @@ const messages = [
   },
   {
     type: 'text',
-    content: "💡 You have a choice to have Speaker tags in your transcript or not!",
-    color: '#28a745'
+    content: "💡 English and No Speakers are by Default. Change to your liking.",
+    color: '#649615ff'
   },
   {
     type: 'image',
@@ -30,7 +30,7 @@ const messages = [
   },
   {
     type: 'text',
-    content: "💰 Our African clients can now pay with 'MPESA",
+    content: "💰 Our African subscribers can now pay with M-PESA",
     color: '#1e9b0dff'
   },
   {
