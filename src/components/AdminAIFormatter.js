@@ -1,6 +1,6 @@
-// ==============================================================================
+// ================================================================================
 // frontend/src/components/AdminAIFormatter.js - COMPLETE UPDATED FILE
-// ==============================================================================
+// ================================================================================
 
 import React, { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext'; // Import useAuth to get userProfile
@@ -55,7 +55,7 @@ const DEFAULT_FORMATTING_INSTRUCTIONS = `STUDY THOSE GENERAL GUIDELINES AND USE 
 
 22. Do not change the SENTENCE STRUCTURE; Do not add words, rearrange, substitute or paraphrase words/phrases. Only correct speech errors and follow dictation instructions ONLY.
 
-23. Always use straight quotes (' "). NEVER USE CURLY QUOTES (’).”
+23. Always use straight quotes (' "). NEVER USE CURLY QUOTES (')."
 
 24. Always remember, we use slashes in DATES unless instructed otherwise.
 
@@ -74,14 +74,11 @@ Client spellings: Word, word2, Word3, XX (abbreviation), Word4; My spellings: Na
 27. Do not include YOUR summaries/notes/analysis or any kind of metainformation in the final formatted text.
 `;
 
-// Helper function to determine if a user has access to AI features
-// This should match the one in App.js and main.py
+// Helper function to determine if a user has access to AI features - REMOVED RESTRICTIONS
 const isPaidAIUser = (userProfile) => {
-  if (!userProfile || !userProfile.plan) return false;
-  const paidPlansForAI = ['Three-Day Plan', 'One-Week Plan', 'Pro'];
-  return paidPlansForAI.includes(userProfile.plan);
+  // REMOVED LIMITS: Now available for all users
+  return true;
 };
-
 const AdminAIFormatter = ({ showMessage }) => {
   const { userProfile, profileLoading } = useAuth(); // Get userProfile from AuthContext
   const [transcriptInput, setTranscriptInput] = useState('');
@@ -90,18 +87,84 @@ const AdminAIFormatter = ({ showMessage }) => {
   const [aiLoading, setAILoading] = useState(false);
   // UPDATED State: To select between AI providers (claude or gemini)
   const [selectedAIProvider, setSelectedAIProvider] = useState('claude'); // 'claude' or 'gemini'
+  
+  // NEW: States for copy functionality and continue functionality
+  const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
+  const [showContinueBox, setShowContinueBox] = useState(false);
+  const [continuePrompt, setContinuePrompt] = useState('');
+
+  // NEW: Function to handle copying AI response
+  const handleCopyAIResponse = useCallback(() => {
+    navigator.clipboard.writeText(formattedOutput);
+    setCopiedMessageVisible(true);
+    setTimeout(() => setCopiedMessageVisible(false), 2000);
+    showMessage('✅ AI response copied to clipboard!');
+  }, [formattedOutput, showMessage]);
+
+  // NEW: Function to handle continue AI response
+  const handleContinueResponse = useCallback(async () => {
+    if (!continuePrompt.trim()) {
+      showMessage('Please enter instructions for continuing the response.');
+      return;
+    }
+
+    setAILoading(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('transcript', transcriptInput + '\n\nPrevious AI Response:\n' + formattedOutput);
+      formData.append('formatting_instructions', continuePrompt);
+      formData.append('max_tokens', '8000'); // REMOVED LIMITS - increased to 8000
+      formData.append('user_plan', userProfile?.plan || 'free');
+
+      let endpoint = '';
+      let defaultModel = '';
+
+      if (selectedAIProvider === 'claude') {
+        endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format`;
+        defaultModel = 'claude-3-5-haiku-20241022'; 
+      } else if (selectedAIProvider === 'gemini') {
+        endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format-gemini`;
+        defaultModel = 'models/gemini-pro-latest';
+      } else {
+        showMessage('Invalid AI provider selected.');
+        setAILoading(false);
+        return;
+      }
+      
+      formData.append('model', defaultModel);
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `Backend error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setFormattedOutput(formattedOutput + '\n\n' + data.formatted_transcript);
+      setContinuePrompt('');
+      setShowContinueBox(false);
+      showMessage('✅ Response continued successfully!');
+
+    } catch (error) {
+      console.error('Continue AI Response Error:', error);
+      showMessage('❌ Failed to continue response: ' + error.message);
+    } finally {
+      setAILoading(false);
+    }
+  }, [continuePrompt, transcriptInput, formattedOutput, userProfile, selectedAIProvider, showMessage, RAILWAY_BACKEND_URL]);
 
   const handleAdminFormat = useCallback(async () => {
     if (profileLoading || !userProfile) {
         showMessage('Loading user profile... Please wait.');
         return;
     }
-    // Check if user is eligible for AI features
-    if (!isPaidAIUser(userProfile)) {
-        showMessage('❌ Admin AI formatting features are only available for paid AI users (Three-Day, One-Week, Pro plans). Please upgrade your plan.');
-        return;
-    }
-
+    // REMOVED: User plan restrictions - now available for all users
+    
     if (!transcriptInput) {
       showMessage('Please paste a transcript to format.');
       return;
@@ -118,28 +181,28 @@ const AdminAIFormatter = ({ showMessage }) => {
       const formData = new FormData();
       formData.append('transcript', transcriptInput);
       formData.append('formatting_instructions', formattingInstructions);
-      formData.append('max_tokens', '4000');
-      formData.append('user_plan', userProfile?.plan || 'free'); // Pass user plan to backend
+      formData.append('max_tokens', '8000'); // REMOVED LIMITS - increased to 8000
+      formData.append('user_plan', userProfile?.plan || 'free');
 
       let endpoint = '';
       let defaultModel = '';
 
       if (selectedAIProvider === 'claude') {
-        endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format`; // This calls Anthropic Claude endpoint on Railway
+        endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format`;
         defaultModel = 'claude-3-5-haiku-20241022'; 
-      } else if (selectedAIProvider === 'gemini') { // UPDATED: Changed from 'openai' to 'gemini'
-        endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format-gemini`; // NEW: This calls Google Gemini endpoint on Railway
-        defaultModel = 'models/gemini-pro-latest'; // UPDATED: Default Gemini model to 'models/gemini-pro-latest'
+      } else if (selectedAIProvider === 'gemini') {
+        endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format-gemini`;
+        defaultModel = 'models/gemini-pro-latest';
       } else {
         showMessage('Invalid AI provider selected.');
         setAILoading(false);
         return;
       }
-      formData.append('model', defaultModel); // Append the chosen model
+      formData.append('model', defaultModel);
 
       const response = await fetch(endpoint, {
         method: 'POST',
-        body: formData, // Send FormData
+        body: formData,
       });
 
       if (!response.ok) {
@@ -149,6 +212,7 @@ const AdminAIFormatter = ({ showMessage }) => {
 
       const data = await response.json();
       setFormattedOutput(data.formatted_transcript);
+      setShowContinueBox(true); // NEW: Show continue option after AI responds
       showMessage('✅ Transcript formatted by AI successfully!');
 
     } catch (error) {
@@ -159,20 +223,15 @@ const AdminAIFormatter = ({ showMessage }) => {
     }
   }, [transcriptInput, formattingInstructions, userProfile, profileLoading, showMessage, RAILWAY_BACKEND_URL, selectedAIProvider]);
 
-  const isButtonDisabled = profileLoading || !userProfile || !isPaidAIUser(userProfile) || !transcriptInput || !formattingInstructions || aiLoading;
-
+  // REMOVED: User restrictions - now all users can use this feature
+  const isButtonDisabled = profileLoading || !userProfile || !transcriptInput || !formattingInstructions || aiLoading;
   return (
     <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto', backgroundColor: '#f8f9fa', borderRadius: '15px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', marginTop: '20px' }}>
       <h2 style={{ color: '#dc3545', textAlign: 'center', marginBottom: '30px' }}>👑 Admin AI Formatter</h2>
-      {/* Conditional message for non-paid users */}
-      {(!profileLoading && !isPaidAIUser(userProfile)) && (
-        <p style={{ textAlign: 'center', color: '#dc3545', marginBottom: '30px', fontWeight: 'bold' }}>
-          ❌ Admin AI formatting features are only available for paid AI users (Three-Day, One-Week, Pro plans). Please upgrade your plan.
-        </p>
-      )}
+      {/* REMOVED: Conditional message for non-paid users - now available for all */}
       <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
         Provide a raw transcript and detailed instructions for the AI to format and polish it.
-        This feature is for administrative use only.
+        This feature is now available for all users.
       </p>
 
       {/* NEW: AI Provider Selection */}
@@ -188,7 +247,6 @@ const AdminAIFormatter = ({ showMessage }) => {
               value="claude"
               checked={selectedAIProvider === 'claude'}
               onChange={(e) => setSelectedAIProvider(e.target.value)}
-              disabled={!isPaidAIUser(userProfile)}
               style={{ marginRight: '8px' }}
             />
             Anthropic Claude
@@ -197,13 +255,12 @@ const AdminAIFormatter = ({ showMessage }) => {
             <input
               type="radio"
               name="aiProvider"
-              value="gemini" // UPDATED: Changed from "openai" to "gemini"
-              checked={selectedAIProvider === 'gemini'} // UPDATED: Changed from "openai" to "gemini"
+              value="gemini"
+              checked={selectedAIProvider === 'gemini'}
               onChange={(e) => setSelectedAIProvider(e.target.value)}
-              disabled={!isPaidAIUser(userProfile)}
               style={{ marginRight: '8px' }}
             />
-            Google Gemini {/* UPDATED: Changed from "OpenAI GPT" to "Google Gemini" */}
+            Google Gemini
           </label>
         </div>
       </div>
@@ -227,7 +284,6 @@ const AdminAIFormatter = ({ showMessage }) => {
             resize: 'vertical',
             boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
           }}
-          disabled={!isPaidAIUser(userProfile)} // Disable if not paid
         ></textarea>
       </div>
 
@@ -250,7 +306,6 @@ const AdminAIFormatter = ({ showMessage }) => {
             resize: 'vertical',
             boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
           }}
-          disabled={!isPaidAIUser(userProfile)} // Disable if not paid
         ></textarea>
       </div>
 
@@ -271,21 +326,20 @@ const AdminAIFormatter = ({ showMessage }) => {
             transition: 'all 0.3s ease'
           }}
         >
-          {aiLoading ? 'Formatting...' : `👑 Format with ${selectedAIProvider === 'claude' ? 'Claude' : 'Gemini'}`} {/* UPDATED: Changed from 'OpenAI' to 'Gemini' */}
+          {aiLoading ? 'Formatting...' : `👑 Format with ${selectedAIProvider === 'claude' ? 'Claude' : 'Gemini'}`}
         </button>
         <button
-          onClick={() => { setTranscriptInput(''); setFormattingInstructions(DEFAULT_FORMATTING_INSTRUCTIONS); setFormattedOutput(''); }}
-          disabled={!isPaidAIUser(userProfile)} // Disable if not paid
+          onClick={() => { setTranscriptInput(''); setFormattingInstructions(DEFAULT_FORMATTING_INSTRUCTIONS); setFormattedOutput(''); setShowContinueBox(false); }}
           style={{
             padding: '12px 25px',
-            backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#6c757d',
+            backgroundColor: '#6c757d',
             color: 'white',
             border: 'none',
             borderRadius: '25px',
-            cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
+            cursor: 'pointer',
             fontSize: '1rem',
             fontWeight: 'bold',
-            boxShadow: (!isPaidAIUser(userProfile)) ? 'none' : '0 4px 15px rgba(0,0,0,0.2)',
+            boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
             transition: 'all 0.3s ease'
           }}
         >
@@ -321,6 +375,99 @@ const AdminAIFormatter = ({ showMessage }) => {
           }}>
             {formattedOutput}
           </div>
+          
+          {/* NEW: Copy button for AI Response */}
+          <div style={{ textAlign: 'center', marginTop: '15px' }}>
+            <button
+              onClick={handleCopyAIResponse}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: '#27ae60',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                marginRight: '10px',
+                transition: 'background-color 0.3s ease'
+              }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = '#218838'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = '#27ae60'}
+            >
+              📋 Copy AI Response
+            </button>
+          </div>
+          
+          {/* NEW: Continue text area when AI doesn't finish responding */}
+          {showContinueBox && (
+            <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '10px', border: '1px solid #dee2e6' }}>
+              <h4 style={{ color: '#dc3545', marginBottom: '10px' }}>Continue Response:</h4>
+              <textarea
+                value={continuePrompt}
+                onChange={(e) => setContinuePrompt(e.target.value)}
+                placeholder="Tell the AI how to continue or finish its response..."
+                rows="3"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  borderRadius: '5px',
+                  border: '1px solid #ddd',
+                  fontSize: '0.9rem',
+                  marginBottom: '10px'
+                }}
+              />
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                <button
+                  onClick={handleContinueResponse}
+                  disabled={!continuePrompt.trim() || aiLoading}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: (!continuePrompt.trim() || aiLoading) ? '#a0a0a0' : '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '5px',
+                    cursor: (!continuePrompt.trim() || aiLoading) ? 'not-allowed' : 'pointer',
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  {aiLoading ? 'Continuing...' : '➡️ Continue Response'}
+                </button>
+                <button
+                  onClick={() => { setShowContinueBox(false); setContinuePrompt(''); }}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '5px',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  ❌ Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* NEW: Copied notification */}
+      {copiedMessageVisible && (
+        <div style={{
+          position: 'fixed',
+          bottom: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: '#4CAF50',
+          color: 'white',
+          padding: '10px 20px',
+          borderRadius: '5px',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+          zIndex: 1000
+        }}>
+          📋 Copied to clipboard!
         </div>
       )}
     </div>

@@ -1,7 +1,3 @@
-// ============================================================================================================================================================================================================================================
-// frontend/src/App.js (UPDATED with the NEW Railway Backend URL and Admin Emails)
-// ============================================================================================================================================================================================================================================
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -14,6 +10,7 @@ import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfil
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 import PrivacyPolicy from './components/PrivacyPolicy';
+import AnimatedBroadcastBoard from './components/AnimatedBroadcastBoard'; // NEW: Import the new component
 
 // UPDATED Configuration - RE-ADDED Render Whisper URL
 // MODIFIED: Use the new Railway Backend URL
@@ -23,8 +20,8 @@ const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://
 // Helper function to determine if a user has access to AI features
 const isPaidAIUser = (userProfile) => {
   if (!userProfile || !userProfile.plan) return false;
-  // Only 'Three-Day Plan' and 'Pro' plans are eligible for AI features
-  const paidPlansForAI = ['Three-Day Plan', 'Pro', 'One-Week Plan']; // Added One-Week Plan
+  // Only 'Three-Day Plan', 'One-Week Plan', and 'Pro' plans are eligible for AI features
+  const paidPlansForAI = ['Three-Day Plan', 'Pro', 'One-Week Plan'];
   return paidPlansForAI.includes(userProfile.plan);
 };
 
@@ -196,6 +193,21 @@ function AppContent() {
   const [userPrompt, setUserPrompt] = useState('');
   const [aiResponse, setAIResponse] = useState('');
   const [aiLoading, setAILoading] = useState(false);
+  // NEW: State to select between AI providers (claude or gemini) for user side
+  const [selectedAIProvider, setSelectedAIProvider] = useState('claude'); // 'claude' or 'gemini'
+  // NEW: Predefined AI query prompts
+  const [predefinedPrompts] = useState([
+    "Summarize this transcript in 3-5 bullet points.",
+    "Extract all key action items.",
+    "List all questions asked and their answers, if present.",
+    "Identify the main topics discussed.",
+    "Generate a concise executive summary.",
+    "Translate this transcript into Spanish."
+  ]);
+  
+  // NEW: States for continue functionality
+  const [showContinueBox, setShowContinueBox] = useState(false);
+  const [continuePrompt, setContinuePrompt] = useState('');
   
   // Refs
   const mediaRecorderRef = useRef(null);
@@ -579,6 +591,7 @@ function AppContent() {
       // No changes here, as processingMessage state was removed
     }
   }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]);
+
   // Handle successful payment
   const handlePaymentSuccess = useCallback(async (planName, subscriptionId) => {
     try {
@@ -594,7 +607,6 @@ function AppContent() {
       showMessage('Payment successful but there was an error updating your account. Please contact support.');
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
-
   const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => {
     if (isCancelledRef.current) {
       console.log('🛑 Status check aborted - job was cancelled');
@@ -949,7 +961,7 @@ function AppContent() {
     setCurrentView('pricing');
   }, [setCurrentView]);
 
-  // handleAIQuery for User AI Assistant with FormData
+  // handleAIQuery for User AI Assistant with FormData - UPDATED for Gemini option
   const handleAIQuery = useCallback(async () => {
       if (profileLoading || !userProfile) {
           showMessage('Loading user profile... Please wait.');
@@ -957,7 +969,7 @@ function AppContent() {
       }
       // Check if user is eligible for AI features
       if (!isPaidAIUser(userProfile)) {
-          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.');
+          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, Pro, One-Week plans). Please upgrade your plan.');
           return;
       }
 
@@ -970,17 +982,30 @@ function AppContent() {
       setAIResponse(''); // Clear previous AI response
 
       try {
-          // Use FormData to send data to the backend
           const formData = new FormData();
           formData.append('transcript', latestTranscription);
           formData.append('user_prompt', userPrompt);
-          formData.append('model', 'claude-3-haiku-20240307'); // Using the working model from your test
-          formData.append('max_tokens', '1000');
+          formData.append('max_tokens', '8000'); // REMOVED LIMITS - increased to 8000
           formData.append('user_plan', userProfile?.plan || 'free'); // Pass user plan to backend
 
-          const response = await fetch(`${RAILWAY_BACKEND_URL}/ai/user-query`, {
+          let endpoint = '';
+          let modelToUse = '';
+
+          if (selectedAIProvider === 'claude') {
+            endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query`; // This calls Anthropic Claude endpoint on Railway
+            modelToUse = 'claude-3-haiku-20240307'; 
+          } else if (selectedAIProvider === 'gemini') {
+            endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query-gemini`; // NEW: This calls Google Gemini endpoint for user queries
+            modelToUse = 'models/gemini-pro-latest'; // Default Gemini model
+          } else {
+            showMessage('Invalid AI provider selected.');
+            setAILoading(false);
+            return;
+          }
+          formData.append('model', modelToUse); // Append the chosen model
+
+          const response = await fetch(endpoint, {
               method: 'POST',
-              // No 'Content-Type' header needed for FormData; browser sets it automatically
               body: formData, // Send FormData
           });
 
@@ -990,7 +1015,8 @@ function AppContent() {
           }
 
           const data = await response.json();
-          setAIResponse(data.ai_response);
+          setAIResponse(data.ai_response || data.formatted_transcript); // Handle both potential response keys
+          setShowContinueBox(true); // Show continue option for AI responses
           showMessage('✨ AI response generated successfully!');
 
       } catch (error) {
@@ -999,7 +1025,66 @@ function AppContent() {
       } finally {
           setAILoading(false);
       }
-  }, [latestTranscription, userPrompt, userProfile, profileLoading, showMessage, RAILWAY_BACKEND_URL]);
+  }, [latestTranscription, userPrompt, userProfile, profileLoading, showMessage, RAILWAY_BACKEND_URL, selectedAIProvider]);
+
+  // NEW: Function to handle continue AI response
+  const handleContinueAIResponse = useCallback(async () => {
+    if (!continuePrompt.trim()) {
+      showMessage('Please enter instructions for continuing the response.');
+      return;
+    }
+
+    setAILoading(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('transcript', latestTranscription + '\n\nPrevious AI Response:\n' + aiResponse);
+      formData.append('user_prompt', continuePrompt);
+      formData.append('max_tokens', '8000'); // REMOVED LIMITS - increased to 8000
+      formData.append('user_plan', userProfile?.plan || 'free');
+
+      let endpoint = '';
+      let modelToUse = '';
+
+      if (selectedAIProvider === 'claude') {
+        endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query`;
+        modelToUse = 'claude-3-haiku-20240307'; 
+      } else if (selectedAIProvider === 'gemini') {
+        endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query-gemini`;
+        modelToUse = 'models/gemini-pro-latest';
+      }
+      
+      formData.append('model', modelToUse);
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `Backend error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setAIResponse(aiResponse + '\n\n' + (data.ai_response || data.formatted_transcript));
+      setContinuePrompt('');
+      setShowContinueBox(false);
+      showMessage('✅ Response continued successfully!');
+
+    } catch (error) {
+      console.error('Continue AI Response Error:', error);
+      showMessage('❌ Failed to continue response: ' + error.message);
+    } finally {
+      setAILoading(false);
+    }
+  }, [continuePrompt, latestTranscription, aiResponse, userProfile, selectedAIProvider, showMessage, RAILWAY_BACKEND_URL]);
+
+  // Function to handle predefined prompt click
+  const handlePredefinedPromptClick = useCallback((prompt) => {
+    setUserPrompt(prompt);
+  }, []);
+
   // Cleanup effect to ensure cancellation works
   useEffect(() => {
     return () => {
@@ -1013,7 +1098,6 @@ function AppContent() {
       }
     };
   }, []);
-
   // Login screen for non-authenticated users
   if (!currentUser) {
     return (
@@ -1023,30 +1107,7 @@ function AppContent() {
         display: 'flex',
         flexDirection: 'column'
       }}>
-        {/* App name and tagline in top-left (for non-authenticated state) */}
-        <div style={{ 
-          position: 'absolute', 
-          top: '20px', 
-          left: '20px', 
-          zIndex: 100,
-          color: 'white'
-        }}>
-          <h1 style={{ 
-            fontSize: '1.8rem', 
-            margin: '0 0 5px 0',
-            fontWeight: '300',
-            textShadow: '0 2px 4px rgba(0,0,0,0.3)'
-          }}>
-            TypeMyworDz
-          </h1>
-          <p style={{ 
-            fontSize: '1rem', 
-            margin: '0',
-            opacity: '0.9'
-          }}>
-            You Talk, We Type
-          </p>
-        </div>
+        
 
         {/* The Menu (sidebar-menu) for non-authenticated users - uses global window functions */}
         <div 
@@ -1102,6 +1163,7 @@ function AppContent() {
           padding: '0 20px'
         }}>
           <Login />
+          {/* UPDATED: Login page tagline and logos */}
           <p style={{ 
             fontSize: '1.1rem', 
             margin: '30px 0 0 0',
@@ -1109,8 +1171,35 @@ function AppContent() {
             color: 'white',
             textAlign: 'center'
           }}>
-            Speech to Text AI • Simple, Accurate, Powerful • Now with 30-Minute Free Trial
+            Speech AI • Simple, Accurate, Powerful •
           </p>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '15px',
+            marginTop: '10px'
+          }}>
+                        <span style={{ color: 'white', fontSize: '1rem' }}>Powered with</span>
+            <img src="/claude_logo.png" alt="Claude AI Logo" style={{ width: '24px', height: '24px', verticalAlign: 'middle' }} />
+            <span style={{ 
+              color: '#000000', 
+              fontSize: '1.1rem', 
+              fontWeight: 'bold',
+              textShadow: '0 1px 2px rgba(255,255,255,0.8)',
+              marginLeft: '5px'
+            }}>Claude</span>
+            <span style={{ color: 'white', fontSize: '1.2rem', margin: '0 8px' }}>&</span>
+            <img src="/gemini_logo.png" alt="Gemini AI Logo" style={{ width: '24px', height: '24px', verticalAlign: 'middle' }} />
+            <span style={{ 
+              color: '#000000',
+              fontSize: '1.1rem',
+              fontWeight: 'bold',
+              textShadow: '0 1px 2px rgba(255,255,255,0.8)',
+              marginLeft: '5px'
+            }}>Gemini</span>
+          </div>
+
         </div>
         <ToastNotification message={message} onClose={clearMessage} />
         <footer style={{ 
@@ -1149,32 +1238,7 @@ return (
         <ToastNotification message={message} onClose={clearMessage} />
         <CopiedNotification isVisible={copiedMessageVisible} />
 
-        {/* App name and tagline in top-left */}
-        <div style={{ 
-          position: 'absolute', 
-          top: '20px', 
-          left: '20px', 
-          zIndex: 100,
-          color: 'white'
-        }}>
-          <h1 style={{ 
-            fontSize: '1.8rem', 
-            margin: '0 0 5px 0',
-            fontWeight: '300',
-            textShadow: '0 2px 4px rgba(0,0,0,0.3)'
-          }}>
-            TypeMyworDz
-          </h1>
-          <p style={{ 
-            fontSize: '1rem', 
-            margin: '0',
-            opacity: '0.9'
-          }}>
-            You Talk, We Type
-          </p>
-        </div>
-
-        {/* The Menu (sidebar-menu) will be rendered here directly when authenticated */}
+                {/* The Menu (sidebar-menu) will be rendered here directly when authenticated */}
         <div 
             className="sidebar-menu" 
             style={{
@@ -1247,13 +1311,97 @@ return (
             </div>
         </div>
 
+        {/* UPDATED HEADER: Moved company name and tagline below logout button */}
         {currentView === 'transcribe' && (
           <header style={{ 
             textAlign: 'center', 
-            padding: '40px 20px 20px',
-            color: 'white'
+            padding: '20px 20px 10px',
+            color: 'white',
+            position: 'relative'
           }}>
-            {/* BIG LOGO above "Logged in as..." */}
+            {/* Centered user info section at the top with Logout on LEFT */}
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '15px',
+              fontSize: '14px',
+              opacity: '0.9',
+              marginBottom: '20px',
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              padding: '10px 20px',
+              borderRadius: '25px',
+              backdropFilter: 'blur(10px)',
+              position: 'relative'
+            }}>
+              {/* MOVED: Logout button to the LEFT */}
+              <button
+                onClick={handleLogout}
+                style={{
+                  position: 'absolute',
+                  left: '20px',
+                  padding: '6px 12px',
+                  backgroundColor: 'rgba(220, 53, 69, 0.8)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '12px'
+                }}
+              >
+                Logout
+              </button>
+              
+              {/* UPDATED: Removed "Logged in as:" text, just show user name */}
+              <span>{userProfile?.name || currentUser.email}</span>
+              {userProfile && userProfile.plan === 'pro' ? ( 
+                <span>Plan: Pro (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
+              ) : userProfile && userProfile.plan === 'One-Day Plan' ? (
+                <span>Plan: One-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
+              ) : userProfile && userProfile.plan === 'Three-Day Plan' ? (
+                <span>Plan: Three-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
+              ) : userProfile && userProfile.plan === 'One-Week Plan' ? (
+                <span>Plan: One-Week Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
+              ) : userProfile && userProfile.plan === 'free' ? (
+                <span>Plan: Free Trial ({Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining)</span>
+              ) : (
+                <span>Plan: Free (Recording Only - Upgrade for Transcription)</span>
+              )}
+            </div>
+            
+                       {/* NEW: Company name and tagline positioned below the logout button */}
+            <div style={{ 
+              position: 'absolute', 
+              top: '80px', 
+              left: '20px', 
+              zIndex: 100
+            }}>
+              <h1 style={{ 
+                fontSize: '1.8rem', 
+                margin: '0 0 5px 0',
+                fontWeight: 'bold', // BOLD for company name
+                textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                color: '#20cdd3ff' // BRIGHT CYAN/TEAL color for company name
+              }}>
+                TypeMyworDz
+              </h1>
+              <p style={{ 
+                fontSize: '1rem', 
+                margin: '0',
+                opacity: '0.9',
+                color: '#000000', // BLACK color for tagline
+                fontStyle: 'italic', // ITALIC
+                fontWeight: 'bold' // BOLD
+              }}>
+                You Talk, We Type
+              </p>
+            </div>
+
+
+
+            
+            {/* BIG LOGO now positioned after the login info */}
             <div style={{ 
               display: 'flex', 
               justifyContent: 'center', 
@@ -1268,62 +1416,6 @@ return (
                   filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))'
                 }} 
               />
-            </div>
-            
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'center', 
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '15px',
-              fontSize: '14px',
-              opacity: '0.9'
-            }}>
-              <span>Logged in as: {userProfile?.name || currentUser.email}</span>
-              {userProfile && userProfile.plan === 'pro' ? ( 
-                <span>Plan: Pro (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
-              ) : userProfile && userProfile.plan === 'One-Day Plan' ? (
-                <span>Plan: One-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
-              ) : userProfile && userProfile.plan === 'Three-Day Plan' ? (
-                <span>Plan: Three-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
-              ) : userProfile && userProfile.plan === 'One-Week Plan' ? (
-                <span>Plan: One-Week Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
-              ) : userProfile && userProfile.plan === 'free' ? (
-                <span>Plan: Free Trial ({Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining)</span>
-              ) : (
-                <span>Plan: Free (Recording Only - Upgrade for Transcription)</span>
-              )}
-              <button
-                onClick={handleLogout}
-                style={{
-                  padding: '6px 12px',
-                  backgroundColor: 'rgba(220, 53, 69, 0.8)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '12px'
-                }}
-              >
-                Logout
-              </button>
-              {isAdmin && (
-                <button
-                  onClick={createMissingProfile}
-                  style={{
-                    padding: '6px 12px',
-                    backgroundColor: 'rgba(40, 167, 69, 0.8)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '44px',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    marginLeft: '5px'
-                  }}
-                >
-                  Fix Profile
-                </button>
-              )}
             </div>
           </header>
         )}
@@ -1386,6 +1478,7 @@ return (
           </div>
         )}
 
+        {/* Main Navigation Buttons */}
         <div style={{ 
           textAlign: 'center', 
           padding: currentView === 'transcribe' ? '0 20px 40px' : '20px',
@@ -1428,7 +1521,7 @@ return (
           <button
             onClick={() => {
               if (!isPaidAIUser(userProfile)) {
-                showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.');
+                showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, Pro, One-Week plans). Please upgrade your plan.');
                 return;
               }
               setCurrentView('ai_assistant');
@@ -1469,7 +1562,30 @@ return (
           )}
         </div>
 
-        {/* HORIZONTAL PAYMENT PLANS */}
+        {/* UPDATED: AnimatedBroadcastBoard - moved to occupy the space where "Logged in as..." was, made larger and more beautiful */}
+        {currentView === 'transcribe' && (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            padding: '0 20px 20px',
+            marginTop: '-20px' // Pull it up slightly to fill the space better
+          }}>
+            <div style={{
+              width: '100%',
+              maxWidth: '800px', // Increased width to stretch and make it more beautiful
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              borderRadius: '15px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+              border: '1px solid #e9ecef',
+              padding: '20px', // Increased padding for better spacing
+              boxSizing: 'border-box',
+              textAlign: 'center'
+            }}>
+              <AnimatedBroadcastBoard />
+            </div>
+          </div>
+        )}
+        {/* Conditional Rendering for different views */}
         {currentView === 'pricing' ? (
           <>
             <div style={{ 
@@ -1548,7 +1664,6 @@ return (
                   🔄 Pro International
                 </button>
               </div>
-
               {pricingView === 'credits' ? (
                 <>
                   <div style={{ marginTop: '20px' }}>
@@ -1849,7 +1964,7 @@ return (
                             <li>✅ High accuracy AI transcription</li>
                             <li>✅ Priority processing</li>
                             <li>✅ Copy to clipboard feature</li>
-                            <li>✅ MS Word & TXT downloads</li>
+                            <li>✅ MS Word &amp; TXT downloads</li>
                             <li>✅ 7-day file storage</li>
                             <li>✅ Email support</li>
                           </ul>
@@ -1917,7 +2032,7 @@ return (
                 {/* Conditional message for non-paid users */}
                 {!isPaidAIUser(userProfile) && (
                   <p style={{ textAlign: 'center', color: '#dc3545', marginBottom: '30px', fontWeight: 'bold' }}>
-                    ❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.
+                    ❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, Pro, One-Week plans). Please upgrade your plan.
                   </p>
                 )}
                 <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
@@ -1925,6 +2040,38 @@ return (
                     I can summarize, answer questions, create bullet points, and more.
                 </p>
 
+                {/* NEW: AI Provider Selection for User AI Assistant */}
+                <div style={{ marginBottom: '30px', textAlign: 'center' }}>
+                  <label style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
+                    Select AI Provider:
+                  </label>
+                  <div style={{ display: 'inline-flex', gap: '20px' }}>
+                    <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                      <input
+                        type="radio"
+                        name="aiProviderUser"
+                        value="claude"
+                        checked={selectedAIProvider === 'claude'}
+                        onChange={(e) => setSelectedAIProvider(e.target.value)}
+                        disabled={!isPaidAIUser(userProfile)}
+                        style={{ marginRight: '8px' }}
+                      />
+                      Anthropic Claude
+                    </label>
+                    <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                      <input
+                        type="radio"
+                        name="aiProviderUser"
+                        value="gemini"
+                        checked={selectedAIProvider === 'gemini'}
+                        onChange={(e) => setSelectedAIProvider(e.target.value)}
+                        disabled={!isPaidAIUser(userProfile)}
+                        style={{ marginRight: '8px' }}
+                      />
+                      Google Gemini
+                    </label>
+                  </div>
+                </div>
                 <div style={{ marginBottom: '20px' }}>
                     <label htmlFor="transcriptInput" style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
                         Your Transcript:
@@ -1948,9 +2095,39 @@ return (
                     ></textarea>
                 </div>
 
+                {/* NEW: Predefined Query Options */}
+                <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+                  <label style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
+                    Quick Query Options:
+                  </label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '10px' }}>
+                    {predefinedPrompts.map((prompt, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handlePredefinedPromptClick(prompt)}
+                        disabled={!isPaidAIUser(userProfile) || aiLoading}
+                        style={{
+                          padding: '8px 15px',
+                          backgroundColor: (!isPaidAIUser(userProfile) || aiLoading) ? '#a0a0a0' : '#4CAF50',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '20px',
+                          cursor: (!isPaidAIUser(userProfile) || aiLoading) ? 'not-allowed' : 'pointer',
+                          fontSize: '0.9rem',
+                          transition: 'background-color 0.3s ease'
+                        }}
+                        onMouseEnter={(e) => { if (!e.target.disabled) e.target.style.backgroundColor = '#45a049'; }}
+                        onMouseLeave={(e) => { if (!e.target.disabled) e.target.style.backgroundColor = '#4CAF50'; }}
+                      >
+                        {prompt.split(' ')[0]}...
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div style={{ marginBottom: '30px' }}>
                     <label htmlFor="userPromptInput" style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
-                        Your Request (e.g., "Summarize this", "What are the key points?", "Answer: What is the main topic?"):
+                        Your Custom Request:
                     </label>
                     <input
                         type="text"
@@ -1969,7 +2146,6 @@ return (
                         disabled={!isPaidAIUser(userProfile)}
                     />
                 </div>
-
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '30px', flexWrap: 'wrap' }}>
                     <button
                         onClick={handleAIQuery}
@@ -1987,10 +2163,10 @@ return (
                             transition: 'all 0.3s ease'
                         }}
                     >
-                        {aiLoading ? 'Processing...' : '✨ Get AI Response'}
+                        {aiLoading ? 'Processing...' : `✨ Get AI Response with ${selectedAIProvider === 'claude' ? 'Claude' : 'Gemini'}`}
                     </button>
                     <button
-                        onClick={() => { setLatestTranscription(''); setUserPrompt(''); setAIResponse(''); }}
+                        onClick={() => { setLatestTranscription(''); setUserPrompt(''); setAIResponse(''); setShowContinueBox(false); }}
                         disabled={!isPaidAIUser(userProfile)}
                         style={{
                             padding: '12px 25px',
@@ -2038,507 +2214,593 @@ return (
                         }}>
                             {aiResponse}
                         </div>
+                        {/* NEW: Copy button for AI Response */}
+                        <div style={{ textAlign: 'center', marginTop: '15px' }}>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(aiResponse);
+                              setCopiedMessageVisible(true);
+                              setTimeout(() => setCopiedMessageVisible(false), 2000);
+                            }}
+                            style={{
+                              padding: '10px 20px',
+                              backgroundColor: '#27ae60',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              fontSize: '14px',
+                              fontWeight: 'bold',
+                              transition: 'background-color 0.3s ease'
+                            }}
+                            onMouseEnter={(e) => e.target.style.backgroundColor = '#218838'}
+                            onMouseLeave={(e) => e.target.style.backgroundColor = '#27ae60'}
+                          >
+                            📋 Copy AI Response
+                          </button>
+                        </div>
+                        
+                        {/* NEW: Continue text area when AI doesn't finish responding */}
+                        {showContinueBox && (
+                          <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '10px', border: '1px solid #dee2e6' }}>
+                            <h4 style={{ color: '#6c5ce7', marginBottom: '10px' }}>Continue Response:</h4>
+                            <textarea
+                              value={continuePrompt}
+                              onChange={(e) => setContinuePrompt(e.target.value)}
+                              placeholder="Tell the AI how to continue or finish its response..."
+                              rows="3"
+                              style={{
+                                width: '100%',
+                                padding: '10px',
+                                borderRadius: '5px',
+                                border: '1px solid #ddd',
+                                fontSize: '0.9rem',
+                                marginBottom: '10px'
+                              }}
+                            />
+                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                              <button
+                                onClick={handleContinueAIResponse}
+                                disabled={!continuePrompt.trim() || aiLoading}
+                                style={{
+                                  padding: '8px 16px',
+                                  backgroundColor: (!continuePrompt.trim() || aiLoading) ? '#a0a0a0' : '#28a745',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '5px',
+                                  cursor: (!continuePrompt.trim() || aiLoading) ? 'not-allowed' : 'pointer',
+                                  fontSize: '0.9rem'
+                                }}
+                              >
+                                {aiLoading ? 'Continuing...' : '➡️ Continue Response'}
+                              </button>
+                              <button
+                                onClick={() => { setShowContinueBox(false); setContinuePrompt(''); }}
+                                style={{
+                                  padding: '8px 16px',
+                                  backgroundColor: '#6c757d',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '5px',
+                                  cursor: 'pointer',
+                                  fontSize: '0.9rem'
+                                }}
+                              >
+                                ❌ Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
                     </div>
                 )}
             </div>
           ) : currentView === 'dashboard' ? (
           <Dashboard setCurrentView={setCurrentView} />
         ) : (
-          <main style={{ 
+          // This is the 'transcribe' view, where the main content will be displayed without the broadcast board in the layout
+          <div style={{
             flex: 1,
-            padding: '0 20px 40px',
-            maxWidth: '800px', 
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            padding: '20px',
+            maxWidth: '800px',
             margin: '0 auto'
           }}>
-            {userProfile && userProfile.plan === 'free' && (
-              <div style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                color: '#856404',
-                padding: '15px',
-                borderRadius: '10px',
-                marginBottom: '30px',
-                textAlign: 'center',
-                backdropFilter: 'blur(10px)',
-                border: '1px solid #ffecb3' 
-              }}>
-                {userProfile.totalMinutesUsed < 30 ? (
-                  <>
-                    <strong>Free Trial:</strong> {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining!{' '}
-                    <button 
-                      onClick={() => setCurrentView('pricing')}
-                      style={{
-                        backgroundColor: 'transparent',
-                        color: '#007bff',
-                        border: 'none',
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                        fontWeight: 'bold'
-                      }}
-                    >
-                      Upgrade for unlimited
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    🎵 Your free trial has ended. You have {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining!{' '}
-                    <button 
-                      onClick={() => setCurrentView('pricing')}
-                      style={{
-                        backgroundColor: 'transparent',
-                        color: '#007bff',
-                        border: 'none',
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                        fontWeight: 'bold'
-                      }}
-                    >
-                      View Plans
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-
-            <div style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-              borderRadius: '15px',
-              padding: '30px',
-              marginBottom: '30px',
-              textAlign: 'center',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
+            <main style={{ 
+              width: '100%',
+              padding: '0',
             }}>
-              <h2 style={{ 
-                color: '#6c5ce7', 
-                margin: '0 0 20px 0',
-                fontSize: '1.5rem'
-              }}>
-                Record Audio or 📁 Upload File
-              </h2>
-              
-              <div style={{ marginBottom: '30px' }}>
-                <h3 style={{ 
-                  color: '#6c5ce7', 
-                  margin: '0 0 15px 0',
-                  fontSize: '1.2rem'
+              {userProfile && userProfile.plan === 'free' && (
+                <div style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                  color: '#856404',
+                  padding: '15px',
+                  borderRadius: '10px',
+                  marginBottom: '30px',
+                  textAlign: 'center',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid #ffecb3' 
                 }}>
-                  Record Audio
-                </h3>
-                
-                {isRecording && (
-                  <div style={{
-                    color: '#e17055',
-                    fontSize: '18px',
-                    marginBottom: '15px',
-                    fontWeight: 'bold'
-                  }}>
-                    🔴 Recording: {formatTime(recordingTime)}
-                  </div>
-                )}
-                
-                <button
-                  onClick={isRecording ? stopRecording : startRecording}
-                  style={{
-                    padding: '15px 30px',
-                    fontSize: '18px',
-                    backgroundColor: isRecording ? '#e17055' : '#e74c3c',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '25px',
-                    cursor: 'pointer',
-                    boxShadow: '0 5px 15px rgba(231, 76, 60, 0.4)',
-                    transition: 'all 0.3s ease'
-                  }}
-                >
-                  <img 
-                    src="/favicon-32x32.png" 
-                    alt="Record Icon" 
-                    style={{ width: '20px', height: '20px' }} 
-                  />
-                  {isRecording ? 'Stop Recording' : 'Start Recording'}
-                </button>
-
-                {recordedAudioBlobRef.current && !isRecording && (
-                  <div style={{ marginTop: '15px' }}>
-                    <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
-                      gap: '10px',
-                      marginBottom: '10px'
-                    }}>
-                      <label htmlFor="downloadFormat" style={{ color: '#6c5ce7', fontWeight: 'bold' }}>
-                        Download Format:
-                      </label>
-                      <select
-                        id="downloadFormat"
-                        value={downloadFormat}
-                        onChange={(e) => setDownloadFormat(e.target.value)}
+                  {userProfile.totalMinutesUsed < 30 ? (
+                    <>
+                      <strong>Free Trial:</strong> {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining!{' '}
+                      <button 
+                        onClick={() => setCurrentView('pricing')}
                         style={{
-                          padding: '5px 10px',
-                          borderRadius: '5px',
-                          border: '1px solid #6c5ce7'
+                          backgroundColor: 'transparent',
+                          color: '#007bff',
+                          border: 'none',
+                          textDecoration: 'underline',
+                          cursor: 'pointer',
+                          fontWeight: 'bold'
                         }}
                       >
-                        <option value="mp3">MP3 (Compressed)</option>
-                        <option value="wav">WAV (Original)</option>
-                      </select>
-                    </div>
-                    <button
-                      onClick={downloadRecordedAudio}
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: '#007bff',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '5px',
-                        cursor: 'pointer',
-                        fontSize: '14px'
-                      }}
-                    >
-                      📥 Download Recording ({downloadFormat.toUpperCase()})
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div style={{
-                borderTop: '2px solid #e9ecef',
-                paddingTop: '30px'
-              }}>
-                <h3 style={{ 
-                  color: '#6c5ce7', 
-                  margin: '0 0 15px 0',
-                  fontSize: '1.2rem'
-                }}>
-                  📁 Or Upload Audio/Video File
-                </h3>
-                
-                <div style={{
-                  border: '2px dashed #6c5ce7',
-                  borderRadius: '10px',
-                  padding: '20px',
-                  marginBottom: '20px',
-                  backgroundColor: '#f8f9ff'
-                }}>
-                  <input
-                    type="file"
-                    accept="audio/mp3,audio/mpeg,audio/*,video/*"
-                    onChange={handleFileSelect}
-                    style={{ marginBottom: '10px' }}
-                  />
-                  {selectedFile && (
-                    <div style={{
-                      backgroundColor: '#d1f2eb',
-                      color: '#27ae60',
-                      padding: '10px',
-                      borderRadius: '5px',
-                      marginTop: '10px'
-                    }}>
-                      ✅ Selected: {selectedFile.name}
-                      <div style={{ fontSize: '12px', marginTop: '5px', opacity: '0.8' }}>
-                        Ready for transcription
-                      </div>
-                    </div>
+                        Upgrade for unlimited
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      🎵 Your free trial has ended. You have {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining!{' '}
+                      <button 
+                        onClick={() => setCurrentView('pricing')}
+                        style={{
+                          backgroundColor: 'transparent',
+                          color: '#007bff',
+                          border: 'none',
+                          textDecoration: 'underline',
+                          cursor: 'pointer',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        View Plans
+                      </button>
+                    </>
                   )}
                 </div>
+              )}
 
-                {/* Language Selection Dropdown */}
-                <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
-                  <label htmlFor="languageSelect" style={{ color: '#6c5ce7', fontWeight: 'bold', fontSize: '1.1rem' }}>
-                    Transcription Language:
-                  </label>
-                  <select
-                    id="languageSelect"
-                    value={selectedLanguage}
-                    onChange={(e) => setSelectedLanguage(e.target.value)}
-                    style={{
-                      padding: '8px 15px',
-                      borderRadius: '8px',
-                      border: '1px solid #6c5ce7'
-                    }}
-                  >
-                    <option value="en">English (Default)</option>
-                    <option value="es">Spanish</option>
-                    <option value="fr">French</option>
-                    <option value="de">German</option>
-                    <option value="it">Italian</option>
-                    <option value="pt">Portuguese</option>
-                    <option value="ru">Russian</option>
-                    <option value="zh">Chinese</option>
-                    <option value="ja">Japanese</option>
-                    <option value="ko">Korean</option>
-                  </select>
-                </div>
-                
-                {/* Speaker Tags Dropdown */}
-                <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
-                  <label htmlFor="speakerLabelsSelect" style={{ color: '#6c5ce7', fontWeight: 'bold', fontSize: '1.1rem' }}>
-                    Speaker Tags:
-                  </label>
-                  <select
-                    id="speakerLabelsSelect"
-                    value={speakerLabelsEnabled ? "true" : "false"}
-                    onChange={(e) => setSpeakerLabelsEnabled(e.target.value === "true")}
-                    style={{
-                      padding: '8px 15px',
-                      borderRadius: '8px',
-                      border: '1px solid #6c5ce7'
-                    }}
-                  >
-                    <option value="false">No Speakers (Default)</option>
-                    <option value="true">With Speakers</option>
-                  </select>
-                </div>
-
-                {/* Processing bar and text */}
-                {(status === 'processing' || status === 'uploading') && (
-                  <div style={{ marginBottom: '20px' }}>
-                    <div className="progress-bar-container" style={{ // Renamed for clarity
-                      backgroundColor: '#e9ecef',
-                      height: '30px',
-                      borderRadius: '15px',
-                      overflow: 'hidden',
-                      marginBottom: '10px'
-                    }}>
-                      <div className="progress-bar-indeterminate" style={{
-                        backgroundColor: '#6c5ce7',
-                        height: '100%',
-                        width: '100%',
-                        borderRadius: '15px'
-                      }}></div>
-                    </div>
-                    <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
-                      🎯 Processing...
-                    </div>
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
-                  {status === 'idle' && !isUploading && selectedFile && (
-                    <button
-                      onClick={handleUpload}
-                      disabled={!selectedFile || isUploading}
-                      style={{
-                        padding: '15px 30px',
-                        fontSize: '18px',
-                        backgroundColor: (!selectedFile || isUploading) ? '#6c757d' : '#6c5ce7',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '25px',
-                        cursor: (!selectedFile || isUploading) ? 'not-allowed' : 'pointer',
-                        boxShadow: '0 5px 15px rgba(108, 92, 231, 0.4)'
-                      }}
-                    >
-                      🚀 Start Transcription
-                    </button>
-                  )}
-
-                  {(status === 'uploading' || status === 'processing') && (
-                    <button
-                      onClick={handleCancelUpload}
-                      style={{
-                        padding: '15px 30px',
-                        fontSize: '18px',
-                        backgroundColor: '#dc3545',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '25px',
-                        cursor: 'pointer',
-                        boxShadow: '0 5px 15px rgba(220, 53, 69, 0.4)'
-                      }}
-                    >
-                      ❌ Cancel Transcribing
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-            {status && (status === 'completed' || status === 'failed') && (
-              <div style={{
-                backgroundColor: status === 'completed' ? 'rgba(212, 237, 218, 0.95)' : 'rgba(255, 243, 205, 0.95)',
-                border: `2px solid ${status === 'completed' ? '#27ae60' : '#f39c12'}`,
-                borderRadius: '10px',
-                padding: '20px',
-                marginBottom: '30px',
-                textAlign: 'center'
-              }}>
-                <h3 style={{ 
-                  color: status === 'completed' ? '#27ae60' : '#f39c12',
-                  margin: '0'
-                }}>
-                  {status === 'completed' ? '✅ Transcription Completed!' : `❌ Status: ${status}`}
-                </h3>
-                {status === 'failed' && (
-                  <p style={{ margin: '10px 0 0 0', color: '#666' }}>
-                    Transcription failed: 1. Ensure Your Internet is Good and Connected; 2. Refresh the Page.
-                  </p>
-                )}
-              </div>
-            )}
-            
-            {transcription && (
               <div style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.95)',
                 borderRadius: '15px',
                 padding: '30px',
+                marginBottom: '30px',
+                textAlign: 'center',
                 boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
               }}>
-                <h3 style={{ 
-                  color: '#6c5ce7',
+                <h2 style={{ 
+                  color: '#6c5ce7', 
                   margin: '0 0 20px 0',
-                  textAlign: 'center',
                   fontSize: '1.5rem'
                 }}>
-                  📄 Transcription Result:
-                </h3>
+                  Record Audio or 📁 Upload File
+                </h2>
                 
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  gap: '15px',
-                  marginBottom: '20px',
-                  flexWrap: 'wrap'
-                }}>
-                  <button
-                    onClick={copyToClipboard}
-                    disabled={!isPaidAIUser(userProfile)}
-                    style={{
-                      padding: '10px 20px',
-                      backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#27ae60',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
-                      fontSize: '14px',
-                      opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
-                    }}
-                  >
-                    {!isPaidAIUser(userProfile) ? '🔒 Copy (Pro AI Only)' : '📋 Copy to Clipboard'}
-                  </button>
+                <div style={{ marginBottom: '30px' }}>
+                  <h3 style={{ 
+                    color: '#6c5ce7', 
+                    margin: '0 0 15px 0',
+                    fontSize: '1.2rem'
+                  }}>
+                    Record Audio
+                  </h3>
+                  
+                  {isRecording && (
+                    <div style={{
+                      color: '#e17055',
+                      fontSize: '18px',
+                      marginBottom: '15px',
+                      fontWeight: 'bold'
+                    }}>
+                      🔴 Recording: {formatTime(recordingTime)}
+                    </div>
+                  )}
                   
                   <button
-                    onClick={downloadAsWord}
-                    disabled={!isPaidAIUser(userProfile)}
+                    onClick={isRecording ? stopRecording : startRecording}
                     style={{
-                      padding: '10px 20px',
-                      backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#007bff',
+                      padding: '15px 30px',
+                      fontSize: '18px',
+                      backgroundColor: isRecording ? '#e17055' : '#e74c3c',
                       color: 'white',
                       border: 'none',
-                      borderRadius: '8px',
-                      cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
-                      fontSize: '14px',
-                      opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
-                    }}
-                  >
-                    {!isPaidAIUser(userProfile) ? '🔒 Word (Pro AI Only)' : '📄 MS Word'}
-                  </button>
-                  
-                  <button
-                    onClick={downloadAsTXT}
-                    style={{
-                      padding: '10px 20px',
-                      backgroundColor: '#6c757d',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
+                      borderRadius: '25px',
                       cursor: 'pointer',
-                      fontSize: '14px'
+                      boxShadow: '0 5px 15px rgba(231, 76, 60, 0.4)',
+                      transition: 'all 0.3s ease'
                     }}
                   >
-                    📝 TXT
+                    <img 
+                      src="/favicon-32x32.png" 
+                      alt="Record Icon" 
+                      style={{ width: '20px', height: '20px' }} 
+                    />
+                    {isRecording ? 'Stop Recording' : 'Start Recording'}
                   </button>
 
-                  {/* NEW: AI Assistant button next to TXT */}
-                  <button
-                    onClick={() => {
-                      if (!isPaidAIUser(userProfile)) {
-                        showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, Pro plans). Please upgrade your plan.');
-                        return;
-                      }
-                      setCurrentView('ai_assistant');
-                    }}
-                    disabled={!isPaidAIUser(userProfile)}
-                    style={{
-                      padding: '10px 20px',
-                      backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#6c5ce7',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
-                      fontSize: '14px',
-                      opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
-                    }}
-                  >
-                    ✨ TypeMyworDz Assistant
-                  </button>
+                  {recordedAudioBlobRef.current && !isRecording && (
+                    <div style={{ marginTop: '15px' }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        gap: '10px',
+                        marginBottom: '10px'
+                      }}>
+                        <label htmlFor="downloadFormat" style={{ color: '#6c5ce7', fontWeight: 'bold' }}>
+                          Download Format:
+                        </label>
+                        <select
+                          id="downloadFormat"
+                          value={downloadFormat}
+                          onChange={(e) => setDownloadFormat(e.target.value)}
+                          style={{
+                            padding: '5px 10px',
+                            borderRadius: '5px',
+                            border: '1px solid #6c5ce7'
+                          }}
+                        >
+                          <option value="mp3">MP3 (Compressed)</option>
+                          <option value="wav">WAV (Original)</option>
+                        </select>
+                      </div>
+                      <button
+                        onClick={downloadRecordedAudio}
+                        style={{
+                          padding: '10px 20px',
+                          backgroundColor: '#007bff',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '5px',
+                          cursor: 'pointer',
+                          fontSize: '14px'
+                        }}
+                      >
+                        📥 Download Recording ({downloadFormat.toUpperCase()})
+                      </button>
+                    </div>
+                  )}
                 </div>
-                
-                {!isPaidAIUser(userProfile) && (
-                  <div style={{
-                    backgroundColor: 'rgba(255, 243, 205, 0.95)',
-                    color: '#856404',
-                    padding: '10px',
-                    borderRadius: '5px',
-                    marginBottom: '20px',
-                    textAlign: 'center',
-                    fontSize: '14px'
+                <div style={{
+                  borderTop: '2px solid #e9ecef',
+                  paddingTop: '30px'
+                }}>
+                  <h3 style={{ 
+                    color: '#6c5ce7', 
+                    margin: '0 0 15px 0',
+                    fontSize: '1.2rem'
                   }}>
-                    🔒 Copy to clipboard, MS Word downloads, and AI Assistant are available for paid AI users (Three-Day, Pro plans).{' '}
-                    <button 
-                      onClick={() => setCurrentView('pricing')}
+                    📁 Or Upload Audio/Video File
+                  </h3>
+                  
+                  <div style={{
+                    border: '2px dashed #6c5ce7',
+                    borderRadius: '10px',
+                    padding: '20px',
+                    marginBottom: '20px',
+                    backgroundColor: '#f8f9ff'
+                  }}>
+                    <input
+                      type="file"
+                      accept="audio/mp3,audio/mpeg,audio/*,video/*"
+                      onChange={handleFileSelect}
+                      style={{ marginBottom: '10px' }}
+                    />
+                    {selectedFile && (
+                      <div style={{
+                        backgroundColor: '#d1f2eb',
+                        color: '#27ae60',
+                        padding: '10px',
+                        borderRadius: '5px',
+                        marginTop: '10px'
+                      }}>
+                        ✅ Selected: {selectedFile.name}
+                        <div style={{ fontSize: '12px', marginTop: '5px', opacity: '0.8' }}>
+                          Ready for transcription
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Language Selection Dropdown */}
+                  <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
+                    <label htmlFor="languageSelect" style={{ color: '#6c5ce7', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                      Transcription Language:
+                    </label>
+                    <select
+                      id="languageSelect"
+                      value={selectedLanguage}
+                      onChange={(e) => setSelectedLanguage(e.target.value)}
                       style={{
-                        backgroundColor: 'transparent',
-                        color: '#007bff',
-                        border: 'none',
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                        fontWeight: 'bold'
+                        padding: '8px 15px',
+                        borderRadius: '8px',
+                        border: '1px solid #6c5ce7'
                       }}
                     >
-                      Upgrade now
-                    </button>
+                      <option value="en">English (Default)</option>
+                      <option value="es">Spanish</option>
+                      <option value="fr">French</option>
+                      <option value="de">German</option>
+                      <option value="it">Italian</option>
+                      <option value="pt">Portuguese</option>
+                      <option value="ru">Russian</option>
+                      <option value="zh">Chinese</option>
+                      <option value="ja">Japanese</option>
+                      <option value="ko">Korean</option>
+                    </select>
                   </div>
-                )}
-                
-                <div style={{
-                  backgroundColor: '#f8f9fa',
-                  padding: '20px',
-                  borderRadius: '10px',
-                  textAlign: 'left',
-                  lineHeight: '1.6',
-                  border: '1px solid #dee2e6'
-                }}>
-                  <div dangerouslySetInnerHTML={{ __html: transcription.replace(/\n/g, '<br>') }} />
-                </div>
-                
-                <div style={{ 
-                  marginTop: '15px', 
-                  textAlign: 'center', 
-                  color: '#27ae60',
-                  fontSize: '14px'
-                }}>
-                  ✅ Check your{' '}
-                  <button
-                    onClick={() => setCurrentView('dashboard')}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#007bff',
-                      textDecoration: 'underline',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: 'bold',
-                      padding: 0
-                    }}
-                    onMouseEnter={(e) => e.target.style.color = '#0056b3'}
-                    onMouseLeave={(e) => e.target.style.color = '#007bff'}
-                  >
-                    History
-                  </button>
-                  {' '}for your saved transcripts.
+                  
+                  {/* Speaker Tags Dropdown */}
+                  <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
+                    <label htmlFor="speakerLabelsSelect" style={{ color: '#6c5ce7', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                      Speaker Tags:
+                    </label>
+                    <select
+                      id="speakerLabelsSelect"
+                      value={speakerLabelsEnabled ? "true" : "false"}
+                      onChange={(e) => setSpeakerLabelsEnabled(e.target.value === "true")}
+                      style={{
+                        padding: '8px 15px',
+                        borderRadius: '8px',
+                        border: '1px solid #6c5ce7'
+                      }}
+                    >
+                      <option value="false">No Speakers (Default)</option>
+                      <option value="true">With Speakers</option>
+                    </select>
+                  </div>
+
+                  {/* Processing bar and text */}
+                  {(status === 'processing' || status === 'uploading') && (
+                    <div style={{ marginBottom: '20px' }}>
+                      <div className="progress-bar-container" style={{
+                        backgroundColor: '#e9ecef',
+                        height: '30px',
+                        borderRadius: '15px',
+                        overflow: 'hidden',
+                        marginBottom: '10px'
+                      }}>
+                        <div className="progress-bar-indeterminate" style={{
+                          backgroundColor: '#6c5ce7',
+                          height: '100%',
+                          width: '100%',
+                          borderRadius: '15px'
+                        }}></div>
+                      </div>
+                      <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
+                        🎯 Processing...
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
+                    {status === 'idle' && !isUploading && selectedFile && (
+                      <button
+                        onClick={handleUpload}
+                        disabled={!selectedFile || isUploading}
+                        style={{
+                          padding: '15px 30px',
+                          fontSize: '18px',
+                          backgroundColor: (!selectedFile || isUploading) ? '#6c757d' : '#6c5ce7',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '25px',
+                          cursor: (!selectedFile || isUploading) ? 'not-allowed' : 'pointer',
+                          boxShadow: '0 5px 15px rgba(108, 92, 231, 0.4)'
+                        }}
+                      >
+                        🚀 Start Transcription
+                      </button>
+                    )}
+
+                    {(status === 'uploading' || status === 'processing') && (
+                      <button
+                        onClick={handleCancelUpload}
+                        style={{
+                          padding: '15px 30px',
+                          fontSize: '18px',
+                          backgroundColor: '#dc3545',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '25px',
+                          cursor: 'pointer',
+                          boxShadow: '0 5px 15px rgba(220, 53, 69, 0.4)'
+                        }}
+                      >
+                        ❌ Cancel Transcribing
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-            )}
-          </main>
+              {status && (status === 'completed' || status === 'failed') && (
+                <div style={{
+                  backgroundColor: status === 'completed' ? 'rgba(212, 237, 218, 0.95)' : 'rgba(255, 243, 205, 0.95)',
+                  border: `2px solid ${status === 'completed' ? '#27ae60' : '#f39c12'}`,
+                  borderRadius: '10px',
+                  padding: '20px',
+                  marginBottom: '30px',
+                  textAlign: 'center'
+                }}>
+                  <h3 style={{ 
+                    color: status === 'completed' ? '#27ae60' : '#f39c12',
+                    margin: '0'
+                  }}>
+                    {status === 'completed' ? '✅ Transcription Completed!' : `❌ Status: ${status}`}
+                  </h3>
+                  {status === 'failed' && (
+                    <p style={{ margin: '10px 0 0 0', color: '#666' }}>
+                      Transcription failed: 1. Ensure Your Internet is Good and Connected; 2. Refresh the Page.
+                    </p>
+                  )}
+                </div>
+              )}
+              
+              {transcription && (
+                <div style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  borderRadius: '15px',
+                  padding: '30px',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
+                }}>
+                  <h3 style={{ 
+                    color: '#6c5ce7',
+                    margin: '0 0 20px 0',
+                    textAlign: 'center',
+                    fontSize: '1.5rem'
+                  }}>
+                    📄 Transcription Result:
+                  </h3>
+                  
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    gap: '15px',
+                    marginBottom: '20px',
+                    flexWrap: 'wrap'
+                  }}>
+                    <button
+                      onClick={copyToClipboard}
+                      disabled={!isPaidAIUser(userProfile)}
+                      style={{
+                        padding: '10px 20px',
+                        backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#27ae60',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
+                        fontSize: '14px',
+                        opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
+                      }}
+                    >
+                      {!isPaidAIUser(userProfile) ? '🔒 Copy (Pro AI Only)' : '📋 Copy to Clipboard'}
+                    </button>
+                    
+                    <button
+                      onClick={downloadAsWord}
+                      disabled={!isPaidAIUser(userProfile)}
+                      style={{
+                        padding: '10px 20px',
+                        backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#007bff',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
+                        fontSize: '14px',
+                        opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
+                      }}
+                    >
+                      {!isPaidAIUser(userProfile) ? '🔒 Word (Pro AI Only)' : '📄 MS Word'}
+                    </button>
+                    
+                    <button
+                      onClick={downloadAsTXT}
+                      style={{
+                        padding: '10px 20px',
+                        backgroundColor: '#6c757d',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontSize: '14px'
+                      }}
+                    >
+                      📝 TXT
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (!isPaidAIUser(userProfile)) {
+                          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, Pro, One-Week plans). Please upgrade your plan.');
+                          return;
+                        }
+                        setCurrentView('ai_assistant');
+                      }}
+                      disabled={!isPaidAIUser(userProfile)}
+                      style={{
+                        padding: '10px 20px',
+                        backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#6c5ce7',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
+                        fontSize: '14px',
+                        opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
+                      }}
+                    >
+                      ✨ TypeMyworDz Assistant
+                    </button>
+                  </div>
+                  
+                  {!isPaidAIUser(userProfile) && (
+                    <div style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      color: '#856404',
+                      padding: '10px',
+                      borderRadius: '5px',
+                      marginBottom: '20px',
+                      textAlign: 'center',
+                      fontSize: '14px'
+                    }}>
+                      🔒 Copy to clipboard, MS Word downloads, and AI Assistant are available for paid AI users (Three-Day, Pro, One-Week plans).{' '}
+                      <button 
+                        onClick={() => setCurrentView('pricing')}
+                        style={{
+                          backgroundColor: 'transparent',
+                          color: '#007bff',
+                          border: 'none',
+                          textDecoration: 'underline',
+                          cursor: 'pointer',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        Upgrade now
+                      </button>
+                    </div>
+                  )}
+                  
+                  <div style={{
+                    backgroundColor: '#f8f9fa',
+                    padding: '20px',
+                    borderRadius: '10px',
+                    textAlign: 'left',
+                    lineHeight: '1.6',
+                    border: '1px solid #dee2e6'
+                  }}>
+                    <div dangerouslySetInnerHTML={{ __html: transcription.replace(/\n/g, '<br>') }} />
+                  </div>
+                  
+                  <div style={{ 
+                    marginTop: '15px', 
+                    textAlign: 'center', 
+                    color: '#27ae60',
+                    fontSize: '14px'
+                  }}>
+                    ✅ Check your{' '}
+                    <button
+                      onClick={() => setCurrentView('dashboard')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#007bff',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 'bold',
+                        padding: 0
+                      }}
+                      onMouseEnter={(e) => e.target.style.color = '#0056b3'}
+                      onMouseLeave={(e) => e.target.style.color = '#007bff'}
+                    >
+                      History
+                    </button>
+                    {' '}for your saved transcripts.
+                  </div>
+                </div>
+              )}
+            </main>
+          </div>
         )}
         <footer style={{ 
           textAlign: 'center', 
