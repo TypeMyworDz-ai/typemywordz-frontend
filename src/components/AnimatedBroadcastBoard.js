@@ -30,8 +30,8 @@ const messages = [
   },
   {
     type: 'text',
-    content: "💰 Our African clients can now pay with 'MPESA! color: '#09cc3aff'",
-    color: '#dc3545'
+    content: "💰 Our African clients can now pay with 'MPESA",
+    color: '#1e9b0dff'
   },
   {
     type: 'text',
