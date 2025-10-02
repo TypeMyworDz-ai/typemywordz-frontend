@@ -13,7 +13,7 @@ const messages = [
   },
   {
     type: 'text',
-    content: "💡 You have a choice to have Speaker tags in your transcript or not!.",
+    content: "💡 You have a choice to have Speaker tags in your transcript or not!",
     color: '#28a745'
   },
   {
@@ -31,6 +31,11 @@ const messages = [
   {
     type: 'text',
     content: "💰 We built this with Africa at Heart, check pricing plans!",
+    color: '#dc3545'
+  },
+  {
+    type: 'text',
+    content: "We also offer Human-Transcripts Services, talk to us!",
     color: '#dc3545'
   }
 ];
