@@ -41,10 +41,8 @@ const messages = [
   {
     type: 'image',
     content: "/claude_logo.png", // Ensure this path is correct in your public folder
-    text: "Translate into Spanish",
-    content: "/gemini_logo.png", // Ensure this path is correct in your public folder
-    text: "& more!",
-    alt: "Gemini AI"
+    text: "Translate into Spanish & more!",
+    alt: "Claude AI"
   }
 ];
 
