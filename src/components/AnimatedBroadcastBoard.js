@@ -30,7 +30,7 @@ const messages = [
   },
   {
     type: 'text',
-    content: "💰 We love Africa and we have put you in mind with our flexible pricing plans!",
+    content: "💰 We built this with Africa at Heart, check pricing plans!",
     color: '#dc3545'
   }
 ];
