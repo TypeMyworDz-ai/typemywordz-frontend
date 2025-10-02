@@ -3,34 +3,34 @@ import React, { useState, useEffect } from 'react';
 const messages = [
   {
     type: 'text',
-    content: "✨ New Feature: Try our AI Assistant for instant summaries and insights!",
+    content: "✨ Tell Assistant to summarize your transcripts!",
     color: '#6c5ce7'
   },
   {
     type: 'text',
-    content: "🚀 Experience blazing-fast transcription with Deepgram's Nova-3 model!",
+    content: "🚀 Choose from Three-Day Plan and Experience Speed and Accuracy!",
     color: '#007bff'
   },
   {
     type: 'text',
-    content: "💡 Tip: Use speaker tags for clear identification in your meetings.",
+    content: "💡 You have a choice to have Speaker tags in your transcript or not!.",
     color: '#28a745'
   },
   {
     type: 'image',
     content: "/gemini_logo.png", // Ensure this path is correct in your public folder
-    text: "Powered by Google Gemini for advanced AI queries!",
+    text: "Interact with your transcripts using Gemini!",
     alt: "Gemini AI"
   },
   {
     type: 'image',
     content: "/claude_logo.png", // Ensure this path is correct in your public folder
-    text: "Claude Sonnet: Your AI partner for precise formatting.",
+    text: "Interact with your transcripts using Claude Sonnet!",
     alt: "Claude AI"
   },
   {
     type: 'text',
-    content: "💰 Check out our new flexible pricing plans!",
+    content: "💰 We love Africa and we have put you in mind with our flexible pricing plans!",
     color: '#dc3545'
   }
 ];
