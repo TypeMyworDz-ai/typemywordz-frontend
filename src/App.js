@@ -985,7 +985,7 @@ function AppContent() {
           const formData = new FormData();
           formData.append('transcript', latestTranscription);
           formData.append('user_prompt', userPrompt);
-          formData.append('max_tokens', '8000'); // REMOVED LIMITS - increased to 8000
+          formData.append('max_tokens', '4096'); // REMOVED LIMITS - increased to 8000
           formData.append('user_plan', userProfile?.plan || 'free'); // Pass user plan to backend
 
           let endpoint = '';
@@ -1040,7 +1040,7 @@ function AppContent() {
       const formData = new FormData();
       formData.append('transcript', latestTranscription + '\n\nPrevious AI Response:\n' + aiResponse);
       formData.append('user_prompt', continuePrompt);
-      formData.append('max_tokens', '8000'); // REMOVED LIMITS - increased to 8000
+      formData.append('max_tokens', '4096'); // REMOVED LIMITS - increased to 8000
       formData.append('user_plan', userProfile?.plan || 'free');
 
       let endpoint = '';
