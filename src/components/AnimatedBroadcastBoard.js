@@ -36,7 +36,7 @@ const messages = [
   {
     type: 'text',
     content: "We also offer Human-Transcripts Services, talk to us!",
-    color: '#dc3545'
+    color: '#5935dcff'
   }
 ];
 
