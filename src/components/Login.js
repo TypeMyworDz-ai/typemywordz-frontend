@@ -7,9 +7,9 @@ import { signInWithEmailAndPassword } from 'firebase/auth'; // Import Firebase A
 const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState(''); // NEW: State for email for login
-  const [password, setPassword] = useState(''); // NEW: State for password for login
-  const { signInWithGoogle, showMessage } = useAuth(); // Only Google now
+  const [email, setEmail] = useState(''); // State for email for login
+  const [password, setPassword] = useState(''); // State for password for login
+  const { signInWithGoogle, showMessage } = useAuth(); 
 
   const navigate = useNavigate();
 
@@ -22,12 +22,12 @@ const Login = () => {
     } catch (err) {
       console.error("Google login error:", err);
       setError(err.message || "Failed to sign in with Google.");
+      showMessage(`❌ Failed to sign in with Google: ${err.message}`); 
     } finally {
       setLoading(false);
     }
   };
 
-  // NEW: handleEmailLogin function
   const handleEmailLogin = async () => {
     if (!email || !password) {
       showMessage('Please enter both email and password.');
@@ -48,7 +48,7 @@ const Login = () => {
         errorMessage = 'Too many login attempts. Please try again later.';
       }
       setError(`❌ ${errorMessage}`);
-      showMessage(`❌ ${errorMessage}`); // Use showMessage for consistency
+      showMessage(`❌ ${errorMessage}`); 
     } finally {
       setLoading(false);
     }
@@ -74,13 +74,13 @@ const Login = () => {
         disabled={loading}
         style={{
           width: '100%',
-          padding: '15px 20px', // Slightly bigger padding since it's the only button
+          padding: '15px 20px', 
           backgroundColor: '#ffffff',
           color: '#3c4043',
           border: '1px solid #dadce0',
           borderRadius: '8px',
           cursor: loading ? 'not-allowed' : 'pointer',
-          fontSize: '18px', // Slightly bigger font
+          fontSize: '18px', 
           fontWeight: '500',
           boxShadow: '0 1px 2px 0 rgba(60,64,67,0.30), 0 1px 3px 1px rgba(60,64,67,0.15)',
           transition: 'box-shadow 0.3s ease',
@@ -153,7 +153,7 @@ const Login = () => {
           onClick={handleEmailLogin} 
           disabled={loading}
           style={{
-            backgroundColor: '#007bff', // Blue for login
+            backgroundColor: '#007bff', 
             color: 'white',
             padding: '12px 25px',
             borderRadius: '10px',
@@ -172,8 +172,27 @@ const Login = () => {
         </button>
       </div>
 
+      {/* Link to Signup page - ADDING DIAGNOSTIC LOG HERE */}
       <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: '20px 0 0 0' }}>
-        Secure sign-in with your email or Google account
+        Don't have an account? {' '}
+        <button
+          onClick={() => {
+            console.log("DEBUG: 'Sign Up' button clicked. Attempting navigation to /signup."); // NEW DIAGNOSTIC LOG
+            navigate('/signup'); 
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#007bff', 
+            textDecoration: 'underline',
+            cursor: 'pointer',
+            fontSize: '0.875rem', 
+            fontWeight: 'bold',
+            padding: 0
+          }}
+        >
+          Sign Up
+        </button>
       </p>
     </div>
   );
