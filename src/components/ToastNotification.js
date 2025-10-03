@@ -89,4 +89,4 @@ const ToastNotification = ({ message, onClose }) => {
   );
 };
 
-export default ToastNotification;
+export default ToastNotification; // FIX: This line ensures the component is properly exported as default.

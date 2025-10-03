@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, googleProvider, microsoftProvider } from '../firebase'; // Import providers
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'; // Import signInWithPopup and signOut
 import { createUserProfile, getUserProfile } from '../userService';
+import ToastNotification from '../components/ToastNotification'; // FIX: Import ToastNotification from its new file
 import { ToastNotification } from '../components/ToastNotification'; // FIX: NEW Import ToastNotification here
 // If ToastNotification is defined directly in App.js and not a separate file,
 // then you would need to move its definition to a new file like components/ToastNotification.js
