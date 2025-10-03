@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc, serverTimestamp } from 'firebase/firestore'; // Keep serverTimestamp just in case for other uses, but we'll manually set for this fix
 
 const USERS_COLLECTION = 'users';
 const TRANSCRIPTIONS_COLLECTION = 'transcriptions'; // Top-level collection for all transcriptions
@@ -13,6 +13,7 @@ export const createUserProfile = async (uid, email, name = '') => {
   const docSnap = await getDoc(userRef);
 
   const userPlan = 'free'; // All new users start with 'free' plan
+  const currentTime = new Date(); // Get current time once
 
   if (!docSnap.exists()) {
     await setDoc(userRef, {
@@ -22,8 +23,8 @@ export const createUserProfile = async (uid, email, name = '') => {
       plan: userPlan,
       totalMinutesUsed: 0,
       hasReceivedInitialFreeMinutes: false, // New users start with 30 free minutes available
-      createdAt: new Date(),
-      lastAccessed: new Date(),
+      createdAt: currentTime, // Use concrete Date object
+      lastAccessed: currentTime, // Use concrete Date object
       expiresAt: null, 
       subscriptionStartDate: null,
     });
@@ -31,7 +32,7 @@ export const createUserProfile = async (uid, email, name = '') => {
   } else {
     const existingData = docSnap.data();
     const updates = {
-      lastAccessed: new Date(),
+      lastAccessed: currentTime, // Use concrete Date object
     };
 
     // Initialize new fields for existing users if they don't exist
@@ -65,16 +66,25 @@ export const getUserProfile = async (uid) => {
 
     if (profileData.createdAt && typeof profileData.createdAt.toDate === 'function') {
       profileData.createdAt = profileData.createdAt.toDate();
+    } else if (profileData.createdAt && !(profileData.createdAt instanceof Date)) { // Handle non-Firestore Timestamp dates
+      profileData.createdAt = new Date(profileData.createdAt);
     }
     if (profileData.lastAccessed && typeof profileData.lastAccessed.toDate === 'function') {
       profileData.lastAccessed = profileData.lastAccessed.toDate();
+    } else if (profileData.lastAccessed && !(profileData.lastAccessed instanceof Date)) { // Handle non-Firestore Timestamp dates
+      profileData.lastAccessed = new Date(profileData.lastAccessed);
     }
     if (profileData.expiresAt && typeof profileData.expiresAt.toDate === 'function') {
         profileData.expiresAt = profileData.expiresAt.toDate();
+    } else if (profileData.expiresAt && !(profileData.expiresAt instanceof Date)) { // Handle non-Firestore Timestamp dates
+      profileData.expiresAt = new Date(profileData.expiresAt);
     }
     if (profileData.subscriptionStartDate && typeof profileData.subscriptionStartDate.toDate === 'function') {
         profileData.subscriptionStartDate = profileData.subscriptionStartDate.toDate();
+    } else if (profileData.subscriptionStartDate && !(profileData.subscriptionStartDate instanceof Date)) { // Handle non-Firestore Timestamp dates
+      profileData.subscriptionStartDate = new Date(profileData.subscriptionStartDate);
     }
+
 
     const currentTime = new Date();
 
@@ -110,7 +120,7 @@ export const updateUserPlan = async (uid, newPlan, referenceId = null) => {
   const userRef = getUserProfileRef(uid);
   const updates = {
     plan: newPlan,
-    lastAccessed: new Date(),
+    lastAccessed: new Date(), // Use concrete Date object
     paystackReferenceId: referenceId, 
   };
   
@@ -123,13 +133,13 @@ export const updateUserPlan = async (uid, newPlan, referenceId = null) => {
       planDurationMinutes = 7 * 24 * 60; // 7 days in minutes
   } else if (newPlan === 'Pro') { // 'Pro' plan is now treated as a paid subscription with no expiry.
       updates.expiresAt = null; 
-      updates.subscriptionStartDate = new Date();
+      updates.subscriptionStartDate = new Date(); // Use concrete Date object
       console.log(`updateUserPlan: Generic 'Pro' plan received for ${uid}. Treating as effectively unlimited.`);
   }
 
   if (planDurationMinutes > 0 && newPlan !== 'Pro') { // Only set expiry for temporary plans
       updates.expiresAt = new Date(Date.now() + planDurationMinutes * 60 * 1000);
-      updates.subscriptionStartDate = new Date();
+      updates.subscriptionStartDate = new Date(); // Use concrete Date object
       console.log(`User ${uid} ${newPlan} plan will expire on: ${updates.expiresAt}`);
   } else if (newPlan === 'free') {
       updates.expiresAt = null;
@@ -238,6 +248,8 @@ export const updateUserUsage = async (uid, durationSeconds) => {
     return;
   }
 
+  const currentTime = new Date(); // Get current time once
+
   // Only track usage for 'free' plans who haven't exhausted their initial free minutes yet
   if (userProfile.plan === 'free' && !userProfile.hasReceivedInitialFreeMinutes) {
     const durationMinutes = Math.ceil(durationSeconds / 60);
@@ -247,15 +259,15 @@ export const updateUserUsage = async (uid, durationSeconds) => {
       totalMinutesUsed: newTotalMinutesUsed,
       // Mark as received if they've used 30+ minutes or if the new total reaches 30
       hasReceivedInitialFreeMinutes: newTotalMinutesUsed >= 30, 
-      lastAccessed: new Date(),
+      lastAccessed: currentTime, // Use concrete Date object
     });
     console.log(`📊 User ${uid} (free plan): Updated totalMinutesUsed by ${durationMinutes} mins to ${newTotalMinutesUsed} mins. Remaining: ${Math.max(0, 30 - newTotalMinutesUsed)} mins.`);
   } else {
     // For paid plans or users who've used their trial, just update lastAccessed
     await updateDoc(userRef, {
-      lastAccessed: new Date(),
+      lastAccessed: currentTime, // Use concrete Date object
     });
-    console.log(`📊 User ${uid} (${userProfile.plan} plan): Usage not tracked for this plan type.`);
+    console.log(`📊 User ${uid} (${userProfile.plan} plan): Usage not tracked for this plan type. Updating lastAccessed.`);
   }
 };
 
@@ -264,14 +276,16 @@ export const saveTranscription = async (uid, fileName, transcriptionText, durati
   // Use the top-level 'transcriptions' collection directly
   const transcriptionsCollectionRef = collection(db, TRANSCRIPTIONS_COLLECTION); 
   const newTranscriptionRef = doc(transcriptionsCollectionRef, jobId); // Use jobId as document ID
+  
+  const currentTime = new Date(); // Get current time once
 
   const transcriptionData = {
     fileName,
     transcriptionText, // Changed 'text' to 'transcriptionText' for consistency
     duration,
     userId: ownerUid, // Use the passed ownerUid here
-    createdAt: serverTimestamp(), // Use serverTimestamp for accurate server-side timestamp
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // Transcriptions expire in 7 days
+    createdAt: currentTime, // Use concrete Date object
+    expiresAt: new Date(currentTime.getTime() + 7 * 24 * 60 * 60 * 1000) // Transcriptions expire in 7 days
   };
 
   await setDoc(newTranscriptionRef, transcriptionData);
@@ -294,9 +308,13 @@ export const fetchUserTranscriptions = async (uid) => {
     const data = document.data();
     if (data.createdAt && typeof data.createdAt.toDate === 'function') {
         data.createdAt = data.createdAt.toDate();
+    } else if (data.createdAt && !(data.createdAt instanceof Date)) { // Handle non-Firestore Timestamp dates
+      data.createdAt = new Date(data.createdAt);
     }
     if (data.expiresAt && typeof data.expiresAt.toDate === 'function') {
         data.expiresAt = data.expiresAt.toDate();
+    } else if (data.expiresAt && !(data.expiresAt instanceof Date)) { // Handle non-Firestore Timestamp dates
+      data.expiresAt = new Date(data.expiresAt);
     }
     transcriptions.push({ id: document.id, ...data });
   });
