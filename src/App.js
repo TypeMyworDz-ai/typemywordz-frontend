@@ -6,13 +6,15 @@ import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
+import Signup from './components/Signup'; // NEW: Import Signup component
 import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan } from './userService';
-import { db } from './firebase'; // Import the db instance from your firebase.js
-import { doc, getDoc } from 'firebase/firestore'; // Import doc and getDoc functions
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import AnimatedBroadcastBoard from './components/AnimatedBroadcastBoard'; // NEW: Import the new component
+import { db } from './firebase'; // Import the db instance from your firebase.js
+import { doc, getDoc } from 'firebase/firestore'; // Import doc and getDoc functions
+
 
 // UPDATED Configuration - RE-ADDED Render Whisper URL
 // MODIFIED: Use the new Railway Backend URL
@@ -567,30 +569,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     console.log('DEBUG:   estimatedDuration:', estimatedDuration);
     console.log('DEBUG:   jobId (passed to saveTranscription):', completedJobId);
     // NEW: Log currentUser.uid explicitly
-    // Inside handleTranscriptionComplete, right after the console.log for currentUser.uid:
     console.log('DEBUG:   currentUser.uid (for userId field):', currentUser.uid); 
-
-    // NEW DIAGNOSTIC STEP: Attempt to read user profile directly from Firestore
-    // This uses the 'db' object from firebase.js and currentUser.uid
-    try {
-      if (currentUser && currentUser.uid) {
-        const userDocRef = doc(db, 'users', currentUser.uid); // Assuming 'db' is imported correctly
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists()) {
-          console.log('DIAGNOSTIC: Successfully read user profile from Firestore (direct check):', userDocSnap.data());
-        } else {
-          console.error('DIAGNOSTIC: User profile NOT FOUND in Firestore for UID (direct check):', currentUser.uid);
-          // This would indicate createUserProfile failed or the UID is wrong.
-        }
-      } else {
-        console.error('DIAGNOSTIC: currentUser or currentUser.uid is NULL during direct Firestore read attempt.');
-      }
-    } catch (readError) {
-      console.error('DIAGNOSTIC: Error reading user profile directly from Firestore (direct check):', readError);
-      // If this also shows "Missing permissions", it confirms the core issue.
-    }
-    // END NEW DIAGNOSTIC STEP
- 
     
     // Call Railway backend to save the transcription
     // UPDATED: Added currentUser.uid as the userId parameter
@@ -1014,28 +993,28 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           const formData = new FormData();
           formData.append('transcript', latestTranscription);
           formData.append('user_prompt', userPrompt);
-          formData.append('max_tokens', '4096'); // REMOVED LIMITS - increased to 8000
-          formData.append('user_plan', userProfile?.plan || 'free'); // Pass user plan to backend
+          formData.append('max_tokens', '4096'); 
+          formData.append('user_plan', userProfile?.plan || 'free'); 
 
           let endpoint = '';
           let modelToUse = '';
 
           if (selectedAIProvider === 'claude') {
-            endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query`; // This calls Anthropic Claude endpoint on Railway
+            endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query`; 
             modelToUse = 'claude-3-haiku-20240307'; 
           } else if (selectedAIProvider === 'gemini') {
-            endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query-gemini`; // NEW: This calls Google Gemini endpoint for user queries
-            modelToUse = 'models/gemini-pro-latest'; // Default Gemini model
+            endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query-gemini`; 
+            modelToUse = 'models/gemini-pro-latest'; 
           } else {
             showMessage('Invalid AI provider selected.');
             setAILoading(false);
             return;
           }
-          formData.append('model', modelToUse); // Append the chosen model
+          formData.append('model', modelToUse); 
 
           const response = await fetch(endpoint, {
               method: 'POST',
-              body: formData, // Send FormData
+              body: formData, 
           });
 
           if (!response.ok) {
@@ -1044,8 +1023,8 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           }
 
           const data = await response.json();
-          setAIResponse(data.ai_response || data.formatted_transcript); // Handle both potential response keys
-          setShowContinueBox(true); // Show continue option for AI responses
+          setAIResponse(data.ai_response || data.formatted_transcript); 
+          setShowContinueBox(true); 
           showMessage('✨ AI response generated successfully!');
 
       } catch (error) {
@@ -1069,7 +1048,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       const formData = new FormData();
       formData.append('transcript', latestTranscription + '\n\nPrevious AI Response:\n' + aiResponse);
       formData.append('user_prompt', continuePrompt);
-      formData.append('max_tokens', '4096'); // REMOVED LIMITS - increased to 8000
+      formData.append('max_tokens', '4096'); 
       formData.append('user_plan', userProfile?.plan || 'free');
 
       let endpoint = '';
@@ -1081,6 +1060,10 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       } else if (selectedAIProvider === 'gemini') {
         endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query-gemini`;
         modelToUse = 'models/gemini-pro-latest';
+      } else {
+        showMessage('Invalid AI provider selected.');
+        setAILoading(false);
+        return;
       }
       
       formData.append('model', modelToUse);
@@ -1192,6 +1175,26 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           padding: '0 20px'
         }}>
           <Login />
+          {/* NEW: Link to Signup page */}
+          <p style={{ marginTop: '20px', color: 'white', fontSize: '1rem' }}>
+            Don't have an account? {' '}
+            <button
+              onClick={() => navigate('/signup')} // Navigate to the new signup route
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#007bff', // Blue link color
+                textDecoration: 'underline',
+                cursor: 'pointer',
+                fontSize: '1rem',
+                fontWeight: 'bold',
+                padding: 0
+              }}
+            >
+              Sign Up
+            </button>
+          </p>
+
           {/* UPDATED: Login page tagline and logos */}
           <p style={{ 
             fontSize: '1.1rem', 
@@ -1254,6 +1257,8 @@ return (
         <Dashboard setCurrentView={setCurrentView} />
       </>
     } />
+    {/* NEW: Route for Signup component */}
+    <Route path="/signup" element={<Signup />} /> 
     {/* FIXED: Passing showMessage prop to AdminDashboard */}
     <Route path="/admin" element={isAdmin ? <AdminDashboard showMessage={showMessage} /> : <Navigate to="/" />} />
     
@@ -1282,7 +1287,7 @@ return (
             onMouseLeave={() => setOpenSubmenu(null)}
         >
             {/* Products Parent Menu */}
-            <div className="menu-item parent-menu" onClick={() => handleToggleSubmenu('productsSubmenu')}>
+            <div className="menu-item" onClick={() => handleToggleSubmenu('productsSubmenu')}>
                 <span className="menu-icon">📦</span>
                 <span className="menu-text">Products</span>
                 <span className={`dropdown-arrow ${openSubmenu === 'productsSubmenu' ? 'rotated' : ''}`}>▼</span>
@@ -1317,7 +1322,7 @@ return (
             </div>
 
             {/* Social Parent Menu */}
-            <div className="menu-item parent-menu" onClick={() => handleToggleSubmenu('socialSubmenu')}>
+            <div className="menu-item" onClick={() => handleToggleSubmenu('socialSubmenu')}>
                 <span className="menu-icon">🤝</span>
                 <span className="menu-text">Social</span>
                 <span className={`dropdown-arrow ${openSubmenu === 'socialSubmenu' ? 'rotated' : ''}`}>▼</span>
