@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'; // FIXED: Added useCallback
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { updateTranscription, deleteTranscription } from '../userService';
@@ -9,10 +9,11 @@ const TranscriptionDetail = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const audioRef = useRef(null);
-  const fileInputRef = useRef(null); // NEW: Ref for hidden file input
-  
+  const fileInputRef = useRef(null); // Ref for hidden file input
+
+  // FIX: Initialize with 'transcriptionText' first, fallback to 'text'
   const [transcription, setTranscription] = useState(state?.transcription || null);
-  const [editableText, setEditableText] = useState(transcription?.text || '');
+  const [editableText, setEditableText] = useState(transcription?.transcriptionText || transcription?.text || '');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setSaving] = useState(false);
   const [audioCurrentTime, setAudioCurrentTime] = useState(0);
@@ -22,9 +23,11 @@ const TranscriptionDetail = () => {
   const [volume, setVolume] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [audioError, setAudioError] = useState(false);
-  const [localAudioFile, setLocalAudioFile] = useState(null); // NEW: State for locally uploaded audio
-  const [localAudioUrl, setLocalAudioUrl] = useState(null);   // NEW: URL for local audio
-  const [sourceAudioUrl, setSourceAudioUrl] = useState(transcription?.audioUrl || null); // NEW: Current audio source
+  const [localAudioFile, setLocalAudioFile] = useState(null); // State for locally uploaded audio
+  const [localAudioUrl, setLocalAudioUrl] = useState(null);   // URL for local audio
+  // FIX: Initialize sourceAudioUrl using the correct field name from the incoming transcription object
+  const [sourceAudioUrl, setSourceAudioUrl] = useState(transcription?.audioUrl || null);
+
   // Helper function to safely convert date (No change)
   const convertToDate = (dateValue) => {
     if (!dateValue) return null;
@@ -53,8 +56,10 @@ const TranscriptionDetail = () => {
 
   useEffect(() => {
     if (transcription) {
-      setEditableText(transcription.text || '');
-      setSourceAudioUrl(transcription.audioUrl || null); // Ensure source is set on transcription load
+      // FIX: Use 'transcriptionText' for editableText, fallback to 'text'
+      setEditableText(transcription.transcriptionText || transcription.text || '');
+      // FIX: Ensure sourceAudioUrl is set on transcription load from the correct field
+      setSourceAudioUrl(transcription.audioUrl || null);
     }
   }, [transcription]);
 
@@ -68,7 +73,8 @@ const TranscriptionDetail = () => {
       return () => URL.revokeObjectURL(url);
     } else {
       setLocalAudioUrl(null);
-      setSourceAudioUrl(transcription?.audioUrl || null); // Fallback to original
+      // FIX: Fallback to original audioUrl from transcription object
+      setSourceAudioUrl(transcription?.audioUrl || null);
     }
   }, [localAudioFile, transcription]);
 
@@ -119,13 +125,16 @@ const TranscriptionDetail = () => {
       };
     }
   }, [sourceAudioUrl, volume]); // Rerun effect if sourceAudioUrl or volume changes
+
   const handleSave = useCallback(async () => { // Wrapped in useCallback
     if (!currentUser?.uid || !transcription) return;
     
     setSaving(true);
     try {
-      await updateTranscription(currentUser.uid, transcription.id, { text: editableText });
-      setTranscription({ ...transcription, text: editableText });
+      // FIX: Update 'transcriptionText' field, not 'text'
+      await updateTranscription(currentUser.uid, transcription.id, { transcriptionText: editableText });
+      // FIX: Update local state with 'transcriptionText'
+      setTranscription({ ...transcription, transcriptionText: editableText });
       setIsEditing(false);
       alert('Transcription saved successfully!');
     } catch (error) {
@@ -138,7 +147,8 @@ const TranscriptionDetail = () => {
 
   const handleCancelEdit = useCallback(() => { // Wrapped in useCallback
     setIsEditing(false);
-    setEditableText(transcription?.text || '');
+    // FIX: Use 'transcriptionText' for editableText, fallback to 'text'
+    setEditableText(transcription?.transcriptionText || transcription?.text || '');
   }, [transcription]); // Added dependency
 
   const handleDelete = useCallback(async () => { // Wrapped in useCallback
@@ -169,6 +179,7 @@ const TranscriptionDetail = () => {
     a.click();
     URL.revokeObjectURL(url);
   }, [editableText, transcription]); // Added dependencies
+
   const togglePlayPause = useCallback(() => { // Wrapped in useCallback
     const audio = audioRef.current;
     if (audio && !audioError) {
@@ -265,7 +276,8 @@ const TranscriptionDetail = () => {
     } else {
       setLocalAudioFile(null);
       setLocalAudioUrl(null);
-      setSourceAudioUrl(transcription?.audioUrl || null); // Fallback to original
+      // FIX: Fallback to original audioUrl from transcription object
+      setSourceAudioUrl(transcription?.audioUrl || null);
       setAudioError(true);
       console.warn('WARNING: Invalid file type selected for local audio.');
     }

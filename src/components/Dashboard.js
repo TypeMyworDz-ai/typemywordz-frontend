@@ -46,6 +46,7 @@ const Dashboard = ({ setCurrentView }) => {
   useEffect(() => {
     loadTranscriptions();
   }, [loadTranscriptions]);
+
   const handleDelete = useCallback(async (transcriptionId, e) => {
     e.stopPropagation();
     if (window.confirm("Are you sure you want to delete this transcription?")) {
@@ -62,7 +63,8 @@ const Dashboard = ({ setCurrentView }) => {
   const handleEdit = useCallback((transcription, e) => {
     e.stopPropagation();
     setEditingId(transcription.id);
-    setEditingText(transcription.text || '');
+    // FIX: Prioritize 'transcriptionText', fallback to 'text'
+    setEditingText(transcription.transcriptionText || transcription.text || '');
   }, []);
 
   const handleSaveEdit = useCallback(async (newText) => {
@@ -70,13 +72,14 @@ const Dashboard = ({ setCurrentView }) => {
     
     setIsSaving(true);
     try {
-      await updateTranscription(currentUser.uid, editingId, { text: newText });
+      // FIX: Update 'transcriptionText' field
+      await updateTranscription(currentUser.uid, editingId, { transcriptionText: newText });
       
       // Update local state
       setTranscriptions(prev => 
         prev.map(t => 
           t.id === editingId 
-            ? { ...t, text: newText }
+            ? { ...t, transcriptionText: newText } // FIX: Update transcriptionText
             : t
         )
       );
@@ -113,12 +116,15 @@ const Dashboard = ({ setCurrentView }) => {
       navigate('/');
     }
   }, [setCurrentView, navigate]);
+
   // UPDATED: filteredTranscriptions with robust checks and DEBUG LOGS
   const filteredTranscriptions = transcriptions.filter(transcription => {
     console.log('DEBUG FILTER: Processing transcription:', transcription); // NEW LOG
     const lowerSearchTerm = searchTerm.toLowerCase();
     const fileName = transcription.fileName ? transcription.fileName.toLowerCase() : '';
-    const text = transcription.text ? transcription.text.toLowerCase() : '';
+    // FIX: Prioritize 'transcriptionText' for search, fallback to 'text'
+    const textContent = transcription.transcriptionText || transcription.text || '';
+    const text = textContent.toLowerCase();
 
     const matches = fileName.includes(lowerSearchTerm) || text.includes(lowerSearchTerm);
     console.log(`DEBUG FILTER: FileName: ${fileName}, Text: ${text}, SearchTerm: ${lowerSearchTerm}, Matches: ${matches}`); // NEW LOG
@@ -162,6 +168,7 @@ const Dashboard = ({ setCurrentView }) => {
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
+
   if (!currentUser) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
@@ -317,7 +324,7 @@ const Dashboard = ({ setCurrentView }) => {
               gap: '8px',
               margin: '0 auto',
               boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
-              transition: 'all 0.3s ease'
+              transition: 'all 0.3s ease',
             }}
             onMouseEnter={(e) => {
               e.target.style.backgroundColor = '#6d28d9';
@@ -546,8 +553,10 @@ const Dashboard = ({ setCurrentView }) => {
 
                   <div style={{ backgroundColor: '#f9fafb', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem' }}>
                     <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
-                      {transcription.text ? 
-                        transcription.text.substring(0, 150) + (transcription.text.length > 150 ? '...' : '') :
+                      {/* FIX: Prioritize 'transcriptionText' for display */}
+                      {(transcription.transcriptionText || transcription.text) ? 
+                        (transcription.transcriptionText || transcription.text).substring(0, 150) + 
+                        ((transcription.transcriptionText || transcription.text).length > 150 ? '...' : '') :
                         'No transcription text available'
                       }
                     </p>
