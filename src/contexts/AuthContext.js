@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth } from '../firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { auth, googleProvider, microsoftProvider } from '../firebase'; // Import providers
+import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'; // Import signInWithPopup and signOut
 import { createUserProfile, getUserProfile } from '../userService';
 
 const AuthContext = createContext();
@@ -18,10 +18,15 @@ export const AuthProvider = ({ children }) => {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [message, setMessage] = useState(''); // NEW: State for global messages
 
+  // NEW: Function to display messages globally
+  const showMessage = (msg) => {
+    setMessage(msg);
+    setTimeout(() => setMessage(''), 5000); // Clear message after 5 seconds
+  };
+  
   // This function is key. It refetches the user profile.
-  // Once getUserProfile in userService.js is updated, this will correctly
-  // fetch the new totalMinutesUsed from Firestore.
   const refreshUserProfile = async () => {
     if (currentUser) {
       setProfileLoading(true);
@@ -30,6 +35,7 @@ export const AuthProvider = ({ children }) => {
         setUserProfile(profile);
       } catch (error) {
         console.error('Error refreshing user profile:', error);
+        showMessage(`❌ Error refreshing profile: ${error.message}`); // Use showMessage
       } finally {
         setProfileLoading(false);
       }
@@ -37,29 +43,65 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signInWithGoogle = async () => {
-    const { GoogleAuthProvider, signInWithPopup } = await import('firebase/auth');
-    const provider = new GoogleAuthProvider();
-    const result = await signInWithPopup(auth, provider);
-    
-    // Ensure profile is created and loaded immediately
-    setProfileLoading(true);
     try {
-      await createUserProfile(result.user.uid, result.user.email, result.user.displayName);
-      const profile = await getUserProfile(result.user.uid);
-      setUserProfile(profile);
+      const result = await signInWithPopup(auth, googleProvider); // Use imported googleProvider
+      
+      setProfileLoading(true);
+      try {
+        await createUserProfile(result.user.uid, result.user.email, result.user.displayName);
+        const profile = await getUserProfile(result.user.uid);
+        setUserProfile(profile);
+        showMessage(`✅ Signed in as ${result.user.email}`); // Use showMessage
+      } catch (error) {
+        console.error('Error creating/loading profile after Google sign-in:', error);
+        showMessage(`❌ Error with profile after Google sign-in: ${error.message}`); // Use showMessage
+      } finally {
+        setProfileLoading(false);
+      }
+      
+      return result;
     } catch (error) {
-      console.error('Error creating/loading profile after Google sign-in:', error);
-    } finally {
-      setProfileLoading(false);
+      console.error('Google sign-in error:', error);
+      showMessage(`❌ Google sign-in failed: ${error.message}`); // Use showMessage
+      throw error; // Re-throw to be caught by Login/Signup
     }
-    
-    return result;
+  };
+
+  // NEW: signInWithMicrosoft function
+  const signInWithMicrosoft = async () => {
+    try {
+      const result = await signInWithPopup(auth, microsoftProvider); // Use imported microsoftProvider
+      
+      setProfileLoading(true);
+      try {
+        await createUserProfile(result.user.uid, result.user.email, result.user.displayName);
+        const profile = await getUserProfile(result.user.uid);
+        setUserProfile(profile);
+        showMessage(`✅ Signed in as ${result.user.email}`); // Use showMessage
+      } catch (error) {
+        console.error('Error creating/loading profile after Microsoft sign-in:', error);
+        showMessage(`❌ Error with profile after Microsoft sign-in: ${error.message}`); // Use showMessage
+      } finally {
+        setProfileLoading(false);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Microsoft sign-in error:', error);
+      showMessage(`❌ Microsoft sign-in failed: ${error.message}`); // Use showMessage
+      throw error; // Re-throw to be caught by Login/Signup
+    }
   };
 
   const logout = async () => {
-    const { signOut } = await import('firebase/auth');
-    await signOut(auth);
-    setUserProfile(null);
+    try {
+      await signOut(auth);
+      setUserProfile(null);
+      showMessage('👋 Logged out successfully!'); // Use showMessage
+    } catch (error) {
+      console.error('Error logging out:', error);
+      showMessage(`❌ Error logging out: ${error.message}`); // Use showMessage
+    }
   };
 
   useEffect(() => {
@@ -68,12 +110,12 @@ export const AuthProvider = ({ children }) => {
       if (user) {
         setProfileLoading(true);
         try {
-          // Ensure profile exists
           await createUserProfile(user.uid, user.email, user.displayName);
           const profile = await getUserProfile(user.uid);
           setUserProfile(profile);
         } catch (error) {
-          console.error('Error loading user profile:', error);
+          console.error('Error loading user profile in AuthContext:', error);
+          showMessage(`❌ Error loading profile: ${error.message}`); // Use showMessage
         } finally {
           setProfileLoading(false);
         }
@@ -92,13 +134,16 @@ export const AuthProvider = ({ children }) => {
     loading,
     profileLoading,
     signInWithGoogle,
+    signInWithMicrosoft, // NEW: Provide signInWithMicrosoft
     logout,
-    refreshUserProfile
+    refreshUserProfile,
+    showMessage // NEW: Provide showMessage
   };
 
   return (
     <AuthContext.Provider value={value}>
       {children}
+      {message && <ToastNotification message={message} onClose={() => setMessage('')} />} {/* NEW: Render ToastNotification here */}
     </AuthContext.Provider>
   );
 };
