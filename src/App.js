@@ -7,6 +7,8 @@ import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
 import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan } from './userService';
+import { db } from './firebase'; // Import the db instance from your firebase.js
+import { doc, getDoc } from 'firebase/firestore'; // Import doc and getDoc functions
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 import PrivacyPolicy from './components/PrivacyPolicy';
