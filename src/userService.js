@@ -1,14 +1,11 @@
 import { db } from './firebase';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc, serverTimestamp } from 'firebase/firestore';
 
 const USERS_COLLECTION = 'users';
-const TRANSCRIPTIONS_COLLECTION = 'transcriptions';
+const TRANSCRIPTIONS_COLLECTION = 'transcriptions'; // Top-level collection for all transcriptions
 
 // Helper to get user profile document reference
 const getUserProfileRef = (uid) => doc(db, USERS_COLLECTION, uid);
-
-// Helper to get user transcriptions collection reference
-const getUserTranscriptionsCollectionRef = (uid) => collection(db, USERS_COLLECTION, uid, TRANSCRIPTIONS_COLLECTION);
 
 // Create or update user profile
 export const createUserProfile = async (uid, email, name = '') => {
@@ -262,56 +259,62 @@ export const updateUserUsage = async (uid, durationSeconds) => {
   }
 };
 
-// Save transcription to Firestore
-export const saveTranscription = async (uid, fileName, text, duration, audioUrl) => {
-  const transcriptionsCollectionRef = getUserTranscriptionsCollectionRef(uid);
-  const newTranscriptionRef = doc(transcriptionsCollectionRef);
+// Save transcription to Firestore (UPDATED to save to top-level collection with userId)
+export const saveTranscription = async (uid, fileName, transcriptionText, duration, jobId, ownerUid) => {
+  // Use the top-level 'transcriptions' collection directly
+  const transcriptionsCollectionRef = collection(db, TRANSCRIPTIONS_COLLECTION); 
+  const newTranscriptionRef = doc(transcriptionsCollectionRef, jobId); // Use jobId as document ID
 
   const transcriptionData = {
     fileName,
-    text,
+    transcriptionText, // Changed 'text' to 'transcriptionText' for consistency
     duration,
-    audioUrl,
-    userId: uid,
-    createdAt: new Date(),
+    userId: ownerUid, // Use the passed ownerUid here
+    createdAt: serverTimestamp(), // Use serverTimestamp for accurate server-side timestamp
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // Transcriptions expire in 7 days
   };
 
   await setDoc(newTranscriptionRef, transcriptionData);
-  console.log("Transcription saved with ID:", newTranscriptionRef.id);
+  console.log("Transcription saved to Firestore with ID: ", newTranscriptionRef.id);
   return newTranscriptionRef.id;
 };
 
-// Fetch user's transcriptions
+// Fetch user's transcriptions (UPDATED to query top-level collection by userId)
 export const fetchUserTranscriptions = async (uid) => {
-  const transcriptionsCollectionRef = getUserTranscriptionsCollectionRef(uid);
+  const transcriptionsCollectionRef = collection(db, TRANSCRIPTIONS_COLLECTION); // Query top-level collection
   const q = query(
     transcriptionsCollectionRef,
+    where("userId", "==", uid), // Filter by userId
     where("expiresAt", ">", new Date()),
     orderBy("createdAt", "desc")
   );
   const querySnapshot = await getDocs(q);
   const transcriptions = [];
-  querySnapshot.forEach((doc) => {
-    const data = doc.data();
+  querySnapshot.forEach((document) => { // Renamed doc to document to avoid conflict with doc import
+    const data = document.data();
+    if (data.createdAt && typeof data.createdAt.toDate === 'function') {
+        data.createdAt = data.createdAt.toDate();
+    }
     if (data.expiresAt && typeof data.expiresAt.toDate === 'function') {
         data.expiresAt = data.expiresAt.toDate();
     }
-    transcriptions.push({ id: doc.id, ...data });
+    transcriptions.push({ id: document.id, ...data });
   });
   return transcriptions;
 };
 
-// Update a specific transcription
+// Update a specific transcription (UPDATED to work with top-level collection)
 export const updateTranscription = async (uid, transcriptionId, newData) => {
-  const transcriptionRef = doc(db, USERS_COLLECTION, uid, TRANSCRIPTIONS_COLLECTION, transcriptionId);
+  // Directly reference the document in the top-level 'transcriptions' collection
+  const transcriptionRef = doc(db, TRANSCRIPTIONS_COLLECTION, transcriptionId); 
   await updateDoc(transcriptionRef, newData);
   console.log("Transcription updated:", transcriptionId);
 };
 
-// Delete a specific transcription
+// Delete a specific transcription (UPDATED to work with top-level collection)
 export const deleteTranscription = async (uid, transcriptionId) => {
-  const transcriptionRef = doc(db, USERS_COLLECTION, uid, TRANSCRIPTIONS_COLLECTION, transcriptionId);
+  // Directly reference the document in the top-level 'transcriptions' collection
+  const transcriptionRef = doc(db, TRANSCRIPTIONS_COLLECTION, transcriptionId); 
   await deleteDoc(transcriptionRef);
   console.log("Transcription deleted:", transcriptionId);
 };
