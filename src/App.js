@@ -7,7 +7,7 @@ import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
 import Signup from './components/Signup'; // NEW: Import Signup component
-import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan } from './userService';
+import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan, saveFeedback } from './userService'; // NEW: Import saveFeedback
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 import PrivacyPolicy from './components/PrivacyPolicy';
@@ -59,7 +59,7 @@ const CopiedNotification = ({ isVisible }) => {
 function AppContent() {
   const navigate = useNavigate();
   // FIX: Destructure showMessage from useAuth() instead of defining it locally
-  const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, profileLoading, showMessage } = useAuth();
+  const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, showMessage } = useAuth(); // Removed profileLoading as it's not used directly here
   
   // Utility functions
   const formatTime = (seconds) => {
@@ -477,13 +477,13 @@ function AppContent() {
     abortControllerRef.current = null; // Ensure it's nullified after aborting
 
     if (transcriptionIntervalRef.current) {
-      console.log('🛑 DEBUG: Clearing transcription progress interval.');
+      console.log('🔄 DEBUG: Clearing transcription progress interval.');
       clearInterval(transcriptionIntervalRef.current);
       transcriptionIntervalRef.current = null;
     }
 
     if (statusCheckTimeoutRef.current) {
-      console.log('🛑 DEBUG: Clearing status check timeout.');
+      console.log('🔄 DEBUG: Clearing status check timeout.');
       clearTimeout(statusCheckTimeoutRef.current);
       statusCheckTimeoutRef.current = null;
     }
@@ -603,6 +603,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       showMessage('Payment successful but there was an error updating your account. Please contact support.');
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
+
   const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => {
     if (isCancelledRef.current) {
       console.log('🛑 DEBUG: Status check aborted - job was cancelled'); // NEW LOG
@@ -740,7 +741,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       return;
     }
 
-    if (profileLoading || !userProfile) {
+    if (userProfile === undefined) { // Check for undefined userProfile to indicate still loading
       showMessage('Loading user profile... Please wait.');
       console.log('⏳ DEBUG: User profile still loading or not available.'); // NEW LOG
       return;
@@ -834,7 +835,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       setIsUploading(false);
     }
 
-  }, [selectedFile, audioDuration, currentUser?.uid, currentUser?.email, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, profileLoading, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, checkJobStatus]);
+  }, [selectedFile, audioDuration, currentUser?.uid, currentUser?.email, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, checkJobStatus]);
 
   // Copy to clipboard (now triggers CopiedNotification)
   const copyToClipboard = useCallback(() => { 
@@ -894,6 +895,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       showMessage('Failed to generate Word document: ' + error.message);
     }
   }, [transcription, userProfile, showMessage, RAILWAY_BACKEND_URL]);
+
   // TXT download - available for all users
   const downloadAsTXT = useCallback(() => { 
     // For TXT download, we want plain text, so strip HTML tags
@@ -972,7 +974,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
   // handleAIQuery for User AI Assistant with FormData - UPDATED for Gemini option
   const handleAIQuery = useCallback(async () => {
-      if (profileLoading || !userProfile) {
+      if (!userProfile) { // Removed profileLoading check here, as userProfile being null/undefined covers it
           showMessage('Loading user profile... Please wait.');
           return;
       }
@@ -1034,7 +1036,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       } finally {
           setAILoading(false);
       }
-  }, [latestTranscription, userPrompt, userProfile, profileLoading, showMessage, RAILWAY_BACKEND_URL, selectedAIProvider]);
+  }, [latestTranscription, userPrompt, userProfile, showMessage, RAILWAY_BACKEND_URL, selectedAIProvider]);
 
   // NEW: Function to handle continue AI response
   const handleContinueAIResponse = useCallback(async () => {
@@ -1111,6 +1113,73 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       }
     };
   }, []);
+
+  // NEW: State and handlers for Feedback Modal
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackName, setFeedbackName] = useState(currentUser?.displayName || '');
+  const [feedbackEmail, setFeedbackEmail] = useState(currentUser?.email || '');
+  const [feedbackText, setFeedbackText] = useState('');
+  const [isSendingFeedback, setIsSendingFeedback] = useState(false);
+
+  const handleOpenFeedback = useCallback(() => {
+    setFeedbackName(currentUser?.displayName || '');
+    setFeedbackEmail(currentUser?.email || '');
+    setFeedbackText('');
+    setShowFeedbackModal(true);
+    setOpenSubmenu(null); // Close any open menu
+  }, [currentUser]);
+
+  const handleSendFeedback = useCallback(async () => {
+    if (!feedbackEmail || !feedbackText.trim()) {
+      showMessage('Email and Feedback are mandatory.');
+      return;
+    }
+    setIsSendingFeedback(true);
+    try {
+      await saveFeedback(feedbackName, feedbackEmail, feedbackText);
+      showMessage('✅ Feedback sent successfully! Thank you.');
+      setShowFeedbackModal(false);
+    } catch (error) {
+      console.error('Error sending feedback:', error);
+      showMessage('❌ Failed to send feedback: ' + error.message);
+    } finally {
+      setIsSendingFeedback(false);
+    }
+  }, [feedbackName, feedbackEmail, feedbackText, showMessage]);
+
+  // NEW: Handler for Share functionality
+  const handleShare = useCallback(async () => {
+    setOpenSubmenu(null); // Close any open menu
+    const shareData = {
+      title: 'TypeMyworDz - Speech to Text AI',
+      text: 'Check out TypeMyworDz for accurate and affordable speech-to-text AI!',
+      url: window.location.origin,
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        console.log('Shared successfully');
+      } catch (err) {
+        console.log('Share failed:', err);
+        showMessage('❌ Sharing cancelled or failed.');
+      }
+    } else {
+      // Fallback for browsers that do not support the Web Share API
+      // You can offer to copy the URL or compose an email
+      const fallbackText = `${shareData.title}\n${shareData.text}\n${shareData.url}`;
+      
+      // Option 1: Copy to clipboard
+      navigator.clipboard.writeText(fallbackText)
+        .then(() => showMessage('🔗 Link copied to clipboard!'))
+        .catch(() => showMessage('❌ Failed to copy link.'));
+
+      // Option 2: Open email client (less direct interaction)
+      // window.open(`mailto:?subject=${encodeURIComponent(shareData.title)}&body=${encodeURIComponent(shareData.text + '\n' + shareData.url)}`);
+    }
+  }, [showMessage]);
+
+
   // Login screen for non-authenticated users
   if (!currentUser) {
     return (
@@ -1225,7 +1294,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
               textShadow: '0 1px 2px rgba(255,255,255,0.8)',
               marginLeft: '5px'
             }}>Claude</span>
-            <span style={{ color: 'white', fontSize: '1.2rem', margin: '0 8px' }}>&</span>
+            <span style={{ color: 'white', fontSize: '1.2rem', margin: '0 8px' }}>&amp;</span>
             <img src="/gemini_logo.png" alt="Gemini AI Logo" style={{ width: '24px', height: '24px', verticalAlign: 'middle' }} />
             <span style={{ 
               color: '#000000',
@@ -1301,19 +1370,19 @@ return (
                     <div className={`submenu ${openSubmenu === 'productsSubmenu' ? 'open' : ''}`} id="productsSubmenu">
                         <div className="submenu-item" onClick={() => window.showSpeechToText()}>
                             <span className="submenu-icon">🎙️</span>
-                            <span className="submenu-text">Speech-to-Text</span>
+                            <span className="menu-text">Speech-to-Text</span>
                         </div>
                         <div className="submenu-item" onClick={() => window.showComingSoon('TypeMyNote')}>
                             <span className="submenu-icon">🎤</span>
-                            <span className="submenu-text">TypeMyNote</span>
+                            <span className="menu-text">TypeMyNote</span>
                         </div>
                         <div className="submenu-item" onClick={() => window.showComingSoon('Text-to-Speech')}>
                             <span className="submenu-icon">🔊</span>
-                            <span className="submenu-text">Text-to-Speech</span>
+                            <span className="menu-text">Text-to-Speech</span>
                         </div>
                         <div className="submenu-item" onClick={() => window.showHumanTranscripts()}>
                             <span className="submenu-icon">👥</span>
-                            <span className="submenu-text">Human Transcripts</span>
+                            <span className="menu-text">Human Transcripts</span>
                         </div>
                     </div>
                 )}
@@ -1337,6 +1406,16 @@ return (
                         <div className="submenu-item" onClick={() => window.openDonate()}>
                             <span className="submenu-icon">💝</span>
                             <span className="submenu-text">Donate</span>
+                        </div>
+                        {/* NEW: Feedback Menu Item */}
+                        <div className="submenu-item" onClick={handleOpenFeedback}>
+                            <span className="submenu-icon">📝</span>
+                            <span className="submenu-text">Feedback</span>
+                        </div>
+                        {/* NEW: Share Menu Item */}
+                        <div className="submenu-item" onClick={handleShare}>
+                            <span className="submenu-icon">📤</span>
+                            <span className="submenu-text">Share</span>
                         </div>
                     </div>
                 )}
@@ -1416,19 +1495,7 @@ return (
               zIndex: 100
             }}>
               <div style={{ position: 'relative', display: 'inline-block' }}>
-                {/* Small logo positioned above the "w" in "worDz" */}
-                <img 
-                  src="/favicon-32x32.png" 
-                  alt="TypeMyworDz Small Logo" 
-                  style={{ 
-                    width: '16px', 
-                    height: '16px',
-                    position: 'absolute',
-                    top: '-8px',
-                    left: '140px', 
-                    zIndex: 101
-                  }} 
-                />
+                {/* Removed the small favicon image completely */}
                 <h1 style={{ 
                   fontSize: '1.8rem', 
                   margin: '0 0 5px 0',
@@ -1508,16 +1575,12 @@ return (
                 e.target.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
               }}
             >
-              <img 
-                src="/favicon-32x32.png" 
-                alt="Favicon" 
-                style={{ width: '16px', height: '16px' }} 
-              />
+              {/* Removed the favicon image here as well */}
               ✏️ Transcription Editor
             </button>
           </div>
         )}
-        {profileLoading && (
+        {currentUser && !userProfile && ( // Only show loading profile if currentUser exists but profile hasn't loaded
           <div style={{
             textAlign: 'center',
             padding: '20px',
@@ -2516,7 +2579,7 @@ return (
                   )}
                 </div>
                 <div style={{
-                  borderTop: '2px solid #e9ecef',
+                  borderTop: '2px solid #e9ece2',
                   paddingTop: '30px'
                 }}>
                   <h3 style={{ 

@@ -1,8 +1,9 @@
 import { db } from './firebase';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc, serverTimestamp } from 'firebase/firestore'; // Keep serverTimestamp just in case for other uses, but we'll manually set for this fix
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore'; // Keep serverTimestamp just in case for other uses, but we'll manually set for this fix
 
 const USERS_COLLECTION = 'users';
 const TRANSCRIPTIONS_COLLECTION = 'transcriptions'; // Top-level collection for all transcriptions
+const FEEDBACK_COLLECTION = 'feedback'; // NEW: New collection for feedback
 
 // Helper to get user profile document reference
 const getUserProfileRef = (uid) => doc(db, USERS_COLLECTION, uid);
@@ -335,4 +336,16 @@ export const deleteTranscription = async (uid, transcriptionId) => {
   const transcriptionRef = doc(db, TRANSCRIPTIONS_COLLECTION, transcriptionId); 
   await deleteDoc(transcriptionRef);
   console.log("Transcription deleted:", transcriptionId);
+};
+
+// NEW: Save user feedback to Firestore
+export const saveFeedback = async (name, email, feedbackText) => {
+  const feedbackCollectionRef = collection(db, FEEDBACK_COLLECTION);
+  await addDoc(feedbackCollectionRef, { // Use addDoc to auto-generate ID
+    name: name || 'Anonymous', // Name is optional
+    email: email,
+    feedback: feedbackText,
+    createdAt: new Date(),
+  });
+  console.log("Feedback saved to Firestore.");
 };
