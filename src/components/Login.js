@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { auth } from '../firebase'; // Import auth for email/password login
+import { signInWithEmailAndPassword } from 'firebase/auth'; // Import Firebase Auth function
 
 const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signInWithGoogle } = useAuth(); // Only Google now
+  const [email, setEmail] = useState(''); // NEW: State for email for login
+  const [password, setPassword] = useState(''); // NEW: State for password for login
+  const { signInWithGoogle, showMessage } = useAuth(); // Only Google now
 
   const navigate = useNavigate();
 
@@ -23,6 +27,34 @@ const Login = () => {
     }
   };
 
+  // NEW: handleEmailLogin function
+  const handleEmailLogin = async () => {
+    if (!email || !password) {
+      showMessage('Please enter both email and password.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      showMessage(`✅ Logged in as ${email}!`);
+      navigate('/'); // Redirect to home/transcribe page on successful login
+    } catch (err) {
+      console.error('Error logging in with email:', err);
+      let errorMessage = 'Failed to log in.';
+      if (err.code === 'auth/invalid-email' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        errorMessage = 'Invalid email or password.';
+      } else if (err.code === 'auth/too-many-requests') {
+        errorMessage = 'Too many login attempts. Please try again later.';
+      }
+      setError(`❌ ${errorMessage}`);
+      showMessage(`❌ ${errorMessage}`); // Use showMessage for consistency
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   return (
     <div style={{
       backgroundColor: 'white',
@@ -36,6 +68,7 @@ const Login = () => {
       <h2 style={{ color: '#6c5ce7', marginBottom: '30px', fontSize: '2rem' }}>TypeMyworDz</h2>
       {error && <p style={{ color: '#dc3545', marginBottom: '20px' }}>{error}</p>}
       
+      {/* Google Sign-in */}
       <button
         onClick={handleGoogleLogin}
         disabled={loading}
@@ -77,16 +110,71 @@ const Login = () => {
         {loading ? 'Signing in...' : 'Continue with Google'}
       </button>
 
-      <div style={{ 
-        marginTop: '20px', 
-        padding: '15px', 
-        backgroundColor: '#f8f9fa', 
-        borderRadius: '8px',
-        fontSize: '14px',
-        color: '#6c757d'
-      }}>
-        🔒 Secure sign-in with your Google account
+      <div style={{ margin: '20px 0', color: '#6b7280', position: 'relative' }}>
+        <hr style={{ borderTop: '1px solid #e5e7eb', position: 'absolute', width: '100%', top: '50%', zIndex: 0 }} />
+        <span style={{ backgroundColor: 'white', padding: '0 10px', position: 'relative', zIndex: 1 }}>OR</span>
       </div>
+
+      {/* NEW: Email/Password Login Form */}
+      <div style={{ marginBottom: '20px' }}>
+        <input
+          type="email"
+          placeholder="Email Address"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '12px 15px',
+            marginBottom: '15px',
+            border: '1px solid #d1d5db',
+            borderRadius: '10px',
+            fontSize: '1rem',
+            boxSizing: 'border-box'
+          }}
+          disabled={loading}
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '12px 15px',
+            marginBottom: '20px',
+            border: '1px solid #d1d5db',
+            borderRadius: '10px',
+            fontSize: '1rem',
+            boxSizing: 'border-box'
+          }}
+          disabled={loading}
+        />
+        <button 
+          onClick={handleEmailLogin} 
+          disabled={loading}
+          style={{
+            backgroundColor: '#007bff', // Blue for login
+            color: 'white',
+            padding: '12px 25px',
+            borderRadius: '10px',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '1rem',
+            fontWeight: 'bold',
+            width: '100%',
+            boxShadow: '0 4px 15px rgba(0, 123, 255, 0.4)',
+            transition: 'all 0.3s ease'
+          }}
+          onMouseEnter={(e) => e.target.style.backgroundColor = '#0069d9'}
+          onMouseLeave={(e) => e.target.style.backgroundColor = '#007bff'}
+        >
+          {loading ? 'Logging In...' : 'Log In with Email'}
+        </button>
+      </div>
+
+      <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: '20px 0 0 0' }}>
+        Secure sign-in with your email or Google account
+      </p>
     </div>
   );
 };
