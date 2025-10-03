@@ -1089,7 +1089,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
             endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query`; 
             modelToUse = 'claude-3-haiku-20240307'; 
           } else if (selectedAIProvider === 'gemini') {
-            endpoint = `${RAWAY_BACKEND_URL}/ai/user-query-gemini`; 
+            endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query-gemini`; 
             modelToUse = 'models/gemini-pro-latest'; 
           } else {
             showMessage('Invalid AI provider selected.');
