@@ -29,7 +29,7 @@ const isPaidAIUser = (userProfile) => {
   return paidPlansForAI.includes(userProfile.plan);
 };
 
-// Copied Notification Component
+// Copied Notification Component - Remains here as it's a UI element not tied to auth context messages
 const CopiedNotification = ({ isVisible }) => {
   return (
     <div
@@ -53,97 +53,13 @@ const CopiedNotification = ({ isVisible }) => {
     </div>
   );
 };
-// Enhanced Toast Notification Component
-const ToastNotification = ({ message, onClose }) => {
-  const [isVisible, setIsVisible] = useState(false);
-  
-  useEffect(() => {
-    if (message) {
-      setIsVisible(true);
-      const timer = setTimeout(() => {
-        setIsVisible(false);
-        setTimeout(onClose, 300);
-      }, 5000); // Changed to 5 seconds
-      
-      return () => clearTimeout(timer);
-    }
-  }, [message, onClose]);
-  
-  if (!message) return null;
-  
-  return (
-    <div 
-      className={`fixed bottom-4 right-4 max-w-sm w-full bg-white border-l-4 border-blue-500 rounded-lg shadow-lg p-4 transform transition-all duration-300 z-50 ${
-        isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0' // Changed 'translate-x' to 'translate-y'
-      }`}
-      style={{
-        backgroundColor: 'white',
-        borderLeft: '4px solid #3b82f6',
-        borderRadius: '8px',
-        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
-        padding: '16px',
-        maxWidth: '384px',
-        width: '100%',
-        position: 'fixed',
-        bottom: '16px', // Changed from 'top' to 'bottom'
-        right: '16px',
-        zIndex: 1000,
-        transform: isVisible ? 'translateY(0)' : 'translateY(100%)', // Changed 'translateX' to 'translateY'
-        opacity: isVisible ? 1 : 0,
-        transition: 'all 0.3s ease-in-out'
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-        <div style={{ 
-          backgroundColor: '#3b82f6', 
-          borderRadius: '50%', 
-          width: '24px', 
-          height: '24px', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          marginRight: '12px',
-          flexShrink: 0
-        }}>
-          <span style={{ color: 'white', fontSize: '14px', fontWeight: 'bold' }}>ℹ</span>
-        </div>
-        <div style={{ flex: 1 }}>
-          <p style={{ 
-            margin: 0, 
-            color: '#374151', 
-            fontSize: '14px', 
-            lineHeight: '1.4',
-            fontWeight: '500'
-          }}
-            dangerouslySetInnerHTML={{ __html: message }}
-          >
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            setIsVisible(false);
-            setTimeout(onClose, 300);
-          }}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: '#9ca3af',
-            cursor: 'pointer',
-            fontSize: '18px',
-            padding: '0',
-            marginLeft: '8px',
-            lineHeight: 1
-          }}
-        >
-          ×
-        </button>
-      </div>
-    </div>
-  );
-};
+// REMOVED: ToastNotification component definition from here, it's now managed by AuthContext
+// This ensures only one ToastNotification exists globally.
 
 function AppContent() {
   const navigate = useNavigate();
+  // FIX: Destructure showMessage from useAuth() instead of defining it locally
+  const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, profileLoading, showMessage } = useAuth();
   
   // Utility functions
   const formatTime = (seconds) => {
@@ -177,7 +93,7 @@ function AppContent() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [downloadFormat, setDownloadFormat] = useState('mp3');
-  const [message, setMessage] = useState('');
+  // REMOVED: message and clearMessage states from here as AuthContext now manages toast
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en'); 
   const [speakerLabelsEnabled, setSpeakerLabelsEnabled] = useState(false);
@@ -222,15 +138,13 @@ function AppContent() {
   const statusCheckTimeoutRef = useRef(null);
   const isCancelledRef = useRef(false);
 
-  // Auth and user setup
-  const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, profileLoading } = useAuth();
+  // Auth and user setup (currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, profileLoading, showMessage) are now destructured from useAuth()
   // UPDATED: Admin emails are now referenced from your backend configuration
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; 
   const isAdmin = ADMIN_EMAILS.includes(currentUser?.email); 
 
-  // Message handlers
-  const showMessage = useCallback((msg) => setMessage(msg), []);
-  const clearMessage = useCallback(() => setMessage(''), []);
+  // REMOVED: Message handlers (showMessage, clearMessage) as AuthContext now provides showMessage
+
   // --- Menu State & Functions (React-managed) ---
   const [openSubmenu, setOpenSubmenu] = useState(null); // Tracks which submenu is open
 
@@ -559,8 +473,8 @@ function AppContent() {
     if (abortControllerRef.current) {
       console.log('🛑 DEBUG: Aborting active fetch request.');
       abortControllerRef.current.abort();
-      abortControllerRef.current = null;
     }
+    abortControllerRef.current = null; // Ensure it's nullified after aborting
 
     if (transcriptionIntervalRef.current) {
       console.log('🛑 DEBUG: Clearing transcription progress interval.');
@@ -574,6 +488,7 @@ function AppContent() {
       statusCheckTimeoutRef.current = null;
     }
 
+    // Clear any stray intervals/timeouts
     const highestIntervalId = setInterval(() => {}, 0);
     for (let i = 1; i <= highestIntervalId; i++) {
       clearInterval(i);
@@ -1089,7 +1004,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
             endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query`; 
             modelToUse = 'claude-3-haiku-20240307'; 
           } else if (selectedAIProvider === 'gemini') {
-            endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query-gemini`; 
+            endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query-gemini`; // Corrected typo here
             modelToUse = 'models/gemini-pro-latest'; 
           } else {
             showMessage('Invalid AI provider selected.');
@@ -1187,7 +1102,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   useEffect(() => {
     return () => {
       if (isCancelledRef.current) {
-        console.log('🧹 DEBUG: Component cleanup - clearing all intervals'); // NEW LOG
+        console.log('🧹 DEBUG: Component cleanup - clearing all intervals'); 
         const highestId = setInterval(() => {}, 0);
         for (let i = 1; i <= highestId; i++) {
           clearInterval(i);
@@ -1265,7 +1180,10 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           <p style={{ marginTop: '20px', color: 'white', fontSize: '1rem' }}>
             Don't have an account? {' '}
             <button
-              onClick={() => navigate('/signup')} 
+              onClick={() => {
+                console.log("DEBUG: 'Sign Up' button clicked. Attempting navigation to /signup."); // NEW DIAGNOSTIC LOG
+                navigate('/signup'); 
+              }}
               style={{
                 background: 'none',
                 border: 'none',
@@ -1319,7 +1237,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           </div>
 
         </div>
-        <ToastNotification message={message} onClose={clearMessage} />
+        {/* REMOVED: ToastNotification component call from here */}
         <footer style={{ 
           textAlign: 'center', 
           padding: '20px', 
@@ -1355,7 +1273,7 @@ return (
         flexDirection: 'column',
         background: (currentView === 'dashboard' || currentView === 'admin' || currentView === 'pricing' || currentView === 'ai_assistant') ? '#f8f9fa' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
       }}>
-        <ToastNotification message={message} onClose={clearMessage} />
+        {/* REMOVED: ToastNotification component call from here */}
         <CopiedNotification isVisible={copiedMessageVisible} />
 
                 {/* The Menu (sidebar-menu) will be rendered here directly when authenticated */}
@@ -1497,22 +1415,37 @@ return (
               left: '20px', 
               zIndex: 100
             }}>
-              <h1 style={{ 
-                fontSize: '1.8rem', 
-                margin: '0 0 5px 0',
-                fontWeight: 'bold', // BOLD for company name
-                textShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                color: '#20cdd3ff' // BRIGHT CYAN/TEAL color for company name
-              }}>
-                TypeMyworDz
-              </h1>
+              <div style={{ position: 'relative', display: 'inline-block' }}>
+                {/* Small logo positioned above the "w" in "worDz" */}
+                <img 
+                  src="/favicon-32x32.png" 
+                  alt="TypeMyworDz Small Logo" 
+                  style={{ 
+                    width: '16px', 
+                    height: '16px',
+                    position: 'absolute',
+                    top: '-8px',
+                    left: '140px', 
+                    zIndex: 101
+                  }} 
+                />
+                <h1 style={{ 
+                  fontSize: '1.8rem', 
+                  margin: '0 0 5px 0',
+                  fontWeight: 'bold', 
+                  textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                  color: '#20cdd3ff' 
+                }}>
+                  TypeMyworDz
+                </h1>
+              </div>
               <p style={{ 
                 fontSize: '1rem', 
                 margin: '0',
                 opacity: '0.9',
-                color: '#000000', // BLACK color for tagline
-                fontStyle: 'italic', // ITALIC
-                fontWeight: 'bold' // BOLD
+                color: '#000000', 
+                fontStyle: 'italic', 
+                fontWeight: 'bold' 
               }}>
                 You Talk, We Type
               </p>
@@ -2949,7 +2882,9 @@ function App() {
           <Route path="/transcription/:id" element={<TranscriptionDetail />} />
           
           {/* Main app routes */}
-          <Route path="/*" element={<AppContent />} />
+          {/* Ensure the root path (/) is handled last or specifically if other paths match parts of it. */}
+          {/* The "/*" route catches all unmatched paths after specific ones. */}
+          <Route path="/*" element={<AppContent />} /> 
         </Routes>
       </Router>
     </AuthProvider>
