@@ -547,50 +547,54 @@ function AppContent() {
     console.log('✅ Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage, RAILWAY_BACKEND_URL]);
 
-  // handleTranscriptionComplete with debugging logs and saving latest transcription
-  const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
-    try {
-      const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
-      
-      console.log('DIAGNOSTIC: Before updateUserUsage - userProfile.totalMinutesUsed:', userProfile?.totalMinutesUsed);
-      console.log('DIAGNOSTIC: Estimated duration for this transcription:', estimatedDuration);
+// Find this function in your App.js file:
+const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
+  try {
+    const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
+    
+    console.log('DIAGNOSTIC: Before updateUserUsage - userProfile.totalMinutesUsed:', userProfile?.totalMinutesUsed);
+    console.log('DIAGNOSTIC: Estimated duration for this transcription: ', estimatedDuration);
 
-      await updateUserUsage(currentUser.uid, estimatedDuration);
-      
-      console.log('DEBUG: Attempting to save transcription...');
-      console.log('DEBUG: saveTranscription arguments:');
-      console.log('DEBUG:   currentUser.uid:', currentUser.uid);
-      console.log('DEBUG:   selectedFile.name (or recorded audio name):', selectedFile ? selectedFile.name : `Recording-${Date.now()}.wav`);
-      console.log('DEBUG:   transcriptionText (first 100 chars):', transcriptionText.substring(0, 100) + '...');
-      console.log('DEBUG:   estimatedDuration:', estimatedDuration);
-      console.log('DEBUG:   jobId (passed to saveTranscription):', completedJobId);
-      
-      // Call Railway backend to save the transcription
-      await saveTranscription(
-        currentUser.uid, 
-        selectedFile ? selectedFile.name : `Recording-${Date.now()}.wav`, 
-        transcriptionText, 
-        estimatedDuration, 
-        completedJobId 
-      );
-      console.log('DEBUG: saveTranscription call completed.');
-      
-      await refreshUserProfile();
-      console.log('DIAGNOSTIC: After refreshUserProfile - userProfile.totalMinutesUsed:', userProfile?.totalMinutesUsed);
+    await updateUserUsage(currentUser.uid, estimatedDuration);
+    
+    console.log('DEBUG: Attempting to save transcription...');
+    console.log('DEBUG: saveTranscription arguments:');
+    console.log('DEBUG:   currentUser.uid:', currentUser.uid);
+    console.log('DEBUG:   selectedFile.name (or recorded audio name):', selectedFile ? selectedFile.name : `Recording-${Date.now()}.wav`);
+    console.log('DEBUG:   transcriptionText (first 100 chars):', transcriptionText.substring(0, 100) + '...');
+    console.log('DEBUG:   estimatedDuration:', estimatedDuration);
+    console.log('DEBUG:   jobId (passed to saveTranscription):', completedJobId);
+    // NEW: Log currentUser.uid explicitly
+    console.log('DEBUG:   currentUser.uid (for userId field):', currentUser.uid); 
+    
+    // Call Railway backend to save the transcription
+    // UPDATED: Added currentUser.uid as the userId parameter
+    await saveTranscription(
+      currentUser.uid, 
+      selectedFile ? selectedFile.name : `Recording-${Date.now()}.wav`, 
+      transcriptionText, 
+      estimatedDuration, 
+      completedJobId,
+      currentUser.uid // Pass the userId here!
+    );
+    console.log('DEBUG: saveTranscription call completed.');
+    
+    await refreshUserProfile();
+    console.log('DIAGNOSTIC: After refreshUserProfile - userProfile.totalMinutesUsed:', userProfile?.totalMinutesUsed);
 
-      // Success message with favicon and brand name
-      showMessage('✅ <img src="/favicon-32x32.png" alt="TypeMyworDz Logo" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 5px;"> TypeMyworDz, Done!');
-      
-      // Save the latest transcription for the AI Assistant
-      setLatestTranscription(transcriptionText);
+    // Success message with favicon and brand name
+    showMessage('✅ <img src="/favicon-32x32.png" alt="TypeMyworDz Logo" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 5px;"> TypeMyworDz, Done!');
+    
+    // Save the latest transcription for the AI Assistant
+    setLatestTranscription(transcriptionText);
 
-    } catch (error) {
-      console.error('Error updating usage or saving transcription:', error);
-      showMessage('Failed to save transcription or update usage.');
-    } finally {
-      // No changes here, as processingMessage state was removed
-    }
-  }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]);
+  } catch (error) {
+    console.error('Error updating usage or saving transcription:', error);
+    showMessage('Failed to save transcription or update usage.');
+  } finally {
+    // No changes here, as processingMessage state was removed
+  }
+}, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]);
 
   // Handle successful payment
   const handlePaymentSuccess = useCallback(async (planName, subscriptionId) => {
