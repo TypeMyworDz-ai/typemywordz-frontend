@@ -7,6 +7,7 @@ import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
 import Signup from './components/Signup'; // NEW: Import Signup component
+import FeedbackModal from './components/FeedbackModal'; // NEW: Import FeedbackModal
 import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan, saveFeedback } from './userService'; // NEW: Import saveFeedback
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
@@ -741,7 +742,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       return;
     }
 
-    if (userProfile === undefined) { // Check for undefined userProfile to indicate still loading
+    if (userProfile === undefined) { // Only show loading profile if currentUser exists but profile hasn't loaded
       showMessage('Loading user profile... Please wait.');
       console.log('⏳ DEBUG: User profile still loading or not available.'); // NEW LOG
       return;
@@ -1129,14 +1130,14 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     setOpenSubmenu(null); // Close any open menu
   }, [currentUser]);
 
-  const handleSendFeedback = useCallback(async () => {
-    if (!feedbackEmail || !feedbackText.trim()) {
+  const handleSendFeedback = useCallback(async (name, email, feedback) => { // Updated to accept parameters
+    if (!email || !feedback.trim()) {
       showMessage('Email and Feedback are mandatory.');
       return;
     }
     setIsSendingFeedback(true);
     try {
-      await saveFeedback(feedbackName, feedbackEmail, feedbackText);
+      await saveFeedback(name, email, feedback); // Call saveFeedback with passed parameters
       showMessage('✅ Feedback sent successfully! Thank you.');
       setShowFeedbackModal(false);
     } catch (error) {
@@ -1145,7 +1146,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     } finally {
       setIsSendingFeedback(false);
     }
-  }, [feedbackName, feedbackEmail, feedbackText, showMessage]);
+  }, [showMessage]); // Dependencies for useCallback
 
   // NEW: Handler for Share functionality
   const handleShare = useCallback(async () => {
@@ -1245,28 +1246,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           padding: '0 20px'
         }}>
           <Login />
-          {/* NEW: Link to Signup page */}
-          <p style={{ marginTop: '20px', color: 'white', fontSize: '1rem' }}>
-            Don't have an account? {' '}
-            <button
-              onClick={() => {
-                console.log("DEBUG: 'Sign Up' button clicked. Attempting navigation to /signup."); // NEW DIAGNOSTIC LOG
-                navigate('/signup'); 
-              }}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#007bff', 
-                textDecoration: 'underline',
-                cursor: 'pointer',
-                fontSize: '1rem',
-                fontWeight: 'bold',
-                padding: 0
-              }}
-            >
-              Sign Up
-            </button>
-          </p>
+          {/* Removed the 'Don't have an account? Sign Up' text and button */}
 
           {/* UPDATED: Login page tagline and logos */}
           <p style={{ 
@@ -1345,7 +1325,7 @@ return (
         {/* REMOVED: ToastNotification component call from here */}
         <CopiedNotification isVisible={copiedMessageVisible} />
 
-                {/* The Menu (sidebar-menu) will be rendered here directly when authenticated */}
+        {/* The Menu (sidebar-menu) will be rendered here directly when authenticated */}
         <div 
             className="sidebar-menu" 
             style={{
