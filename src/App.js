@@ -565,7 +565,30 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     console.log('DEBUG:   estimatedDuration:', estimatedDuration);
     console.log('DEBUG:   jobId (passed to saveTranscription):', completedJobId);
     // NEW: Log currentUser.uid explicitly
+    // Inside handleTranscriptionComplete, right after the console.log for currentUser.uid:
     console.log('DEBUG:   currentUser.uid (for userId field):', currentUser.uid); 
+
+    // NEW DIAGNOSTIC STEP: Attempt to read user profile directly from Firestore
+    // This uses the 'db' object from firebase.js and currentUser.uid
+    try {
+      if (currentUser && currentUser.uid) {
+        const userDocRef = doc(db, 'users', currentUser.uid); // Assuming 'db' is imported correctly
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          console.log('DIAGNOSTIC: Successfully read user profile from Firestore (direct check):', userDocSnap.data());
+        } else {
+          console.error('DIAGNOSTIC: User profile NOT FOUND in Firestore for UID (direct check):', currentUser.uid);
+          // This would indicate createUserProfile failed or the UID is wrong.
+        }
+      } else {
+        console.error('DIAGNOSTIC: currentUser or currentUser.uid is NULL during direct Firestore read attempt.');
+      }
+    } catch (readError) {
+      console.error('DIAGNOSTIC: Error reading user profile directly from Firestore (direct check):', readError);
+      // If this also shows "Missing permissions", it confirms the core issue.
+    }
+    // END NEW DIAGNOSTIC STEP
+ 
     
     // Call Railway backend to save the transcription
     // UPDATED: Added currentUser.uid as the userId parameter
