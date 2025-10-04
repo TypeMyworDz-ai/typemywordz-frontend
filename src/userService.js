@@ -90,7 +90,10 @@ export const getUserProfile = async (uid) => {
     const currentTime = new Date();
 
     // KEY FIX: Expiry logic for temporary paid plans (updated plan names)
+    // Also include new subscription plans here to ensure they don't expire if they are meant to be recurring
     const temporaryPlans = ['One-Day Plan', 'Three-Day Plan', 'One-Week Plan'];
+    const recurringPlans = ['Pro Monthly', 'Pro Yearly']; // NEW: Define recurring plans
+
     if (temporaryPlans.includes(profileData.plan) && profileData.expiresAt && profileData.expiresAt < currentTime) {
       console.log(`User ${uid} plan '${profileData.plan}' expired on ${profileData.expiresAt}. Downgrading to FREE.`);
       await updateDoc(userRef, {
@@ -101,6 +104,12 @@ export const getUserProfile = async (uid) => {
         hasReceivedInitialFreeMinutes: true, // Mark as having received trial if plan expired
       });
       profileData = { ...profileData, plan: 'free', expiresAt: null, subscriptionStartDate: null, hasReceivedInitialFreeMinutes: true, totalMinutesUsed: 0 };
+    }
+    // For recurring plans, ensure expiresAt is null if it somehow got set
+    else if (recurringPlans.includes(profileData.plan) && profileData.expiresAt !== null) {
+      console.log(`User ${uid} has recurring plan '${profileData.plan}' but expiresAt was set. Clearing expiresAt.`);
+      await updateDoc(userRef, { expiresAt: null });
+      profileData = { ...profileData, expiresAt: null };
     }
     
     // Calculate remaining free minutes - KEY CHANGE: only 30 minutes if user hasn't received them yet
@@ -126,19 +135,29 @@ export const updateUserPlan = async (uid, newPlan, referenceId = null) => {
   };
   
   let planDurationMinutes = 0; 
+  // Handle temporary plans with expiry
   if (newPlan === 'One-Day Plan') {
       planDurationMinutes = 1 * 24 * 60; // 1 day in minutes
   } else if (newPlan === 'Three-Day Plan') {
       planDurationMinutes = 3 * 24 * 60; // 3 days in minutes
   } else if (newPlan === 'One-Week Plan') {
       planDurationMinutes = 7 * 24 * 60; // 7 days in minutes
-  } else if (newPlan === 'Pro') { // 'Pro' plan is now treated as a paid subscription with no expiry.
-      updates.expiresAt = null; 
+  } 
+  // Handle recurring subscription plans: Pro Monthly and Pro Yearly
+  else if (newPlan === 'Pro Monthly' || newPlan === 'Pro Yearly') { // NEW: Handle new recurring plans
+      updates.expiresAt = null; // Recurring plans don't have a fixed expiry date
       updates.subscriptionStartDate = new Date(); // Use concrete Date object
+      console.log(`updateUserPlan: User ${uid} subscribed to recurring plan '${newPlan}'. ExpiresAt set to null.`);
+  }
+  // Generic 'Pro' plan (if it still exists and is treated as recurring)
+  else if (newPlan === 'Pro') { 
+      updates.expiresAt = null; 
+      updates.subscriptionStartDate = new Date(); 
       console.log(`updateUserPlan: Generic 'Pro' plan received for ${uid}. Treating as effectively unlimited.`);
   }
 
-  if (planDurationMinutes > 0 && newPlan !== 'Pro') { // Only set expiry for temporary plans
+  // Set expiresAt for temporary plans only
+  if (planDurationMinutes > 0 && !['Pro Monthly', 'Pro Yearly'].includes(newPlan)) { // FIX: Ensure recurring plans don't get an expiry
       updates.expiresAt = new Date(Date.now() + planDurationMinutes * 60 * 1000);
       updates.subscriptionStartDate = new Date(); // Use concrete Date object
       console.log(`User ${uid} ${newPlan} plan will expire on: ${updates.expiresAt}`);
@@ -180,13 +199,15 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds) => {
       return { canTranscribe: false, reason: 'profile_not_found' };
     }
 
-    // Check expiry for paid plans
-    const paidPlans = ['Pro', 'One-Day Plan', 'Three-Day Plan', 'One-Week Plan'];
+    // Check expiry for paid plans - now includes new recurring plans
+    const paidPlans = ['Pro Monthly', 'Pro Yearly', 'One-Day Plan', 'Three-Day Plan', 'One-Week Plan']; // NEW: Include new plans
     if (paidPlans.includes(userProfile.plan)) {
-        if (userProfile.plan === 'Pro' && userProfile.expiresAt === null) {
+        // For recurring plans (Pro Monthly, Pro Yearly, or generic 'Pro'), they are always active
+        if (['Pro Monthly', 'Pro Yearly', 'Pro'].includes(userProfile.plan)) {
             console.log(`✅ ${userProfile.plan} plan user - unlimited transcription. Allowing transcription.`);
             return { canTranscribe: true, reason: 'pro_unlimited' };
         }
+        // For temporary plans, check expiry date
         if (userProfile.expiresAt && userProfile.expiresAt > new Date()) {
             console.log(`✅ ${userProfile.plan} plan user - plan active. Allowing transcription.`);
             return { canTranscribe: true, reason: 'paid_plan_active' };
