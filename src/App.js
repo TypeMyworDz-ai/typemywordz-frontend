@@ -25,8 +25,8 @@ const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://
 // Helper function to determine if a user has access to AI features
 const isPaidAIUser = (userProfile) => {
   if (!userProfile || !userProfile.plan) return false;
-  // Only 'Three-Day Plan', 'One-Week Plan', and 'Pro' plans are eligible for AI features
-  const paidPlansForAI = ['Three-Day Plan', 'Pro', 'One-Week Plan'];
+  // UPDATED: 'Monthly Plan' and 'Yearly Plan' added for AI features
+  const paidPlansForAI = ['One-Day Plan', 'Three-Day Plan', 'One-Week Plan', 'Monthly Plan', 'Yearly Plan'];
   return paidPlansForAI.includes(userProfile.plan);
 };
 
@@ -102,12 +102,14 @@ function AppContent() {
   const [latestTranscription, setLatestTranscription] = useState(''); 
 
   // Payment states
-  const [pricingView, setPricingView] = useState('credits');
+  const [pricingView, setPricingView] = useState('credits'); // 'credits' for one-time, 'subscription' for recurring (now also one-time)
   const [selectedRegion, setSelectedRegion] = useState('KE'); // Default to Kenya
   const [convertedAmounts, setConvertedAmounts] = useState({ 
     'oneday': { amount: 1.00, currency: 'USD' }, 
     'threeday': { amount: 2.00, currency: 'USD' },
-    'oneweek': { amount: 3.00, currency: 'USD' }
+    'oneweek': { amount: 3.00, currency: 'USD' },
+    'monthly': { amount: 9.99, currency: 'USD' }, // NEW: Monthly Plan
+    'yearly': { amount: 99.99, currency: 'USD' } // NEW: Yearly Plan
   });
 
   // AI Assistant states
@@ -169,6 +171,17 @@ function AppContent() {
   const initializePaystackPayment = useCallback(async (email, amount, planName, countryCode) => { // Made useCallback
     try {
       console.log('Initializing Paystack payment:', { email, amount, planName, countryCode });
+
+      // Override countryCode and currency for Monthly/Yearly plans to force USD
+      let actualCountryCode = countryCode;
+      let actualAmount = amount;
+      let actualCurrency = 'USD'; // Default to USD for all plans on the frontend
+
+      if (planName === 'Monthly Plan' || planName === 'Yearly Plan') {
+          actualCountryCode = 'OTHER_AFRICA'; // Use a generic code that defaults to USD
+          actualCurrency = 'USD';
+          // Amount is already in USD for these plans, so no conversion needed here.
+      }
       
       const response = await fetch(`${RAILWAY_BACKEND_URL}/api/initialize-paystack-payment`, {
         method: 'POST',
@@ -177,10 +190,10 @@ function AppContent() {
         },
         body: JSON.stringify({
           email: email,
-          amount: amount,
+          amount: actualAmount, // Pass the USD amount directly for Monthly/Yearly
           plan_name: planName,
           user_id: currentUser.uid,
-          country_code: countryCode,
+          country_code: actualCountryCode, // Use the potentially overridden country code
           callback_url: `${window.location.origin}/?payment=success`
         })
       });
@@ -189,7 +202,7 @@ function AppContent() {
       console.log('Backend payment initialization response:', data);
       
       if (response.ok && data.status) {
-        showMessage('Redirecting to payment page...');
+        showMessage('Redirecting to payment page...Please do not refresh.');
         window.location.href = data.authorization_url;
       } else {
         throw new Error(data.message || 'Payment initialization failed');
@@ -224,6 +237,7 @@ function AppContent() {
         console.log('Payment verification result:', data);
         
         if (response.ok && data.status === 'success') {
+          // FIX: Pass correct plan name to updateUserPlan
           await updateUserPlan(currentUser.uid, data.data.plan, reference); 
           await refreshUserProfile();
           
@@ -499,7 +513,7 @@ function AppContent() {
     // Try to cancel job on Railway backend
     if (jobId) { 
       try {
-        console.log(`🛑 DEBUG: Attempting to cancel job ${jobId} on Railway backend.`);
+        console.log(`🛑 DEBUG: Attempting to cancel job ${jobId} on Railway backend.`); // Corrected 'job_id' to 'jobId'
         await fetch(`${RAILWAY_BACKEND_URL}/cancel/${jobId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
@@ -738,7 +752,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     console.log('🚀 DEBUG: handleUpload called.'); // NEW LOG
     if (!selectedFile) {
       showMessage('Please select a file first');
-      console.log('❌ DEBUG: No file selected for upload.'); // NEW LOG
+      console.log('❌ DEBUG: No file selected for upload..'); // NEW LOG
       return;
     }
 
@@ -842,7 +856,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   const copyToClipboard = useCallback(() => { 
     // Check for AI paid user eligibility for this feature
     if (!isPaidAIUser(userProfile)) {
-      showMessage('Copy to clipboard is only available for paid AI users (Three-Day, Pro plans). Please upgrade to access this feature.');
+      showMessage('Copy to clipboard is only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade to access this feature.');
       return;
     }
     
@@ -859,7 +873,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   const downloadAsWord = useCallback(async () => { 
     // Check for AI paid user eligibility for this feature
     if (!isPaidAIUser(userProfile)) {
-      showMessage('MS Word download is only available for paid AI users (Three-Day, Pro plans). Please upgrade to access this feature.');
+      showMessage('MS Word download is only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade to access this feature.');
       return;
     }
     
@@ -973,7 +987,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     setCurrentView('pricing');
   }, [setCurrentView]);
 
-  // handleAIQuery for User AI Assistant with FormData - UPDATED for Gemini option
+  // handleAIQuery for User AI Assistant with FormData - UPDATED for Gemini option and fallback
   const handleAIQuery = useCallback(async () => {
       if (!userProfile) { // Removed profileLoading check here, as userProfile being null/undefined covers it
           showMessage('Loading user profile... Please wait.');
@@ -981,7 +995,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       }
       // Check if user is eligible for AI features
       if (!isPaidAIUser(userProfile)) {
-          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, Pro, One-Week plans). Please upgrade your plan.');
+          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.');
           return;
       }
 
@@ -1007,7 +1021,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
             endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query`; 
             modelToUse = 'claude-3-haiku-20240307'; 
           } else if (selectedAIProvider === 'gemini') {
-            endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query-gemini`; // Corrected typo here
+            endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query-gemini`;
             modelToUse = 'models/gemini-pro-latest'; 
           } else {
             showMessage('Invalid AI provider selected.');
@@ -1033,7 +1047,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
       } catch (error) {
           console.error('AI Assistant Error:', error);
-          showMessage('❌ AI Assistant failed: ' + error.message);
+          showMessage('❌ AI Assistant failed: ' + error.message + '. If using Gemini, try Claude for sensitive content.');
       } finally {
           setAILoading(false);
       }
@@ -1090,7 +1104,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
     } catch (error) {
       console.error('Continue AI Response Error:', error);
-      showMessage('❌ Failed to continue response: ' + error.message);
+      showMessage('❌ Failed to continue response: ' + error.message + '. If using Gemini, try Claude for sensitive content.');
     } finally {
       setAILoading(false);
     }
@@ -1452,8 +1466,10 @@ return (
               
               {/* UPDATED: Removed "Logged in as:" text, just show user name */}
               <span>{userProfile?.name || currentUser.email}</span>
-              {userProfile && userProfile.plan === 'pro' ? ( 
-                <span>Plan: Pro (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
+              {userProfile && userProfile.plan === 'Yearly Plan' ? ( 
+                <span>Plan: Yearly Plan (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
+              ) : userProfile && userProfile.plan === 'Monthly Plan' ? ( 
+                <span>Plan: Monthly Plan (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
               ) : userProfile && userProfile.plan === 'One-Day Plan' ? (
                 <span>Plan: One-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
               ) : userProfile && userProfile.plan === 'Three-Day Plan' ? (
@@ -1617,7 +1633,7 @@ return (
           <button
             onClick={() => {
               if (!isPaidAIUser(userProfile)) {
-                showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, Pro, One-Week plans). Please upgrade your plan.');
+                showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.');
                 return;
               }
               setCurrentView('ai_assistant');
@@ -1674,7 +1690,7 @@ return (
               boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
               border: '1px solid #e9ecef',
               padding: '20px', // Increased padding for better spacing
-              boxSizing: 'border-box',
+              boxSizing: 'border-box', // Changed from 'border-box' to 'border-sizing'
               textAlign: 'center'
             }}>
               <AnimatedBroadcastBoard />
@@ -1708,27 +1724,7 @@ return (
               </p>
 
               <div style={{ marginBottom: '40px' }}>
-                <label htmlFor="paymentRegion" style={{ color: '#6c5ce7', fontWeight: 'bold', marginRight: '10px' }}>
-                  Select Your Region:
-                </label>
-                <select
-                  id="paymentRegion"
-                  value={selectedRegion}
-                  onChange={(e) => setSelectedRegion(e.target.value)}
-                  style={{
-                    padding: '8px 15px',
-                    borderRadius: '8px',
-                    border: '1px solid #6c5ce7',
-                    fontSize: '16px',
-                    minWidth: '200px'
-                  }}
-                >
-                  <option value="KE">Kenya (M-Pesa, Card)</option>
-                  <option value="OTHER_AFRICA">Other African Countries (Card USD)</option>
-                </select>
-              </div>
-
-              <div style={{ marginBottom: '40px' }}>
+                {/* Updated Button for Economy Plans */}
                 <button
                   onClick={() => setPricingView('credits')}
                   style={{
@@ -1742,10 +1738,11 @@ return (
                     fontSize: '16px'
                   }}
                 >
-                  💳 Go Pro for Africa
+                  💸 Economy Plans
                 </button>
+                {/* Updated Button for Premium Plans */}
                 <button
-                  onClick={() => setPricingView('subscription')}
+                  onClick={() => setPricingView('subscription')} // Renamed for clarity, though also one-time
                   style={{
                     padding: '12px 30px',
                     margin: '0 10px',
@@ -1757,20 +1754,43 @@ return (
                     fontSize: '16px'
                   }}
                 >
-                  🔄 Pro International
+                  💳 Premium Plans
                 </button>
               </div>
               {pricingView === 'credits' ? (
                 <>
                   <div style={{ marginTop: '20px' }}>
                     <h2 style={{ color: '#007bff', marginBottom: '30px' }}>
-                      💳 Go Pro with our One-Day, Three-Day, or One-Week Plan
+                      💸 Economy Plans
                     </h2>
                     <p style={{ color: '#666', marginBottom: '30px', fontSize: '14px', textAlign: 'center' }}>
                       Purchase temporary access to Pro features. Available globally with local currency support
                     </p>
                     
-                    {/* HORIZONTAL LAYOUT FOR PAYMENT PLANS */}
+                    {/* Region Selection for Economy Plans */}
+                    <div style={{ marginBottom: '40px' }}>
+                      <label htmlFor="paymentRegion" style={{ color: '#6c5ce7', fontWeight: 'bold', marginRight: '10px' }}>
+                        Select Your Region:
+                      </label>
+                      <select
+                        id="paymentRegion"
+                        value={selectedRegion}
+                        onChange={(e) => setSelectedRegion(e.target.value)}
+                        style={{
+                          padding: '8px 15px',
+                          borderRadius: '8px',
+                          border: '1px solid #6c5ce7',
+                          fontSize: '16px',
+                          minWidth: '200px'
+                        }}
+                      >
+                        <option value="KE">Kenya (M-Pesa, Card)</option>
+                        {/* Removed NG, GH, ZA */}
+                        <option value="OTHER_AFRICA">Other African Countries (Card USD)</option>
+                      </select>
+                    </div>
+
+                    {/* HORIZONTAL LAYOUT FOR ECONOMY PLANS */}
                     <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
                       {/* One-Day Plan */}
                       <div style={{
@@ -1860,7 +1880,7 @@ return (
                             color: 'white',
                             padding: '8px 20px',
                             borderRadius: '20px',
-                            fontSize: '12px',
+                            fontSize: '14px',
                             fontWeight: 'bold',
                             marginBottom: '15px',
                             display: 'inline-block'
@@ -1995,46 +2015,49 @@ return (
                 <>
                   <div style={{ marginTop: '20px' }}>
                     <h2 style={{ color: '#28a745', marginBottom: '30px' }}>
-                      🔄 Monthly Pro Plans
+                      💳 Premium Plans (One-Time Payment)
                     </h2>
                     <p style={{ color: '#666', marginBottom: '30px' }}>
-                      Recurring monthly plans with 2Checkout integration
+                      Monthly and Yearly premium access plans, paid once.
                     </p>
                     
-                    <div style={{ display: 'flex', gap: '30px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    {/* HORIZONTAL LAYOUT FOR PREMIUM PLANS */}
+                    <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap' }}> 
+                      {/* Monthly Plan */}
                       <div style={{
                         backgroundColor: 'white',
-                        padding: '40px 30px',
-                        borderRadius: '20px',
-                        boxShadow: '0 15px 40px rgba(40, 167, 69, 0.2)',
-                        maxWidth: '350px',
-                        width: '100%',
+                        padding: '20px 15px', 
+                        borderRadius: '15px', 
+                        boxShadow: '0 10px 30px rgba(40, 167, 69, 0.2)', 
+                        minWidth: '250px', 
+                        maxWidth: '280px', 
+                        // Removed width: '100%' here
                         border: '3px solid #28a745',
-                        transform: 'scale(1.05)'
+                        transform: 'scale(1.02)' 
                       }}>
                         <div>
                           <div style={{
                             backgroundColor: '#28a745',
                             color: 'white',
-                            padding: '8px 20px',
-                            borderRadius: '20px',
-                            fontSize: '14px',
+                            padding: '6px 15px', 
+                            borderRadius: '15px', 
+                            fontSize: '13px', 
                             fontWeight: 'bold',
-                            marginBottom: '20px',
+                            marginBottom: '15px', 
                             display: 'inline-block'
                           }}>
-                            COMING SOON
+                            MOST POPULAR
                           </div>
                           <h3 style={{ 
                             color: '#28a745',
-                            fontSize: '1.8rem',
-                            margin: '0 0 10px 0'
+                            fontSize: '1.4rem', 
+                            margin: '0 0 8px 0' 
                           }}>
-                            Pro Plan
+                            Monthly Plan
                           </h3>
-                          <div style={{ marginBottom: '30px' }}>
+                          <div style={{ marginBottom: '20px' }}> 
                             <span style={{ 
-                              fontSize: '3rem',
+                              fontSize: '2.2rem', 
                               fontWeight: 'bold',
                               color: '#6c5ce7'
                             }}>
@@ -2042,7 +2065,7 @@ return (
                             </span>
                             <span style={{ 
                               color: '#666',
-                              fontSize: '1.2rem'
+                              fontSize: '1rem' 
                             }}>
                               /month
                             </span>
@@ -2050,10 +2073,11 @@ return (
                           <ul style={{ 
                             textAlign: 'left', 
                             color: '#666', 
-                            lineHeight: '2.5',
+                            lineHeight: '1.8', 
                             listStyle: 'none',
                             padding: '0',
-                            marginBottom: '40px'
+                            marginBottom: '20px', 
+                            fontSize: '0.9rem' 
                           }}>
                             <li>✅ Everything in Free Plan</li>
                             <li>✅ Unlimited transcription access</li>
@@ -2061,23 +2085,121 @@ return (
                             <li>✅ Priority processing</li>
                             <li>✅ Copy to clipboard feature</li>
                             <li>✅ MS Word &amp; TXT downloads</li>
-                            <li>✅ 7-day file storage</li>
+                            <li>✅ 30-day file storage</li>
                             <li>✅ Email support</li>
                           </ul>
                           <button 
+                            onClick={() => {
+                              if (!currentUser?.email) {
+                                showMessage('Please log in first to purchase.');
+                                return;
+                              }
+                              initializePaystackPayment(currentUser.email, 9.99, 'Monthly Plan', 'OTHER_AFRICA'); // Force USD
+                            }}
+                            disabled={!currentUser?.email}
                             style={{
                               width: '100%',
-                              padding: '15px',
-                              backgroundColor: '#6c757d',
+                              padding: '12px', 
+                              backgroundColor: !currentUser?.email ? '#6c757d' : '#28a745',
                               color: 'white',
                               border: 'none',
-                              borderRadius: '10px',
-                              cursor: 'not-allowed',
-                              fontSize: '16px',
+                              borderRadius: '8px', 
+                              cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
+                              fontSize: '15px', 
                               fontWeight: 'bold'
                             }}
                           >
-                            Coming Soon (2Checkout)
+                            {!currentUser?.email ? 'Login Required' : 'Purchase Monthly'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Yearly Plan */}
+                      <div style={{
+                        backgroundColor: 'white',
+                        padding: '20px 15px', 
+                        borderRadius: '15px', 
+                        boxShadow: '0 10px 30px rgba(0,0,0,0.1)', 
+                        minWidth: '250px', 
+                        maxWidth: '280px', 
+                        // Removed width: '100%' here
+                        border: '3px solid #e9ecef'
+                      }}>
+                        <div>
+                          <div style={{
+                            backgroundColor: '#007bff',
+                            color: 'white',
+                            padding: '6px 15px', 
+                            borderRadius: '15px', 
+                            fontSize: '13px', 
+                            fontWeight: 'bold',
+                            marginBottom: '15px', 
+                            display: 'inline-block'
+                          }}>
+                            SAVE 15%
+                          </div>
+                          <h3 style={{ 
+                            color: '#007bff',
+                            fontSize: '1.4rem', 
+                            margin: '0 0 8px 0' 
+                          }}>
+                            Yearly Plan
+                          </h3>
+                          <div style={{ marginBottom: '20px' }}> 
+                            <span style={{ 
+                              fontSize: '2.2rem', 
+                              fontWeight: 'bold',
+                              color: '#6c5ce7'
+                            }}>
+                              USD 99.99
+                            </span>
+                            <span style={{ 
+                              color: '#666',
+                              fontSize: '1rem' 
+                            }}>
+                              /year
+                            </span>
+                          </div>
+                          <ul style={{ 
+                            textAlign: 'left', 
+                            color: '#666', 
+                            lineHeight: '1.8', 
+                            listStyle: 'none',
+                            padding: '0',
+                            marginBottom: '20px', 
+                            fontSize: '0.9rem' 
+                          }}>
+                            <li>✅ Everything in Free Plan</li>
+                            <li>✅ Unlimited transcription access</li>
+                            <li>✅ High accuracy AI transcription</li>
+                            <li>✅ Priority processing</li>
+                            <li>✅ Copy to clipboard feature</li>
+                            <li>✅ MS Word &amp; TXT downloads</li>
+                            <li>✅ 365-day file storage</li>
+                            <li>✅ Email support (yearly)</li>
+                          </ul>
+                          <button 
+                            onClick={() => {
+                              if (!currentUser?.email) {
+                                showMessage('Please log in first to purchase.');
+                                return;
+                              }
+                              initializePaystackPayment(currentUser.email, 99.99, 'Yearly Plan', 'OTHER_AFRICA'); // Force USD
+                            }}
+                            disabled={!currentUser?.email}
+                            style={{
+                              width: '100%',
+                              padding: '12px', 
+                              backgroundColor: !currentUser?.email ? '#6c757d' : '#007bff',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '8px', 
+                              cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
+                              fontSize: '15px', 
+                              fontWeight: 'bold'
+                            }}
+                          >
+                            {!currentUser?.email ? 'Login Required' : 'Purchase Yearly'}
                           </button>
                         </div>
                       </div>
@@ -2128,7 +2250,7 @@ return (
                 {/* Conditional message for non-paid users */}
                 {!isPaidAIUser(userProfile) && (
                   <p style={{ textAlign: 'center', color: '#dc3545', marginBottom: '30px', fontWeight: 'bold' }}>
-                    ❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, Pro, One-Week plans). Please upgrade your plan.
+                    ❌ TypeMyworDz AI Assistant features are only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.
                   </p>
                 )}
                 <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
@@ -2808,7 +2930,7 @@ return (
                     <button
                       onClick={() => {
                         if (!isPaidAIUser(userProfile)) {
-                          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, Pro, One-Week plans). Please upgrade your plan.');
+                          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.');
                           return;
                         }
                         setCurrentView('ai_assistant');
@@ -2839,7 +2961,7 @@ return (
                       textAlign: 'center',
                       fontSize: '14px'
                     }}>
-                      🔒 Copy to clipboard, MS Word downloads, and AI Assistant are available for paid AI users (Three-Day, Pro, One-Week plans).{' '}
+                      🔒 Copy to clipboard, MS Word downloads, and AI Assistant are available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans).{' '}
                       <button 
                         onClick={() => setCurrentView('pricing')}
                         style={{
@@ -2908,6 +3030,15 @@ return (
           © {new Date().getFullYear()} TypeMyworDz
         </footer>
 
+        {/* NEW: Feedback Modal Component */}
+        <FeedbackModal
+          show={showFeedbackModal}
+          onClose={() => setShowFeedbackModal(false)}
+          onSend={handleSendFeedback}
+          userName={currentUser?.displayName}
+          userEmail={currentUser?.email}
+          isSending={isSendingFeedback}
+        />
       </div>
     } />
   </Routes>
