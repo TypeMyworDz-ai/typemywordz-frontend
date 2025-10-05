@@ -70,7 +70,7 @@ const messages = [
   },
   {
     type: 'text',
-    content: "Upload your audios/videos and transcribe for free on our Transcription Editor.",
+    content: "Transcribe manually for free on our Transcription Editor.",
     color: '#7f9fdbff'
   },
   {
