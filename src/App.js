@@ -1720,7 +1720,7 @@ return (
                 fontSize: '1.2rem',
                 marginBottom: '40px'
               }}>
-                Flexible options for different regions and needs (We do not have access to your credit card details, all payments secured by Paystack; a Stripe company)
+                Flexible options for different regions and needs (We do not have access to your credit card details, all payments are secured by Paystack; a Stripe company)
               </p>
 
               <div style={{ marginBottom: '40px' }}>
@@ -1764,7 +1764,7 @@ return (
                       💸 Economy Plans
                     </h2>
                     <p style={{ color: '#666', marginBottom: '30px', fontSize: '14px', textAlign: 'center' }}>
-                      Tailored for our African market
+                      For our African Market
                     </p>
                     
                     {/* Region Selection for Economy Plans */}

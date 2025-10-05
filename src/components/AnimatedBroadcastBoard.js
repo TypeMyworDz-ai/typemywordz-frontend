@@ -40,7 +40,7 @@ const messages = [
   },
   {
     type: 'text',
-    content: "Try our state-of-the-art audio recorder.",
+    content: "Our state-of-the-art audio recorder is FREE.",
     color: '#150c38ff'
   },
   {
