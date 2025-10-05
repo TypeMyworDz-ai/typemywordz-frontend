@@ -2225,10 +2225,9 @@ return (
                   textAlign: 'left',
                   color: '#666'
                 }}>
-                  <div>✅ Smart service selection (OpenAI + Render + AssemblyAI)</div>
-                  <div>✅ Multiple file formats supported</div>
+                  <div>✅ Transcript management under History</div>
                   <div>✅ Easy-to-use interface</div>
-                  <div>✅ Mobile-friendly design</div>
+                  <div>✅ Client Support</div>
                 </div>
               </div>
             </div>

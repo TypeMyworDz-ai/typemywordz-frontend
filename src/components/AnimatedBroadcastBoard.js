@@ -59,6 +59,21 @@ const messages = [
     color: '#e90606ff'
   },
   {
+    type: 'text',
+    content: "We do not store your audios/videos, we value your privacy!",
+    color: '#0d248abd'
+  },
+  {
+    type: 'text',
+    content: "Edit your transcripts securely on our Transcription Editor tool.",
+    color: '#41401dff'
+  },
+  {
+    type: 'text',
+    content: "Upload your audios/videos and transcribe for free on our Transcription Editor.",
+    color: '#7f9fdbff'
+  },
+  {
     type: 'image',
     content: "/claude_logo.png", // Ensure this path is correct in your public folder
     text: "Translate into Spanish & more!",
