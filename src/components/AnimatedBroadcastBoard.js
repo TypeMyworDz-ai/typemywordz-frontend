@@ -39,6 +39,21 @@ const messages = [
     color: '#5935dcff'
   },
   {
+    type: 'text',
+    content: "Try our state-of-the-art audio recorder.",
+    color: '#150c38ff'
+  },
+  {
+    type: 'text',
+    content: "Record on your phone, transcribe, access on phone/PC!",
+    color: '#312d3fff'
+  },
+  {
+    type: 'text',
+    content: "We use the latest audio compression technology.",
+    color: '#300b2aff'
+  },
+  {
     type: 'image',
     content: "/claude_logo.png", // Ensure this path is correct in your public folder
     text: "Translate into Spanish & more!",

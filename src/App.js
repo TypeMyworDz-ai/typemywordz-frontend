@@ -1714,13 +1714,14 @@ return (
                 fontSize: '2.5rem'
               }}>
                 Choose Your Plan
+                (We value your privacy, regardless of your plan, all audios are deleted immidiately from our servers)
               </h1>
               <p style={{
                 color: '#666',
                 fontSize: '1.2rem',
                 marginBottom: '40px'
               }}>
-                Flexible options for different regions and needs
+                Flexible options for different regions and needs (We do not store your credit card details, all our plans are one-time payments secured by Paystack; a Stripe company)
               </p>
 
               <div style={{ marginBottom: '40px' }}>
@@ -1764,7 +1765,7 @@ return (
                       💸 Economy Plans
                     </h2>
                     <p style={{ color: '#666', marginBottom: '30px', fontSize: '14px', textAlign: 'center' }}>
-                      Purchase temporary access to Pro features. Available globally with local currency support
+                      Tailored for our African market
                     </p>
                     
                     {/* Region Selection for Economy Plans */}
@@ -2015,7 +2016,7 @@ return (
                 <>
                   <div style={{ marginTop: '20px' }}>
                     <h2 style={{ color: '#28a745', marginBottom: '30px' }}>
-                      💳 Premium Plans (One-Time Payment)
+                      💳 Premium Plans
                     </h2>
                     <p style={{ color: '#666', marginBottom: '30px' }}>
                       Monthly and Yearly premium access plans, paid once.
