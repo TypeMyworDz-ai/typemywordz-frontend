@@ -1714,14 +1714,13 @@ return (
                 fontSize: '2.5rem'
               }}>
                 Choose Your Plan
-                (We value your privacy, regardless of your plan, all audios are deleted immidiately from our servers)
               </h1>
               <p style={{
                 color: '#666',
                 fontSize: '1.2rem',
                 marginBottom: '40px'
               }}>
-                Flexible options for different regions and needs (We do not store your credit card details, all our plans are one-time payments secured by Paystack; a Stripe company)
+                Flexible options for different regions and needs (We do not have access to your credit card details, all payments secured by Paystack; a Stripe company)
               </p>
 
               <div style={{ marginBottom: '40px' }}>

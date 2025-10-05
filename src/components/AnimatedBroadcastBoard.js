@@ -46,12 +46,17 @@ const messages = [
   {
     type: 'text',
     content: "Record on your phone, transcribe, access on phone/PC!",
-    color: '#312d3fff'
+    color: '#0f5364ff'
   },
   {
     type: 'text',
     content: "We use the latest audio compression technology.",
-    color: '#300b2aff'
+    color: '#630a54ff'
+  },
+  {
+    type: 'text',
+    content: "Make sure to click 'Start Transcription' after recording or choosing file.",
+    color: '#e90606ff'
   },
   {
     type: 'image',
