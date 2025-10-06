@@ -105,7 +105,7 @@ function AppContent() {
   const [pricingView, setPricingView] = useState('credits'); // 'credits' for one-time, 'subscription' for recurring (now also one-time)
   const [selectedRegion, setSelectedRegion] = useState('KE'); // Default to Kenya
   const [convertedAmounts, setConvertedAmounts] = useState({ 
-    'oneday': { amount: 1.00, currency: 'USD' }, 
+    'oneday': { amount: 0.1, currency: 'USD' }, 
     'threeday': { amount: 2.00, currency: 'USD' },
     'oneweek': { amount: 3.00, currency: 'USD' },
     'monthly': { amount: 9.99, currency: 'USD' }, // NEW: Monthly Plan
