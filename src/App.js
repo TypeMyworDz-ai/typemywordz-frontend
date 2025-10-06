@@ -149,6 +149,9 @@ function AppContent() {
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; 
   const isAdmin = ADMIN_EMAILS.includes(currentUser?.email); 
 
+  // NEW: State to prevent duplicate payment verification
+  const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
+
   // REMOVED: Message handlers (showMessage, clearMessage) as AuthContext now provides showMessage
 
   // --- Menu State & Functions (React-managed) ---
@@ -240,73 +243,85 @@ function AppContent() {
     }
   }, [currentUser, showMessage, RAILWAY_BACKEND_URL]); // Dependencies
 
-  // Handle payment success callback
+  // Handle payment success callback - MODIFIED to prevent infinite loop
   const handlePaystackCallback = useCallback(async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const reference = urlParams.get('reference');
     const paymentStatus = urlParams.get('payment');
     
-    console.log('Checking payment callback:', { reference, paymentStatus });
-    
-    if (reference) {
-      try {
-        showMessage('Verifying payment...');
-        
-        const response = await fetch(`${RAILWAY_BACKEND_URL}/api/verify-payment`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            reference,
-            update_admin_revenue: true // NEW: Flag to update admin revenue stats
-          }),
-        });
-        
-        const data = await response.json();
-        console.log('Payment verification result:', data);
-        
-        if (response.ok && data.status === 'success') {
-          // FIX: Pass correct plan name to updateUserPlan
-          await updateUserPlan(currentUser.uid, data.data.plan, reference); 
-          await refreshUserProfile();
+    // Only proceed if there's a reference/success status AND we're not already verifying
+    if ((reference || paymentStatus === 'success') && !isVerifyingPayment) {
+      setIsVerifyingPayment(true); // Set flag to true to prevent re-entry
+      console.log('Checking payment callback:', { reference, paymentStatus });
+      
+      if (reference) {
+        try {
+          showMessage('Verifying payment...');
           
-          // If user is admin, update the revenue display
-          if (isAdmin) {
-            try {
-              const revenue = await getMonthlyRevenue();
-              setMonthlyRevenue(revenue);
-            } catch (error) {
-              console.error('Error updating revenue after payment:', error);
+          const response = await fetch(`${RAILWAY_BACKEND_URL}/api/verify-payment`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              reference,
+              update_admin_revenue: true
+            }),
+          });
+          
+          const data = await response.json();
+          console.log('Payment verification result: ', data);
+          
+          if (response.ok && data.status === 'success') {
+            await updateUserPlan(currentUser.uid, data.data.plan, reference); 
+            await refreshUserProfile();
+            
+            if (isAdmin) {
+              try {
+                const revenue = await getMonthlyRevenue();
+                setMonthlyRevenue(revenue);
+              } catch (error) {
+                console.error('Error updating revenue after payment:', error);
+              }
             }
+            
+            showMessage(`🎉 Payment successful! ${data.data.plan} activated.`);
+            setCurrentView('transcribe');
+            
+            // Crucial: Clear URL parameters AFTER successful processing
+            window.history.replaceState({}, document.title, window.location.pathname);
+          } else {
+            showMessage('Payment verification failed: ' + (data.message || 'Unknown error'));
           }
-          
-          showMessage(`🎉 Payment successful! ${data.data.plan} activated.`);
-          setCurrentView('transcribe');
-          
-          window.history.replaceState({}, document.title, window.location.pathname);
-        } else {
-          showMessage('Payment verification failed: ' + (data.message || 'Unknown error'));
+        } catch (error) {
+          console.error('Payment verification error:', error);
+          showMessage('Payment verification failed: ' + error.message);
+        } finally {
+          setIsVerifyingPayment(false); // Reset flag regardless of outcome
         }
-      } catch (error) {
-        console.error('Payment verification error:', error);
-        showMessage('Payment verification failed: ' + error.message);
+      } else if (paymentStatus === 'success') {
+        showMessage('Payment completed! Please wait for verification...');
+        // If only paymentStatus='success' is present without a reference,
+        // it might be an intermediate state. We should still clear it.
+        window.history.replaceState({}, document.title, window.location.pathname);
+        setIsVerifyingPayment(false); // Reset flag
       }
-    } else if (paymentStatus === 'success') {
-      showMessage('Payment completed! Please wait for verification...');
     }
-  }, [currentUser, showMessage, refreshUserProfile, setCurrentView, RAILWAY_BACKEND_URL, isAdmin]); // Added isAdmin dependency
+  }, [currentUser, showMessage, refreshUserProfile, setCurrentView, RAILWAY_BACKEND_URL, isAdmin, isVerifyingPayment]); // Add isVerifyingPayment to dependencies
 
+  // useEffect to trigger payment callback handling
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const reference = urlParams.get('reference');
     const paymentStatus = urlParams.get('payment');
     
+    // Call the callback if parameters are present. The callback itself will manage the `isVerifyingPayment` flag.
     if (reference || paymentStatus === 'success') {
-      console.log('Payment callback detected');
+      console.log('Payment callback detected in useEffect.');
       handlePaystackCallback();
     }
-  }, [currentUser, handlePaystackCallback]);
+  }, [currentUser, handlePaystackCallback]); // Keep currentUser and handlePaystackCallback as dependencies
+
   // Enhanced reset function with better job cancellation - ADDING LOGS
   const resetTranscriptionProcessUI = useCallback(() => { 
     console.log('🔄 DEBUG: resetTranscriptionProcessUI called. Stopping ongoing processes and resetting UI states.');
@@ -526,7 +541,7 @@ function AppContent() {
     recordedAudioBlobRef.current = null; // FIX: Clear recorded blob
     
     if (abortControllerRef.current) {
-      console.log('🛑 DEBUG: Aborting active fetch request.');
+      console.log('🔄 DEBUG: Aborting active fetch request.');
       abortControllerRef.current.abort();
     }
     abortControllerRef.current = null; // Ensure it's nullified after aborting
@@ -1462,7 +1477,7 @@ return (
                         {/* NEW: Share Menu Item */}
                         <div className="submenu-item" onClick={handleShare}>
                             <span className="submenu-icon">📤</span>
-                            <span className="submenu-text">Share</span>
+                            <span className="menu-text">Share</span>
                         </div>
                     </div>
                 )}
@@ -2428,7 +2443,7 @@ return (
                             color: 'white',
                             border: 'none',
                             borderRadius: '25px',
-                            cursor: (!isPaidAIUser(userProfile) || !latestTranscription || !userPrompt || aiLoading) ? 'not-allowed' : 'pointer',
+                            cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
                             fontSize: '1rem',
                             fontWeight: 'bold',
                             boxShadow: (!isPaidAIUser(userProfile)) ? 'none' : '0 4px 15px rgba(108, 92, 231, 0.4)',
@@ -2503,6 +2518,7 @@ return (
                               cursor: 'pointer',
                               fontSize: '14px',
                               fontWeight: 'bold',
+                              marginRight: '10px',
                               transition: 'background-color 0.3s ease'
                             }}
                             onMouseEnter={(e) => e.target.style.backgroundColor = '#218838'}
@@ -2532,7 +2548,7 @@ return (
                             />
                             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
                               <button
-                                onClick={handleContinueAIResponse}
+                                onClick={handleContinueResponse}
                                 disabled={!continuePrompt.trim() || aiLoading}
                                 style={{
                                   padding: '8px 16px',
