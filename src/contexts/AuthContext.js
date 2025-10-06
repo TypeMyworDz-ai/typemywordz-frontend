@@ -1,9 +1,8 @@
 // src/contexts/AuthContext.js
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'; // Added useCallback
-import { auth, googleProvider, microsoftProvider, db } from '../firebase'; // Added db
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { auth, googleProvider, microsoftProvider, db } from '../firebase';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { createUserProfile, getUserProfile } from '../userService';
-// REMOVED: import ToastNotification from '../components/ToastNotification'; // ToastNotification is now defined here
 
 const AuthContext = createContext();
 
@@ -20,22 +19,20 @@ export const AuthProvider = ({ children }) => {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
-  const [message, setMessage] = useState(null); // Changed to null for object messages
-  const [messageType, setMessageType] = useState('info'); // 'info', 'success', 'error', 'warning'
+  const [message, setMessage] = useState(null);
+  const [messageType, setMessageType] = useState('info');
 
-  // UPDATED: showMessage to include automatic dismissal and message types
   const showMessage = useCallback((text, type = 'info', duration = 3000) => {
     setMessage({ text, type });
     setMessageType(type);
     if (duration > 0) {
-      // Clear any existing timeout to prevent multiple messages from stacking up and dismissing incorrectly
       const currentTimeoutId = window.highlightMessageTimeout;
       if (currentTimeoutId) {
         clearTimeout(currentTimeoutId);
       }
       window.highlightMessageTimeout = setTimeout(() => {
         setMessage(null);
-        window.highlightMessageTimeout = null; // Clear the stored timeout ID
+        window.highlightMessageTimeout = null;
       }, duration);
     }
   }, []);
@@ -48,8 +45,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
   
-  // This function is key. It refetches the user profile.
-  const refreshUserProfile = useCallback(async () => { // Added useCallback
+  const refreshUserProfile = useCallback(async () => {
     if (currentUser) {
       setProfileLoading(true);
       try {
@@ -57,12 +53,12 @@ export const AuthProvider = ({ children }) => {
         setUserProfile(profile);
       } catch (error) {
         console.error('Error refreshing user profile:', error);
-        showMessage(`❌ Error refreshing profile: ${error.message}`, 'error'); // Updated message type
+        showMessage(`❌ Error refreshing profile: ${error.message}`, 'error');
       } finally {
         setProfileLoading(false);
       }
     }
-  }, [currentUser, showMessage]); // Added dependencies
+  }, [currentUser, showMessage]);
 
   const signInWithGoogle = async () => {
     try {
@@ -73,10 +69,10 @@ export const AuthProvider = ({ children }) => {
         await createUserProfile(result.user.uid, result.user.email, result.user.displayName);
         const profile = await getUserProfile(result.user.uid);
         setUserProfile(profile);
-        showMessage(`✅ Signed in as ${result.user.email}`, 'success'); // Updated message type
+        showMessage(`✅ Signed in as ${result.user.email}`, 'success');
       } catch (error) {
         console.error('Error creating/loading profile after Google sign-in:', error);
-        showMessage(`❌ Error with profile after Google sign-in: ${error.message}`, 'error'); // Updated message type
+        showMessage(`❌ Error with profile after Google sign-in: ${error.message}`, 'error');
       } finally {
         setProfileLoading(false);
       }
@@ -84,12 +80,11 @@ export const AuthProvider = ({ children }) => {
       return result;
     } catch (error) {
       console.error('Google sign-in error:', error);
-      showMessage(`❌ Google sign-in failed: ${error.message}`, 'error'); // Updated message type
+      showMessage(`❌ Google sign-in failed: ${error.message}`, 'error');
       throw error;
     }
   };
 
-  // NEW: signInWithMicrosoft function
   const signInWithMicrosoft = async () => {
     try {
       const result = await signInWithPopup(auth, microsoftProvider); 
@@ -99,10 +94,10 @@ export const AuthProvider = ({ children }) => {
         await createUserProfile(result.user.uid, result.user.email, result.user.displayName);
         const profile = await getUserProfile(result.user.uid);
         setUserProfile(profile);
-        showMessage(`✅ Signed in as ${result.user.email}`, 'success'); // Updated message type
+        showMessage(`✅ Signed in as ${result.user.email}`, 'success');
       } catch (error) {
         console.error('Error creating/loading profile after Microsoft sign-in:', error);
-        showMessage(`❌ Error with profile after Microsoft sign-in: ${error.message}`, 'error'); // Updated message type
+        showMessage(`❌ Error with profile after Microsoft sign-in: ${error.message}`, 'error');
       } finally {
         setProfileLoading(false);
       }
@@ -110,7 +105,7 @@ export const AuthProvider = ({ children }) => {
       return result;
     } catch (error) {
       console.error('Microsoft sign-in error:', error);
-      showMessage(`❌ Microsoft sign-in failed: ${error.message}`, 'error'); // Updated message type
+      showMessage(`❌ Microsoft sign-in failed: ${error.message}`, 'error');
       throw error;
     }
   };
@@ -119,10 +114,10 @@ export const AuthProvider = ({ children }) => {
     try {
       await signOut(auth);
       setUserProfile(null);
-      showMessage('👋 Logged out successfully!', 'info'); // Updated message type
+      showMessage('👋 Logged out successfully!', 'info');
     } catch (error) {
       console.error('Error logging out:', error);
-      showMessage(`❌ Error logging out: ${error.message}`, 'error'); // Updated message type
+      showMessage(`❌ Error logging out: ${error.message}`, 'error');
     }
   };
 
@@ -137,7 +132,7 @@ export const AuthProvider = ({ children }) => {
           setUserProfile(profile);
         } catch (error) {
           console.error('Error loading user profile in AuthContext:', error);
-          showMessage(`❌ Error loading profile: ${error.message}`, 'error'); // Updated message type
+          showMessage(`❌ Error loading profile: ${error.message}`, 'error');
         } finally {
           setProfileLoading(false);
         }
@@ -148,7 +143,7 @@ export const AuthProvider = ({ children }) => {
     });
 
     return unsubscribe;
-  }, [showMessage]); // Added showMessage to dependencies
+  }, [showMessage]);
 
   const value = {
     currentUser,
@@ -156,11 +151,11 @@ export const AuthProvider = ({ children }) => {
     loading,
     profileLoading,
     signInWithGoogle,
-    signInWithMicrosoft, // Provide signInWithMicrosoft
+    signInWithMicrosoft,
     logout,
     refreshUserProfile,
-    showMessage, // Provide showMessage
-    clearMessage, // Provide clearMessage
+    showMessage,
+    clearMessage,
     message,
     messageType,
   };
@@ -174,7 +169,7 @@ export const AuthProvider = ({ children }) => {
 };
 
 // ToastNotification component (placed here as it's tightly coupled with AuthContext's message state)
-const ToastNotification = ({ message, type, clearMessage }) => {
+export const ToastNotification = ({ message, type, clearMessage }) => { // ADDED export here
   if (!message) return null;
 
   let backgroundColor = '#333';

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
-import { AuthProvider, useAuth, ToastNotification } from './contexts/AuthContext'; // UPDATED: Import ToastNotification
+import { AuthProvider, useAuth, ToastNotification } from './contexts/AuthContext'; // CORRECTED: Import ToastNotification from AuthContext
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
@@ -8,7 +8,7 @@ import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
 import Signup from './components/Signup'; // NEW: Import Signup component
 import FeedbackModal from './components/FeedbackModal'; // NEW: Import FeedbackModal
-import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan } from './userService'; // UPDATED: Removed getMonthlyRevenue from here, it's fetched directly in App.js now
+import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan } from './userService';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 import PrivacyPolicy from './components/PrivacyPolicy';
@@ -161,7 +161,7 @@ function AppContent() {
           setMonthlyRevenue(data.monthlyRevenue);
         } catch (error) {
           console.error('Error fetching monthly revenue:', error);
-          showMessage('Failed to fetch revenue data', 'error'); // UPDATED: Added error type
+          showMessage('Failed to fetch revenue data', 'error');
         }
       };
       
@@ -172,7 +172,7 @@ function AppContent() {
       
       return () => clearInterval(revenueInterval);
     }
-  }, [isAdmin, currentView, showMessage, RAILWAY_BACKEND_URL]); // Added RAILWAY_BACKEND_URL to dependencies
+  }, [isAdmin, currentView, showMessage, RAILWAY_BACKEND_URL]);
 
   const handleToggleSubmenu = useCallback((submenuId) => {
     setOpenSubmenu(prev => (prev === submenuId ? null : submenuId));
@@ -226,14 +226,14 @@ function AppContent() {
       console.log('Backend payment initialization response:', data);
       
       if (response.ok && data.status) {
-        showMessage('Redirecting to payment page...Please do not refresh.', 'info'); // UPDATED: Added info type
+        showMessage('Redirecting to payment page...Please do not refresh.', 'info');
         window.location.href = data.authorization_url;
       } else {
         throw new Error(data.message || 'Payment initialization failed');
       }
     } catch (error) {
       console.error('Paystack payment error:', error);
-      showMessage('Payment initialization failed: ' + error.message, 'error'); // UPDATED: Added error type
+      showMessage('Payment initialization failed: ' + error.message, 'error');
     }
   }, [currentUser, showMessage, RAILWAY_BACKEND_URL]); // Dependencies
 
@@ -250,7 +250,7 @@ function AppContent() {
       
       if (reference) {
         try {
-          showMessage('Verifying payment...', 'info'); // UPDATED: Added info type
+          showMessage('Verifying payment...', 'info');
           
           const response = await fetch(`${RAILWAY_BACKEND_URL}/api/verify-payment`, {
             method: 'POST',
@@ -283,22 +283,22 @@ function AppContent() {
               }
             }
             
-            showMessage(`🎉 Payment successful! ${data.data.plan} activated.`, 'success'); // UPDATED: Added success type
+            showMessage(`🎉 Payment successful! ${data.data.plan} activated.`, 'success');
             setCurrentView('transcribe');
             
             // Crucial: Clear URL parameters AFTER successful processing
             window.history.replaceState({}, document.title, window.location.pathname);
           } else {
-            showMessage('Payment verification failed: ' + (data.message || 'Unknown error'), 'error'); // UPDATED: Added error type
+            showMessage('Payment verification failed: ' + (data.message || 'Unknown error'), 'error');
           }
         } catch (error) {
           console.error('Payment verification error:', error);
-          showMessage('Payment verification failed: ' + error.message, 'error'); // UPDATED: Added error type
+          showMessage('Payment verification failed: ' + error.message, 'error');
         } finally {
           setIsVerifyingPayment(false); // Reset flag regardless of outcome
         }
       } else if (paymentStatus === 'success') {
-        showMessage('Payment completed! Please wait for verification...', 'info'); // UPDATED: Added info type
+        showMessage('Payment completed! Please wait for verification...', 'info');
         // If only paymentStatus='success' is present without a reference,
         // it might be an intermediate state. We should still clear it.
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -408,12 +408,12 @@ function AppContent() {
           console.log(`📊 DEBUG: ${Math.round(audio.duration/60)}-minute file loaded (${originalSize.toFixed(2)} MB) - ready for quick transcription.`);
         } catch (error) {
           console.error('❌ DEBUG: Error getting file info in onloadedmetadata:', error);
-          showMessage('Error getting file info: ' + error.message, 'error'); // UPDATED: Added error type
+          showMessage('Error getting file info: ' + error.message, 'error');
         }
       };
       audio.onerror = (e) => { // NEW: Add onerror handler for audio loading
         console.error('❌ DEBUG: Audio element error during metadata loading:', e);
-        showMessage('Error loading audio file. Please ensure it is a valid audio/video format.', 'error'); // UPDATED: Added error type
+        showMessage('Error loading audio file. Please ensure it is a valid audio/video format.', 'error');
         resetTranscriptionProcessUI(); // Reset if audio file itself is problematic
       };
       const audioUrl = URL.createObjectURL(file);
@@ -421,7 +421,7 @@ function AppContent() {
       console.log('📁 DEBUG: Audio URL created and assigned:', audioUrl);
     } else {
       console.log('📁 DEBUG: Selected file is not an audio/video type. No audio metadata loading.');
-      showMessage('Selected file is not a valid audio or video format.', 'error'); // UPDATED: Added error type
+      showMessage('Selected file is not a valid audio or video format.', 'error');
       resetTranscriptionProcessUI(); // Reset if file type is wrong
     }
   }, [showMessage, resetTranscriptionProcessUI]);
@@ -508,7 +508,7 @@ function AppContent() {
       }, 1000);
     } catch (error) {
       console.error('❌🎙️ DEBUG: Could not access microphone:', error); // NEW LOG
-      showMessage('Could not access microphone: ' + error.message, 'error'); // UPDATED: Added error type
+      showMessage('Could not access microphone: ' + error.message, 'error');
     }
   }, [resetTranscriptionProcessUI, showMessage]);
 
@@ -577,7 +577,7 @@ function AppContent() {
       }
     }
     
-    showMessage("🛑 Transcription cancelled! Reloading page...", 'warning'); // UPDATED: Added warning type
+    showMessage("🛑 Transcription cancelled! Reloading page...", 'warning');
     
     setTimeout(() => {
       window.location.reload();
@@ -650,14 +650,14 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     console.log('DIAGNOSTIC: After refreshUserProfile - userProfile.totalMinutesUsed:', userProfile?.totalMinutesUsed);
 
     // Success message with favicon and brand name
-    showMessage('✅ <img src="/favicon-32x32.png" alt="TypeMyworDz Logo" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 5px;"> TypeMyworDz, Done!', 'success'); // UPDATED: Added success type
+    showMessage('✅ <img src="/favicon-32x32.png" alt="TypeMyworDz Logo" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 5px;"> TypeMyworDz, Done!', 'success');
     
     // Save the latest transcription for the AI Assistant
     setLatestTranscription(transcriptionText);
 
   } catch (error) {
     console.error('Error updating usage or saving transcription:', error);
-    showMessage('Failed to save transcription or update usage.', 'error'); // UPDATED: Added error type
+    showMessage('Failed to save transcription or update usage.', 'error');
   } finally {
     // No changes here, as processingMessage state was removed
   }
@@ -670,12 +670,12 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       
       await refreshUserProfile();
       
-      showMessage(`🎉 Successfully upgraded to ${planName.charAt(0).toUpperCase() + planName.slice(1)} plan! You now have unlimited transcription access.`, 'success'); // UPDATED: Added success type
+      showMessage(`🎉 Successfully upgraded to ${planName.charAt(0).toUpperCase() + planName.slice(1)} plan! You now have unlimited transcription access.`, 'success');
       
       setCurrentView('transcribe');
     } catch (error) {
       console.error('Error updating user plan:', error);
-      showMessage('Payment successful but there was an error updating your account. Please contact support.', 'error'); // UPDATED: Added error type
+      showMessage('Payment successful but there was an error updating your account. Please contact support.', 'error');
     }
   }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
 
@@ -736,7 +736,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         
       } else if (response.ok && result.status === 'failed') {
         if (!isCancelledRef.current) {
-          showMessage('❌ Transcription failed: ' + result.error + '. Please try again.', 'error'); // UPDATED: Added error type
+          showMessage('❌ Transcription failed: ' + result.error + '. Please try again.', 'error');
           clearInterval(transcriptionInterval); 
           setTranscriptionProgress(0);
           setStatus('failed'); 
@@ -750,7 +750,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         setTranscriptionProgress(0);
         setStatus('idle');
         setIsUploading(false);
-        showMessage('🛑 Transcription was cancelled. Please start a new one.', 'warning'); // UPDATED: Added warning type
+        showMessage('🛑 Transcription was cancelled. Please start a new one.', 'warning');
         resetTranscriptionProcessUI();
         
       } else {
@@ -762,18 +762,18 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
             } else {
               console.log('🛑 DEBUG: Recursive call cancelled'); // NEW LOG
               clearInterval(transcriptionInterval);
-              showMessage('🛑 Transcription process interrupted. Please start a new one.', 'warning'); // UPDATED: Added warning type
+              showMessage('🛑 Transcription process interrupted. Please start a new one.', 'warning');
               resetTranscriptionProcessUI();
             }
           }, 2000);
         } else if (isCancelledRef.current) {
           console.log('🛑 DEBUG: Job cancelled - stopping status checks'); // NEW LOG
           clearInterval(transcriptionInterval);
-          showMessage('🛑 Transcription process interrupted. Please start a new one.', 'warning'); // UPDATED: Added warning type
+          showMessage('🛑 Transcription process interrupted. Please start a new one.', 'warning');
           resetTranscriptionProcessUI();
         } else {
           const errorDetail = result.detail || `Unexpected status: ${result.status}`;
-          showMessage('❌ Status check failed: ' + errorDetail + '. Please try again.', 'error'); // UPDATED: Added error type
+          showMessage('❌ Status check failed: ' + errorDetail + '. Please try again.', 'error');
           clearInterval(transcriptionInterval); 
           setTranscriptionProgress(0);
           setStatus('failed'); 
@@ -791,7 +791,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         if (!isCancelledRef.current) {
           setIsUploading(false);
         }
-        showMessage('🛑 Transcription process interrupted. Please start a new one.', 'warning'); // UPDATED: Added warning type
+        showMessage('🛑 Transcription process interrupted. Please start a new one.', 'warning');
         resetTranscriptionProcessUI();
         return;
       } else if (!isCancelledRef.current) {
@@ -800,7 +800,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         setTranscriptionProgress(0);
         setStatus('failed'); 
         setIsUploading(false); 
-        showMessage('❌ Status check failed: ' + error.message + '. Please try again.', 'error'); // UPDATED: Added error type
+        showMessage('❌ Status check failed: ' + error.message + '. Please try again.', 'error');
         resetTranscriptionProcessUI();
       }
     } finally {
@@ -811,13 +811,13 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   const handleUpload = useCallback(async () => {
     console.log('🚀 DEBUG: handleUpload called.'); // NEW LOG
     if (!selectedFile) {
-      showMessage('Please select a file first', 'warning'); // UPDATED: Added warning type
+      showMessage('Please select a file first', 'warning');
       console.log('❌ DEBUG: No file selected for upload..'); // NEW LOG
       return;
     }
 
     if (userProfile === undefined) { // Only show loading profile if currentUser exists but profile hasn't loaded
-      showMessage('Loading user profile... Please wait.', 'info'); // UPDATED: Added info type
+      showMessage('Loading user profile... Please wait.', 'info');
       console.log('⏳ DEBUG: User profile still loading or not available.'); // NEW LOG
       return;
     }
@@ -839,7 +839,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           userMessage = 'Your paid plan has expired. Redirecting to pricing...';
         }
 
-        showMessage(userMessage, 'warning'); // UPDATED: Added warning type
+        showMessage(userMessage, 'warning');
         console.log('❌ DEBUG: Blocking transcription due to plan/limit. Redirecting to pricing.'); // NEW LOG
         
         setTimeout(() => {
@@ -848,7 +848,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         }, 2000);
         return;
       } else {
-        showMessage('You do not have permission to transcribe audio. Please contact support if this is an error.', 'error'); // UPDATED: Added error type
+        showMessage('You do not have permission to transcribe audio. Please contact support if this is an error.', 'error');
         console.log('❌ DEBUG: Blocking transcription due to insufficient permissions.'); // NEW LOG
         resetTranscriptionProcessUI();
         return;
@@ -909,7 +909,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
     } catch (transcriptionError) {
       console.error('❌ DEBUG: Transcription failed in handleUpload catch block:', transcriptionError); // NEW LOG
-      showMessage('❌ Transcription service is currently unavailable. Please try again later.', 'error'); // UPDATED: Added error type
+      showMessage('❌ Transcription service is currently unavailable. Please try again later.', 'error');
       setUploadProgress(0);
       setTranscriptionProgress(0);
       setStatus('failed'); 
@@ -922,7 +922,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   const copyToClipboard = useCallback(() => { 
     // Check for AI paid user eligibility for this feature
     if (!isPaidAIUser(userProfile)) {
-      showMessage('Copy to clipboard is only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade to access this feature.', 'warning'); // UPDATED: Added warning type
+      showMessage('Copy to clipboard is only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade to access this feature.', 'warning');
       return;
     }
     
@@ -939,12 +939,12 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   const downloadAsWord = useCallback(async () => { 
     // Check for AI paid user eligibility for this feature
     if (!isPaidAIUser(userProfile)) {
-      showMessage('MS Word download is only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade to access this feature.', 'warning'); // UPDATED: Added warning type
+      showMessage('MS Word download is only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade to access this feature.', 'warning');
       return;
     }
     
     try {
-      showMessage('Generating formatted Word document...', 'info'); // UPDATED: Added info type
+      showMessage('Generating formatted Word document...', 'info');
       const response = await fetch(`${RAILWAY_BACKEND_URL}/generate-formatted-word`, {
         method: 'POST',
         headers: {
@@ -969,11 +969,11 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       a.download = `transcription_${Date.now()}.docx`; // Use .docx extension
       a.click();
       URL.revokeObjectURL(url);
-      showMessage('Word document generated successfully!', 'success'); // UPDATED: Added success type
+      showMessage('Word document generated successfully!', 'success');
 
     } catch (error) {
       console.error('Error downloading Word document:', error);
-      showMessage('Failed to generate Word document: ' + error.message, 'error'); // UPDATED: Added error type
+      showMessage('Failed to generate Word document: ' + error.message, 'error');
     }
   }, [transcription, userProfile, showMessage, RAILWAY_BACKEND_URL]);
 
@@ -1001,11 +1001,11 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         let filename = `recording-${Date.now()}.${downloadFormat}`;
         
         if (downloadFormat === 'mp3' && !recordedAudioBlobRef.current.type.includes('mp3')) {
-          showMessage('Compressing to MP3...', 'info'); // UPDATED: Added info type
+          showMessage('Compressing to MP3...', 'info');
           // This part of the frontend is not actually performing the compression,
           // it's just showing a message. The backend's /compress-download endpoint would handle it.
           // For now, we'll keep the message, but actual compression would involve a backend call here.
-          showMessage('MP3 compression complete! ', 'success'); // UPDATED: Added success type
+          showMessage('MP3 compression complete! ', 'success');
         }
         
         const url = URL.createObjectURL(downloadBlob);
@@ -1016,7 +1016,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         URL.revokeObjectURL(url);
       } catch (error) {
         console.error('Error compressing for download: ', error);
-        showMessage('Download compression failed, downloading original format.', 'error'); // UPDATED: Added error type
+        showMessage('Download compression failed, downloading original format.', 'error');
         const url = URL.createObjectURL(recordedAudioBlobRef.current);
         const a = document.createElement('a');
         a.href = url;
@@ -1025,7 +1025,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         URL.revokeObjectURL(url);
       }
     } else {
-      showMessage('No recorded audio available to download.', 'warning'); // UPDATED: Added warning type
+      showMessage('No recorded audio available to download.', 'warning');
     }
   }, [showMessage, downloadFormat]);
 
@@ -1033,18 +1033,18 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     try {
       await logout();
     } catch (error) {
-      showMessage('Failed to log out', 'error'); // UPDATED: Added error type
+      showMessage('Failed to log out', 'error');
     }
   }, [logout, showMessage]);
 
   const createMissingProfile = useCallback(async () => {
     try {
       await createUserProfile(currentUser.uid, currentUser.email);
-      showMessage('Profile created successfully! Refreshing page...', 'success'); // UPDATED: Added success type
+      showMessage('Profile created successfully! Refreshing page...', 'success');
       window.location.reload();
     } catch (error) {
       console.error('Error creating profile:', error);
-      showMessage('Error creating profile: ' + error.message, 'error'); // UPDATED: Added error type
+      showMessage('Error creating profile: ' + error.message, 'error');
     }
   }, [currentUser?.uid, currentUser?.email, showMessage]);
 
@@ -1056,17 +1056,17 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   // handleAIQuery for User AI Assistant with FormData - UPDATED for Gemini option and fallback
   const handleAIQuery = useCallback(async () => {
       if (!userProfile) { 
-          showMessage('Loading user profile... Please wait.', 'info'); // UPDATED: Added info type
+          showMessage('Loading user profile... Please wait.', 'info');
           return;
       }
       // Check if user is eligible for AI features
       if (!isPaidAIUser(userProfile)) {
-          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.', 'error'); // UPDATED: Added error type
+          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.', 'error');
           return;
       }
 
       if (!latestTranscription || !userPrompt) {
-          showMessage('Please provide both a transcript and a prompt for the AI Assistant.', 'warning'); // UPDATED: Added warning type
+          showMessage('Please provide both a transcript and a prompt for the AI Assistant.', 'warning');
           return;
       }
 
@@ -1090,7 +1090,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
             endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query-gemini`;
             modelToUse = 'models/gemini-pro-latest'; 
           } else {
-            showMessage('Invalid AI provider selected.', 'error'); // UPDATED: Added error type
+            showMessage('Invalid AI provider selected.', 'error');
             setAILoading(false);
             return;
           }
@@ -1108,11 +1108,11 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
           const data = await response.json();
           setAIResponse(data.ai_response || data.formatted_transcript); 
-          showMessage('✨ AI response generated successfully!', 'success'); // UPDATED: Added success type
+          showMessage('✨ AI response generated successfully!', 'success');
 
       } catch (error) {
           console.error('AI Assistant Error:', error);
-          showMessage('❌ AI Assistant failed: ' + error.message + '. If using Gemini, try Claude for sensitive content.', 'error'); // UPDATED: Added error type
+          showMessage('❌ AI Assistant failed: ' + error.message + '. If using Gemini, try Claude for sensitive content.', 'error');
       } finally {
           setAILoading(false);
       }
@@ -1154,17 +1154,17 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
   const handleSendFeedback = useCallback(async (name, email, feedback) => { // Updated to accept parameters
     if (!email || !feedback.trim()) {
-      showMessage('Email and Feedback are mandatory.', 'warning'); // UPDATED: Added warning type
+      showMessage('Email and Feedback are mandatory.', 'warning');
       return;
     }
     setIsSendingFeedback(true);
     try {
       await saveFeedback(name, email, feedback); // Call saveFeedback with passed parameters
-      showMessage('✅ Feedback sent successfully! Thank you.', 'success'); // UPDATED: Added success type
+      showMessage('✅ Feedback sent successfully! Thank you.', 'success');
       setShowFeedbackModal(false);
     } catch (error) {
       console.error('Error sending feedback:', error);
-      showMessage('❌ Failed to send feedback: ' + error.message, 'error'); // UPDATED: Added error type
+      showMessage('❌ Failed to send feedback: ' + error.message, 'error');
     } finally {
       setIsSendingFeedback(false);
     }
@@ -1185,7 +1185,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         console.log('Shared successfully');
       } catch (err) {
         console.log('Share failed:', err);
-        showMessage('❌ Sharing cancelled or failed.', 'warning'); // UPDATED: Added warning type
+        showMessage('❌ Sharing cancelled or failed.', 'warning');
       }
     } else {
       // Fallback for browsers that do not support the Web Share API
@@ -1196,7 +1196,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       navigator.clipboard.writeText(fallbackText)
         .then(() => setCopiedMessageVisible(true)) // Use copied message
         .then(() => setTimeout(() => setCopiedMessageVisible(false), 2000)) // Hide after 2 seconds
-        .catch(() => showMessage('❌ Failed to copy link.', 'error')); // UPDATED: Added error type
+        .catch(() => showMessage('❌ Failed to copy link.', 'error'));
 
     }
   }, [showMessage]);
@@ -1292,7 +1292,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
               color: '#000000', 
               fontSize: '1.1rem', 
               fontWeight: 'bold',
-              textShadow: '0 1px 2px rgba(255,255,255,0.8)',
+              textShadow: '0 2px 4px rgba(255,255,255,0.8)',
               marginLeft: '5px'
             }}>Claude</span>
             <span style={{ color: 'white', fontSize: '1.2rem', margin: '0 8px' }}>&amp;</span>
@@ -1643,7 +1643,7 @@ return (
           <button
             onClick={() => {
               if (!isPaidAIUser(userProfile)) {
-                showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.', 'error'); // UPDATED: Added error type
+                showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.', 'error');
                 return;
               }
               setCurrentView('ai_assistant');
@@ -1848,7 +1848,7 @@ return (
                         <button
                           onClick={() => {
                             if (!currentUser?.email) {
-                              showMessage('Please log in first to purchase credits.', 'warning'); // UPDATED: Added warning type
+                              showMessage('Please log in first to purchase credits.', 'warning');
                               return;
                             }
                             initializePaystackPayment(currentUser.email, 1, 'One-Day Plan', selectedRegion);
@@ -1929,7 +1929,7 @@ return (
                         <button
                           onClick={() => {
                             if (!currentUser?.email) {
-                              showMessage('Please log in first to purchase credits.', 'warning'); // UPDATED: Added warning type
+                              showMessage('Please log in first to purchase credits.', 'warning');
                               return;
                             }
                             initializePaystackPayment(currentUser.email, 2, 'Three-Day Plan', selectedRegion);
@@ -1997,7 +1997,7 @@ return (
                         <button
                           onClick={() => {
                             if (!currentUser?.email) {
-                              showMessage('Please log in first to purchase credits.', 'warning'); // UPDATED: Added warning type
+                              showMessage('Please log in first to purchase credits.', 'warning');
                               return;
                             }
                             initializePaystackPayment(currentUser.email, 3, 'One-Week Plan', selectedRegion);
@@ -2100,7 +2100,7 @@ return (
                           <button 
                             onClick={() => {
                               if (!currentUser?.email) {
-                                showMessage('Please log in first to purchase.', 'warning'); // UPDATED: Added warning type
+                                showMessage('Please log in first to purchase.', 'warning');
                                 return;
                               }
                               initializePaystackPayment(currentUser.email, 9.99, 'Monthly Plan', 'OTHER_AFRICA'); // Force USD
@@ -2189,7 +2189,7 @@ return (
                           <button 
                             onClick={() => {
                               if (!currentUser?.email) {
-                                showMessage('Please log in first to purchase.', 'warning'); // UPDATED: Added warning type
+                                showMessage('Please log in first to purchase.', 'warning');
                                 return;
                               }
                               initializePaystackPayment(currentUser.email, 99.99, 'Yearly Plan', 'OTHER_AFRICA'); // Force USD
@@ -2887,7 +2887,7 @@ return (
                     <button
                       onClick={() => {
                         if (!isPaidAIUser(userProfile)) {
-                          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.', 'error'); // UPDATED: Added error type
+                          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.', 'error');
                           return;
                         }
                         setCurrentView('ai_assistant');

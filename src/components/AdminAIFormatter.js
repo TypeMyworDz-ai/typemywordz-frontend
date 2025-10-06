@@ -99,22 +99,22 @@ const AdminAIFormatter = React.memo(({ showMessage }) => {
     navigator.clipboard.writeText(formattedOutput);
     setCopiedMessageVisible(true);
     setTimeout(() => setCopiedMessageVisible(false), 2000);
-    showMessage('✅ AI response copied to clipboard!');
+    showMessage('✅ AI response copied to clipboard!', 'success'); // Updated message type
   }, [formattedOutput, showMessage]);
 
   
   const handleAdminFormat = useCallback(async () => {
     if (profileLoading || !userProfile) {
-        showMessage('Loading user profile... Please wait.');
+        showMessage('Loading user profile... Please wait.', 'info'); // Updated message type
         return;
     }
     
     if (!transcriptInput) {
-      showMessage('Please paste a transcript to format.');
+      showMessage('Please paste a transcript to format.', 'warning'); // Updated message type
       return;
     }
     if (!formattingInstructions) {
-      showMessage('Please provide formatting instructions for the AI. ');
+      showMessage('Please provide formatting instructions for the AI. ', 'warning'); // Updated message type
       return;
     }
 
@@ -138,7 +138,7 @@ const AdminAIFormatter = React.memo(({ showMessage }) => {
         endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format-gemini`;
         defaultModel = 'models/gemini-pro-latest';
       } else {
-        showMessage('Invalid AI provider selected.');
+        showMessage('Invalid AI provider selected.', 'error'); // Updated message type
         setAILoading(false);
         return;
       }
@@ -156,11 +156,11 @@ const AdminAIFormatter = React.memo(({ showMessage }) => {
 
       const data = await response.json();
       setFormattedOutput(data.formatted_transcript);
-      showMessage('✅ Transcript formatted by AI successfully!');
+      showMessage('✅ Transcript formatted by AI successfully!', 'success'); // Updated message type
 
     } catch (error) {
       console.error('Admin AI Formatter Error:', error);
-      showMessage('❌ Admin AI Formatter failed: ' + error.message);
+      showMessage('❌ Admin AI Formatter failed: ' + error.message, 'error'); // Updated message type
     } finally {
       setAILoading(false);
     }
