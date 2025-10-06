@@ -8,7 +8,7 @@ import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
 import Signup from './components/Signup'; // NEW: Import Signup component
 import FeedbackModal from './components/FeedbackModal'; // NEW: Import FeedbackModal
-import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan } from './userService';
+import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan, saveFeedback } from './userService'; // FIX: Added saveFeedback
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 import PrivacyPolicy from './components/PrivacyPolicy';
@@ -149,7 +149,7 @@ function AppContent() {
 
   // NEW: Effect to fetch monthly revenue for Admin Dashboard
   useEffect(() => {
-    // Only fetch if user is admin and currentView is 'admin'
+    // Only fetch if user is admin and currentView === 'admin'
     if (isAdmin && currentView === 'admin') {
       const fetchRevenue = async () => {
         try {
@@ -1292,7 +1292,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
               color: '#000000', 
               fontSize: '1.1rem', 
               fontWeight: 'bold',
-              textShadow: '0 2px 4px rgba(255,255,255,0.8)',
+              textShadow: '0 1px 2px rgba(255,255,255,0.8)',
               marginLeft: '5px'
             }}>Claude</span>
             <span style={{ color: 'white', fontSize: '1.2rem', margin: '0 8px' }}>&amp;</span>
@@ -1955,7 +1955,7 @@ return (
                       <div style={{
                         backgroundColor: 'white',
                         padding: '30px 25px',
-                        borderRadius: '10px',
+                        borderRadius: '15px',
                         boxShadow: '0 8px 25px rgba(0,0,0,0.1)',
                         minWidth: '280px',
                         maxWidth: '320px',
