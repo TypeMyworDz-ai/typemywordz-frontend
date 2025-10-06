@@ -1,12 +1,10 @@
-// ================================================================================
-// frontend/src/components/AdminAIFormatter.js - COMPLETE UPDATED FILE
-// ================================================================================
+// src/components/AdminAIFormatter.js
 
 import React, { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext'; // Import useAuth to get userProfile
 
-// Ensure this URL matches your backend's base URL
-const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://web-production-5eab.up.railway.app';
+// FIX: Ensure this URL matches your backend's base URL
+const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app'; // Corrected URL
 
 // Define the default formatting instructions as a constant outside the component
 const DEFAULT_FORMATTING_INSTRUCTIONS = `STUDY THOSE GENERAL GUIDELINES AND USE THEM TO FORMAT THE TEXT I WILL GIVE YOU (Follow rule number 9. as it is):
@@ -35,7 +33,7 @@ const DEFAULT_FORMATTING_INSTRUCTIONS = `STUDY THOSE GENERAL GUIDELINES AND USE 
 
 12. Correct spelled words throughout the text and remove the spellings.
 
-13. If the word 'number' comes before a figure e.g., "Badge number 4035", format like this, "Badge No. 4035". Also, "I was number 10 in the competition", will be "I was No. 10 in the competition". Also, for ID, always format it as I.D.
+13. If the word 'number' comes before a figure e.g., "Badge number 4035" and "I was number 10 in the competition", format like this, "Badge No. 4035", "I was No. 10 in the competition". Also, for ID, always format it as I.D.
 
 14. We format quantifying numbers as words for numbers 10 and below, e.g., "two different things" but for anything signifying measurements we use figures, e.g., "2 hours" "2 meters": More examples; For numbers used for measurements, e.g., years, days, time, distances, et cetera, use figures not words, e.g., it should be 1 day, not one day, 2 hours not two hours, 5 years, not five years. We also type Number 4, Apartment 2, Apartment B, Page 5, et cetera. Note: Any number that is a quantifying number, e.g., two children, ten oranges, 11 apples, should be written like this: 1-10 in words, e.g., ten students. Numbers 11 and over should be typed in figures, e.g., 12 students.
 
@@ -170,7 +168,7 @@ const AdminAIFormatter = ({ showMessage }) => {
       return;
     }
     if (!formattingInstructions) {
-      showMessage('Please provide formatting instructions for the AI.');
+      showMessage('Please provide formatting instructions for the AI. ');
       return;
     }
 
