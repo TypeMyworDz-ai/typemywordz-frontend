@@ -4,7 +4,7 @@ import React, { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext'; // Import useAuth to get userProfile
 
 // FIX: Ensure this URL matches your backend's base URL
-const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app'; // Corrected URL
+const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app'; // Corrected URL to match App.js
 
 // Define the default formatting instructions as a constant outside the component
 const DEFAULT_FORMATTING_INSTRUCTIONS = `STUDY THOSE GENERAL GUIDELINES AND USE THEM TO FORMAT THE TEXT I WILL GIVE YOU (Follow rule number 9. as it is):
@@ -71,7 +71,7 @@ Client spellings: Word, word2, Word3, XX (abbreviation), Word4; My spellings: Na
 
 27. Do not start sentences with conjunctions 'And' and 'But', and instead of them, you can always expand the sentences but putting a comma before the conjuntions; e.g., "They were seen moving around Ohio, but mother denied this."
 
-27. Do not include YOUR summaries/notes/analysis or any kind of metainformation in the final formatted text.
+28. Do not include YOUR summaries/notes/analysis or any kind of metainformation in the final formatted text.
 `;
 
 // Helper function to determine if a user has access to AI features - REMOVED RESTRICTIONS
