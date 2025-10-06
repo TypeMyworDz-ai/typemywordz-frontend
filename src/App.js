@@ -1538,8 +1538,6 @@ return (
                 <span>Plan: Yearly Plan (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
               ) : userProfile && userProfile.plan === 'Monthly Plan' ? ( 
                 <span>Plan: Monthly Plan (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
-              ) : userProfile && userProfile.plan === 'One-Day Plan' ? (
-                <span>Plan: One-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
               ) : userProfile && userProfile.plan === 'Three-Day Plan' ? (
                 <span>Plan: Three-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
               ) : userProfile && userProfile.plan === 'One-Week Plan' ? (
@@ -2243,7 +2241,7 @@ return (
                             <li>✅ Unlimited transcription access</li>
                             <li>✅ High accuracy AI transcription</li>
                             <li>✅ Priority processing</li>
-                            <li>✅ Copy to clipboard feature</li>
+                            <li>✅ ✅ Copy to clipboard feature</li>
                             <li>✅ MS Word &amp; TXT downloads</li>
                             <li>✅ 365-day file storage</li>
                             <li>✅ Email support (yearly)</li>
@@ -2548,7 +2546,7 @@ return (
                             />
                             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
                               <button
-                                onClick={handleContinueResponse}
+                                onClick={handleContinueAIResponse}
                                 disabled={!continuePrompt.trim() || aiLoading}
                                 style={{
                                   padding: '8px 16px',
