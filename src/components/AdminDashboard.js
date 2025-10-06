@@ -2,22 +2,23 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchUserTranscriptions, deleteTranscription } from '../userService'; 
+import { fetchAllUsers, fetchUserTranscriptions, getMonthlyRevenue } from '../userService'; // Import fetchAllUsers and getMonthlyRevenue
 import { collection, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../firebase';
 // ADDED: Import AdminAIFormatter
 import AdminAIFormatter from './AdminAIFormatter';
 
-const AdminDashboard = ({ showMessage }) => { // Added showMessage prop
+const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue }) => { // Added showMessage and propMonthlyRevenue props
   const { currentUser } = useAuth();
   const [users, setUsers] = useState([]);
-  const [transcriptions, setTranscriptions] = useState([]);
+  const [transcriptions, setTranscriptions] = useState([]); // This state is not directly used for the table anymore, but kept for other potential uses
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview'); // Added activeTab state
   const [stats, setStats] = useState({
     totalUsers: 0,
-    totalRevenue: 0,
+    monthlyRevenue: 0, // Changed from totalRevenue to monthlyRevenue
     totalTranscriptions: 0,
+    totalMinutesTranscribed: 0, // NEW: Added for total minutes
     planDistribution: {},
     recentSignups: 0
   });
@@ -26,37 +27,55 @@ const AdminDashboard = ({ showMessage }) => { // Added showMessage prop
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
   const isAdmin = ADMIN_EMAILS.includes(currentUser?.email);
 
-  useEffect(() => {
-    if (isAdmin) {
-      fetchAdminData();
-    }
-  }, [isAdmin]);
-
-  const fetchAdminData = async () => {
+  const fetchAdminData = useCallback(async () => { // Made fetchAdminData a useCallback
     try {
       setLoading(true);
       
-      // Fetch all users
-      const usersRef = collection(db, 'users');
-      const usersSnapshot = await getDocs(usersRef);
-      const usersData = [];
-      usersSnapshot.forEach((doc) => {
-        usersData.push({ id: doc.id, ...doc.data() });
-      });
+      if (!currentUser || !currentUser.email) {
+        throw new Error("Admin user not identified.");
+      }
 
-      // Fetch all transcriptions
+      // Fetch all users using the new fetchAllUsers which includes aggregated transcription data
+      const usersData = await fetchAllUsers();
+      setUsers(usersData);
+
+      // Fetch all transcriptions (still useful for total count and duration for overview)
       const transcriptionsRef = collection(db, 'transcriptions');
       const transcriptionsSnapshot = await getDocs(transcriptionsRef);
       const transcriptionsData = [];
+      let totalDurationSeconds = 0;
       transcriptionsSnapshot.forEach((doc) => {
-        transcriptionsData.push({ id: doc.id, ...doc.data() });
+        const transcriptionData = doc.data();
+        transcriptionsData.push({ id: doc.id, ...transcriptionData });
+        totalDurationSeconds += transcriptionData.duration || 0;
       });
-
-      setUsers(usersData);
       setTranscriptions(transcriptionsData);
       
       // Calculate statistics
-      calculateStats(usersData, transcriptionsData);
+      const planDistribution = {};
+      let fetchedMonthlyRevenue = await getMonthlyRevenue(); // Fetch actual monthly revenue
+      let recentSignups = 0;
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+      usersData.forEach(user => {
+        // Plan distribution
+        planDistribution[user.plan] = (planDistribution[user.plan] || 0) + 1;
+        
+        // Recent signups (last 7 days)
+        if (user.createdAt && user.createdAt > oneWeekAgo) {
+          recentSignups++;
+        }
+      });
+
+      setStats({
+        totalUsers: usersData.length,
+        monthlyRevenue: fetchedMonthlyRevenue, // Use fetched monthly revenue
+        totalTranscriptions: transcriptionsData.length,
+        totalMinutesTranscribed: Math.round(totalDurationSeconds / 60), // Set total minutes
+        planDistribution,
+        recentSignups
+      });
       
     } catch (error) {
       console.error('Error fetching admin data:', error);
@@ -66,53 +85,33 @@ const AdminDashboard = ({ showMessage }) => { // Added showMessage prop
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser, showMessage]); // Added currentUser and showMessage to dependencies
 
-  const calculateStats = (usersData, transcriptionsData) => {
-    const planDistribution = {};
-    let totalRevenue = 0;
-    let recentSignups = 0;
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-    usersData.forEach(user => {
-      // Plan distribution
-      planDistribution[user.plan] = (planDistribution[user.plan] || 0) + 1;
-      
-      // Revenue calculation (assuming a simple model for now)
-      const planPrice = user.plan === 'business' ? 20 : 0;
-      totalRevenue += planPrice;
-      
-      // Recent signups (last 7 days)
-      if (user.createdAt && user.createdAt.toDate() > oneWeekAgo) {
-        recentSignups++;
-      }
-    });
-
-    setStats({
-      totalUsers: usersData.length,
-      totalRevenue: totalRevenue,
-      totalTranscriptions: transcriptionsData.length,
-      planDistribution,
-      recentSignups
-    });
-  };
+  useEffect(() => {
+    if (isAdmin) {
+      fetchAdminData();
+    }
+  }, [isAdmin, fetchAdminData]); // Added fetchAdminData to dependencies
 
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
-    return timestamp.toDate().toLocaleDateString();
+    // Ensure timestamp is a Date object
+    const date = timestamp instanceof Date ? timestamp : (timestamp.toDate ? timestamp.toDate() : new Date(timestamp));
+    return date.toLocaleDateString();
   };
 
   const exportUserData = () => {
     const csvContent = [
-      ['Email', 'Plan', 'Monthly Minutes', 'Total Minutes', 'Created At', 'Last Active'].join(','),
+      ['Email', 'Plan', 'Usage (mins)', 'Expires At', 'Total Minutes Transcribed', 'Total Transcripts', 'Joined', 'Last Active'].join(','), // UPDATED headers
       ...users.map(user => [
         user.email,
         user.plan,
-        user.monthlyMinutes || 0,
-        user.totalMinutes || 0,
+        user.totalMinutesUsed || 0, // Use totalMinutesUsed
+        user.expiresAt ? formatDate(user.expiresAt) : 'N/A', // NEW: Expires At
+        user.totalMinutesTranscribedByUser || 0, // NEW: Total Minutes Transcribed
+        user.totalTranscriptsByUser || 0, // NEW: Total Transcripts
         formatDate(user.createdAt),
-        formatDate(user.lastActive)
+        formatDate(user.lastAccessed) // Use lastAccessed
       ].join(','))
     ].join('\n');
 
@@ -135,7 +134,7 @@ const AdminDashboard = ({ showMessage }) => { // Added showMessage prop
       }}>
         <h2 style={{ color: '#dc3545' }}>⛔ Access Denied</h2>
         <p>You don't have permission to view the admin dashboard.</p>
-      </div>
+      </div >
     );
   }
 
@@ -170,7 +169,7 @@ const AdminDashboard = ({ showMessage }) => { // Added showMessage prop
             👑 TypeMyworDz Admin Dashboard
           </h1>
           <p style={{ color: '#666', margin: '0' }}>
-            Business Overview & User Management
+            Business Overview &amp; User Management
           </p>
         </header>
 
@@ -221,7 +220,7 @@ const AdminDashboard = ({ showMessage }) => { // Added showMessage prop
           >
             🤖 AI Formatter
           </button>
-        </div>
+        </div >
 
         {/* Overview Tab */}
         {activeTab === 'overview' && (
@@ -246,6 +245,7 @@ const AdminDashboard = ({ showMessage }) => { // Added showMessage prop
                 </p>
               </div>
 
+              {/* Monthly Revenue Card (UPDATED) */}
               <div style={{ 
                 backgroundColor: 'white', 
                 padding: '20px', 
@@ -255,7 +255,7 @@ const AdminDashboard = ({ showMessage }) => { // Added showMessage prop
               }}>
                 <h3 style={{ color: '#28a745', margin: '0 0 10px 0' }}>💰 Monthly Revenue</h3>
                 <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
-                  USD {stats.totalRevenue.toFixed(2)}
+                  USD {stats.monthlyRevenue.toFixed(2)}
                 </p>
               </div>
 
@@ -321,7 +321,6 @@ const AdminDashboard = ({ showMessage }) => { // Added showMessage prop
                   border: 'none',
                   borderRadius: '8px',
                   cursor: 'pointer',
-                  fontSize: '16px',
                   boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
                 }}
               >
@@ -346,8 +345,10 @@ const AdminDashboard = ({ showMessage }) => { // Added showMessage prop
                 <tr style={{ backgroundColor: '#f8f9fa' }}>
                   <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Email</th>
                   <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Plan</th>
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Usage</th>
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Total Minutes</th>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Usage (mins)</th> {/* UPDATED Header */}
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Expires At</th> {/* NEW Header */}
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Total Mins Transcribed</th> {/* NEW Header */}
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Total Transcripts</th> {/* NEW Header */}
                   <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Joined</th>
                   <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Last Active</th>
                 </tr>
@@ -385,30 +386,35 @@ const AdminDashboard = ({ showMessage }) => { // Added showMessage prop
                       </span>
                     </td>
                     <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
-                      {user.monthlyMinutes || 0} / {user.plan === 'business' ? 'Unlimited' : 30}
+                      {user.plan === 'free'
+                        ? `${user.totalMinutesUsed || 0} / 30`
+                        : 'Unlimited' // Paid plans have unlimited usage
+                      }
                     </td>
-                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
-                      {user.totalMinutes || 0}
+                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}> {/* NEW: Expires At column */}
+                      {user.expiresAt ? formatDate(user.expiresAt) : 'N/A'}
                     </td>
+                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>{user.totalMinutesTranscribedByUser || 0}</td> {/* NEW: Total Minutes Transcribed */}
+                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>{user.totalTranscriptsByUser || 0}</td> {/* NEW: Total Transcripts */}
                     <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
                       {formatDate(user.createdAt)}
                     </td>
                     <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
-                      {formatDate(user.lastActive)}
+                      {formatDate(user.lastAccessed)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </div >
         )}
 
         {/* AI Formatter Tab */}
         {activeTab === 'aiFormatter' && (
           <AdminAIFormatter showMessage={showMessage} />
         )}
-      </div>
-    </div>
+      </div >
+    </div >
   );
 };
 

@@ -1,9 +1,10 @@
 import { db } from './firebase';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore'; // Keep serverTimestamp just in case for other uses, but we'll manually set for this fix
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc, addDoc, runTransaction } from 'firebase/firestore'; // Keep serverTimestamp just in case for other uses, but we'll manually set for this fix
 
 const USERS_COLLECTION = 'users';
 const TRANSCRIPTIONS_COLLECTION = 'transcriptions'; // Top-level collection for all transcriptions
 const FEEDBACK_COLLECTION = 'feedback'; // NEW: New collection for feedback
+const ADMIN_STATS_DOC = 'admin_stats/current'; // NEW: Document to store admin statistics
 
 // Helper to get user profile document reference
 const getUserProfileRef = (uid) => doc(db, USERS_COLLECTION, uid);
@@ -44,6 +45,16 @@ export const createUserProfile = async (uid, email, name = '') => {
       // If they had any usage before, assume they've received their initial minutes
       updates.hasReceivedInitialFreeMinutes = (existingData.totalMinutesUsed || 0) > 0;
     }
+    if (existingData.plan === undefined) { // Ensure plan is set for older users
+      updates.plan = 'free';
+    }
+    if (existingData.expiresAt === undefined) { // Ensure expiresAt is set
+      updates.expiresAt = null;
+    }
+    if (existingData.subscriptionStartDate === undefined) { // Ensure subscriptionStartDate is set
+      updates.subscriptionStartDate = null;
+    }
+
 
     // Only update if there are actual changes (more than just lastAccessed)
     if (Object.keys(updates).length > 1 || (Object.keys(updates).length === 1 && updates.lastAccessed)) {
@@ -61,62 +72,62 @@ export const getUserProfile = async (uid) => {
     let profileData = docSnap.data();
     console.log("DEBUG: getUserProfile - Raw profileData from Firestore:", JSON.parse(JSON.stringify(profileData)));
 
+    // Ensure all date fields are Date objects
+    const convertToDate = (field) => {
+      if (profileData[field] && typeof profileData[field].toDate === 'function') {
+        return profileData[field].toDate();
+      } else if (profileData[field] && !(profileData[field] instanceof Date)) {
+        return new Date(profileData[field]);
+      }
+      return profileData[field]; // Already a Date or null
+    };
+
+    profileData.createdAt = convertToDate('createdAt');
+    profileData.lastAccessed = convertToDate('lastAccessed');
+    profileData.expiresAt = convertToDate('expiresAt');
+    profileData.subscriptionStartDate = convertToDate('subscriptionStartDate');
+
     // Initialize new fields if they don't exist (for existing users)
     profileData.totalMinutesUsed = typeof profileData.totalMinutesUsed === 'number' ? profileData.totalMinutesUsed : 0;
     profileData.hasReceivedInitialFreeMinutes = typeof profileData.hasReceivedInitialFreeMinutes === 'boolean' ? profileData.hasReceivedInitialFreeMinutes : false;
-
-    if (profileData.createdAt && typeof profileData.createdAt.toDate === 'function') {
-      profileData.createdAt = profileData.createdAt.toDate();
-    } else if (profileData.createdAt && !(profileData.createdAt instanceof Date)) { // Handle non-Firestore Timestamp dates
-      profileData.createdAt = new Date(profileData.createdAt);
-    }
-    if (profileData.lastAccessed && typeof profileData.lastAccessed.toDate === 'function') {
-      profileData.lastAccessed = profileData.lastAccessed.toDate();
-    } else if (profileData.lastAccessed && !(profileData.lastAccessed instanceof Date)) { // Handle non-Firestore Timestamp dates
-      profileData.lastAccessed = new Date(profileData.lastAccessed);
-    }
-    if (profileData.expiresAt && typeof profileData.expiresAt.toDate === 'function') {
-        profileData.expiresAt = profileData.expiresAt.toDate();
-    } else if (profileData.expiresAt && !(profileData.expiresAt instanceof Date)) { // Handle non-Firestore Timestamp dates
-      profileData.expiresAt = new Date(profileData.expiresAt);
-    }
-    if (profileData.subscriptionStartDate && typeof profileData.subscriptionStartDate.toDate === 'function') {
-        profileData.subscriptionStartDate = profileData.subscriptionStartDate.toDate();
-    } else if (profileData.subscriptionStartDate && !(profileData.subscriptionStartDate instanceof Date)) { // Handle non-Firestore Timestamp dates
-      profileData.subscriptionStartDate = new Date(profileData.subscriptionStartDate);
-    }
-
+    profileData.plan = profileData.plan || 'free'; // Ensure plan is never undefined
 
     const currentTime = new Date();
 
     // KEY FIX: Expiry logic for temporary paid plans (updated plan names)
-    // Also include new subscription plans here to ensure they don't expire if they are meant to be recurring
     const temporaryPlans = ['One-Day Plan', 'Three-Day Plan', 'One-Week Plan'];
-    const recurringPlans = ['Pro Monthly', 'Pro Yearly']; // NEW: Define recurring plans
+    const premiumPlans = ['Monthly Plan', 'Yearly Plan']; // NEW: Define premium plans (now one-time purchase with fixed duration)
 
+    // Handle expiry for temporary plans
     if (temporaryPlans.includes(profileData.plan) && profileData.expiresAt && profileData.expiresAt < currentTime) {
       console.log(`User ${uid} plan '${profileData.plan}' expired on ${profileData.expiresAt}. Downgrading to FREE.`);
       await updateDoc(userRef, {
         plan: 'free',
         expiresAt: null,
         subscriptionStartDate: null,
-        // CRITICAL FIX: User has already received their initial free minutes, so they get 0 minutes after expiry
+        totalMinutesUsed: 0, // Reset usage for expired plan type
         hasReceivedInitialFreeMinutes: true, // Mark as having received trial if plan expired
       });
       profileData = { ...profileData, plan: 'free', expiresAt: null, subscriptionStartDate: null, hasReceivedInitialFreeMinutes: true, totalMinutesUsed: 0 };
     }
-    // For recurring plans, ensure expiresAt is null if it somehow got set
-    else if (recurringPlans.includes(profileData.plan) && profileData.expiresAt !== null) {
-      console.log(`User ${uid} has recurring plan '${profileData.plan}' but expiresAt was set. Clearing expiresAt.`);
-      await updateDoc(userRef, { expiresAt: null });
-      profileData = { ...profileData, expiresAt: null };
+    // For Monthly/Yearly plans (now one-time purchases with fixed duration), they also have an expiry
+    else if (premiumPlans.includes(profileData.plan) && profileData.expiresAt && profileData.expiresAt < currentTime) {
+      console.log(`User ${uid} premium plan '${profileData.plan}' expired on ${profileData.expiresAt}. Downgrading to FREE.`);
+      await updateDoc(userRef, {
+        plan: 'free',
+        expiresAt: null,
+        subscriptionStartDate: null,
+        totalMinutesUsed: 0, // Reset usage for expired plan type
+        hasReceivedInitialFreeMinutes: true, // Mark as having received trial if plan expired
+      });
+      profileData = { ...profileData, plan: 'free', expiresAt: null, subscriptionStartDate: null, hasReceivedInitialFreeMinutes: true, totalMinutesUsed: 0 };
     }
     
     // Calculate remaining free minutes - KEY CHANGE: only 30 minutes if user hasn't received them yet
     if (profileData.plan === 'free' && !profileData.hasReceivedInitialFreeMinutes) {
       profileData.freeMinutesRemaining = Math.max(0, 30 - profileData.totalMinutesUsed);
     } else {
-      profileData.freeMinutesRemaining = 0; // No free minutes for users who already got their trial or expired users
+      profileData.freeMinutesRemaining = 0; // No free minutes for users who already got their trial or paid users
     }
 
     console.log("DEBUG: getUserProfile - Final profileData returned:", JSON.parse(JSON.stringify(profileData)));
@@ -134,40 +145,36 @@ export const updateUserPlan = async (uid, newPlan, referenceId = null) => {
     paystackReferenceId: referenceId, 
   };
   
-  let planDurationMinutes = 0; 
-  // Handle temporary plans with expiry
+  let planDurationDays = 0; 
+  const currentTime = new Date();
+
+  // Handle duration for all one-time purchase plans
   if (newPlan === 'One-Day Plan') {
-      planDurationMinutes = 1 * 24 * 60; // 1 day in minutes
+      planDurationDays = 1;
   } else if (newPlan === 'Three-Day Plan') {
-      planDurationMinutes = 3 * 24 * 60; // 3 days in minutes
+      planDurationDays = 3;
   } else if (newPlan === 'One-Week Plan') {
-      planDurationMinutes = 7 * 24 * 60; // 7 days in minutes
-  } 
-  // Handle recurring subscription plans: Pro Monthly and Pro Yearly
-  else if (newPlan === 'Pro Monthly' || newPlan === 'Pro Yearly') { // NEW: Handle new recurring plans
-      updates.expiresAt = null; // Recurring plans don't have a fixed expiry date
-      updates.subscriptionStartDate = new Date(); // Use concrete Date object
-      console.log(`updateUserPlan: User ${uid} subscribed to recurring plan '${newPlan}'. ExpiresAt set to null.`);
-  }
-  // Generic 'Pro' plan (if it still exists and is treated as recurring)
-  else if (newPlan === 'Pro') { 
-      updates.expiresAt = null; 
-      updates.subscriptionStartDate = new Date(); 
-      console.log(`updateUserPlan: Generic 'Pro' plan received for ${uid}. Treating as effectively unlimited.`);
+      planDurationDays = 7;
+  } else if (newPlan === 'Monthly Plan') { // NEW: Monthly Plan (one-time purchase for 30 days)
+      planDurationDays = 30;
+  } else if (newPlan === 'Yearly Plan') { // NEW: Yearly Plan (one-time purchase for 365 days)
+      planDurationDays = 365;
   }
 
-  // Set expiresAt for temporary plans only
-  if (planDurationMinutes > 0 && !['Pro Monthly', 'Pro Yearly'].includes(newPlan)) { // FIX: Ensure recurring plans don't get an expiry
-      updates.expiresAt = new Date(Date.now() + planDurationMinutes * 60 * 1000);
-      updates.subscriptionStartDate = new Date(); // Use concrete Date object
-      console.log(`User ${uid} ${newPlan} plan will expire on: ${updates.expiresAt}`);
-  } else if (newPlan === 'free') {
+  // Set expiresAt for all plans with a fixed duration
+  if (planDurationDays > 0) {
+      updates.expiresAt = new Date(currentTime.getTime() + planDurationDays * 24 * 60 * 60 * 1000);
+      updates.subscriptionStartDate = currentTime;
+      console.log(`updateUserPlan: User ${uid} ${newPlan} plan will expire on: ${updates.expiresAt}`);
+  } else { // For 'free' or unexpected plans, ensure expiry is null
       updates.expiresAt = null;
       updates.subscriptionStartDate = null;
   }
   
   // Mark hasReceivedInitialFreeMinutes as true upon any paid plan purchase
   updates.hasReceivedInitialFreeMinutes = true;
+  // Reset totalMinutesUsed for paid plans, as they get unlimited
+  updates.totalMinutesUsed = 0; 
 
   await updateDoc(userRef, updates);
   console.log(`User ${uid} plan updated to: ${newPlan}`);
@@ -199,15 +206,10 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds) => {
       return { canTranscribe: false, reason: 'profile_not_found' };
     }
 
-    // Check expiry for paid plans - now includes new recurring plans
-    const paidPlans = ['Pro Monthly', 'Pro Yearly', 'One-Day Plan', 'Three-Day Plan', 'One-Week Plan']; // NEW: Include new plans
-    if (paidPlans.includes(userProfile.plan)) {
-        // For recurring plans (Pro Monthly, Pro Yearly, or generic 'Pro'), they are always active
-        if (['Pro Monthly', 'Pro Yearly', 'Pro'].includes(userProfile.plan)) {
-            console.log(`✅ ${userProfile.plan} plan user - unlimited transcription. Allowing transcription.`);
-            return { canTranscribe: true, reason: 'pro_unlimited' };
-        }
-        // For temporary plans, check expiry date
+    // Check expiry for ALL paid plans (temporary and premium one-time purchases)
+    const allPaidPlans = ['One-Day Plan', 'Three-Day Plan', 'One-Week Plan', 'Monthly Plan', 'Yearly Plan'];
+    
+    if (allPaidPlans.includes(userProfile.plan)) {
         if (userProfile.expiresAt && userProfile.expiresAt > new Date()) {
             console.log(`✅ ${userProfile.plan} plan user - plan active. Allowing transcription.`);
             return { canTranscribe: true, reason: 'paid_plan_active' };
@@ -242,7 +244,7 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds) => {
       }
 
       // User can transcribe
-      console.log(`✅ Free plan user - ${estimatedDurationMinutes} minutes within ${remainingFreeMinutes} remaining. Allowing transcription.`);
+      console.log(`✅ Free plan user - ${estimatedDurationMinutes} minutes within ${remainingFreeMinutes} remaining. Allowing transcription. `);
       return { 
         canTranscribe: true, 
         reason: 'within_free_limit', 
@@ -284,8 +286,7 @@ export const updateUserUsage = async (uid, durationSeconds) => {
       lastAccessed: currentTime, // Use concrete Date object
     });
     console.log(`📊 User ${uid} (free plan): Updated totalMinutesUsed by ${durationMinutes} mins to ${newTotalMinutesUsed} mins. Remaining: ${Math.max(0, 30 - newTotalMinutesUsed)} mins.`);
-  } else {
-    // For paid plans or users who've used their trial, just update lastAccessed
+  } else if (userProfile.plan !== 'free') { // For paid plans, just update lastAccessed
     await updateDoc(userRef, {
       lastAccessed: currentTime, // Use concrete Date object
     });
@@ -343,6 +344,30 @@ export const fetchUserTranscriptions = async (uid) => {
   return transcriptions;
 };
 
+// NEW: Fetch all transcriptions for admin dashboard
+export const fetchAllTranscriptions = async () => {
+  const transcriptionsCollectionRef = collection(db, TRANSCRIPTIONS_COLLECTION);
+  const q = query(transcriptionsCollectionRef, orderBy("createdAt", "desc"));
+  const querySnapshot = await getDocs(q);
+  const allTranscriptions = {}; // Object to store aggregated data by userId
+  
+  querySnapshot.forEach((document) => {
+    const data = document.data();
+    const userId = data.userId;
+
+    if (!allTranscriptions[userId]) {
+      allTranscriptions[userId] = {
+        totalMinutesTranscribed: 0,
+        totalTranscripts: 0
+      };
+    }
+    allTranscriptions[userId].totalMinutesTranscribed += Math.ceil((data.duration || 0) / 60);
+    allTranscriptions[userId].totalTranscripts += 1;
+  });
+  return allTranscriptions; // Returns an object where keys are userIds and values are aggregated stats
+};
+
+
 // Update a specific transcription (UPDATED to work with top-level collection)
 export const updateTranscription = async (uid, transcriptionId, newData) => {
   // Directly reference the document in the top-level 'transcriptions' collection
@@ -369,4 +394,74 @@ export const saveFeedback = async (name, email, feedbackText) => {
     createdAt: new Date(),
   });
   console.log("Feedback saved to Firestore.");
+};
+
+// NEW: Update Monthly Revenue (called by backend webhook)
+export const updateMonthlyRevenue = async (amount) => {
+  const adminStatsRef = doc(db, ADMIN_STATS_DOC);
+  
+  try {
+    await runTransaction(db, async (transaction) => {
+      const adminStatsDoc = await transaction.get(adminStatsRef);
+      let currentMonthlyRevenue = 0;
+      if (adminStatsDoc.exists()) {
+        currentMonthlyRevenue = adminStatsDoc.data().monthlyRevenue || 0;
+      }
+      const newMonthlyRevenue = currentMonthlyRevenue + amount;
+      transaction.set(adminStatsRef, { monthlyRevenue: newMonthlyRevenue, lastUpdated: new Date() }, { merge: true });
+      console.log(`📊 Monthly Revenue updated by ${amount} to ${newMonthlyRevenue}`);
+    });
+    return { success: true };
+  } catch (e) {
+    console.error("Error updating monthly revenue:", e);
+    return { success: false, error: e.message };
+  }
+};
+
+// NEW: Get Monthly Revenue for Admin Dashboard
+export const getMonthlyRevenue = async () => {
+  const adminStatsRef = doc(db, ADMIN_STATS_DOC);
+  try {
+    const docSnap = await getDoc(adminStatsRef);
+    if (docSnap.exists()) {
+      return docSnap.data().monthlyRevenue || 0;
+    }
+    return 0; // Default if document doesn't exist
+  } catch (e) {
+    console.error("Error fetching monthly revenue:", e);
+    return 0;
+  }
+};
+
+// NEW: Fetch all users with their aggregated transcription data
+export const fetchAllUsers = async () => {
+  const usersRef = collection(db, USERS_COLLECTION);
+  const usersSnapshot = await getDocs(usersRef);
+  const usersData = [];
+
+  const allTranscriptions = await fetchAllTranscriptions(); // Fetch aggregated transcription data
+
+  usersSnapshot.forEach((doc) => {
+    const userData = doc.data();
+    // Ensure createdAt is a Date object for sorting/filtering
+    if (userData.createdAt && typeof userData.createdAt.toDate === 'function') {
+      userData.createdAt = userData.createdAt.toDate();
+    } else if (userData.createdAt && !(userData.createdAt instanceof Date)) {
+      userData.createdAt = new Date(userData.createdAt);
+    }
+    // Also ensure totalMinutesUsed and hasReceivedInitialFreeMinutes are present
+    userData.totalMinutesUsed = typeof userData.totalMinutesUsed === 'number' ? userData.totalMinutesUsed : 0;
+    userData.hasReceivedInitialFreeMinutes = typeof userData.hasReceivedInitialFreeMinutes === 'boolean' ? userData.hasReceivedInitialFreeMinutes : false;
+    
+    // Augment user data with transcription stats
+    const userTranscriptionStats = allTranscriptions[userData.uid] || { totalMinutesTranscribed: 0, totalTranscripts: 0 };
+    
+    usersData.push({ 
+      id: doc.id, 
+      ...userData,
+      totalMinutesTranscribedByUser: userTranscriptionStats.totalMinutesTranscribed,
+      totalTranscriptsByUser: userTranscriptionStats.totalTranscripts
+    });
+  });
+  return usersData;
 };

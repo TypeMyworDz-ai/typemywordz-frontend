@@ -8,7 +8,7 @@ import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
 import Signup from './components/Signup'; // NEW: Import Signup component
 import FeedbackModal from './components/FeedbackModal'; // NEW: Import FeedbackModal
-import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan, saveFeedback } from './userService'; // NEW: Import saveFeedback
+import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan, saveFeedback, getMonthlyRevenue } from './userService'; // UPDATED: Added getMonthlyRevenue
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 import PrivacyPolicy from './components/PrivacyPolicy';
@@ -111,6 +111,9 @@ function AppContent() {
     'monthly': { amount: 9.99, currency: 'USD' }, // NEW: Monthly Plan
     'yearly': { amount: 99.99, currency: 'USD' } // NEW: Yearly Plan
   });
+  
+  // NEW: State for revenue in Admin Dashboard
+  const [monthlyRevenue, setMonthlyRevenue] = useState(0);
 
   // AI Assistant states
   const [userPrompt, setUserPrompt] = useState('');
@@ -150,6 +153,29 @@ function AppContent() {
 
   // --- Menu State & Functions (React-managed) ---
   const [openSubmenu, setOpenSubmenu] = useState(null); // Tracks which submenu is open
+
+  // NEW: Effect to fetch monthly revenue for Admin Dashboard
+  useEffect(() => {
+    // Only fetch if user is admin and currentView is 'admin'
+    if (isAdmin && currentView === 'admin') {
+      const fetchRevenue = async () => {
+        try {
+          const revenue = await getMonthlyRevenue();
+          setMonthlyRevenue(revenue);
+        } catch (error) {
+          console.error('Error fetching monthly revenue:', error);
+          showMessage('Failed to fetch revenue data');
+        }
+      };
+      
+      fetchRevenue();
+      
+      // Refresh revenue data every 5 minutes when admin dashboard is open
+      const revenueInterval = setInterval(fetchRevenue, 5 * 60 * 1000);
+      
+      return () => clearInterval(revenueInterval);
+    }
+  }, [isAdmin, currentView, showMessage]);
 
   const handleToggleSubmenu = useCallback((submenuId) => {
     setOpenSubmenu(prev => (prev === submenuId ? null : submenuId));
@@ -194,7 +220,8 @@ function AppContent() {
           plan_name: planName,
           user_id: currentUser.uid,
           country_code: actualCountryCode, // Use the potentially overridden country code
-          callback_url: `${window.location.origin}/?payment=success`
+          callback_url: `${window.location.origin}/?payment=success`,
+          update_admin_revenue: true // NEW: Flag to update admin revenue stats
         })
       });
 
@@ -230,7 +257,10 @@ function AppContent() {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ reference }),
+          body: JSON.stringify({ 
+            reference,
+            update_admin_revenue: true // NEW: Flag to update admin revenue stats
+          }),
         });
         
         const data = await response.json();
@@ -240,6 +270,16 @@ function AppContent() {
           // FIX: Pass correct plan name to updateUserPlan
           await updateUserPlan(currentUser.uid, data.data.plan, reference); 
           await refreshUserProfile();
+          
+          // If user is admin, update the revenue display
+          if (isAdmin) {
+            try {
+              const revenue = await getMonthlyRevenue();
+              setMonthlyRevenue(revenue);
+            } catch (error) {
+              console.error('Error updating revenue after payment:', error);
+            }
+          }
           
           showMessage(`🎉 Payment successful! ${data.data.plan} activated.`);
           setCurrentView('transcribe');
@@ -255,7 +295,7 @@ function AppContent() {
     } else if (paymentStatus === 'success') {
       showMessage('Payment completed! Please wait for verification...');
     }
-  }, [currentUser, showMessage, refreshUserProfile, setCurrentView, RAILWAY_BACKEND_URL]);
+  }, [currentUser, showMessage, refreshUserProfile, setCurrentView, RAILWAY_BACKEND_URL, isAdmin]); // Added isAdmin dependency
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -541,8 +581,15 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     
     console.log('DIAGNOSTIC: Before updateUserUsage - userProfile.totalMinutesUsed:', userProfile?.totalMinutesUsed);
     console.log('DIAGNOSTIC: Estimated duration for this transcription: ', estimatedDuration);
-
-    await updateUserUsage(currentUser.uid, estimatedDuration);
+    
+    // Skip usage tracking for paid plans
+    if (userProfile && userProfile.plan && userProfile.plan !== 'free') {
+        console.log('DIAGNOSTIC: User has paid plan, skipping usage tracking');
+    } else {
+        // Only update usage for free users
+        await updateUserUsage(currentUser.uid, estimatedDuration);
+        console.log('DIAGNOSTIC: Usage updated for free user');
+    }
     
     console.log('DEBUG: Attempting to save transcription...');
     console.log('DEBUG: saveTranscription arguments:');
@@ -808,6 +855,12 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     formData.append('speaker_labels_enabled', speakerLabelsEnabled);
     formData.append('user_plan', userProfile?.plan || 'free');
     formData.append('user_email', currentUser?.email || ''); // ADDED: Send user email to backend
+    // NEW: Send user's free minutes remaining for accurate backend checks
+    if (userProfile && userProfile.plan === 'free') {
+      const freeMinutesRemaining = Math.max(0, 30 - (userProfile.totalMinutesUsed || 0));
+      formData.append('free_minutes_remaining', freeMinutesRemaining.toString());
+      formData.append('has_received_initial_free_minutes', userProfile.hasReceivedInitialFreeMinutes ? 'true' : 'false');
+    }
 
     try {
       console.log(`🎯 DEBUG: Using unified transcription endpoint: ${RAILWAY_BACKEND_URL}/transcribe`);
@@ -850,7 +903,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       setIsUploading(false);
     }
 
-  }, [selectedFile, audioDuration, currentUser?.uid, currentUser?.email, showMessage, setCurrentView, resetTranscriptionProcessUI, handleTranscriptionComplete, userProfile, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, checkJobStatus]);
+  }, [selectedFile, audioDuration, currentUser?.uid, currentUser?.email, showMessage, setCurrentView, resetTranscriptionProcessUI, userProfile, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, checkJobStatus]);
 
   // Copy to clipboard (now triggers CopiedNotification)
   const copyToClipboard = useCallback(() => { 
@@ -1326,8 +1379,8 @@ return (
       </>
     } />
     {/* NEW: Route for Signup component */}
-    {/* FIXED: Passing showMessage prop to AdminDashboard */}
-    <Route path="/admin" element={isAdmin ? <AdminDashboard showMessage={showMessage} /> : <Navigate to="/" />} />
+    {/* FIXED: Passing showMessage and monthlyRevenue props to AdminDashboard */}
+    <Route path="/admin" element={isAdmin ? <AdminDashboard showMessage={showMessage} monthlyRevenue={monthlyRevenue} /> : <Navigate to="/" />} />
     
     <Route path="/" element={
       <div style={{ 
@@ -1476,8 +1529,10 @@ return (
                 <span>Plan: Three-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
               ) : userProfile && userProfile.plan === 'One-Week Plan' ? (
                 <span>Plan: One-Week Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
-              ) : userProfile && userProfile.plan === 'free' ? (
+              ) : userProfile && userProfile.plan === 'free' && !userProfile.hasReceivedInitialFreeMinutes ? ( // FIX: Only show remaining if initial minutes not used
                 <span>Plan: Free Trial ({Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining)</span>
+              ) : userProfile && userProfile.plan === 'free' && userProfile.hasReceivedInitialFreeMinutes ? ( // FIX: Show used if initial minutes used
+                <span>Plan: Free Trial (Used - Upgrade for Transcription)</span>
               ) : (
                 <span>Plan: Free (Recording Only - Upgrade for Transcription)</span>
               )}
@@ -2233,7 +2288,7 @@ return (
             </div>
           </>
         ) : currentView === 'admin' ? (
-          <AdminDashboard showMessage={showMessage} />
+          <AdminDashboard showMessage={showMessage} monthlyRevenue={monthlyRevenue} />
         ) : currentView === 'ai_assistant' ? (
             <div style={{
               flex: 1,
@@ -2540,7 +2595,7 @@ return (
                   backdropFilter: 'blur(10px)',
                   border: '1px solid #ffecb3' 
                 }}>
-                  {userProfile.totalMinutesUsed < 30 ? (
+                  {userProfile.totalMinutesUsed < 30 && !userProfile.hasReceivedInitialFreeMinutes ? ( // FIX: Only show remaining if initial minutes not used
                     <>
                       <strong>Free Trial:</strong> {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining!{' '}
                       <button 
@@ -2557,9 +2612,9 @@ return (
                         Upgrade for unlimited
                       </button>
                     </>
-                  ) : (
+                  ) : ( // FIX: Show used if initial minutes used, and remove the minute count
                     <>
-                      🎵 Your free trial has ended. You have {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining!{' '}
+                      🎵 Your free trial has ended. Please{' '}
                       <button 
                         onClick={() => setCurrentView('pricing')}
                         style={{
@@ -2607,7 +2662,7 @@ return (
                     <div style={{
                       color: '#e17055',
                       fontSize: '18px',
-                      marginBottom: '15px',
+                      marginBottom: '10px',
                       fontWeight: 'bold'
                     }}>
                       🔴 Recording: {formatTime(recordingTime)}
