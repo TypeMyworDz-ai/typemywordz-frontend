@@ -39,7 +39,7 @@ const DEFAULT_FORMATTING_INSTRUCTIONS = `STUDY THOSE GENERAL GUIDELINES AND USE 
 
 15. Only put dots on abbreviations if they are dictated/spelled out in the original text.
 
-16. % should be written in words, e.g., 60 percent, 1 percent.
+16. % should be written in words, e.g., 60 percent, 1 percent, unless instruted otherwise.
 
 17. Do not add dots in abbreviations unless instructed to do so. If the dots are in the original text, remove them, e.g., "S.W should be written as "SW".
 
@@ -68,6 +68,8 @@ So it should look like this:
 Client spellings: Word, word2, Word3, XX (abbreviation), Word4; My spellings: Name, Name, Name; I searched: Wawanesa Insurance Company.
 
 26. Always search ONLINE to confirm proper nouns. E.g., if the original text has "Cisco" but you can use context to tell that the dictation is talking about Sysco the food company, you will have to change the "Cisco" to "Sysco". Similarly, do an internet search to confirm that words or phrases are correctly spelled out and capitalized the way they should.
+
+27. Do not start sentences with conjunctions 'And' and 'But', and instead of them, you can always expand the sentences but putting a comma before the conjuntions; e.g., "They were seen moving around Ohio, but mother denied this."
 
 27. Do not include YOUR summaries/notes/analysis or any kind of metainformation in the final formatted text.
 `;
