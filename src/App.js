@@ -8,7 +8,7 @@ import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
 import Signup from './components/Signup'; // NEW: Import Signup component
 import FeedbackModal from './components/FeedbackModal'; // NEW: Import FeedbackModal
-import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan, saveFeedback, getMonthlyRevenue } from './userService'; // UPDATED: Added getMonthlyRevenue
+import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan, saveFeedback } from './userService'; // UPDATED: Removed getMonthlyRevenue from here, it's fetched directly in App.js now
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 import PrivacyPolicy from './components/PrivacyPolicy';
@@ -105,7 +105,7 @@ function AppContent() {
   const [pricingView, setPricingView] = useState('credits'); // 'credits' for one-time, 'subscription' for recurring (now also one-time)
   const [selectedRegion, setSelectedRegion] = useState('KE'); // Default to Kenya
   const [convertedAmounts, setConvertedAmounts] = useState({ 
-    'oneday': { amount: 0.1, currency: 'USD' }, 
+    'oneday': { amount: 1.00, currency: 'USD' }, 
     'threeday': { amount: 2.00, currency: 'USD' },
     'oneweek': { amount: 3.00, currency: 'USD' },
     'monthly': { amount: 9.99, currency: 'USD' }, // NEW: Monthly Plan
@@ -128,12 +128,11 @@ function AppContent() {
     "List all questions asked and their answers, if present.",
     "Identify the main topics discussed.",
     "Generate a concise executive summary.",
-    "Translate this transcript into Spanish."
+    "Translate this transcript into Spanish.",
   ]);
   
   // NEW: States for continue functionality
-  const [showContinueBox, setShowContinueBox] = useState(false);
-  const [continuePrompt, setContinuePrompt] = useState('');
+  // REMOVED: showContinueBox and continuePrompt states as per user request
   
   // Refs
   const mediaRecorderRef = useRef(null);
@@ -163,8 +162,12 @@ function AppContent() {
     if (isAdmin && currentView === 'admin') {
       const fetchRevenue = async () => {
         try {
-          const revenue = await getMonthlyRevenue();
-          setMonthlyRevenue(revenue);
+          const response = await fetch(`${RAILWAY_BACKEND_URL}/api/admin/monthly-revenue`); // Call new backend endpoint
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const data = await response.json();
+          setMonthlyRevenue(data.monthlyRevenue);
         } catch (error) {
           console.error('Error fetching monthly revenue:', error);
           showMessage('Failed to fetch revenue data');
@@ -178,7 +181,7 @@ function AppContent() {
       
       return () => clearInterval(revenueInterval);
     }
-  }, [isAdmin, currentView, showMessage]);
+  }, [isAdmin, currentView, showMessage, RAILWAY_BACKEND_URL]); // Added RAILWAY_BACKEND_URL to dependencies
 
   const handleToggleSubmenu = useCallback((submenuId) => {
     setOpenSubmenu(prev => (prev === submenuId ? null : submenuId));
@@ -278,8 +281,12 @@ function AppContent() {
             
             if (isAdmin) {
               try {
-                const revenue = await getMonthlyRevenue();
-                setMonthlyRevenue(revenue);
+                const response = await fetch(`${RAILWAY_BACKEND_URL}/api/admin/monthly-revenue`); // Call new backend endpoint
+                if (!response.ok) {
+                  throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const revenueData = await response.json();
+                setMonthlyRevenue(revenueData.monthlyRevenue);
               } catch (error) {
                 console.error('Error updating revenue after payment:', error);
               }
@@ -1110,7 +1117,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
           const data = await response.json();
           setAIResponse(data.ai_response || data.formatted_transcript); 
-          setShowContinueBox(true); 
+          // REMOVED: setShowContinueBox(true); as per user request
           showMessage('✨ AI response generated successfully!');
 
       } catch (error) {
@@ -1122,62 +1129,8 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   }, [latestTranscription, userPrompt, userProfile, showMessage, RAILWAY_BACKEND_URL, selectedAIProvider]);
 
   // NEW: Function to handle continue AI response
-  const handleContinueAIResponse = useCallback(async () => {
-    if (!continuePrompt.trim()) {
-      showMessage('Please enter instructions for continuing the response.');
-      return;
-    }
-
-    setAILoading(true);
-    
-    try {
-      const formData = new FormData();
-      formData.append('transcript', latestTranscription + '\n\nPrevious AI Response:\n' + aiResponse);
-      formData.append('user_prompt', continuePrompt);
-      formData.append('max_tokens', '4096'); 
-      formData.append('user_plan', userProfile?.plan || 'free');
-
-      let endpoint = '';
-      let modelToUse = '';
-
-      if (selectedAIProvider === 'claude') {
-        endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query`;
-        modelToUse = 'claude-3-haiku-20240307'; 
-      } else if (selectedAIProvider === 'gemini') {
-        endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query-gemini`;
-        modelToUse = 'models/gemini-pro-latest';
-      } else {
-        showMessage('Invalid AI provider selected.');
-        setAILoading(false);
-        return;
-      }
-      
-      formData.append('model', modelToUse);
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `Backend error: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      setAIResponse(aiResponse + '\n\n' + (data.ai_response || data.formatted_transcript));
-      setContinuePrompt('');
-      setShowContinueBox(false);
-      showMessage('✅ Response continued successfully!');
-
-    } catch (error) {
-      console.error('Continue AI Response Error:', error);
-      showMessage('❌ Failed to continue response: ' + error.message + '. If using Gemini, try Claude for sensitive content.');
-    } finally {
-      setAILoading(false);
-    }
-  }, [continuePrompt, latestTranscription, aiResponse, userProfile, selectedAIProvider, showMessage, RAILWAY_BACKEND_URL]);
-
+  // REMOVED: handleContinueAIResponse as per user request to remove 'continue response' text box
+  
   // Function to handle predefined prompt click
   const handlePredefinedPromptClick = useCallback((prompt) => {
     setUserPrompt(prompt);
@@ -1254,7 +1207,8 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       
       // Option 1: Copy to clipboard
       navigator.clipboard.writeText(fallbackText)
-        .then(() => showMessage('🔗 Link copied to clipboard!'))
+        .then(() => setCopiedMessageVisible(true)) // Use copied message
+        .then(() => setTimeout(() => setCopiedMessageVisible(false), 2000)) // Hide after 2 seconds
         .catch(() => showMessage('❌ Failed to copy link.'));
 
       // Option 2: Open email client (less direct interaction)
@@ -1538,10 +1492,12 @@ return (
                 <span>Plan: Yearly Plan (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
               ) : userProfile && userProfile.plan === 'Monthly Plan' ? ( 
                 <span>Plan: Monthly Plan (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
-              ) : userProfile && userProfile.plan === 'Three-Day Plan' ? (
-                <span>Plan: Three-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
-              ) : userProfile && userProfile.plan === 'One-Week Plan' ? (
+              ) : userProfile && userProfile.plan === 'One-Week Plan' ? ( // NEW: One-Week Plan
                 <span>Plan: One-Week Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
+              ) : userProfile && userProfile.plan === 'Three-Day Plan' ? ( // NEW: Three-Day Plan
+                <span>Plan: Three-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
+              ) : userProfile && userProfile.plan === 'One-Day Plan' ? ( // NEW: One-Day Plan
+                <span>Plan: One-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
               ) : userProfile && userProfile.plan === 'free' && !userProfile.hasReceivedInitialFreeMinutes ? ( // FIX: Only show remaining if initial minutes not used
                 <span>Plan: Free Trial ({Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining)</span>
               ) : userProfile && userProfile.plan === 'free' && userProfile.hasReceivedInitialFreeMinutes ? ( // FIX: Show used if initial minutes used
@@ -2451,7 +2407,7 @@ return (
                         {aiLoading ? 'Processing...' : `✨ Get AI Response with ${selectedAIProvider === 'claude' ? 'Claude' : 'Gemini'}`}
                     </button>
                     <button
-                        onClick={() => { setLatestTranscription(''); setUserPrompt(''); setAIResponse(''); setShowContinueBox(false); }}
+                        onClick={() => { setLatestTranscription(''); setUserPrompt(''); setAIResponse(''); /* REMOVED: setShowContinueBox(false); */ }}
                         disabled={!isPaidAIUser(userProfile)}
                         style={{
                             padding: '12px 25px',
@@ -2526,57 +2482,7 @@ return (
                           </button>
                         </div>
                         
-                        {/* NEW: Continue text area when AI doesn't finish responding */}
-                        {showContinueBox && (
-                          <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '10px', border: '1px solid #dee2e6' }}>
-                            <h4 style={{ color: '#6c5ce7', marginBottom: '10px' }}>Continue Response:</h4>
-                            <textarea
-                              value={continuePrompt}
-                              onChange={(e) => setContinuePrompt(e.target.value)}
-                              placeholder="Tell the AI how to continue or finish its response..."
-                              rows="3"
-                              style={{
-                                width: '100%',
-                                padding: '10px',
-                                borderRadius: '5px',
-                                border: '1px solid #ddd',
-                                fontSize: '0.9rem',
-                                marginBottom: '10px'
-                              }}
-                            />
-                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                              <button
-                                onClick={handleContinueAIResponse}
-                                disabled={!continuePrompt.trim() || aiLoading}
-                                style={{
-                                  padding: '8px 16px',
-                                  backgroundColor: (!continuePrompt.trim() || aiLoading) ? '#a0a0a0' : '#28a745',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '5px',
-                                  cursor: (!continuePrompt.trim() || aiLoading) ? 'not-allowed' : 'pointer',
-                                  fontSize: '0.9rem'
-                                }}
-                              >
-                                {aiLoading ? 'Continuing...' : '➡️ Continue Response'}
-                              </button>
-                              <button
-                                onClick={() => { setShowContinueBox(false); setContinuePrompt(''); }}
-                                style={{
-                                  padding: '8px 16px',
-                                  backgroundColor: '#6c757d',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '5px',
-                                  cursor: 'pointer',
-                                  fontSize: '0.9rem'
-                                }}
-                              >
-                                ❌ Cancel
-                              </button>
-                            </div>
-                          </div>
-                        )}
+                        {/* REMOVED: Continue text area when AI doesn't finish responding as per user request */}
                     </div>
                 )}
             </div>
@@ -3052,6 +2958,7 @@ return (
                     borderRadius: '10px',
                     textAlign: 'left',
                     lineHeight: '1.6',
+                    whiteSpace: 'pre-wrap',
                     border: '1px solid #dee2e6'
                   }}>
                     <div dangerouslySetInnerHTML={{ __html: transcription.replace(/\n/g, '<br>') }} />
