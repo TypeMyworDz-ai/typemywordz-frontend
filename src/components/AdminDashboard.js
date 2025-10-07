@@ -7,6 +7,8 @@ import { collection, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../firebase';
 // ADDED: Import AdminAIFormatter
 import AdminAIFormatter from './AdminAIFormatter';
+// NEW: Import AdminRevenue component
+import AdminRevenue from './AdminRevenue';
 
 const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue }) => { // Added showMessage and propMonthlyRevenue props
   const { currentUser } = useAuth();
@@ -16,7 +18,7 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue }) => 
   const [activeTab, setActiveTab] = useState('overview'); // Added activeTab state
   const [stats, setStats] = useState({
     totalUsers: 0,
-    monthlyRevenue: 0, // Changed from totalRevenue to monthlyRevenue
+    // REMOVED: monthlyRevenue: 0, // Removed from stats as it has its own dedicated tab
     totalTranscriptions: 0,
     totalMinutesTranscribed: 0, // NEW: Added for total minutes
     planDistribution: {},
@@ -53,7 +55,7 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue }) => 
       
       // Calculate statistics
       const planDistribution = {};
-      let fetchedMonthlyRevenue = await getMonthlyRevenue(); // Fetch actual monthly revenue
+      // REMOVED: fetchedMonthlyRevenue as it's now handled by the AdminRevenue component
       let recentSignups = 0;
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
@@ -63,14 +65,19 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue }) => 
         planDistribution[user.plan] = (planDistribution[user.plan] || 0) + 1;
         
         // Recent signups (last 7 days)
-        if (user.createdAt && user.createdAt > oneWeekAgo) {
+        if (user.createdAt && user.createdAt.toDate) { // Check if it's a Firestore Timestamp
+          const userCreatedAt = user.createdAt.toDate();
+          if (userCreatedAt > oneWeekAgo) {
+            recentSignups++;
+          }
+        } else if (user.createdAt && new Date(user.createdAt) > oneWeekAgo) { // Fallback for plain Date strings
           recentSignups++;
         }
       });
 
       setStats({
         totalUsers: usersData.length,
-        monthlyRevenue: fetchedMonthlyRevenue, // Use fetched monthly revenue
+        // REMOVED: monthlyRevenue: fetchedMonthlyRevenue, // Removed from stats
         totalTranscriptions: transcriptionsData.length,
         totalMinutesTranscribed: Math.round(totalDurationSeconds / 60), // Set total minutes
         planDistribution,
@@ -80,7 +87,7 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue }) => 
     } catch (error) {
       console.error('Error fetching admin data:', error);
       if (showMessage) {
-        showMessage('Error loading admin data: ' + error.message);
+        showMessage('Error loading admin data: ' + error.message, 'error'); // Changed message type
       }
     } finally {
       setLoading(false);
@@ -134,7 +141,7 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue }) => 
       }}>
         <h2 style={{ color: '#dc3545' }}>⛔ Access Denied</h2>
         <p>You don't have permission to view the admin dashboard.</p>
-      </div >
+      </div> 
     );
   }
 
@@ -156,7 +163,7 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue }) => 
       minHeight: '100vh',
       padding: '20px'
     }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto' }} >
         <header style={{ 
           textAlign: 'center', 
           marginBottom: '30px',
@@ -220,7 +227,23 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue }) => 
           >
             🤖 AI Formatter
           </button>
-        </div >
+          {/* NEW: Revenue Tab */}
+          <button
+            onClick={() => setActiveTab('revenue')}
+            style={{
+              padding: '10px 20px',
+              margin: '0 10px',
+              backgroundColor: activeTab === 'revenue' ? '#28a745' : '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '20px',
+              cursor: 'pointer',
+              fontSize: '1rem'
+            }}
+          >
+            💰 Revenue
+          </button>
+        </div>
 
         {/* Overview Tab */}
         {activeTab === 'overview' && (
@@ -245,7 +268,8 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue }) => 
                 </p>
               </div>
 
-              {/* Monthly Revenue Card (UPDATED) */}
+              {/* REMOVED: Monthly Revenue Card as it has its own dedicated tab */}
+              {/*
               <div style={{ 
                 backgroundColor: 'white', 
                 padding: '20px', 
@@ -258,6 +282,7 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue }) => 
                   USD {stats.monthlyRevenue.toFixed(2)}
                 </p>
               </div>
+              */}
 
               <div style={{ 
                 backgroundColor: 'white', 
@@ -279,7 +304,7 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue }) => 
                 boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
                 textAlign: 'center'
               }}>
-                <h3 style={{ color: '#ffc107', margin: '0 0 10px 0' }}>🆕 New Users (7 days)</h3>
+                <h3 style={{ color: '#ffc107', margin: '0 0 10px 0' }} >🆕 New Users (7 days)</h3>
                 <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
                   {stats.recentSignups}
                 </p>
@@ -406,15 +431,20 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue }) => 
                 ))}
               </tbody>
             </table>
-          </div >
+          </div> 
         )}
 
         {/* AI Formatter Tab */}
         {activeTab === 'aiFormatter' && (
           <AdminAIFormatter showMessage={showMessage} />
         )}
-      </div >
-    </div >
+
+        {/* NEW: Revenue Tab */}
+        {activeTab === 'revenue' && (
+          <AdminRevenue showMessage={showMessage} />
+        )}
+      </div> 
+    </div> 
   );
 };
 

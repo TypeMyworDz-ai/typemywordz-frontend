@@ -113,20 +113,13 @@ function AppContent() {
   const [monthlyRevenue, setMonthlyRevenue] = useState(0);
 
   // AI Assistant states
-  const [userPrompt, setUserPrompt] = useState('');
+  // UPDATED: userPrompt will now hold the guidelines for the AI Assistant
+  const [userPrompt, setUserPrompt] = useState(''); 
   const [aiResponse, setAIResponse] = useState('');
   const [aiLoading, setAILoading] = useState(false);
   // NEW: State to select between AI providers (claude or gemini) for user side
   const [selectedAIProvider, setSelectedAIProvider] = useState('claude'); // 'claude' or 'gemini'
-  // NEW: Predefined AI query prompts
-  const [predefinedPrompts] = useState([
-    "Summarize this transcript in 3-5 bullet points.",
-    "Extract all key action items.",
-    "List all questions asked and their answers, if present.",
-    "Identify the main topics discussed.",
-    "Generate a concise executive summary.",
-    "Translate this transcript into Spanish.",
-  ]);
+  // REMOVED: Predefined AI query prompts as per user request
   
   // Refs
   const mediaRecorderRef = useRef(null);
@@ -1065,8 +1058,9 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           return;
       }
 
+      // userPrompt now holds the guidelines
       if (!latestTranscription || !userPrompt) {
-          showMessage('Please provide both a transcript and a prompt for the AI Assistant.', 'warning');
+          showMessage('Please provide both a transcript and formatting guidelines for the AI Assistant.', 'warning');
           return;
       }
 
@@ -1076,7 +1070,8 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       try {
           const formData = new FormData();
           formData.append('transcript', latestTranscription);
-          formData.append('user_prompt', userPrompt);
+          // MODIFIED: Send userPrompt as formatting_instructions
+          formData.append('formatting_instructions', userPrompt); 
           formData.append('max_tokens', '4096'); 
           formData.append('user_plan', userProfile?.plan || 'free'); 
 
@@ -1084,10 +1079,12 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           let modelToUse = '';
 
           if (selectedAIProvider === 'claude') {
-            endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query`; 
+            // MODIFIED: Use admin formatting endpoint for user AI
+            endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format`; 
             modelToUse = 'claude-3-haiku-20240307'; 
           } else if (selectedAIProvider === 'gemini') {
-            endpoint = `${RAILWAY_BACKEND_URL}/ai/user-query-gemini`;
+            // MODIFIED: Use admin formatting endpoint for user AI
+            endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format-gemini`;
             modelToUse = 'models/gemini-pro-latest'; 
           } else {
             showMessage('Invalid AI provider selected.', 'error');
@@ -1107,7 +1104,8 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           }
 
           const data = await response.json();
-          setAIResponse(data.ai_response || data.formatted_transcript); 
+          // The admin formatting endpoints return 'formatted_transcript'
+          setAIResponse(data.formatted_transcript); 
           showMessage('✨ AI response generated successfully!', 'success');
 
       } catch (error) {
@@ -1118,10 +1116,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       }
   }, [latestTranscription, userPrompt, userProfile, showMessage, RAILWAY_BACKEND_URL, selectedAIProvider]);
   
-  // Function to handle predefined prompt click
-  const handlePredefinedPromptClick = useCallback((prompt) => {
-    setUserPrompt(prompt);
-  }, []);
+  // REMOVED: Function to handle predefined prompt click as predefinedPrompts are removed
 
   // Cleanup effect to ensure cancellation works
   useEffect(() => {
@@ -1307,6 +1302,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           </div>
 
         </div>
+        {/* Removed the 'Don't have an account? Sign Up' text and button */}
         {/* REMOVED: ToastNotification component call from here */}
         <footer style={{ 
           textAlign: 'center', 
@@ -2261,8 +2257,7 @@ return (
                   </p>
                 )}
                 <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
-                    Paste your transcript below and tell me what you'd like me to do!
-                    I can summarize, answer questions, create bullet points, and more.
+                    Paste your transcript below and provide guidelines for the AI to format and polish it.
                 </p>
 
                 {/* NEW: AI Provider Selection for User AI Assistant */}
@@ -2299,7 +2294,7 @@ return (
                 </div>
                 <div style={{ marginBottom: '20px' }}>
                     <label htmlFor="transcriptInput" style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
-                        Your Transcript:
+                        Transcript to Format:
                     </label>
                     <textarea
                         id="transcriptInput"
@@ -2320,56 +2315,29 @@ return (
                     ></textarea>
                 </div>
 
-                {/* NEW: Predefined Query Options */}
-                <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-                  <label style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
-                    Quick Query Options:
-                  </label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '10px' }}>
-                    {predefinedPrompts.map((prompt, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handlePredefinedPromptClick(prompt)}
-                        disabled={!isPaidAIUser(userProfile) || aiLoading}
-                        style={{
-                          padding: '8px 15px',
-                          backgroundColor: (!isPaidAIUser(userProfile) || aiLoading) ? '#a0a0a0' : '#4CAF50',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '20px',
-                          cursor: (!isPaidAIUser(userProfile) || aiLoading) ? 'not-allowed' : 'pointer',
-                          fontSize: '0.9rem',
-                          transition: 'background-color 0.3s ease'
-                        }}
-                        onMouseEnter={(e) => { if (!e.target.disabled) e.target.style.backgroundColor = '#45a049'; }}
-                        onMouseLeave={(e) => { if (!e.target.disabled) e.target.style.backgroundColor = '#4CAF50'; }}
-                      >
-                        {prompt.split(' ')[0]}...
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                {/* REMOVED: Predefined Query Options as per user request */}
 
                 <div style={{ marginBottom: '30px' }}>
                     <label htmlFor="userPromptInput" style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
-                        Your Custom Request:
+                        Your Guidelines for AI Formatting:
                     </label>
-                    <input
-                        type="text"
+                    <textarea // Changed from input to textarea
                         id="userPromptInput"
                         value={userPrompt}
                         onChange={(e) => setUserPrompt(e.target.value)}
-                        placeholder="Type your request for the AI here..."
+                        placeholder="Type your formatting guidelines here... (e.g., 'Summarize in bullet points, correct grammar, formal tone.')"
+                        rows="8" // Added rows for better textarea appearance
                         style={{
                             width: '100%',
                             padding: '15px',
                             borderRadius: '10px',
                             border: '1px solid #ddd',
                             fontSize: '1rem',
+                            resize: 'vertical', // Allow vertical resizing
                             boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
                         }}
                         disabled={!isPaidAIUser(userProfile)}
-                    />
+                    ></textarea>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '30px', flexWrap: 'wrap' }}>
                     <button
@@ -2388,7 +2356,7 @@ return (
                             transition: 'all 0.3s ease'
                         }}
                     >
-                        {aiLoading ? 'Processing...' : `✨ Get AI Response with ${selectedAIProvider === 'claude' ? 'Claude' : 'Gemini'}`}
+                        {aiLoading ? 'Processing...' : `✨ Format with ${selectedAIProvider === 'claude' ? 'Claude' : 'Gemini'}`}
                     </button>
                     <button
                         onClick={() => { setLatestTranscription(''); setUserPrompt(''); setAIResponse(''); }}
@@ -2419,7 +2387,7 @@ return (
                             borderRadius: '10px',
                             marginBottom: '10px'
                         }}></div>
-                        Generating AI response...
+                        Applying AI formatting...
                     </div>
                 )}
 
