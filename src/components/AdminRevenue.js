@@ -8,7 +8,7 @@ const AdminRevenue = ({ showMessage }) => {
   const { currentUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [revenueData, setRevenueData] = useState(null);
-  const [selectedPeriod, setSelectedPeriod] = useState('monthly'); // 'daily', 'weekly', 'monthly', 'yearly'
+  const [selectedPeriod, setSelectedPeriod] = useState('monthly'); // 'daily', 'weekly', 'monthly', 'yearly', 'all_time'
 
   // Admin emails (should match backend for consistency)
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
@@ -36,7 +36,7 @@ const AdminRevenue = ({ showMessage }) => {
       }
       const data = await response.json();
       setRevenueData(data);
-      showMessage(`Revenue data for ${period} loaded.`, 'success');
+      showMessage(`Revenue data for ${period.replace('_', ' ')} loaded.`, 'success'); // Improved message
     } catch (error) {
       console.error('Error fetching revenue data:', error);
       showMessage('Failed to fetch revenue data: ' + error.message, 'error');
@@ -90,7 +90,7 @@ const AdminRevenue = ({ showMessage }) => {
 
         {/* Period Filters */}
         <div style={{ marginBottom: '30px', textAlign: 'center' }}>
-          {['daily', 'weekly', 'monthly', 'yearly'].map(period => (
+          {['daily', 'weekly', 'monthly', 'yearly', 'all_time'].map(period => (
             <button
               key={period}
               onClick={() => setSelectedPeriod(period)}
@@ -106,7 +106,7 @@ const AdminRevenue = ({ showMessage }) => {
                 textTransform: 'capitalize'
               }}
             >
-              {period}
+              {period.replace('_', ' ')}
             </button>
           ))}
         </div>
@@ -131,7 +131,7 @@ const AdminRevenue = ({ showMessage }) => {
                 boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
                 textAlign: 'center'
               }}>
-                <h3 style={{ color: '#28a745', margin: '0 0 10px 0' }}>Total Revenue ({selectedPeriod})</h3>
+                <h3 style={{ color: '#28a745', margin: '0 0 10px 0' }}>Total Revenue ({selectedPeriod.replace('_', ' ')})</h3>
                 <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
                   USD {revenueData.totalRevenue.toFixed(2)}
                 </p>
@@ -143,7 +143,7 @@ const AdminRevenue = ({ showMessage }) => {
                 boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
                 textAlign: 'center'
               }}>
-                <h3 style={{ color: '#007bff', margin: '0 0 10px 0' }}>Transactions ({selectedPeriod})</h3>
+                <h3 style={{ color: '#007bff', margin: '0 0 10px 0' }}>Transactions ({selectedPeriod.replace('_', ' ')})</h3>
                 <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
                   {revenueData.transactionsCount}
                 </p>
@@ -170,7 +170,7 @@ const AdminRevenue = ({ showMessage }) => {
               boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
               marginBottom: '30px'
             }}>
-              <h3 style={{ color: '#333', marginBottom: '20px' }}>Revenue Breakdown by Plan ({selectedPeriod})</h3>
+              <h3 style={{ color: '#333', marginBottom: '20px' }}>Revenue Breakdown by Plan ({selectedPeriod.replace('_', ' ')})</h3>
               {Object.keys(revenueData.revenueByPlan).length > 0 ? (
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
