@@ -24,7 +24,7 @@ const messages = [
   },
   {
     type: 'text',
-    content: "💡 TypeMyworDz Assistant can intelligently Speaker-Diarize your transcript.",
+    content: "💡 Assistant can intelligently Speaker-Diarize your transcript.",
     color: '#649615ff'
   },
   {
