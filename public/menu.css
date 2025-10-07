@@ -66,7 +66,7 @@
   position: absolute;
   top: 100%; /* Position below the parent menu item */
   left: 0; /* Align with the left edge of the parent menu item */
-  background-color: rgba(255, 255, 255, 0.95);
+  background-color: rgba(30, 30, 30, 0.95); /* Darker background for visibility */
   border-radius: 6px;
   padding: 6px 0;
   min-width: 160px; /* Smaller width */
@@ -91,12 +91,12 @@
   padding: 8px 12px; /* Made slimmer */
   cursor: pointer;
   transition: all 0.3s ease;
-  color: #333;
+  color: white; /* Changed text color to white for contrast */
 }
 
 .submenu-item:hover {
-  background-color: rgba(102, 126, 234, 0.1);
-  color: #667eea;
+  background-color: rgba(102, 126, 234, 0.3); /* Adjusted hover background for dark menu */
+  color: white; /* Keep text white on hover */
 }
 
 .submenu-icon {
@@ -109,6 +109,7 @@
 .submenu-text {
   font-size: 11px; /* Smaller text */
   font-weight: 500;
+  color: white; /* Ensure submenu text is white */
 }
 
 /* Toast Notification Styles */
