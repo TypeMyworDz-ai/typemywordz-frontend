@@ -8,7 +8,7 @@ const messages = [
   },
   {
     type: 'text',
-    content: "🚀 Choose from Three-Day Plan and Experience Speed and Accuracy!",
+    content: "🚀 Choose a plan that meets your needs and Schedule!",
     color: '#007bff'
   },
   {
