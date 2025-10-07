@@ -308,7 +308,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
                 </p>
               </div>
 
-              {/* NEW: Active Paid Users Card (repurposed from Transactions) */}
+              {/* NEW: Active Paid Users Card (repurposed from New Users) */}
               <div style={{ 
                 backgroundColor: 'white', 
                 padding: '20px', 
@@ -448,7 +448,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
 
         {/* AI Formatter Tab */}
         {activeTab === 'aiFormatter' && (
-          <AdminAIFormatter showMessage={showMessage} latestTranscription={latestTranscription} />
+          <AdminAIFormatter showMessage={showMessage} latestTranscription={latestTranscription} /> 
         )}
 
         {/* REMOVED: Revenue Tab content */}
