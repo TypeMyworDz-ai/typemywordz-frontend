@@ -2,34 +2,44 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchAllUsers, fetchUserTranscriptions, getMonthlyRevenue } from '../userService'; // Import fetchAllUsers and getMonthlyRevenue
+import { fetchAllUsers, fetchUserTranscriptions } from '../userService'; // Removed getMonthlyRevenue
 import { collection, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../firebase';
 // ADDED: Import AdminAIFormatter
 import AdminAIFormatter from './AdminAIFormatter';
-// NEW: Import AdminRevenue component
-import AdminRevenue from './AdminRevenue';
+// REMOVED: Import AdminRevenue component
 
-const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue, latestTranscription }) => { // Added latestTranscription prop
+const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed monthlyRevenue prop
   const { currentUser } = useAuth();
   const [users, setUsers] = useState([]);
-  const [transcriptions, setTranscriptions] = useState([]); // This state is not directly used for the table anymore, but kept for other potential uses
+  const [transcriptions, setTranscriptions] = useState([]); 
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview'); // Added activeTab state
+  const [activeTab, setActiveTab] = useState('overview'); 
   const [stats, setStats] = useState({
     totalUsers: 0,
-    // REMOVED: monthlyRevenue: 0, // Removed from stats as it has its own dedicated tab
     totalTranscriptions: 0,
-    totalMinutesTranscribed: 0, // NEW: Added for total minutes
+    totalMinutesTranscribed: 0,
     planDistribution: {},
-    recentSignups: 0
+    recentSignups: 0,
+    totalRevenueCounter: 0, // NEW: Real-time revenue counter
+    activePaidUsers: 0 // NEW: Active paid users counter
   });
+
+  // Define plan prices for the real-time revenue counter
+  const PLAN_PRICES_USD = {
+    'One-Day Plan': 1.00,
+    'Three-Day Plan': 2.00,
+    'One-Week Plan': 3.00,
+    'Monthly Plan': 9.99,
+    'Yearly Plan': 99.99,
+    'free': 0.00 // Free plan contributes 0 to revenue
+  };
 
   // Admin emails
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
   const isAdmin = ADMIN_EMAILS.includes(currentUser?.email);
 
-  const fetchAdminData = useCallback(async () => { // Made fetchAdminData a useCallback
+  const fetchAdminData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -37,11 +47,9 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue, lates
         throw new Error("Admin user not identified.");
       }
 
-      // Fetch all users using the new fetchAllUsers which includes aggregated transcription data
       const usersData = await fetchAllUsers();
       setUsers(usersData);
 
-      // Fetch all transcriptions (still useful for total count and duration for overview)
       const transcriptionsRef = collection(db, 'transcriptions');
       const transcriptionsSnapshot = await getDocs(transcriptionsRef);
       const transcriptionsData = [];
@@ -53,72 +61,92 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue, lates
       });
       setTranscriptions(transcriptionsData);
       
-      // Calculate statistics
       const planDistribution = {};
-      // REMOVED: fetchedMonthlyRevenue as it's now handled by the AdminRevenue component
       let recentSignups = 0;
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
+      let currentTotalRevenueCounter = 0; // Initialize revenue counter
+      let currentActivePaidUsers = 0; // Initialize active paid users counter
+      const now = new Date();
+
       usersData.forEach(user => {
-        // Plan distribution
         planDistribution[user.plan] = (planDistribution[user.plan] || 0) + 1;
         
-        // Recent signups (last 7 days)
-        if (user.createdAt && user.createdAt.toDate) { // Check if it's a Firestore Timestamp
+        if (user.createdAt && user.createdAt.toDate) {
           const userCreatedAt = user.createdAt.toDate();
           if (userCreatedAt > oneWeekAgo) {
             recentSignups++;
           }
-        } else if (user.createdAt && new Date(user.createdAt) > oneWeekAgo) { // Fallback for plain Date strings
+        } else if (user.createdAt && new Date(user.createdAt) > oneWeekAgo) {
           recentSignups++;
+        }
+
+        // Calculate real-time revenue and active paid users
+        if (user.plan !== 'free') {
+          // Check if the plan is currently active or considered 'unlimited' for long-term plans
+          let isActive = false;
+          if (user.expiresAt && user.expiresAt.toDate) {
+            isActive = user.expiresAt.toDate() > now;
+          } else if (user.expiresAt && new Date(user.expiresAt) > now) {
+            isActive = true;
+          } else if (user.plan === 'Monthly Plan' || user.plan === 'Yearly Plan') {
+            // For monthly/yearly plans, if expiresAt is not clearly past, consider active
+            // This is a simplification; a more robust check would involve subscription status
+            isActive = true; 
+          }
+
+          if (isActive) {
+            currentTotalRevenueCounter += PLAN_PRICES_USD[user.plan] || 0;
+            currentActivePaidUsers++;
+          }
         }
       });
 
       setStats({
         totalUsers: usersData.length,
-        // REMOVED: monthlyRevenue: fetchedMonthlyRevenue, // Removed from stats
         totalTranscriptions: transcriptionsData.length,
-        totalMinutesTranscribed: Math.round(totalDurationSeconds / 60), // Set total minutes
+        totalMinutesTranscribed: Math.round(totalDurationSeconds / 60),
         planDistribution,
-        recentSignups
+        recentSignups,
+        totalRevenueCounter: currentTotalRevenueCounter, // Set real-time revenue
+        activePaidUsers: currentActivePaidUsers // Set active paid users
       });
       
     } catch (error) {
       console.error('Error fetching admin data:', error);
       if (showMessage) {
-        showMessage('Error loading admin data: ' + error.message, 'error'); // Changed message type
+        showMessage('Error loading admin data: ' + error.message, 'error');
       }
     } finally {
       setLoading(false);
     }
-  }, [currentUser, showMessage]); // Added currentUser and showMessage to dependencies
+  }, [currentUser, showMessage]);
 
   useEffect(() => {
     if (isAdmin) {
       fetchAdminData();
     }
-  }, [isAdmin, fetchAdminData]); // Added fetchAdminData to dependencies
+  }, [isAdmin, fetchAdminData]);
 
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
-    // Ensure timestamp is a Date object
     const date = timestamp instanceof Date ? timestamp : (timestamp.toDate ? timestamp.toDate() : new Date(timestamp));
     return date.toLocaleDateString();
   };
 
   const exportUserData = () => {
     const csvContent = [
-      ['Email', 'Plan', 'Usage (mins)', 'Expires At', 'Total Minutes Transcribed', 'Total Transcripts', 'Joined', 'Last Active'].join(','), // UPDATED headers
+      ['Email', 'Plan', 'Usage (mins)', 'Expires At', 'Total Minutes Transcribed', 'Total Transcripts', 'Joined', 'Last Active'].join(','),
       ...users.map(user => [
         user.email,
         user.plan,
-        user.totalMinutesUsed || 0, // Use totalMinutesUsed
-        user.expiresAt ? formatDate(user.expiresAt) : 'N/A', // NEW: Expires At
-        user.totalMinutesTranscribedByUser || 0, // NEW: Total Minutes Transcribed
-        user.totalTranscriptsByUser || 0, // NEW: Total Transcripts
+        user.totalMinutesUsed || 0,
+        user.expiresAt ? formatDate(user.expiresAt) : 'N/A',
+        user.totalMinutesTranscribedByUser || 0,
+        user.totalTranscriptsByUser || 0,
         formatDate(user.createdAt),
-        formatDate(user.lastAccessed) // Use lastAccessed
+        formatDate(user.lastAccessed)
       ].join(','))
     ].join('\n');
 
@@ -227,22 +255,7 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue, lates
           >
             🤖 AI Formatter
           </button>
-          {/* NEW: Revenue Tab */}
-          <button
-            onClick={() => setActiveTab('revenue')}
-            style={{
-              padding: '10px 20px',
-              margin: '0 10px',
-              backgroundColor: activeTab === 'revenue' ? '#28a745' : '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '20px',
-              cursor: 'pointer',
-              fontSize: '1rem'
-            }}
-          >
-            💰 Revenue
-          </button>
+          {/* REMOVED: Revenue Tab button */}
         </div>
 
         {/* Overview Tab */}
@@ -268,8 +281,7 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue, lates
                 </p>
               </div>
 
-              {/* REMOVED: Monthly Revenue Card as it has its own dedicated tab */}
-              {/*
+              {/* NEW: Total Revenue (Active Subscriptions) Card */}
               <div style={{ 
                 backgroundColor: 'white', 
                 padding: '20px', 
@@ -277,12 +289,11 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue, lates
                 boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
                 textAlign: 'center'
               }}>
-                <h3 style={{ color: '#28a745', margin: '0 0 10px 0' }}>💰 Monthly Revenue</h3>
+                <h3 style={{ color: '#28a745', margin: '0 0 10px 0' }}>💰 Total Revenue (Active)</h3>
                 <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
-                  USD {stats.monthlyRevenue.toFixed(2)}
+                  USD {stats.totalRevenueCounter.toFixed(2)}
                 </p>
               </div>
-              */}
 
               <div style={{ 
                 backgroundColor: 'white', 
@@ -297,6 +308,7 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue, lates
                 </p>
               </div>
 
+              {/* NEW: Active Paid Users Card (repurposed from Transactions) */}
               <div style={{ 
                 backgroundColor: 'white', 
                 padding: '20px', 
@@ -304,9 +316,9 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue, lates
                 boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
                 textAlign: 'center'
               }}>
-                <h3 style={{ color: '#ffc107', margin: '0 0 10px 0' }} >🆕 New Users (7 days)</h3>
+                <h3 style={{ color: '#ffc107', margin: '0 0 10px 0' }}>✅ Active Paid Users</h3>
                 <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
-                  {stats.recentSignups}
+                  {stats.activePaidUsers}
                 </p>
               </div>
             </div>
@@ -370,10 +382,10 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue, lates
                 <tr style={{ backgroundColor: '#f8f9fa' }}>
                   <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Email</th>
                   <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Plan</th>
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Usage (mins)</th> {/* UPDATED Header */}
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Expires At</th> {/* NEW Header */}
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Total Mins Transcribed</th> {/* NEW Header */}
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Total Transcripts</th> {/* NEW Header */}
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Usage (mins)</th>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Expires At</th>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Total Mins Transcribed</th>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Total Transcripts</th>
                   <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Joined</th>
                   <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Last Active</th>
                 </tr>
@@ -413,14 +425,14 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue, lates
                     <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
                       {user.plan === 'free'
                         ? `${user.totalMinutesUsed || 0} / 30`
-                        : 'Unlimited' // Paid plans have unlimited usage
+                        : 'Unlimited'
                       }
                     </td>
-                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}> {/* NEW: Expires At column */}
+                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
                       {user.expiresAt ? formatDate(user.expiresAt) : 'N/A'}
                     </td>
-                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>{user.totalMinutesTranscribedByUser || 0}</td> {/* NEW: Total Minutes Transcribed */}
-                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>{user.totalTranscriptsByUser || 0}</td> {/* NEW: Total Transcripts */}
+                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>{user.totalMinutesTranscribedByUser || 0}</td>
+                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>{user.totalTranscriptsByUser || 0}</td>
                     <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
                       {formatDate(user.createdAt)}
                     </td>
@@ -436,13 +448,10 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue, lates
 
         {/* AI Formatter Tab */}
         {activeTab === 'aiFormatter' && (
-          <AdminAIFormatter showMessage={showMessage} latestTranscription={latestTranscription} /> 
+          <AdminAIFormatter showMessage={showMessage} latestTranscription={latestTranscription} />
         )}
 
-        {/* NEW: Revenue Tab */}
-        {activeTab === 'revenue' && (
-          <AdminRevenue showMessage={showMessage} />
-        )}
+        {/* REMOVED: Revenue Tab content */}
       </div> 
     </div> 
   );
