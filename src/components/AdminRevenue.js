@@ -157,7 +157,7 @@ const AdminRevenue = ({ showMessage }) => {
               }}>
                 <h3 style={{ color: '#6c5ce7', margin: '0 0 10px 0' }}>Period</h3>
                 <p style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
-                  {new Date(revenueData.startDate).toLocaleDateString()} - {new Date(revenueData.endDate).toLocaleDateString()}
+                  {selectedPeriod === 'all_time' ? 'All Time' : `${new Date(revenueData.startDate).toLocaleDateString()} - ${new Date(revenueData.endDate).toLocaleDateString()}`}
                 </p>
               </div>
             </div>
