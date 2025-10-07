@@ -113,7 +113,6 @@ function AppContent() {
   const [monthlyRevenue, setMonthlyRevenue] = useState(0);
 
   // AI Assistant states
-  // UPDATED: userPrompt will now hold the guidelines for the AI Assistant
   const [userPrompt, setUserPrompt] = useState(''); 
   const [aiResponse, setAIResponse] = useState('');
   const [aiLoading, setAILoading] = useState(false);
@@ -1110,7 +1109,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
       } catch (error) {
           console.error('AI Assistant Error:', error);
-          showMessage('❌ AI Assistant failed: ' + error.message + '. If using Gemini, try Claude for sensitive content.', 'error');
+          showMessage('❌ AI Assistant failed: ' + error.message + '. If using Gemini, try Claude for sensitive content.','error');
       } finally {
           setAILoading(false);
       }
@@ -1330,7 +1329,7 @@ return (
     } />
     {/* NEW: Route for Signup component */}
     {/* FIXED: Passing showMessage and monthlyRevenue props to AdminDashboard */}
-    <Route path="/admin" element={isAdmin ? <AdminDashboard showMessage={showMessage} monthlyRevenue={monthlyRevenue} /> : <Navigate to="/" />} />
+    <Route path="/admin" element={isAdmin ? <AdminDashboard showMessage={showMessage} monthlyRevenue={monthlyRevenue} latestTranscription={latestTranscription} /> : <Navigate to="/" />} />
     
     <Route path="/" element={
       <div style={{ 
@@ -2237,7 +2236,7 @@ return (
             </div>
           </>
         ) : currentView === 'admin' ? (
-          <AdminDashboard showMessage={showMessage} monthlyRevenue={monthlyRevenue} />
+          <AdminDashboard showMessage={showMessage} monthlyRevenue={monthlyRevenue} latestTranscription={latestTranscription} />
         ) : currentView === 'ai_assistant' ? (
             <div style={{
               flex: 1,
@@ -2319,13 +2318,13 @@ return (
 
                 <div style={{ marginBottom: '30px' }}>
                     <label htmlFor="userPromptInput" style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
-                        Your Guidelines for AI Formatting:
+                        Give the assistant guidelines of your choice: {/* Reverted label text */}
                     </label>
                     <textarea // Changed from input to textarea
                         id="userPromptInput"
                         value={userPrompt}
                         onChange={(e) => setUserPrompt(e.target.value)}
-                        placeholder="Type your formatting guidelines here... (e.g., 'Summarize in bullet points, correct grammar, formal tone.')"
+                        placeholder="Type or paste your guidelines here... TypeMyworDz Assistant can even intelligently try to distinguish/diarize your transcript's text into its responsible speaker; try typing something like, 'Put speaker tags on the transcript.' Or just tell it to do whatever with your transcript. You can even translate your transcripts. You paid for it, go crazy with it!"
                         rows="8" // Added rows for better textarea appearance
                         style={{
                             width: '100%',
@@ -2393,8 +2392,7 @@ return (
 
                 {aiResponse && (
                     <div style={{ marginTop: '30px' }}>
-                        <h3 style={{ color: '#6c5ce7', textAlign: 'center', marginBottom: '20px' }}
-                        >AI Response:</h3>
+                        <h3 style={{ color: '#6c5ce7', textAlign: 'center', marginBottom: '20px' }}>AI Response:</h3>
                         <div style={{
                             backgroundColor: 'white',
                             padding: '20px',
@@ -2973,6 +2971,8 @@ return (
 
 // Main App Component with AuthProvider (existing, no changes needed here)
 function App() {
+  const [latestTranscription, setLatestTranscription] = useState(''); // State to hold latest transcription
+
   return (
     <AuthProvider>
       <Router>
@@ -2982,9 +2982,8 @@ function App() {
           <Route path="/transcription/:id" element={<TranscriptionDetail />} />
           
           {/* Main app routes */}
-          {/* Ensure the root path (/) is handled last or specifically if other paths match parts of it. */}
-          {/* The "/*" route catches all unmatched paths after specific ones. */}
-          <Route path="/*" element={<AppContent />} /> 
+          {/* Pass setLatestTranscription to AppContent to update the state */}
+          <Route path="/*" element={<AppContent setLatestTranscription={setLatestTranscription} latestTranscription={latestTranscription} />} /> 
         </Routes>
       </Router>
     </AuthProvider>

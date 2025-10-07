@@ -10,7 +10,7 @@ import AdminAIFormatter from './AdminAIFormatter';
 // NEW: Import AdminRevenue component
 import AdminRevenue from './AdminRevenue';
 
-const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue }) => { // Added showMessage and propMonthlyRevenue props
+const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue, latestTranscription }) => { // Added latestTranscription prop
   const { currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [transcriptions, setTranscriptions] = useState([]); // This state is not directly used for the table anymore, but kept for other potential uses
@@ -436,7 +436,7 @@ const AdminDashboard = ({ showMessage, monthlyRevenue: propMonthlyRevenue }) => 
 
         {/* AI Formatter Tab */}
         {activeTab === 'aiFormatter' && (
-          <AdminAIFormatter showMessage={showMessage} />
+          <AdminAIFormatter showMessage={showMessage} latestTranscription={latestTranscription} /> 
         )}
 
         {/* NEW: Revenue Tab */}

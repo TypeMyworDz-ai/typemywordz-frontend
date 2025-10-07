@@ -1,7 +1,7 @@
 // src/components/AdminAIFormatter.js
 
-import React, { useState, useCallback } from 'react';
-import { useAuth } from '../contexts/AuthContext'; // Import useAuth to get userProfile
+import React, { useState, useCallback, useEffect } from 'react'; // Import useEffect
+import { useAuth } from '..//contexts/AuthContext'; // Import useAuth to get userProfile
 
 // FIX: Ensure this URL matches your backend's base URL
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app'; // Corrected URL to match App.js
@@ -81,7 +81,7 @@ const isPaidAIUser = (userProfile) => {
 };
 
 // UPDATED: Wrapped AdminAIFormatter in React.memo
-const AdminAIFormatter = React.memo(({ showMessage }) => {
+const AdminAIFormatter = React.memo(({ showMessage, latestTranscription }) => { // Accept latestTranscription prop
   const { userProfile, profileLoading } = useAuth(); // Get userProfile from AuthContext
   const [transcriptInput, setTranscriptInput] = useState('');
   const [formattingInstructions, setFormattingInstructions] = useState(DEFAULT_FORMATTING_INSTRUCTIONS);
@@ -93,6 +93,13 @@ const AdminAIFormatter = React.memo(({ showMessage }) => {
   // NEW: States for copy functionality
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
   
+  // NEW: Effect to populate transcriptInput when latestTranscription changes
+  useEffect(() => {
+    if (latestTranscription) {
+      setTranscriptInput(latestTranscription);
+    }
+  }, [latestTranscription]);
+
 
   // NEW: Function to handle copying AI response
   const handleCopyAIResponse = useCallback(() => {

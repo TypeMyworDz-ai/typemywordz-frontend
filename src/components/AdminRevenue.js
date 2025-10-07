@@ -8,7 +8,7 @@ const AdminRevenue = ({ showMessage }) => {
   const { currentUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [revenueData, setRevenueData] = useState(null);
-  const [selectedPeriod, setSelectedPeriod] = useState('monthly'); // 'daily', 'weekly', 'monthly', 'yearly', 'all_time'
+  const [selectedPeriod, setSelectedPeriod] = useState('all_time'); // Default to 'all_time' for initial view
 
   // Admin emails (should match backend for consistency)
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
