@@ -23,6 +23,11 @@ const messages = [
     alt: "Gemini AI"
   },
   {
+    type: 'text',
+    content: "💡 TypeMyworDz Assistant can intelligently Speaker-Diarize your transcript.",
+    color: '#649615ff'
+  },
+  {
     type: 'image',
     content: "/claude_logo.png", // Ensure this path is correct in your public folder
     text: "Interact with your transcripts using Claude Sonnet!",
@@ -30,7 +35,7 @@ const messages = [
   },
   {
     type: 'text',
-    content: "💰 Our African subscribers can now pay with M-PESA",
+    content: "💰 Our African subscribers can now pay with Mobile Money",
     color: '#1e9b0dff'
   },
   {
