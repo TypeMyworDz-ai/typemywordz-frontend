@@ -109,8 +109,7 @@ function AppContent() {
     'yearly': { amount: 99.99, currency: 'USD' } // NEW: Yearly Plan
   });
   
-  // NEW: State for revenue in Admin Dashboard
-  const [monthlyRevenue, setMonthlyRevenue] = useState(0);
+  // REMOVED: State for monthlyRevenue in App.js as it's now handled in AdminDashboard.js
 
   // AI Assistant states
   const [userPrompt, setUserPrompt] = useState(''); 
@@ -139,32 +138,7 @@ function AppContent() {
   // --- Menu State & Functions (React-managed) ---
   const [openSubmenu, setOpenSubmenu] = useState(null); // Tracks which submenu is open
 
-  // NEW: Effect to fetch monthly revenue for Admin Dashboard
-  useEffect(() => {
-    // Only fetch if user is admin and currentView === 'admin'
-    if (isAdmin && currentView === 'admin') {
-      const fetchRevenue = async () => {
-        try {
-          const response = await fetch(`${RAILWAY_BACKEND_URL}/api/admin/monthly-revenue`); // Call new backend endpoint
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          const data = await response.json();
-          setMonthlyRevenue(data.monthlyRevenue);
-        } catch (error) {
-          console.error('Error fetching monthly revenue:', error);
-          showMessage('Failed to fetch revenue data', 'error');
-        }
-      };
-      
-      fetchRevenue();
-      
-      // Refresh revenue data every 5 minutes when admin dashboard is open
-      const revenueInterval = setInterval(fetchRevenue, 5 * 60 * 1000);
-      
-      return () => clearInterval(revenueInterval);
-    }
-  }, [isAdmin, currentView, showMessage, RAILWAY_BACKEND_URL]);
+  // REMOVED: useEffect to fetch monthly revenue for Admin Dashboard from App.js
 
   const handleToggleSubmenu = useCallback((submenuId) => {
     setOpenSubmenu(prev => (prev === submenuId ? null : submenuId));
@@ -262,18 +236,7 @@ function AppContent() {
             await updateUserPlan(currentUser.uid, data.data.plan, reference); 
             await refreshUserProfile();
             
-            if (isAdmin) {
-              try {
-                const response = await fetch(`${RAILWAY_BACKEND_URL}/api/admin/monthly-revenue`); // Call new backend endpoint
-                if (!response.ok) {
-                  throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const revenueData = await response.json();
-                setMonthlyRevenue(revenueData.monthlyRevenue);
-              } catch (error) {
-                console.error('Error updating revenue after payment:', error);
-              }
-            }
+            // REMOVED: Monthly revenue update logic from App.js as it's now handled in AdminDashboard
             
             showMessage(`🎉 Payment successful! ${data.data.plan} activated.`, 'success');
             setCurrentView('transcribe');
@@ -1329,7 +1292,7 @@ return (
     } />
     {/* NEW: Route for Signup component */}
     {/* FIXED: Passing showMessage and monthlyRevenue props to AdminDashboard */}
-    <Route path="/admin" element={isAdmin ? <AdminDashboard showMessage={showMessage} monthlyRevenue={monthlyRevenue} latestTranscription={latestTranscription} /> : <Navigate to="/" />} />
+    <Route path="/admin" element={isAdmin ? <AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} /> : <Navigate to="/" />} />
     
     <Route path="/" element={
       <div style={{ 
@@ -2236,7 +2199,7 @@ return (
             </div>
           </>
         ) : currentView === 'admin' ? (
-          <AdminDashboard showMessage={showMessage} monthlyRevenue={monthlyRevenue} latestTranscription={latestTranscription} />
+          <AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} />
         ) : currentView === 'ai_assistant' ? (
             <div style={{
               flex: 1,
@@ -2318,7 +2281,7 @@ return (
 
                 <div style={{ marginBottom: '30px' }}>
                     <label htmlFor="userPromptInput" style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
-                        Give the assistant guidelines of your choice: {/* Reverted label text */}
+                        Your Guidelines: {/* Reverted label text */}
                     </label>
                     <textarea // Changed from input to textarea
                         id="userPromptInput"
