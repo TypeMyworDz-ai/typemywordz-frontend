@@ -2287,7 +2287,8 @@ return (
                         id="userPromptInput"
                         value={userPrompt}
                         onChange={(e) => setUserPrompt(e.target.value)}
-                        placeholder="Type or paste your guidelines here... TypeMyworDz Assistant can even intelligently try to distinguish/diarize your transcript's text into its responsible speaker; try typing something like, 'Put speaker tags on the transcript.' Or just tell it to do whatever with your transcript. You can even translate your transcripts. You paid for it, go crazy with it!"
+                        placeholder="Type or paste your guidelines here... TypeMyworDz Assistant can even intelligently try to distinguish/diarize your transcript's text into its responsible speaker; try typing something like, 'Put speaker tags on the transcript.' Or just tell it to do whatever with your transcript. You can even translate your transcripts. You paid for it, go crazy with it!
+                        Note: AI makes mistakes, always proofread your work. For large amounts of text, remember to divide your work into manageable chunks due to character limit."
                         rows="8" // Added rows for better textarea appearance
                         style={{
                             width: '100%',
@@ -2712,7 +2713,7 @@ return (
                           boxShadow: '0 5px 15px rgba(220, 53, 69, 0.4)'
                         }}
                       >
-                        ❌ Cancel Transcribing
+                        Stop
                       </button>
                     )}
                   </div>
