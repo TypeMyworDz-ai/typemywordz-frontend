@@ -7,7 +7,12 @@ import { useAuth } from '..//contexts/AuthContext'; // Import useAuth to get use
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app'; // Corrected URL to match App.js
 
 // Define the default formatting instructions as a constant outside the component
-const DEFAULT_FORMATTING_INSTRUCTIONS = `STUDY THOSE GENERAL GUIDELINES AND USE THEM TO FORMAT THE TEXT I WILL GIVE YOU (Follow rule number 9. as it is):
+const DEFAULT_FORMATTING_INSTRUCTIONS = `STUDY THOSE TEXT-SPECIFIC GUIDELINES (ADDITIONAL GUIDELINES ONLY AIMED AT THE CURRENT TEXT I'M GIVING YOU TO FORMAT)
+  
+
+ 
+STUDY THOSE GENERAL GUIDELINES AND USE THEM TO FORMAT THE TEXT I WILL GIVE YOU (Follow rule number 9. as it is):
+
 
 1. When a word is explicitly spelled out (Or military-phonetical spelling, e.g., "David, Lincoln, Edward, Ida, et cetera) replace the wrongly spelled word throughout the text with the correct spelled out word/words. Also, remove the spelled out part. Explicitly spelled words might look like "W-O-R-D, or W,O,R,D, w,o,r,d." in the text.
 
@@ -21,7 +26,7 @@ const DEFAULT_FORMATTING_INSTRUCTIONS = `STUDY THOSE GENERAL GUIDELINES AND USE 
 
 6. Put the text into one PARAGRAPH. Only start a NEW PARAGRAPH if dictated/written in the original text. Put a one line between paragraphs.
 
-7. Add punctuations where necessary. Do not start sentences with conjunctions, e.g., 'But', And, etc.
+7. Remove filler words such as 'um', 'uh' and speech errors. Add punctuations where necessary. Do not start sentences with conjunctions, e.g., 'But', And, etc.
 
 8. DO NOT PARAPHRASE/CHANGE WORDING OF THE TEXT. THE FORMATTED TEXT SHOULD RETAIN IT'S ORIGINALITY. DO NOT ADD FUNNY PARAGRAPHS/DATES/TIME AT THE BEGINNING. ONLY INFER HEADINGS DIRECT FROM THE ORIGINAL TEXT. Do not add any text that is not dictated; this includes not adding conjunctions or articles 'the' or 'a' that are not dictated.
 
