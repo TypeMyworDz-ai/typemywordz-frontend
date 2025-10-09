@@ -76,7 +76,7 @@ Client spellings: Word, word2, Word3, XX (abbreviation), Word4; My spellings: Na
 
 27. Do not start sentences with conjunctions 'And' and 'But', and instead of them, you can always expand the sentences but putting a comma before the conjuntions; e.g., "They were seen moving around Ohio, but mother denied this."
 
-28. Do not include YOUR summaries/notes/analysis or any kind of metainformation in the final formatted text.
+28. Do not include YOUR summaries/notes/analysis or any kind of metainformation in the final formatted text; even "Here is the formatted and polished transcript:
 `;
 
 // Helper function to determine if a user has access to AI features - REMOVED RESTRICTIONS
