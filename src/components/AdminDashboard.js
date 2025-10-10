@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchAllUsers, fetchUserTranscriptions } from '../userService'; // Removed getMonthlyRevenue
+import { fetchAllUsers, fetchUserTranscriptions, getMonthlyRevenue } from '../userService'; // Added getMonthlyRevenue import
 import { collection, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../firebase';
 // ADDED: Import AdminAIFormatter
@@ -21,7 +21,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
     totalMinutesTranscribed: 0,
     planDistribution: {},
     recentSignups: 0,
-    totalRevenueCounter: 0, // NEW: Real-time revenue counter
+    totalRevenueCounter: 0, // NEW: Cumulative revenue from Firestore
     activePaidUsers: 0 // NEW: Active paid users counter
   });
 
@@ -66,7 +66,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-      let currentTotalRevenueCounter = 0; // Initialize revenue counter
+      let currentTotalRevenueCounter = await getMonthlyRevenue(); // NEW: Fetch cumulative revenue from Firestore
       let currentActivePaidUsers = 0; // Initialize active paid users counter
       const now = new Date();
 
@@ -82,7 +82,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
           recentSignups++;
         }
 
-        // Calculate real-time revenue and active paid users
+        // Calculate active paid users (for the card, separate from revenue)
         if (user.plan !== 'free') {
           // Check if the plan is currently active or considered 'unlimited' for long-term plans
           let isActive = false;
@@ -97,7 +97,6 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
           }
 
           if (isActive) {
-            currentTotalRevenueCounter += PLAN_PRICES_USD[user.plan] || 0;
             currentActivePaidUsers++;
           }
         }
@@ -109,7 +108,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
         totalMinutesTranscribed: Math.round(totalDurationSeconds / 60),
         planDistribution,
         recentSignups,
-        totalRevenueCounter: currentTotalRevenueCounter, // Set real-time revenue
+        totalRevenueCounter: currentTotalRevenueCounter, // Set cumulative revenue
         activePaidUsers: currentActivePaidUsers // Set active paid users
       });
       
@@ -281,7 +280,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
                 </p>
               </div>
 
-              {/* NEW: Total Revenue (Active Subscriptions) Card */}
+              {/* NEW: Total Revenue (Cumulative) Card */}
               <div style={{ 
                 backgroundColor: 'white', 
                 padding: '20px', 
@@ -289,7 +288,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
                 boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
                 textAlign: 'center'
               }}>
-                <h3 style={{ color: '#28a745', margin: '0 0 10px 0' }}>💰 Total Revenue (Active)</h3>
+                <h3 style={{ color: '#28a745', margin: '0 0 10px 0' }}>💰 Total Revenue (Cumulative)</h3>
                 <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
                   USD {stats.totalRevenueCounter.toFixed(2)}
                 </p>
