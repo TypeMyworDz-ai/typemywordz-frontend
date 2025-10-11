@@ -280,33 +280,6 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
                 </p>
               </div>
 
-              {/* NEW: Total Revenue (Cumulative) Card */}
-              <div style={{ 
-                backgroundColor: 'white', 
-                padding: '20px', 
-                borderRadius: '10px',
-                boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-                textAlign: 'center'
-              }}>
-                <h3 style={{ color: '#28a745', margin: '0 0 10px 0' }}>💰 Total Revenue (Cumulative)</h3>
-                <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
-                  USD {stats.totalRevenueCounter.toFixed(2)}
-                </p>
-              </div>
-
-              <div style={{ 
-                backgroundColor: 'white', 
-                padding: '20px', 
-                borderRadius: '10px',
-                boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-                textAlign: 'center'
-              }}>
-                <h3 style={{ color: '#6c5ce7', margin: '0 0 10px 0' }}>📄 Total Transcriptions</h3>
-                <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
-                  {stats.totalTranscriptions}
-                </p>
-              </div>
-
               {/* NEW: Active Paid Users Card (repurposed from New Users) */}
               <div style={{ 
                 backgroundColor: 'white', 
