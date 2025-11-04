@@ -149,12 +149,11 @@ function AppContent() {
     try {
       console.log('Initializing Paystack payment:', { email, amount, planName, countryCode });
 
-      let actualCountryCode = countryCode;
+      let actualCountryCode = countryCode; // Now this will correctly be 'KE' if selected
       let actualAmount = amount;
 
-      if (planName === 'Monthly Plan' || planName === 'Yearly Plan') {
-          actualCountryCode = 'OTHER_AFRICA';
-      }
+      // REMOVED: The problematic if (planName === 'Monthly Plan' || planName === 'Yearly Plan') { actualCountryCode = 'OTHER_AFRICA'; } block
+      // The backend is now smart enough to handle USD for Yearly Plans, and local currencies for Monthly/Weekly/Three-Day.
       
       const response = await fetch(`${RAILWAY_BACKEND_URL}/api/initialize-paystack-payment`, {
         method: 'POST',
@@ -166,12 +165,11 @@ function AppContent() {
           amount: actualAmount,
           plan_name: planName,
           user_id: currentUser.uid,
-          country_code: actualCountryCode,
+          country_code: actualCountryCode, // This will now pass the actual selectedRegion
           callback_url: `${window.location.origin}/?payment=success`,
           update_admin_revenue: true
         })
       });
-
       const data = await response.json();
       console.log('Backend payment initialization response:', data);
       
