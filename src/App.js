@@ -1868,7 +1868,7 @@ return (
                         </button>
                       </div>
 
-                      {/* Monthly Plan (formerly Economy Monthly Plan) */}
+                                            {/* Monthly Plan (formerly Economy Monthly Plan) */}
                       <div style={{
                         backgroundColor: 'white',
                         padding: '30px 25px',
@@ -1918,7 +1918,7 @@ return (
                               showMessage('Please log in first to purchase credits.', 'warning');
                               return;
                             }
-                            initializePaystackPayment(currentUser.email, 8, 'Monthly Plan', selectedRegion);
+                            initializePaystackPayment(currentUser.email, 8, 'Monthly Plan', selectedRegion); // This already passes selectedRegion correctly.
                           }}
                           disabled={!currentUser?.email}
                           style={{
@@ -2021,7 +2021,7 @@ return (
                                 showMessage('Please log in first to purchase.', 'warning');
                                 return;
                               }
-                              initializePaystackPayment(currentUser.email, 9.99, 'Monthly Plan', 'OTHER_AFRICA');
+                              initializePaystackPayment(currentUser.email, 9.99, 'Monthly Plan', selectedRegion);
                             }}
                             disabled={!currentUser?.email}
                             style={{
