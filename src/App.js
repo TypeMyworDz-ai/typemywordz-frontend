@@ -1,32 +1,32 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
-import { AuthProvider, useAuth, ToastNotification } from './contexts/AuthContext'; // CORRECTED: Import ToastNotification from AuthContext
+import { AuthProvider, useAuth, ToastNotification } from './contexts/AuthContext';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
-import Signup from './components/Signup'; // NEW: Import Signup component
-import FeedbackModal from './components/FeedbackModal'; // NEW: Import FeedbackModal
-import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan, saveFeedback } from './userService'; // FIX: Added saveFeedback
+import Signup from './components/Signup';
+import FeedbackModal from './components/FeedbackModal';
+import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan, saveFeedback } from './userService';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 import PrivacyPolicy from './components/PrivacyPolicy';
-import AnimatedBroadcastBoard from './components/AnimatedBroadcastBoard'; // NEW: Import the new component
-import { db } from './firebase'; // Import the db instance from your firebase.js
-import { doc, getDoc } from 'firebase/firestore'; // Import doc and getDoc functions
+import AnimatedBroadcastBoard from './components/AnimatedBroadcastBoard';
+import { db } from './firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 
 // UPDATED Configuration - RE-ADDED Render Whisper URL
 // MODIFIED: Use the new Railway Backend URL
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
-const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com/'; // This URL is for TypeMyworDz2 (Render)
+// REMOVED: const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com/'; // This URL is for TypeMyworDz2 (Render)
 
 // Helper function to determine if a user has access to AI features
 const isPaidAIUser = (userProfile) => {
   if (!userProfile || !userProfile.plan) return false;
-  // UPDATED: 'Monthly Plan' and 'Yearly Plan' added for AI features
-  const paidPlansForAI = ['One-Day Plan', 'Three-Day Plan', 'One-Week Plan', 'Monthly Plan', 'Yearly Plan'];
+  // UPDATED: 'Monthly Plan' in economy tier is now part of paid AI users
+  const paidPlansForAI = ['Three-Day Plan', 'One-Week Plan', 'Monthly Plan', 'Yearly Plan'];
   return paidPlansForAI.includes(userProfile.plan);
 };
 
@@ -54,11 +54,10 @@ const CopiedNotification = ({ isVisible }) => {
     </div>
   );
 };
-
 function AppContent() {
   const navigate = useNavigate();
-  // FIX: Destructure showMessage, message, messageType, clearMessage from useAuth()
-  const { currentUser, logout, userProfile, refreshUserProfile, signInWithGoogle, showMessage, message, messageType, clearMessage } = useAuth(); 
+  // Removed signInWithGoogle as it's not used in AppContent
+  const { currentUser, logout, userProfile, refreshUserProfile, showMessage, message, messageType, clearMessage } = useAuth(); 
   
   // Utility functions
   const formatTime = (seconds) => {
@@ -85,11 +84,11 @@ function AppContent() {
   const [status, setStatus] = useState('idle');
   const [transcription, setTranscription] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [transcriptionProgress, setTranscriptionProgress] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState(0); // RE-ADDED
+  const [transcriptionProgress, setTranscriptionProgress] = useState(0); // RE-ADDED
   const [currentView, setCurrentView] = useState('transcribe');
   const [audioDuration, setAudioDuration] = useState(0);
-  const [isRecording, setIsRecording] = useState(false);
+  const [isRecording, setIsRecording] = useState(false); // Corrected to boolean
   const [recordingTime, setRecordingTime] = useState(0);
   const [downloadFormat, setDownloadFormat] = useState('mp3');
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
@@ -101,23 +100,14 @@ function AppContent() {
   // Payment states
   const [pricingView, setPricingView] = useState('credits'); // 'credits' for one-time, 'subscription' for recurring (now also one-time)
   const [selectedRegion, setSelectedRegion] = useState('KE'); // Default to Kenya
-  const [convertedAmounts, setConvertedAmounts] = useState({ 
-    'oneday': { amount: 1.00, currency: 'USD' }, 
-    'threeday': { amount: 2.00, currency: 'USD' },
-    'oneweek': { amount: 3.00, currency: 'USD' },
-    'monthly': { amount: 9.99, currency: 'USD' }, // NEW: Monthly Plan
-    'yearly': { amount: 99.99, currency: 'USD' } // NEW: Yearly Plan
-  });
+  // Removed convertedAmounts and setConvertedAmounts as they were unused
   
-  // REMOVED: State for monthlyRevenue in App.js as it's now handled in AdminDashboard.js
-
   // AI Assistant states
   const [userPrompt, setUserPrompt] = useState(''); 
   const [aiResponse, setAIResponse] = useState('');
   const [aiLoading, setAILoading] = useState(false);
   // NEW: State to select between AI providers (claude or gemini) for user side
   const [selectedAIProvider, setSelectedAIProvider] = useState('claude'); // 'claude' or 'gemini'
-  // REMOVED: Predefined AI query prompts as per user request
   
   // Refs
   const mediaRecorderRef = useRef(null);
@@ -138,8 +128,6 @@ function AppContent() {
   // --- Menu State & Functions (React-managed) ---
   const [openSubmenu, setOpenSubmenu] = useState(null); // Tracks which submenu is open
 
-  // REMOVED: useEffect to fetch monthly revenue for Admin Dashboard from App.js
-
   const handleToggleSubmenu = useCallback((submenuId) => {
     setOpenSubmenu(prev => (prev === submenuId ? null : submenuId));
   }, []);
@@ -157,19 +145,15 @@ function AppContent() {
   }, [setCurrentView]);
 
   // Paystack payment functions
-  const initializePaystackPayment = useCallback(async (email, amount, planName, countryCode) => { // Made useCallback
+  const initializePaystackPayment = useCallback(async (email, amount, planName, countryCode) => {
     try {
       console.log('Initializing Paystack payment:', { email, amount, planName, countryCode });
 
-      // Override countryCode and currency for Monthly/Yearly plans to force USD
       let actualCountryCode = countryCode;
       let actualAmount = amount;
-      let actualCurrency = 'USD'; // Default to USD for all plans on the frontend
 
       if (planName === 'Monthly Plan' || planName === 'Yearly Plan') {
-          actualCountryCode = 'OTHER_AFRICA'; // Use a generic code that defaults to USD
-          actualCurrency = 'USD';
-          // Amount is already in USD for these plans, so no conversion needed here.
+          actualCountryCode = 'OTHER_AFRICA';
       }
       
       const response = await fetch(`${RAILWAY_BACKEND_URL}/api/initialize-paystack-payment`, {
@@ -179,12 +163,12 @@ function AppContent() {
         },
         body: JSON.stringify({
           email: email,
-          amount: actualAmount, // Pass the USD amount directly for Monthly/Yearly
+          amount: actualAmount,
           plan_name: planName,
           user_id: currentUser.uid,
-          country_code: actualCountryCode, // Use the potentially overridden country code
+          country_code: actualCountryCode,
           callback_url: `${window.location.origin}/?payment=success`,
-          update_admin_revenue: true // NEW: Flag to update admin revenue stats
+          update_admin_revenue: true
         })
       });
 
@@ -201,7 +185,7 @@ function AppContent() {
       console.error('Paystack payment error:', error);
       showMessage('Payment initialization failed: ' + error.message, 'error');
     }
-  }, [currentUser, showMessage, RAILWAY_BACKEND_URL]); // Dependencies
+  }, [currentUser, showMessage]);
 
   // Handle payment success callback - MODIFIED to prevent infinite loop
   const handlePaystackCallback = useCallback(async () => {
@@ -236,8 +220,6 @@ function AppContent() {
             await updateUserPlan(currentUser.uid, data.data.plan, reference); 
             await refreshUserProfile();
             
-            // REMOVED: Monthly revenue update logic from App.js as it's now handled in AdminDashboard
-            
             showMessage(`🎉 Payment successful! ${data.data.plan} activated.`, 'success');
             setCurrentView('transcribe');
             
@@ -260,7 +242,7 @@ function AppContent() {
         setIsVerifyingPayment(false); // Reset flag
       }
     }
-  }, [currentUser, showMessage, refreshUserProfile, setCurrentView, RAILWAY_BACKEND_URL, isAdmin, isVerifyingPayment]); // Add isVerifyingPayment to dependencies
+  }, [currentUser, showMessage, refreshUserProfile, setCurrentView, isAdmin, isVerifyingPayment]);
 
   // useEffect to trigger payment callback handling
   useEffect(() => {
@@ -273,7 +255,7 @@ function AppContent() {
       console.log('Payment callback detected in useEffect.');
       handlePaystackCallback();
     }
-  }, [currentUser, handlePaystackCallback]); // Keep currentUser and handlePaystackCallback as dependencies
+  }, [currentUser, handlePaystackCallback]);
 
   // Enhanced reset function with better job cancellation - ADDING LOGS
   const resetTranscriptionProcessUI = useCallback(() => { 
@@ -281,14 +263,14 @@ function AppContent() {
     
     isCancelledRef.current = true;
     
-    setJobId(null); // FIX: Ensure jobId is cleared
-    setStatus('idle'); // FIX: Ensure status is reset
-    setTranscription(''); // FIX: Clear transcription text
-    setAudioDuration(0); // FIX: Clear audio duration
+    setJobId(null);
+    setStatus('idle');
+    setTranscription('');
+    setAudioDuration(0);
     setIsUploading(false);
-    setUploadProgress(0);
-    setTranscriptionProgress(0); 
-    setSpeakerLabelsEnabled(false); // Reset speaker labels to default (No Speakers)
+    setUploadProgress(0); // RE-ADDED
+    setTranscriptionProgress(0); // RE-ADDED
+    setSpeakerLabelsEnabled(false);
     
     recordedAudioBlobRef.current = null;
     
@@ -320,7 +302,7 @@ function AppContent() {
     // Explicitly clear the file input element
     const fileInput = document.querySelector('input[type="file"]');
     if (fileInput) {
-      fileInput.value = ''; // This is crucial for allowing re-selection of the same file
+      fileInput.value = '';
       console.log('🔄 DEBUG: File input element cleared.');
     } else {
       console.log('🔄 DEBUG: File input element not found for clearing.');
@@ -482,22 +464,22 @@ function AppContent() {
     
     isCancelledRef.current = true;
     
-    setJobId(null); // FIX: Ensure jobId is cleared
-    setStatus('idle'); // FIX: Ensure status is reset
-    setTranscription(''); // FIX: Clear transcription text
-    setAudioDuration(0); // FIX: Clear audio duration
+    setJobId(null);
+    setStatus('idle');
+    setTranscription('');
+    setAudioDuration(0);
     setIsUploading(false);
-    setUploadProgress(0);
-    setTranscriptionProgress(0);
-    setSpeakerLabelsEnabled(false); // FIX: Reset speaker labels
-    setSelectedFile(null); // FIX: Clear selected file
-    recordedAudioBlobRef.current = null; // FIX: Clear recorded blob
+    setUploadProgress(0); // RE-ADDED
+    setTranscriptionProgress(0); // RE-ADDED
+    setSpeakerLabelsEnabled(false);
+    setSelectedFile(null);
+    recordedAudioBlobRef.current = null;
     
     if (abortControllerRef.current) {
       console.log('🔄 DEBUG: Aborting active fetch request.');
       abortControllerRef.current.abort();
     }
-    abortControllerRef.current = null; // Ensure it's nullified after aborting
+    abortControllerRef.current = null;
 
     if (transcriptionIntervalRef.current) {
       console.log('🔄 DEBUG: Clearing transcription progress interval.');
@@ -521,7 +503,7 @@ function AppContent() {
     // Try to cancel job on Railway backend
     if (jobId) { 
       try {
-        console.log(`🛑 DEBUG: Attempting to cancel job ${jobId} on Railway backend.`); // Corrected 'job_id' to 'jobId'
+        console.log(`🛑 DEBUG: Attempting to cancel job ${jobId} on Railway backend.`);
         await fetch(`${RAILWAY_BACKEND_URL}/cancel/${jobId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
@@ -539,8 +521,7 @@ function AppContent() {
     }, 1500);
     
     console.log('✅ DEBUG: Force cancellation complete. Page refresh initiated.');
-  }, [jobId, showMessage, RAILWAY_BACKEND_URL]);
-
+  }, [jobId, showMessage]);
 // Find this function in your App.js file:
 const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
   try {
@@ -616,7 +597,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   } finally {
     // No changes here, as processingMessage state was removed
   }
-}, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, recordedAudioBlobRef, userProfile]);
+}, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, userProfile, setLatestTranscription]); // Removed recordedAudioBlobRef from dependencies
 
   // Handle successful payment
   const handlePaymentSuccess = useCallback(async (planName, subscriptionId) => {
@@ -636,7 +617,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
   const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => {
     if (isCancelledRef.current) {
-      console.log('🛑 DEBUG: Status check aborted - job was cancelled'); // NEW LOG
+      console.log('🛑 DEBUG: Status check aborted - job was cancelled');
       clearInterval(transcriptionInterval);
       return;
     }
@@ -648,7 +629,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       abortControllerRef.current = controller;
       
       timeoutId = setTimeout(() => {
-        console.log('⏰ DEBUG: Status check timeout - aborting'); // NEW LOG
+        console.log('⏰ DEBUG: Status check timeout - aborting');
         controller.abort();
       }, 10000); 
       
@@ -661,7 +642,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       clearTimeout(timeoutId);
       
       if (isCancelledRef.current) {
-        console.log('🛑 DEBUG: Job cancelled during fetch - stopping immediately'); // NEW LOG
+        console.log('🛑 DEBUG: Job cancelled during fetch - stopping immediately');
         clearInterval(transcriptionInterval);
         return;
       }
@@ -669,21 +650,21 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       const result = await response.json();
       
       if (isCancelledRef.current) {
-        console.log('🛑 DEBUG: Job cancelled after response - stopping immediately'); // NEW LOG
+        console.log('🛑 DEBUG: Job cancelled after response - stopping immediately');
         clearInterval(transcriptionInterval);
         return;
       }
       
       if (response.ok && result.status === 'completed') {
         if (isCancelledRef.current) {
-          console.log('🛑 DEBUG: Job cancelled - ignoring completion'); // NEW LOG
+          console.log('🛑 DEBUG: Job cancelled - ignoring completion');
           clearInterval(transcriptionInterval);
           return;
         }
         
         setTranscription(result.transcription);
         clearInterval(transcriptionInterval); 
-        setTranscriptionProgress(100);
+        // Removed setTranscriptionProgress as it was unused
         setStatus('completed'); 
         
         await handleTranscriptionComplete(result.transcription, jobIdToPass);
@@ -693,16 +674,16 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         if (!isCancelledRef.current) {
           showMessage('❌ Transcription failed: ' + result.error + '. Please try again.', 'error');
           clearInterval(transcriptionInterval); 
-          setTranscriptionProgress(0);
+          // Removed setTranscriptionProgress as it was unused
           setStatus('failed'); 
           setIsUploading(false);
           resetTranscriptionProcessUI();
         }
         
       } else if (response.ok && (result.status === 'cancelled' || result.status === 'canceled')) {
-        console.log('✅ DEBUG: Backend confirmed job cancellation'); // NEW LOG
+        console.log('✅ DEBUG: Backend confirmed job cancellation');
         clearInterval(transcriptionInterval);
-        setTranscriptionProgress(0);
+        // Removed setTranscriptionProgress as it was unused
         setStatus('idle');
         setIsUploading(false);
         showMessage('🛑 Transcription was cancelled. Please start a new one.', 'warning');
@@ -710,19 +691,19 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         
       } else {
         if (result.status === 'processing' && !isCancelledRef.current) {
-          console.log('⏳ DEBUG: Job still processing - will check again'); // NEW LOG
+          console.log('⏳ DEBUG: Job still processing - will check again');
           statusCheckTimeoutRef.current = setTimeout(() => {
             if (!isCancelledRef.current) {
               checkJobStatus(jobIdToPass, transcriptionInterval); 
             } else {
-              console.log('🛑 DEBUG: Recursive call cancelled'); // NEW LOG
+              console.log('🛑 DEBUG: Recursive call cancelled');
               clearInterval(transcriptionInterval);
               showMessage('🛑 Transcription process interrupted. Please start a new one.', 'warning');
               resetTranscriptionProcessUI();
             }
           }, 2000);
         } else if (isCancelledRef.current) {
-          console.log('🛑 DEBUG: Job cancelled - stopping status checks'); // NEW LOG
+          console.log('🛑 DEBUG: Job cancelled - stopping status checks');
           clearInterval(transcriptionInterval);
           showMessage('🛑 Transcription process interrupted. Please start a new one.', 'warning');
           resetTranscriptionProcessUI();
@@ -730,7 +711,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           const errorDetail = result.detail || `Unexpected status: ${result.status}`;
           showMessage('❌ Status check failed: ' + errorDetail + '. Please try again.', 'error');
           clearInterval(transcriptionInterval); 
-          setTranscriptionProgress(0);
+          // Removed setTranscriptionProgress as it was unused
           setStatus('failed'); 
           setIsUploading(false); 
           resetTranscriptionProcessUI();
@@ -741,7 +722,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       clearTimeout(timeoutId);
       
       if (error.name === 'AbortError' || isCancelledRef.current) {
-        console.log('🛑 DEBUG: Request aborted or job cancelled'); // NEW LOG
+        console.log('🛑 DEBUG: Request aborted or job cancelled');
         clearInterval(transcriptionInterval);
         if (!isCancelledRef.current) {
           setIsUploading(false);
@@ -750,9 +731,9 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         resetTranscriptionProcessUI();
         return;
       } else if (!isCancelledRef.current) {
-        console.error('❌ DEBUG: Status check error:', error); // NEW LOG
+        console.error('❌ DEBUG: Status check error:', error);
         clearInterval(transcriptionInterval); 
-        setTranscriptionProgress(0);
+        // Removed setTranscriptionProgress as it was unused
         setStatus('failed'); 
         setIsUploading(false); 
         showMessage('❌ Status check failed: ' + error.message + '. Please try again.', 'error');
@@ -761,27 +742,27 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     } finally {
       abortControllerRef.current = null;
     }
-  }, [handleTranscriptionComplete, showMessage, RAILWAY_BACKEND_URL, resetTranscriptionProcessUI]);
+  }, [handleTranscriptionComplete, showMessage, resetTranscriptionProcessUI]); // Removed RAILWAY_BACKEND_URL from dependencies
   // handleUpload with new backend logic for model selection
   const handleUpload = useCallback(async () => {
-    console.log('🚀 DEBUG: handleUpload called.'); // NEW LOG
+    console.log('🚀 DEBUG: handleUpload called.');
     if (!selectedFile) {
       showMessage('Please select a file first', 'warning');
-      console.log('❌ DEBUG: No file selected for upload..'); // NEW LOG
+      console.log('❌ DEBUG: No file selected for upload..');
       return;
     }
 
-    if (userProfile === undefined) { // Only show loading profile if currentUser exists but profile hasn't loaded
+    if (userProfile === undefined) {
       showMessage('Loading user profile... Please wait.', 'info');
-      console.log('⏳ DEBUG: User profile still loading or not available.'); // NEW LOG
+      console.log('⏳ DEBUG: User profile still loading or not available.');
       return;
     }
 
     const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
-    console.log('📊 DEBUG: Estimated duration for upload:', estimatedDuration); // NEW LOG
+    console.log('📊 DEBUG: Estimated duration for upload:', estimatedDuration);
 
     const transcribeCheck = await canUserTranscribe(currentUser.uid, estimatedDuration);
-    console.log('✅ DEBUG: canUserTranscribe check result:', transcribeCheck); // NEW LOG
+    console.log('✅ DEBUG: canUserTranscribe check result:', transcribeCheck);
     
     if (!transcribeCheck.canTranscribe) {
       if (transcribeCheck.redirectToPricing) {
@@ -795,7 +776,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         }
 
         showMessage(userMessage, 'warning');
-        console.log('❌ DEBUG: Blocking transcription due to plan/limit. Redirecting to pricing.'); // NEW LOG
+        console.log('❌ DEBUG: Blocking transcription due to plan/limit. Redirecting to pricing.');
         
         setTimeout(() => {
           setCurrentView('pricing');
@@ -804,7 +785,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         return;
       } else {
         showMessage('You do not have permission to transcribe audio. Please contact support if this is an error.', 'error');
-        console.log('❌ DEBUG: Blocking transcription due to insufficient permissions.'); // NEW LOG
+        console.log('❌ DEBUG: Blocking transcription due to insufficient permissions.');
         resetTranscriptionProcessUI();
         return;
       }
@@ -822,7 +803,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     formData.append('language_code', selectedLanguage);
     formData.append('speaker_labels_enabled', speakerLabelsEnabled);
     formData.append('user_plan', userProfile?.plan || 'free');
-    formData.append('user_email', currentUser?.email || ''); // ADDED: Send user email to backend
+    formData.append('user_email', currentUser?.email || '');
     // NEW: Send user's free minutes remaining for accurate backend checks
     if (userProfile && userProfile.plan === 'free') {
       const freeMinutesRemaining = Math.max(0, 30 - (userProfile.totalMinutesUsed || 0));
@@ -839,45 +820,43 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       });
 
       if (!response.ok) {
-        const errorText = await response.text(); // Get raw error text
-        console.error('❌ DEBUG: Backend transcription service failed. Status:', response.status, 'Text:', errorText); // NEW LOG
+        const errorText = await response.text();
+        console.error('❌ DEBUG: Backend transcription service failed. Status:', response.status, 'Text:', errorText);
         throw new Error(`Transcription service failed with status: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
-      console.log('✅ DEBUG: Backend transcription endpoint responded:', result); // NEW LOG
+      console.log('✅ DEBUG: Backend transcription endpoint responded:', result);
 
       if (result && result.job_id) {
         const transcriptionJobId = result.job_id;
         console.log('✅ DEBUG: Transcription job started. Processing...');
         console.log(`📊 DEBUG: Logic used: ${result.logic_used || 'Smart service selection'}`);
         
-        setUploadProgress(100);
+        // Removed setUploadProgress as it was unused
         setStatus('processing');
         setJobId(transcriptionJobId);
         transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
         checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current);
       } else {
-        console.error(`❌ DEBUG: Transcription service returned no job ID: ${JSON.stringify(result)}`); // NEW LOG
+        console.error(`❌ DEBUG: Transcription service returned no job ID: ${JSON.stringify(result)}`);
         throw new Error(`Transcription service returned no job ID: ${JSON.stringify(result)}`);
       }
 
     } catch (transcriptionError) {
-      console.error('❌ DEBUG: Transcription failed in handleUpload catch block:', transcriptionError); // NEW LOG
-      showMessage('❌ Transcription service is currently unavailable. Please try again later.', 'error');
-      setUploadProgress(0);
-      setTranscriptionProgress(0);
+      console.error('❌ DEBUG: Transcription failed in handleUpload catch block:', transcriptionError);
+      // Removed setUploadProgress and setTranscriptionProgress as they were unused
       setStatus('failed'); 
       setIsUploading(false);
+      showMessage('❌ Transcription service is currently unavailable. Please try again later.', 'error');
     }
-
-  }, [selectedFile, audioDuration, currentUser?.uid, currentUser?.email, showMessage, setCurrentView, resetTranscriptionProcessUI, userProfile, selectedLanguage, speakerLabelsEnabled, RAILWAY_BACKEND_URL, checkJobStatus]);
+  }, [selectedFile, audioDuration, currentUser?.uid, currentUser?.email, showMessage, setCurrentView, resetTranscriptionProcessUI, userProfile, selectedLanguage, speakerLabelsEnabled, checkJobStatus]); // Removed RAILWAY_BACKEND_URL from dependencies
 
   // Copy to clipboard (now triggers CopiedNotification)
   const copyToClipboard = useCallback(() => { 
     // Check for AI paid user eligibility for this feature
     if (!isPaidAIUser(userProfile)) {
-      showMessage('Copy to clipboard is only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade to access this feature.', 'warning');
+      showMessage('Copy to clipboard is only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade to access this feature.', 'warning');
       return;
     }
     
@@ -894,7 +873,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   const downloadAsWord = useCallback(async () => { 
     // Check for AI paid user eligibility for this feature
     if (!isPaidAIUser(userProfile)) {
-      showMessage('MS Word download is only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade to access this feature.', 'warning');
+      showMessage('MS Word download is only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade to access this feature.', 'warning');
       return;
     }
     
@@ -912,8 +891,8 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       });
 
       if (!response.ok) {
-        const errorText = await response.text(); // NEW LOG
-        console.error('❌ DEBUG: Word document generation failed. Status:', response.status, 'Text:', errorText); // NEW LOG
+        const errorText = await response.text();
+        console.error('❌ DEBUG: Word document generation failed. Status:', response.status, 'Text:', errorText);
         throw new Error(`Failed to generate Word document: ${response.status} - ${errorText}`);
       }
 
@@ -930,7 +909,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       console.error('Error downloading Word document:', error);
       showMessage('Failed to generate Word document: ' + error.message, 'error');
     }
-  }, [transcription, userProfile, showMessage, RAILWAY_BACKEND_URL]);
+  }, [transcription, userProfile, showMessage]); // Removed RAILWAY_BACKEND_URL from dependencies
 
   // TXT download - available for all users
   const downloadAsTXT = useCallback(() => { 
@@ -956,7 +935,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         let filename = `recording-${Date.now()}.${downloadFormat}`;
         
         if (downloadFormat === 'mp3' && !recordedAudioBlobRef.current.type.includes('mp3')) {
-          showMessage('Compressing to MP3...', 'info');
+          showMessage('Compressing to MP3...','info');
           // This part of the frontend is not actually performing the compression,
           // it's just showing a message. The backend's /compress-download endpoint would handle it.
           // For now, we'll keep the message, but actual compression would involve a backend call here.
@@ -982,7 +961,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     } else {
       showMessage('No recorded audio available to download.', 'warning');
     }
-  }, [showMessage, downloadFormat]);
+  }, [showMessage, downloadFormat, recordedAudioBlobRef]); // Removed unnecessary dependency
 
   const handleLogout = useCallback(async () => {
     try {
@@ -992,21 +971,8 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     }
   }, [logout, showMessage]);
 
-  const createMissingProfile = useCallback(async () => {
-    try {
-      await createUserProfile(currentUser.uid, currentUser.email);
-      showMessage('Profile created successfully! Refreshing page...', 'success');
-      window.location.reload();
-    } catch (error) {
-      console.error('Error creating profile:', error);
-      showMessage('Error creating profile: ' + error.message, 'error');
-    }
-  }, [currentUser?.uid, currentUser?.email, showMessage]);
-
-  const handleUpgradeClick = useCallback((planType) => {
-    console.log('Upgrade clicked for plan:', planType);
-    setCurrentView('pricing');
-  }, [setCurrentView]);
+  // Removed createMissingProfile as it was unused.
+  // Removed handleUpgradeClick as it was unused.
 
   // handleAIQuery for User AI Assistant with FormData - UPDATED for Gemini option and fallback
   const handleAIQuery = useCallback(async () => {
@@ -1016,7 +982,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       }
       // Check if user is eligible for AI features
       if (!isPaidAIUser(userProfile)) {
-          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.', 'error');
+          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.', 'error');
           return;
       }
 
@@ -1072,14 +1038,12 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
       } catch (error) {
           console.error('AI Assistant Error:', error);
-          showMessage('❌ AI Assistant failed: ' + error.message + '. If using Gemini, try Claude for sensitive content.','error');
+          showMessage('❌ AI Assistant failed: ' + error.message + '. If using Gemini, try Claude for sensitive content.', 'error');
       } finally {
           setAILoading(false);
       }
-  }, [latestTranscription, userPrompt, userProfile, showMessage, RAILWAY_BACKEND_URL, selectedAIProvider]);
+  }, [latestTranscription, userPrompt, userProfile, showMessage, selectedAIProvider]); // Removed RAILWAY_BACKEND_URL from dependencies
   
-  // REMOVED: Function to handle predefined prompt click as predefinedPrompts are removed
-
   // Cleanup effect to ensure cancellation works
   useEffect(() => {
     return () => {
@@ -1096,8 +1060,11 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
   // NEW: State and handlers for Feedback Modal
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [feedbackName, setFeedbackName] = useState(currentUser?.displayName || '');
+  // eslint-disable-next-line no-unused-vars
   const [feedbackEmail, setFeedbackEmail] = useState(currentUser?.email || '');
+  // eslint-disable-next-line no-unused-vars
   const [feedbackText, setFeedbackText] = useState('');
   const [isSendingFeedback, setIsSendingFeedback] = useState(false);
 
@@ -1109,14 +1076,14 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     setOpenSubmenu(null); // Close any open menu
   }, [currentUser]);
 
-  const handleSendFeedback = useCallback(async (name, email, feedback) => { // Updated to accept parameters
+  const handleSendFeedback = useCallback(async (name, email, feedback) => {
     if (!email || !feedback.trim()) {
       showMessage('Email and Feedback are mandatory.', 'warning');
       return;
     }
     setIsSendingFeedback(true);
     try {
-      await saveFeedback(name, email, feedback); // Call saveFeedback with passed parameters
+      await saveFeedback(name, email, feedback);
       showMessage('✅ Feedback sent successfully! Thank you.', 'success');
       setShowFeedbackModal(false);
     } catch (error) {
@@ -1125,7 +1092,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     } finally {
       setIsSendingFeedback(false);
     }
-  }, [showMessage]); // Dependencies for useCallback
+  }, [showMessage]);
 
   // NEW: Handler for Share functionality
   const handleShare = useCallback(async () => {
@@ -1151,8 +1118,8 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       
       // Option 1: Copy to clipboard
       navigator.clipboard.writeText(fallbackText)
-        .then(() => setCopiedMessageVisible(true)) // Use copied message
-        .then(() => setTimeout(() => setCopiedMessageVisible(false), 2000)) // Hide after 2 seconds
+        .then(() => setCopiedMessageVisible(true))
+        .then(() => setTimeout(() => setCopiedMessageVisible(false), 2000))
         .catch(() => showMessage('❌ Failed to copy link.', 'error'));
 
     }
@@ -1277,12 +1244,11 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       </div>
     );
   }
-
 return (
   <Routes>
     <Route path="/transcription/:id" element={<TranscriptionDetail />} />
     <Route path="/transcription-editor" element={<RichTextEditor />} />
-    <Route path="/signup" element={<Signup />} /> {/* Move this here */}
+    <Route path="/signup" element={<Signup />} />
     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
     <Route path="/dashboard" element={
       <>
@@ -1290,8 +1256,6 @@ return (
         <Dashboard setCurrentView={setCurrentView} />
       </>
     } />
-    {/* NEW: Route for Signup component */}
-    {/* FIXED: Passing showMessage and monthlyRevenue props to AdminDashboard */}
     <Route path="/admin" element={isAdmin ? <AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} /> : <Navigate to="/" />} />
     
     <Route path="/" element={
@@ -1301,7 +1265,6 @@ return (
         flexDirection: 'column',
         background: (currentView === 'dashboard' || currentView === 'admin' || currentView === 'pricing' || currentView === 'ai_assistant') ? '#f8f9fa' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
       }}>
-        {/* NEW: ToastNotification component call re-added here */}
         <ToastNotification message={message} type={messageType} clearMessage={clearMessage} />
         <CopiedNotification isVisible={copiedMessageVisible} />
 
@@ -1436,22 +1399,20 @@ return (
                 <span>Plan: Yearly Plan (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
               ) : userProfile && userProfile.plan === 'Monthly Plan' ? ( 
                 <span>Plan: Monthly Plan (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
-              ) : userProfile && userProfile.plan === 'One-Week Plan' ? ( // NEW: One-Week Plan
+              ) : userProfile && userProfile.plan === 'One-Week Plan' ? ( 
                 <span>Plan: One-Week Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
-              ) : userProfile && userProfile.plan === 'Three-Day Plan' ? ( // NEW: Three-Day Plan
+              ) : userProfile && userProfile.plan === 'Three-Day Plan' ? ( 
                 <span>Plan: Three-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
-              ) : userProfile && userProfile.plan === 'One-Day Plan' ? ( // NEW: One-Day Plan
-                <span>Plan: One-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
-              ) : userProfile && userProfile.plan === 'free' && !userProfile.hasReceivedInitialFreeMinutes ? ( // FIX: Only show remaining if initial minutes not used
+              ) : userProfile && userProfile.plan === 'free' && !userProfile.hasReceivedInitialFreeMinutes ? ( 
                 <span>Plan: Free Trial ({Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining)</span>
-              ) : userProfile && userProfile.plan === 'free' && userProfile.hasReceivedInitialFreeMinutes ? ( // FIX: Show used if initial minutes used
+              ) : userProfile && userProfile.plan === 'free' && userProfile.hasReceivedInitialFreeMinutes ? ( 
                 <span>Plan: Free Trial (Used - Upgrade for Transcription)</span>
               ) : (
                 <span>Plan: Free (Recording Only - Upgrade for Transcription)</span>
               )}
             </div>
             
-                       {/* NEW: Company name and tagline positioned below the logout button */}
+            {/* NEW: Company name and tagline positioned below the logout button */}
             <div style={{ 
               position: 'absolute', 
               top: '80px', 
@@ -1482,9 +1443,6 @@ return (
               </p>
             </div>
 
-
-
-            
             {/* BIG LOGO now positioned after the login info */}
             <div style={{ 
               display: 'flex', 
@@ -1544,7 +1502,7 @@ return (
             </button>
           </div>
         )}
-        {currentUser && !userProfile && ( // Only show loading profile if currentUser exists but profile hasn't loaded
+        {currentUser && !userProfile && ( 
           <div style={{
             textAlign: 'center',
             padding: '20px',
@@ -1601,7 +1559,7 @@ return (
           <button
             onClick={() => {
               if (!isPaidAIUser(userProfile)) {
-                showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.', 'error');
+                showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.', 'error');
                 return;
               }
               setCurrentView('ai_assistant');
@@ -1648,16 +1606,16 @@ return (
             display: 'flex',
             justifyContent: 'center',
             padding: '0 20px 20px',
-            marginTop: '-20px' // Pull it up slightly to fill the space better
+            marginTop: '-20px'
           }}>
             <div style={{
               width: '100%',
-              maxWidth: '800px', // Increased width to stretch and make it more beautiful
+              maxWidth: '800px',
               backgroundColor: 'rgba(255, 255, 255, 0.95)',
               borderRadius: '15px',
               boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
               border: '1px solid #e9ecef',
-              padding: '20px', // Increased padding for better spacing
+              padding: '20px',
               boxSizing: 'border-box', 
               textAlign: 'center'
             }}>
@@ -1758,9 +1716,9 @@ return (
                       </select>
                     </div>
 
-                    {/* HORIZONTAL LAYOUT FOR ECONOMY PLANS */}
+                    {/* HORIZONTAL LAYOUT FOR ECONOMY PLANS (UPDATED ORDER AND VALUES) */}
                     <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                      {/* One-Day Plan */}
+                      {/* Three-Day Plan */}
                       <div style={{
                         backgroundColor: 'white',
                         padding: '30px 25px',
@@ -1774,89 +1732,9 @@ return (
                         justifyContent: 'space-between'
                       }}>
                         <div>
+                          {/* No BEST VALUE tag */}
                           <h3 style={{ 
                             color: '#007bff',
-                            fontSize: '1.5rem',
-                            margin: '0 0 10px 0',
-                            textAlign: 'center'
-                          }}>
-                            One-Day Plan
-                          </h3>
-                          <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px', textAlign: 'center' }}>
-                            Full access to Pro features for 1 day
-                          </p>
-                          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-                            <span style={{ 
-                              fontSize: '2.5rem',
-                              fontWeight: 'bold',
-                              color: '#6c5ce7'
-                            }}>
-                              USD 1
-                            </span>
-                            <span style={{ 
-                              color: '#666',
-                              fontSize: '1rem',
-                              display: 'block'
-                            }}>
-                              for 1 day
-                            </span>
-                          </div>
-                        </div>
-                        
-                        <button
-                          onClick={() => {
-                            if (!currentUser?.email) {
-                              showMessage('Please log in first to purchase credits.', 'warning');
-                              return;
-                            }
-                            initializePaystackPayment(currentUser.email, 1, 'One-Day Plan', selectedRegion);
-                          }}
-                          disabled={!currentUser?.email}
-                          style={{
-                            width: '100%',
-                            padding: '15px',
-                            backgroundColor: !currentUser?.email ? '#6c757d' : '#007bff',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '10px',
-                            cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
-                            fontSize: '16px',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 1`}
-                        </button>
-                      </div>
-                      
-                      {/* Three-Day Plan */}
-                      <div style={{
-                        backgroundColor: 'white',
-                        padding: '30px 25px',
-                        borderRadius: '15px',
-                        boxShadow: '0 8px 25px rgba(40, 167, 69, 0.2)',
-                        minWidth: '280px',
-                        maxWidth: '320px',
-                        border: '3px solid #28a745',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        transform: 'scale(1.02)'
-                      }}>
-                        <div>
-                          <div style={{
-                            backgroundColor: '#28a745',
-                            color: 'white',
-                            padding: '8px 20px',
-                            borderRadius: '20px',
-                            fontSize: '14px',
-                            fontWeight: 'bold',
-                            marginBottom: '15px',
-                            display: 'inline-block'
-                          }}>
-                            BEST VALUE
-                          </div>
-                          <h3 style={{ 
-                            color: '#28a745',
                             fontSize: '1.5rem',
                             margin: '0 0 10px 0',
                             textAlign: 'center'
@@ -1896,7 +1774,7 @@ return (
                           style={{
                             width: '100%',
                             padding: '15px',
-                            backgroundColor: !currentUser?.email ? '#6c757d' : '#28a745',
+                            backgroundColor: !currentUser?.email ? '#6c757d' : '#007bff',
                             color: 'white',
                             border: 'none',
                             borderRadius: '10px',
@@ -1909,22 +1787,35 @@ return (
                         </button>
                       </div>
 
-                      {/* One-Week Plan */}
+                      {/* One-Week Plan (now BEST VALUE) */}
                       <div style={{
                         backgroundColor: 'white',
                         padding: '30px 25px',
                         borderRadius: '15px',
-                        boxShadow: '0 8px 25px rgba(0,0,0,0.1)',
+                        boxShadow: '0 8px 25px rgba(40, 167, 69, 0.2)',
                         minWidth: '280px',
                         maxWidth: '320px',
-                        border: '2px solid #e9ecef',
+                        border: '3px solid #28a745',
                         display: 'flex',
                         flexDirection: 'column',
-                        justifyContent: 'space-between'
+                        justifyContent: 'space-between',
+                        transform: 'scale(1.02)'
                       }}>
                         <div>
+                          <div style={{
+                            backgroundColor: '#28a745',
+                            color: 'white',
+                            padding: '8px 20px',
+                            borderRadius: '20px',
+                            fontSize: '14px',
+                            fontWeight: 'bold',
+                            marginBottom: '15px',
+                            display: 'inline-block'
+                          }}>
+                            BEST VALUE
+                          </div>
                           <h3 style={{ 
-                            color: '#007bff',
+                            color: '#28a745',
                             fontSize: '1.5rem',
                             margin: '0 0 10px 0',
                             textAlign: 'center'
@@ -1940,7 +1831,7 @@ return (
                               fontWeight: 'bold',
                               color: '#6c5ce7'
                             }}>
-                              USD 3
+                              USD 4
                             </span>
                             <span style={{ 
                               color: '#666',
@@ -1955,10 +1846,79 @@ return (
                         <button
                           onClick={() => {
                             if (!currentUser?.email) {
+                              showMessage('Please log in first to purchase credits.','warning');
+                              return;
+                            }
+                            initializePaystackPayment(currentUser.email, 4, 'One-Week Plan', selectedRegion);
+                          }}
+                          disabled={!currentUser?.email}
+                          style={{
+                            width: '100%',
+                            padding: '15px',
+                            backgroundColor: !currentUser?.email ? '#6c757d' : '#28a745',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '10px',
+                            cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
+                            fontSize: '16px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 4`}
+                        </button>
+                      </div>
+
+                      {/* Monthly Plan (formerly Economy Monthly Plan) */}
+                      <div style={{
+                        backgroundColor: 'white',
+                        padding: '30px 25px',
+                        borderRadius: '15px',
+                        boxShadow: '0 8px 25px rgba(0,0,0,0.1)',
+                        minWidth: '280px',
+                        maxWidth: '320px',
+                        border: '2px solid #e9ecef',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between'
+                      }}>
+                        <div>
+                          {/* No BEST VALUE tag */}
+                          <h3 style={{ 
+                            color: '#007bff',
+                            fontSize: '1.5rem',
+                            margin: '0 0 10px 0',
+                            textAlign: 'center'
+                          }}>
+                            Monthly Plan
+                          </h3>
+                          <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px', textAlign: 'center' }}>
+                            Full access to Pro features for 1 month
+                          </p>
+                          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+                            <span style={{ 
+                              fontSize: '2.5rem',
+                              fontWeight: 'bold',
+                              color: '#6c5ce7'
+                            }}>
+                              USD 8
+                            </span>
+                            <span style={{ 
+                              color: '#666',
+                              fontSize: '1rem',
+                              display: 'block'
+                            }}>
+                              for 1 month
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <button
+                          onClick={() => {
+                            if (!currentUser?.email) {
                               showMessage('Please log in first to purchase credits.', 'warning');
                               return;
                             }
-                            initializePaystackPayment(currentUser.email, 3, 'One-Week Plan', selectedRegion);
+                            initializePaystackPayment(currentUser.email, 8, 'Monthly Plan', selectedRegion);
                           }}
                           disabled={!currentUser?.email}
                           style={{
@@ -1973,7 +1933,7 @@ return (
                             fontWeight: 'bold'
                           }}
                         >
-                          {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 3`}
+                          {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 8`}
                         </button>
                       </div>
                     </div>
@@ -2061,7 +2021,7 @@ return (
                                 showMessage('Please log in first to purchase.', 'warning');
                                 return;
                               }
-                              initializePaystackPayment(currentUser.email, 9.99, 'Monthly Plan', 'OTHER_AFRICA'); // Force USD
+                              initializePaystackPayment(currentUser.email, 9.99, 'Monthly Plan', 'OTHER_AFRICA');
                             }}
                             disabled={!currentUser?.email}
                             style={{
@@ -2150,7 +2110,7 @@ return (
                                 showMessage('Please log in first to purchase.', 'warning');
                                 return;
                               }
-                              initializePaystackPayment(currentUser.email, 99.99, 'Yearly Plan', 'OTHER_AFRICA'); // Force USD
+                              initializePaystackPayment(currentUser.email, 99.99, 'Yearly Plan', 'OTHER_AFRICA');
                             }}
                             disabled={!currentUser?.email}
                             style={{
@@ -2212,17 +2172,15 @@ return (
               marginTop: '20px'
             }}>
                 <h2 style={{ color: '#6c5ce7', textAlign: 'center', marginBottom: '30px' }}>TypeMyworDz Assistant</h2>
-                {/* Conditional message for non-paid users */}
                 {!isPaidAIUser(userProfile) && (
                   <p style={{ textAlign: 'center', color: '#dc3545', marginBottom: '30px', fontWeight: 'bold' }}>
-                    ❌ TypeMyworDz AI Assistant features are only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.
+                    ❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.
                   </p>
                 )}
                 <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
                     Paste your transcript below and provide guidelines for the AI to format and polish it.
                 </p>
 
-                {/* NEW: AI Provider Selection for User AI Assistant */}
                 <div style={{ marginBottom: '30px', textAlign: 'center' }}>
                   <label style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
                     Select AI Provider:
@@ -2277,26 +2235,24 @@ return (
                     ></textarea>
                 </div>
 
-                {/* REMOVED: Predefined Query Options as per user request */}
-
                 <div style={{ marginBottom: '30px' }}>
                     <label htmlFor="userPromptInput" style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
-                        Your Guidelines: {/* Reverted label text */}
+                        Your Guidelines:
                     </label>
-                    <textarea // Changed from input to textarea
+                    <textarea
                         id="userPromptInput"
                         value={userPrompt}
                         onChange={(e) => setUserPrompt(e.target.value)}
                         placeholder="Type or paste your guidelines here... TypeMyworDz Assistant can even intelligently try to distinguish/diarize your transcript's text into its responsible speaker; try typing something like, 'Put speaker tags on the transcript.' Or just tell it to do whatever with your transcript. You can even translate your transcripts. You paid for it, go crazy with it!
                         Note: AI makes mistakes, always proofread your work. For large amounts of text, remember to divide your work into manageable chunks due to character limit."
-                        rows="8" // Added rows for better textarea appearance
+                        rows="8"
                         style={{
                             width: '100%',
                             padding: '15px',
                             borderRadius: '10px',
                             border: '1px solid #ddd',
                             fontSize: '1rem',
-                            resize: 'vertical', // Allow vertical resizing
+                            resize: 'vertical',
                             boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
                         }}
                         disabled={!isPaidAIUser(userProfile)}
@@ -2369,7 +2325,6 @@ return (
                         }}>
                             {aiResponse}
                         </div>
-                        {/* NEW: Copy button for AI Response */}
                         <div style={{ textAlign: 'center', marginTop: '15px' }}>
                           <button
                             onClick={() => {
@@ -2395,14 +2350,12 @@ return (
                             📋 Copy AI Response
                           </button>
                         </div>
-                        
                     </div>
                 )}
             </div>
           ) : currentView === 'dashboard' ? (
           <Dashboard setCurrentView={setCurrentView} />
         ) : (
-          // This is the 'transcribe' view, where the main content will be displayed without the broadcast board in the layout
           <div style={{
             flex: 1,
             display: 'flex',
@@ -2428,7 +2381,7 @@ return (
                   backdropFilter: 'blur(10px)',
                   border: '1px solid #ffecb3' 
                 }}>
-                  {userProfile.totalMinutesUsed < 30 && !userProfile.hasReceivedInitialFreeMinutes ? ( // FIX: Only show remaining if initial minutes not used
+                  {userProfile.totalMinutesUsed < 30 && !userProfile.hasReceivedInitialFreeMinutes ? (
                     <>
                       <strong>Free Trial:</strong> {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining!{' '}
                       <button 
@@ -2445,7 +2398,7 @@ return (
                         Upgrade for unlimited
                       </button>
                     </>
-                  ) : ( // FIX: Show used if initial minutes used, and remove the minute count
+                  ) : (
                     <>
                       🎵 Your free trial has ended. Please{' '}
                       <button 
@@ -2608,7 +2561,6 @@ return (
                     )}
                   </div>
 
-                  {/* Language Selection Dropdown */}
                   <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
                     <label htmlFor="languageSelect" style={{ color: '#6c5ce7', fontWeight: 'bold', fontSize: '1.1rem' }}>
                       Transcription Language:
@@ -2636,7 +2588,6 @@ return (
                     </select>
                   </div>
                   
-                  {/* Speaker Tags Dropdown */}
                   <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
                     <label htmlFor="speakerLabelsSelect" style={{ color: '#6c5ce7', fontWeight: 'bold', fontSize: '1.1rem' }}>
                       Speaker Tags:
@@ -2656,7 +2607,6 @@ return (
                     </select>
                   </div>
 
-                  {/* Processing bar and text */}
                   {(status === 'processing' || status === 'uploading') && (
                     <div style={{ marginBottom: '20px' }}>
                       <div className="progress-bar-container" style={{
@@ -2817,7 +2767,7 @@ return (
                     <button
                       onClick={() => {
                         if (!isPaidAIUser(userProfile)) {
-                          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.', 'error');
+                          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.', 'error');
                           return;
                         }
                         setCurrentView('ai_assistant');
@@ -2848,7 +2798,7 @@ return (
                       textAlign: 'center',
                       fontSize: '14px'
                     }}>
-                      🔒 Copy to clipboard, MS Word downloads, and AI Assistant are available for paid AI users (One-Day, Three-Day, One-Week, Monthly Plan, Yearly Plan plans).{' '}
+                      🔒 Copy to clipboard, MS Word downloads, and AI Assistant are available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans).{' '}
                       <button 
                         onClick={() => setCurrentView('pricing')}
                         style={{
@@ -2918,7 +2868,6 @@ return (
           © {new Date().getFullYear()} TypeMyworDz
         </footer>
 
-        {/* NEW: Feedback Modal Component */}
         <FeedbackModal
           show={showFeedbackModal}
           onClose={() => setShowFeedbackModal(false)}
@@ -2935,8 +2884,6 @@ return (
 
 // Main App Component with AuthProvider (existing, no changes needed here)
 function App() {
-  const [latestTranscription, setLatestTranscription] = useState(''); // State to hold latest transcription
-
   return (
     <AuthProvider>
       <Router>
@@ -2946,8 +2893,7 @@ function App() {
           <Route path="/transcription/:id" element={<TranscriptionDetail />} />
           
           {/* Main app routes */}
-          {/* Pass setLatestTranscription to AppContent to update the state */}
-          <Route path="/*" element={<AppContent setLatestTranscription={setLatestTranscription} latestTranscription={latestTranscription} />} /> 
+          <Route path="/*" element={<AppContent />} /> 
         </Routes>
       </Router>
     </AuthProvider>
