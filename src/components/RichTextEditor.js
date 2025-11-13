@@ -10,6 +10,7 @@ const RichTextEditor = () => {
   const audioRef = useRef(null);
   const fileInputRef = useRef(null);
   const quillRef = useRef(null);
+  const editorContainerRef = useRef(null); // NEW: Ref for the main editor container
 
   // State declarations
   const [editorContent, setEditorContent] = useState('');
@@ -23,11 +24,16 @@ const RichTextEditor = () => {
   const [localAudioFile, setLocalAudioFile] = useState(null);
   // Removed localAudioUrl state as it was unused
   const [sourceAudioUrl, setSourceAudioUrl] = useState(null);
+  
   // Load content from localStorage on mount
   useEffect(() => {
     const savedContent = localStorage.getItem('richTextEditorContent');
     if (savedContent) {
       setEditorContent(savedContent);
+    }
+    // NEW: Scroll to top when component mounts
+    if (editorContainerRef.current) {
+      editorContainerRef.current.scrollTo(0, 0);
     }
   }, []);
 
@@ -316,7 +322,8 @@ const RichTextEditor = () => {
       console.log('Audio file selected:', file.name);
     } else {
       setLocalAudioFile(null);
-      setSourceAudioUrl(null); // No longer setting localAudioUrl
+      // setLocalAudioUrl(null); // This line is now redundant
+      setSourceAudioUrl(null);
       setAudioError(true);
       console.warn('Invalid file type selected for audio.');
     }
@@ -326,12 +333,16 @@ const RichTextEditor = () => {
     fileInputRef.current.click();
   }, []);
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #e0f2f7 0%, #bbdefb 100%)',
-      padding: '20px',
-      fontFamily: 'system-ui, -apple-system, sans-serif'
-    }}>
+    <div 
+      ref={editorContainerRef} // NEW: Attach the ref here
+      style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #e0f2f7 0%, #bbdefb 100%)',
+        padding: '20px',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        overflowY: 'auto' // Ensure this div can scroll
+      }}
+    >
       <h1 style={{ textAlign: 'center', fontSize: '32px', fontWeight: 'bold', color: '#1f2937', marginBottom: '24px' }}>
         Transcription Editor
       </h1>
@@ -344,265 +355,265 @@ const RichTextEditor = () => {
         gap: '24px',
         alignItems: 'start'
       }}>
-        {/* Audio Player */}
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-          padding: '20px',
-          position: 'sticky',
-          top: '20px'
-        }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
-            Audio Player
-          </h2>
-          
-          <audio
-            ref={audioRef}
-            src={sourceAudioUrl}
-            preload="metadata"
-            crossOrigin="anonymous"
-          />
-          
-          <input
-            type="file"
-            accept="audio/*"
-            ref={fileInputRef}
-            onChange={handleLocalAudioFileSelect}
-            style={{ display: 'none' }}
-          />
-          {audioError || !sourceAudioUrl ? (
-            <div style={{ textAlign: 'center', padding: '24px' }}>
-              <div style={{
-                width: '64px',
-                height: '64px',
-                margin: '0 auto 12px',
-                background: '#fee2e2',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <svg style={{ width: '32px', height: '32px', color: '#ef4444' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <p style={{ fontSize: '14px', color: '#ef4444', fontWeight: '500' }}>
-                {localAudioFile ? 'Error loading local audio' : 'No audio loaded'}
-              </p>
-              <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                {localAudioFile ? 'Check file format' : 'Upload an audio file to start'}
-              </p>
-              <button 
-                onClick={triggerFileInput}
-                style={{
-                  background: '#3b82f6',
-                  color: 'white',
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  marginTop: '16px'
-                }}
-              >
-                Upload Local Audio
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {localAudioFile && (
-                <p style={{ fontSize: '12px', color: '#10b981', fontWeight: '500', textAlign: 'center', marginBottom: '-8px' }}>
-                  Playing from: {localAudioFile.name}
+        {/* New sticky container for Audio Player and Keyboard Shortcuts */}
+        <div style={{ position: 'sticky', top: '20px', display: 'flex', flexDirection: 'column', gap: '16px', gridColumn: '1 / 2' }}>
+          {/* Audio Player */}
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+            padding: '20px',
+            // Removed position: 'sticky' and top: '20px' from here
+          }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
+              Audio Player
+            </h2>
+            
+            <audio
+              ref={audioRef}
+              src={sourceAudioUrl}
+              preload="metadata"
+              crossOrigin="anonymous"
+            />
+            
+            <input
+              type="file"
+              accept="audio/*"
+              ref={fileInputRef}
+              onChange={handleLocalAudioFileSelect}
+              style={{ display: 'none' }}
+            />
+            {audioError || !sourceAudioUrl ? (
+              <div style={{ textAlign: 'center', padding: '24px' }}>
+                <div style={{
+                  width: '64px',
+                  height: '64px',
+                  margin: '0 auto 12px',
+                  background: '#fee2e2',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <svg style={{ width: '32px', height: '32px', color: '#ef4444' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <p style={{ fontSize: '14px', color: '#ef4444', fontWeight: '500' }}>
+                  {localAudioFile ? 'Error loading local audio' : 'No audio loaded'}
                 </p>
-              )}
-              
-              {/* Progress Bar */}
-              <div>
-                <div 
-                  onClick={handleSeek}
+                <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                  {localAudioFile ? 'Check file format' : 'Upload an audio file to start'}
+                </p>
+                <button 
+                  onClick={triggerFileInput}
                   style={{
-                    background: '#e5e7eb',
-                    borderRadius: '9999px',
-                    height: '8px',
-                    cursor: 'pointer',
-                    position: 'relative',
-                    marginBottom: '8px'
-                  }}
-                >
-                  <div 
-                    style={{
-                      background: '#7c3aed',
-                      height: '8px',
-                      borderRadius: '9999px',
-                      width: `${audioDuration > 0 ? (audioCurrentTime / audioDuration) * 100 : 0}%`,
-                      transition: 'width 0.2s'
-                    }}
-                  />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#6b7280' }}>
-                  <span>{formatTime(audioCurrentTime)}</span>
-                  <span>{formatTime(audioDuration)}</span>
-                </div>
-              </div>
-              {/* Play Controls */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-                <button
-                  onClick={() => skipTime(-10)}
-                  disabled={audioError}
-                  style={{
-                    padding: '8px',
-                    background: '#f3f4f6',
-                    borderRadius: '50%',
-                    border: 'none',
-                    cursor: 'pointer',
-                    opacity: audioError ? 0.5 : 1
-                  }}
-                  title="Rewind 10s"
-                >
-                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
-                  </svg>
-                </button>
-                
-                <button
-                  onClick={togglePlayPause}
-                  disabled={isLoading || audioError}
-                  style={{
-                    padding: '12px',
-                    background: '#7c3aed',
+                    background: '#3b82f6',
                     color: 'white',
-                    borderRadius: '50%',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
                     border: 'none',
                     cursor: 'pointer',
-                    opacity: (isLoading || audioError) ? 0.5 : 1
+                    marginTop: '16px'
                   }}
                 >
-                  {isLoading ? (
-                    <div style={{
-                      width: '20px',
-                      height: '20px',
-                      border: '2px solid white',
-                      borderTop: '2px solid transparent',
-                      borderRadius: '50%',
-                      animation: 'spin 1s linear infinite'
-                    }} />
-                  ) : isPlaying ? (
-                    <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" />
-                    </svg>
-                  ) : (
-                    <svg style={{ width: '20px', height: '20px' }} fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
-                  )}
+                  Upload Local Audio
                 </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {localAudioFile && (
+                  <p style={{ fontSize: '12px', color: '#10b981', fontWeight: '500', textAlign: 'center', marginBottom: '-8px' }}>
+                    Playing from: {localAudioFile.name}
+                  </p>
+                )}
                 
-                <button
-                  onClick={() => skipTime(10)}
-                  disabled={audioError}
-                  style={{
-                    padding: '8px',
-                    background: '#f3f4f6',
-                    borderRadius: '50%',
-                    border: 'none',
-                    cursor: 'pointer',
-                    opacity: audioError ? 0.5 : 1
-                  }}
-                  title="Forward 10s"
-                >
-                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4z" />
-                  </svg>
-                </button>
-              </div>
-              {/* Speed Control */}
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: '500', color: '#374151', display: 'block', marginBottom: '8px' }}>
-                  Speed
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4px' }}>
-                  {[0.75, 1, 1.25, 1.5, 1.75, 2].map((speed) => (
-                    <button
-                      key={speed}
-                      onClick={() => changePlaybackRate(speed)}
-                      disabled={audioError}
+                {/* Progress Bar */}
+                <div>
+                  <div 
+                    onClick={handleSeek}
+                    style={{
+                      background: '#e5e7eb',
+                      borderRadius: '9999px',
+                      height: '8px',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      marginBottom: '8px'
+                    }}
+                  >
+                    <div 
                       style={{
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        border: 'none',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        background: playbackRate === speed ? '#7c3aed' : '#f3f4f6',
-                        color: playbackRate === speed ? 'white' : '#374151',
-                        opacity: audioError ? 0.5 : 1
+                        background: '#7c3aed',
+                        height: '8px',
+                        borderRadius: '9999px',
+                        width: `${audioDuration > 0 ? (audioCurrentTime / audioDuration) * 100 : 0}%`,
+                        transition: 'width 0.2s'
                       }}
-                    >
-                      {speed}x
-                    </button>
-                  ))}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#6b7280' }}>
+                    <span>{formatTime(audioCurrentTime)}</span>
+                    <span>{formatTime(audioDuration)}</span>
+                  </div>
                 </div>
-              </div>
-
-              {/* Volume Control */}
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: '500', color: '#374151', display: 'block', marginBottom: '8px' }}>
-                  Volume
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <svg style={{ width: '12px', height: '12px', color: '#9ca3af' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M9 12a1 1 0 01-.707-.293L6.586 10H4a1 1 0 01-1-1V8a1 1 0 011-1h2.586l1.707-1.707A1 1 0 019 6v6z" />
-                  </svg>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={volume}
-                    onChange={(e) => changeVolume(parseFloat(e.target.value))}
+                {/* Play Controls */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+                  <button
+                    onClick={() => skipTime(-10)}
                     disabled={audioError}
                     style={{
-                      flex: 1,
-                      height: '4px',
-                      background: '#e5e7eb',
-                      borderRadius: '2px',
-                      outline: 'none',
-                      opacity: audioError ? 0.5 : 1,
-                      cursor: 'pointer'
+                      padding: '8px',
+                      background: '#f3f4f6',
+                      borderRadius: '50%',
+                      border: 'none',
+                      cursor: 'pointer',
+                      opacity: audioError ? 0.5 : 1
                     }}
-                  />
-                  <span style={{ fontSize: '12px', color: '#6b7280', width: '32px' }}>
-                    {Math.round(volume * 100)}%
-                  </span>
+                    title="Rewind 10s"
+                  >
+                    <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
+                    </svg>
+                  </button>
+                  
+                  <button
+                    onClick={togglePlayPause}
+                    disabled={isLoading || audioError}
+                    style={{
+                      padding: '12px',
+                      background: '#7c3aed',
+                      color: 'white',
+                      borderRadius: '50%',
+                      border: 'none',
+                      cursor: 'pointer',
+                      opacity: (isLoading || audioError) ? 0.5 : 1
+                    }}
+                  >
+                    {isLoading ? (
+                      <div style={{
+                        width: '20px',
+                        height: '20px',
+                        border: '2px solid white',
+                        borderTop: '2px solid transparent',
+                        borderRadius: '50%',
+                        animation: 'spin 1s linear infinite'
+                      }} />
+                    ) : isPlaying ? (
+                      <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" />
+                      </svg>
+                    ) : (
+                      <svg style={{ width: '20px', height: '20px' }} fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z"/>
+                      </svg>
+                    )}
+                  </button>
+                  
+                  <button
+                    onClick={() => skipTime(10)}
+                    disabled={audioError}
+                    style={{
+                      padding: '8px',
+                      background: '#f3f4f6',
+                      borderRadius: '50%',
+                      border: 'none',
+                      cursor: 'pointer',
+                      opacity: audioError ? 0.5 : 1
+                    }}
+                    title="Forward 10s"
+                  >
+                    <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4z" />
+                    </svg>
+                  </button>
                 </div>
-              </div>
+                {/* Speed Control */}
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: '500', color: '#374151', display: 'block', marginBottom: '8px' }}>
+                    Speed
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4px' }}>
+                    {[0.75, 1, 1.25, 1.5, 1.75, 2].map((speed) => (
+                      <button
+                        key={speed}
+                        onClick={() => changePlaybackRate(speed)}
+                        disabled={audioError}
+                        style={{
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          border: 'none',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          background: playbackRate === speed ? '#7c3aed' : '#f3f4f6',
+                          color: playbackRate === speed ? 'white' : '#374151',
+                          opacity: audioError ? 0.5 : 1
+                        }}
+                      >
+                        {speed}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-              <button 
-                onClick={triggerFileInput}
-                style={{
-                  background: '#3b82f6',
-                  color: 'white',
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  marginTop: '8px'
-                }}
-              >
-                Upload Local Audio
-              </button>
-            </div>
-          )}
-        </div>
-        {/* Keyboard Shortcuts moved here */}
-        <div style={{ 
-          marginTop: '0px', // Adjusted margin since it's now directly below the audio player div
-          fontSize: '12px', 
-          color: '#6b7280', 
-          textAlign: 'center',
-          gridColumn: '1 / 2', // Span only the first column
-          padding: '10px 0' // Add some padding for visual separation
-        }}>
-          <strong style={{ color: 'red' }}>Keyboard Shortcuts:</strong> Ctrl+Space (Play/Pause) | Ctrl+← (Rewind 5s) | Ctrl+→ (Forward 5s) | Ctrl+M (Insert Timestamp)
+                {/* Volume Control */}
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: '500', color: '#374151', display: 'block', marginBottom: '8px' }}>
+                    Volume
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <svg style={{ width: '12px', height: '12px', color: '#9ca3af' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M9 12a1 1 0 01-.707-.293L6.586 10H4a1 1 0 01-1-1V8a1 1 0 011-1h2.586l1.707-1.707A1 1 0 019 6v6z" />
+                    </svg>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={volume}
+                      onChange={(e) => changeVolume(parseFloat(e.target.value))}
+                      disabled={audioError}
+                      style={{
+                        flex: 1,
+                        height: '4px',
+                        background: '#e5e7eb',
+                        borderRadius: '2px',
+                        outline: 'none',
+                        opacity: audioError ? 0.5 : 1,
+                        cursor: 'pointer'
+                      }}
+                    />
+                    <span style={{ fontSize: '12px', color: '#6b7280', width: '32px' }}>
+                      {Math.round(volume * 100)}%
+                    </span>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={triggerFileInput}
+                  style={{
+                    background: '#3b82f6',
+                    color: 'white',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    marginTop: '8px'
+                  }}
+                >
+                  Upload Local Audio
+                </button>
+              </div>
+            )}
+          </div>
+          {/* Keyboard Shortcuts moved here */}
+          <div style={{ 
+            fontSize: '12px', 
+            color: '#6b7280', 
+            textAlign: 'center',
+            padding: '10px 0' // Add some padding for visual separation
+          }}>
+            <strong style={{ color: 'red' }}>Keyboard Shortcuts:</strong> Ctrl+Space (Play/Pause) | Ctrl+← (Rewind 5s) | Ctrl+→ (Forward 5s) | Ctrl+M (Insert Timestamp)
+          </div>
         </div>
         {/* Text Editor with Quill */}
         <div style={{
