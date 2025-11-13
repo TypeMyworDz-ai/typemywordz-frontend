@@ -1,6 +1,6 @@
 // src/contexts/AuthContext.js
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { auth, googleProvider, microsoftProvider, db } from '../firebase';
+import { auth, googleProvider, microsoftProvider } from '../firebase'; // Removed db import
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { createUserProfile, getUserProfile } from '../userService';
 

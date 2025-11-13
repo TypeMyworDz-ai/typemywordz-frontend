@@ -4,7 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { updateTranscription, deleteTranscription } from '../userService';
 
 const TranscriptionDetail = () => {
-  const { id } = useParams();
+  // eslint-disable-next-line no-unused-vars
+  const { id } = useParams(); // 'id' is assigned a value but never used
   const { state } = useLocation();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
