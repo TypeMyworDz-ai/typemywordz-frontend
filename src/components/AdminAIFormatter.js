@@ -1,7 +1,8 @@
 // src/components/AdminAIFormatter.js
 
 import React, { useState, useCallback, useEffect } from 'react'; // Import useEffect
-import { useAuth } from '..//contexts/AuthContext'; // Import useAuth to get userProfile
+import { useAuth } from '../contexts/AuthContext'; // Corrected import path
+// Removed isPaidAIUser helper function as it was unused and always returned true.
 
 // FIX: Ensure this URL matches your backend's base URL
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app'; // Corrected URL to match App.js
@@ -78,12 +79,6 @@ Client spellings: Word, word2, Word3, XX (abbreviation), Word4; My spellings: Na
 
 28. Do not include YOUR summaries/notes/analysis or any kind of metainformation in the final formatted text; even "Here is the formatted and polished transcript:
 `;
-
-// Helper function to determine if a user has access to AI features - REMOVED RESTRICTIONS
-const isPaidAIUser = (userProfile) => {
-  // REMOVED LIMITS: Now available for all users
-  return true;
-};
 
 // UPDATED: Wrapped AdminAIFormatter in React.memo
 const AdminAIFormatter = React.memo(({ showMessage, latestTranscription }) => { // Accept latestTranscription prop
@@ -176,7 +171,7 @@ const AdminAIFormatter = React.memo(({ showMessage, latestTranscription }) => { 
     } finally {
       setAILoading(false);
     }
-  }, [transcriptInput, formattingInstructions, userProfile, profileLoading, showMessage, RAILWAY_BACKEND_URL, selectedAIProvider]);
+  }, [transcriptInput, formattingInstructions, userProfile, profileLoading, showMessage, selectedAIProvider]);
 
   
   const isButtonDisabled = profileLoading || !userProfile || !transcriptInput || !formattingInstructions || aiLoading;

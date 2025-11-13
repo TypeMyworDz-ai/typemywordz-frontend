@@ -21,7 +21,7 @@ const RichTextEditor = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [audioError, setAudioError] = useState(false);
   const [localAudioFile, setLocalAudioFile] = useState(null);
-  const [localAudioUrl, setLocalAudioUrl] = useState(null);
+  // Removed localAudioUrl state as it was unused
   const [sourceAudioUrl, setSourceAudioUrl] = useState(null);
   // Load content from localStorage on mount
   useEffect(() => {
@@ -165,11 +165,9 @@ const RichTextEditor = () => {
   useEffect(() => {
     if (localAudioFile) {
       const url = URL.createObjectURL(localAudioFile);
-      setLocalAudioUrl(url);
-      setSourceAudioUrl(url);
+      setSourceAudioUrl(url); // Directly set sourceAudioUrl
       return () => URL.revokeObjectURL(url);
     } else {
-      setLocalAudioUrl(null);
       setSourceAudioUrl(null);
     }
   }, [localAudioFile]);
@@ -318,8 +316,7 @@ const RichTextEditor = () => {
       console.log('Audio file selected:', file.name);
     } else {
       setLocalAudioFile(null);
-      setLocalAudioUrl(null);
-      setSourceAudioUrl(null);
+      setSourceAudioUrl(null); // No longer setting localAudioUrl
       setAudioError(true);
       console.warn('Invalid file type selected for audio.');
     }
@@ -591,17 +588,29 @@ const RichTextEditor = () => {
                   marginTop: '8px'
                 }}
               >
-                Change Audio File
+                Upload Local Audio
               </button>
             </div>
           )}
+        </div>
+        {/* Keyboard Shortcuts moved here */}
+        <div style={{ 
+          marginTop: '0px', // Adjusted margin since it's now directly below the audio player div
+          fontSize: '12px', 
+          color: '#6b7280', 
+          textAlign: 'center',
+          gridColumn: '1 / 2', // Span only the first column
+          padding: '10px 0' // Add some padding for visual separation
+        }}>
+          <strong style={{ color: 'red' }}>Keyboard Shortcuts:</strong> Ctrl+Space (Play/Pause) | Ctrl+← (Rewind 5s) | Ctrl+→ (Forward 5s) | Ctrl+M (Insert Timestamp)
         </div>
         {/* Text Editor with Quill */}
         <div style={{
           background: 'white',
           borderRadius: '12px',
           boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-          padding: '24px'
+          padding: '24px',
+          gridColumn: '2 / 3' // Ensure editor stays in the second column
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>
@@ -683,7 +692,7 @@ const RichTextEditor = () => {
             }}>
                 Some features (like Word export) require you to be logged in.
                 <button 
-                    onClick={() => window.open('/', '_blank')}
+                    onClick={() => navigate('/')}
                     style={{
                         background: 'none',
                         border: 'none',
@@ -698,10 +707,6 @@ const RichTextEditor = () => {
                 </button>
             </p>
           )}
-
-          <div style={{ marginTop: '20px', fontSize: '12px', color: '#6b7280', textAlign: 'center' }}>
-            <strong>Keyboard Shortcuts:</strong> Ctrl+Space (Play/Pause) | Ctrl+← (Rewind 5s) | Ctrl+→ (Forward 5s) | Ctrl+M (Insert Timestamp)
-          </div>
         </div>
       </div>
       {/* Global CSS for spin animation and Quill fixes - ENHANCED VERSION */}

@@ -8,7 +8,7 @@ import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
 import Signup from './components/Signup';
 import FeedbackModal from './components/FeedbackModal';
-import { canUserTranscribe, updateUserUsage, saveTranscription, createUserProfile, updateUserPlan, saveFeedback } from './userService';
+import { canUserTranscribe, updateUserUsage, saveTranscription, updateUserPlan, saveFeedback } from './userService'; // Removed createUserProfile
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 import PrivacyPolicy from './components/PrivacyPolicy';
@@ -84,8 +84,8 @@ function AppContent() {
   const [status, setStatus] = useState('idle');
   const [transcription, setTranscription] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0); // RE-ADDED
-  const [transcriptionProgress, setTranscriptionProgress] = useState(0); // RE-ADDED
+  // Removed uploadProgress state and its setter
+  // Removed transcriptionProgress state and its setter
   const [currentView, setCurrentView] = useState('transcribe');
   const [audioDuration, setAudioDuration] = useState(0);
   const [isRecording, setIsRecording] = useState(false); // Corrected to boolean
@@ -240,7 +240,7 @@ function AppContent() {
         setIsVerifyingPayment(false); // Reset flag
       }
     }
-  }, [currentUser, showMessage, refreshUserProfile, setCurrentView, isAdmin, isVerifyingPayment]);
+  }, [currentUser, showMessage, refreshUserProfile, setCurrentView, isVerifyingPayment]); // Removed isAdmin from dependencies as it's not used in the function body
 
   // useEffect to trigger payment callback handling
   useEffect(() => {
@@ -266,8 +266,8 @@ function AppContent() {
     setTranscription('');
     setAudioDuration(0);
     setIsUploading(false);
-    setUploadProgress(0); // RE-ADDED
-    setTranscriptionProgress(0); // RE-ADDED
+    // Removed setUploadProgress(0);
+    // Removed setTranscriptionProgress(0);
     setSpeakerLabelsEnabled(false);
     
     recordedAudioBlobRef.current = null;
@@ -467,8 +467,8 @@ function AppContent() {
     setTranscription('');
     setAudioDuration(0);
     setIsUploading(false);
-    setUploadProgress(0); // RE-ADDED
-    setTranscriptionProgress(0); // RE-ADDED
+    // Removed setUploadProgress(0);
+    // Removed setTranscriptionProgress(0);
     setSpeakerLabelsEnabled(false);
     setSelectedFile(null);
     recordedAudioBlobRef.current = null;
@@ -597,21 +597,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   }
 }, [audioDuration, selectedFile, currentUser, refreshUserProfile, showMessage, userProfile, setLatestTranscription]); // Removed recordedAudioBlobRef from dependencies
 
-  // Handle successful payment
-  const handlePaymentSuccess = useCallback(async (planName, subscriptionId) => {
-    try {
-      await updateUserPlan(currentUser.uid, planName, subscriptionId);
-      
-      await refreshUserProfile();
-      
-      showMessage(`🎉 Successfully upgraded to ${planName.charAt(0).toUpperCase() + planName.slice(1)} plan! You now have unlimited transcription access.`, 'success');
-      
-      setCurrentView('transcribe');
-    } catch (error) {
-      console.error('Error updating user plan:', error);
-      showMessage('Payment successful but there was an error updating your account. Please contact support.', 'error');
-    }
-  }, [currentUser?.uid, refreshUserProfile, showMessage, setCurrentView]);
+  // Removed handlePaymentSuccess as it was unused.
 
   const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => {
     if (isCancelledRef.current) {
@@ -834,7 +820,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         // Removed setUploadProgress as it was unused
         setStatus('processing');
         setJobId(transcriptionJobId);
-        transcriptionIntervalRef.current = simulateProgress(setTranscriptionProgress, 500, -1); 
+        transcriptionIntervalRef.current = simulateProgress(() => {}, 500, -1); // Removed setTranscriptionProgress
         checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current);
       } else {
         console.error(`❌ DEBUG: Transcription service returned no job ID: ${JSON.stringify(result)}`);
@@ -933,7 +919,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         let filename = `recording-${Date.now()}.${downloadFormat}`;
         
         if (downloadFormat === 'mp3' && !recordedAudioBlobRef.current.type.includes('mp3')) {
-          showMessage('Compressing to MP3...','info');
+          showMessage('Compressing to MP3...', 'info');
           // This part of the frontend is not actually performing the compression,
           // it's just showing a message. The backend's /compress-download endpoint would handle it.
           // For now, we'll keep the message, but actual compression would involve a backend call here.

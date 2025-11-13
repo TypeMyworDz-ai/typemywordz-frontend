@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchAllUsers, fetchUserTranscriptions, getMonthlyRevenue } from '../userService'; // Added getMonthlyRevenue import
-import { collection, getDocs, query, orderBy, where } from 'firebase/firestore';
+import { fetchAllUsers, getMonthlyRevenue } from '../userService'; // Removed fetchUserTranscriptions import
+import { collection, getDocs } from 'firebase/firestore'; // Removed query, orderBy, where imports
 import { db } from '../firebase';
 // ADDED: Import AdminAIFormatter
 import AdminAIFormatter from './AdminAIFormatter';
@@ -12,7 +12,7 @@ import AdminAIFormatter from './AdminAIFormatter';
 const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed monthlyRevenue prop
   const { currentUser } = useAuth();
   const [users, setUsers] = useState([]);
-  const [transcriptions, setTranscriptions] = useState([]); 
+  // Removed transcriptions state and its setter
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview'); 
   const [stats, setStats] = useState({
@@ -25,15 +25,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
     activePaidUsers: 0 // NEW: Active paid users counter
   });
 
-  // Define plan prices for the real-time revenue counter
-  const PLAN_PRICES_USD = {
-    'One-Day Plan': 1.00,
-    'Three-Day Plan': 2.00,
-    'One-Week Plan': 3.00,
-    'Monthly Plan': 9.99,
-    'Yearly Plan': 99.99,
-    'free': 0.00 // Free plan contributes 0 to revenue
-  };
+  // Removed PLAN_PRICES_USD as it was unused.
 
   // Admin emails
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
@@ -59,7 +51,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
         transcriptionsData.push({ id: doc.id, ...transcriptionData });
         totalDurationSeconds += transcriptionData.duration || 0;
       });
-      setTranscriptions(transcriptionsData);
+      // Removed setTranscriptions(transcriptionsData);
       
       const planDistribution = {};
       let recentSignups = 0;

@@ -67,19 +67,19 @@ const Dashboard = ({ setCurrentView }) => {
     setEditingText(transcription.transcriptionText || transcription.text || '');
   }, []);
 
-  const handleSaveEdit = useCallback(async (newText) => {
+  const handleSaveEdit = useCallback(async () => {
     if (!editingId || !currentUser?.uid) return;
     
     setIsSaving(true);
     try {
       // FIX: Update 'transcriptionText' field
-      await updateTranscription(currentUser.uid, editingId, { transcriptionText: newText });
+      await updateTranscription(currentUser.uid, editingId, { transcriptionText: editingText });
       
       // Update local state
       setTranscriptions(prev => 
         prev.map(t => 
           t.id === editingId 
-            ? { ...t, transcriptionText: newText } // FIX: Update transcriptionText
+            ? { ...t, transcriptionText: editingText } // FIX: Update transcriptionText
             : t
         )
       );
@@ -92,7 +92,7 @@ const Dashboard = ({ setCurrentView }) => {
     } finally {
       setIsSaving(false);
     }
-  }, [editingId, currentUser?.uid]);
+  }, [editingId, currentUser?.uid, editingText]);
 
   const handleCancelEdit = useCallback(() => {
     setEditingId(null);
@@ -551,16 +551,68 @@ const Dashboard = ({ setCurrentView }) => {
                     </div>
                   </div>
 
-                  <div style={{ backgroundColor: '#f9fafb', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem' }}>
-                    <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
-                      {/* FIX: Prioritize 'transcriptionText' for display */}
-                      {(transcription.transcriptionText || transcription.text) ? 
-                        (transcription.transcriptionText || transcription.text).substring(0, 150) + 
-                        ((transcription.transcriptionText || transcription.text).length > 150 ? '...' : '') :
-                        'No transcription text available'
-                      }
-                    </p>
-                  </div>
+                  {editingId === transcription.id ? (
+                    <div style={{ marginBottom: '1rem' }}>
+                      <textarea
+                        value={editingText}
+                        onChange={(e) => setEditingText(e.target.value)}
+                        style={{
+                          width: '100%',
+                          minHeight: '100px',
+                          padding: '0.75rem',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '0.5rem',
+                          fontSize: '0.875rem',
+                          resize: 'vertical'
+                        }}
+                      ></textarea>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                        <button
+                          onClick={handleCancelEdit}
+                          style={{
+                            backgroundColor: '#ef4444',
+                            color: 'white',
+                            padding: '0.5rem 1rem',
+                            borderRadius: '0.25rem',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: '0.75rem',
+                            fontWeight: '500'
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSaveEdit}
+                          disabled={isSaving}
+                          style={{
+                            backgroundColor: '#22c55e',
+                            color: 'white',
+                            padding: '0.5rem 1rem',
+                            borderRadius: '0.25rem',
+                            border: 'none',
+                            cursor: isSaving ? 'not-allowed' : 'pointer',
+                            fontSize: '0.75rem',
+                            fontWeight: '500',
+                            opacity: isSaving ? 0.7 : 1
+                          }}
+                        >
+                          {isSaving ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ backgroundColor: '#f9fafb', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem' }}>
+                      <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                        {/* FIX: Prioritize 'transcriptionText' for display */}
+                        {(transcription.transcriptionText || transcription.text) ? 
+                          (transcription.transcriptionText || transcription.text).substring(0, 150) + 
+                          ((transcription.transcriptionText || transcription.text).length > 150 ? '...' : '') :
+                          'No transcription text available'
+                        }
+                      </p>
+                    </div>
+                  )}
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.75rem', color: '#6b7280' }}>
