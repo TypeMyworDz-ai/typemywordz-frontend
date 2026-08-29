@@ -1692,3 +1692,169 @@ body {
    and bottom keep the rounded corners themselves. */
 .tm-ed > .tm-ed-head { border-radius: var(--tm-radius) var(--tm-radius) 0 0; }
 .tm-ed-foot { border-radius: 0 0 var(--tm-radius) var(--tm-radius); }
+
+/* ============================================================
+   Page heading with an action beside it
+   ============================================================ */
+
+.tm-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+/* The standard green action button. Flat, square-ish, no glow, no bobbing. */
+.tm-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--tm-radius);
+  background: var(--tm-green);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease;
+}
+.tm-primary:hover { background: var(--tm-green-dark); }
+.tm-primary:focus-visible { outline: 2px solid var(--tm-green-dark); outline-offset: 2px; }
+
+/* ============================================================
+   Transcription progress
+   ------------------------------------------------------------
+   Three named stages, a bar that moves, and the cancel control
+   sitting beside the thing it cancels.
+   ============================================================ */
+
+.tm-prog {
+  margin: 4px 0 8px;
+  padding: 18px 20px 16px;
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius);
+  background: #fafbfc;
+  text-align: left;
+}
+
+/* --- the three stages --- */
+
+.tm-prog-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 0 0 15px;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-prog-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--tm-faint);
+  white-space: nowrap;
+}
+
+/* The connecting rule between stages. */
+.tm-prog-step + .tm-prog-step::before {
+  content: '';
+  width: 34px;
+  height: 1px;
+  margin: 0 11px;
+  background: var(--tm-line);
+}
+
+.tm-prog-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  border: 1.5px solid #d5d8de;
+  border-radius: 50%;
+  background: #fff;
+  color: #fff;
+}
+.tm-prog-dot svg { width: 10px; height: 10px; }
+
+.tm-prog-done { color: var(--tm-body); }
+.tm-prog-done .tm-prog-dot { border-color: var(--tm-green); background: var(--tm-green); }
+
+.tm-prog-now { color: var(--tm-ink); font-weight: 650; }
+.tm-prog-now .tm-prog-dot {
+  border-color: var(--tm-green);
+  /* A quiet ring rather than a glow, so it reads as "here" not "alarm". */
+  box-shadow: 0 0 0 3px var(--tm-green-soft);
+}
+
+/* --- the bar --- */
+
+.tm-prog-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #e6e8ec;
+  overflow: hidden;
+}
+
+.tm-prog-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--tm-green);
+  /* Long enough to look smooth between upload events, short enough that the
+     bar never lags visibly behind the truth. */
+  transition: width 0.45s ease-out;
+}
+
+/* --- what is happening, in words --- */
+
+.tm-prog-say {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.tm-prog-head { font-size: 13.5px; font-weight: 600; color: var(--tm-ink); }
+.tm-prog-detail { font-size: 13px; color: var(--tm-muted); font-variant-numeric: tabular-nums; }
+
+/* --- cancel --- */
+
+.tm-prog-cancel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  height: 32px;
+  padding: 0 13px;
+  border: 1px solid #d5d8de;
+  border-radius: var(--tm-radius);
+  background: #fff;
+  color: var(--tm-body);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+/* Stopping your own upload is not a disaster, so the button is quiet until
+   you reach for it, and only then turns red. */
+.tm-prog-cancel:hover {
+  border-color: #e0a3a7;
+  background: #fdf3f4;
+  color: #b4232a;
+}
+
+@media (max-width: 560px) {
+  .tm-prog-step + .tm-prog-step::before { width: 14px; margin: 0 7px; }
+  .tm-prog-step { font-size: 11.5px; }
+}
