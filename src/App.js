@@ -8,6 +8,7 @@ import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
 import TranscriptEditor from './components/TranscriptEditor';
+import EditorDemo from './components/EditorDemo';
 import Signup from './components/Signup';
 import FeedbackModal from './components/FeedbackModal';
 import { canUserTranscribe, updateUserUsage, saveTranscription, updateTranscription, updateUserPlan, saveFeedback } from './userService'; // Removed createUserProfile
@@ -2694,6 +2695,8 @@ function App() {
           {/* Standalone routes that don't require auth check */}
           <Route path="/transcription-editor" element={<RichTextEditor />} />
           <Route path="/transcription/:id" element={<TranscriptionDetail />} />
+          {/* Try the proofreading editor on a sample transcript, no minutes spent. */}
+          <Route path="/editor-demo" element={<EditorDemo />} />
           
           {/* Main app routes */}
           <Route path="/*" element={<AppContent />} /> 
