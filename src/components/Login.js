@@ -27,14 +27,24 @@ const Login = () => {
   return (
     <div style={{
       backgroundColor: 'white',
-      padding: '40px',
-      borderRadius: '15px',
-      boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+      padding: '32px',
+      borderRadius: '10px',
+      border: '1px solid #e5e6ea',
+      boxShadow: 'none',
       textAlign: 'center',
-      maxWidth: '400px',
+      maxWidth: '380px',
       width: '100%'
     }}>
-      <h2 style={{ color: '#6c5ce7', marginBottom: '30px', fontSize: '2rem' }}>TypeMyworDz</h2>
+      <h2 style={{
+        color: '#14161a',
+        margin: '0 0 6px 0',
+        fontSize: '1.35rem',
+        fontWeight: 650,
+        letterSpacing: '-0.015em'
+      }}>Sign in</h2>
+      <p style={{ color: '#858a95', fontSize: '13.5px', margin: '0 0 24px 0' }}>
+        Use your Google account to continue.
+      </p>
       {error && <p style={{ color: '#dc3545', marginBottom: '20px' }}>{error}</p>}
       
       {/* Google Sign-in */}
@@ -43,15 +53,15 @@ const Login = () => {
         disabled={loading}
         style={{
           width: '100%',
-          padding: '15px 20px', 
+          padding: '12px 18px', 
           backgroundColor: '#ffffff',
           color: '#3c4043',
-          border: '1px solid #dadce0',
-          borderRadius: '8px',
+          border: '1px solid #d2d5dc',
+          borderRadius: '7px',
           cursor: loading ? 'not-allowed' : 'pointer',
-          fontSize: '18px', 
+          fontSize: '15px', 
           fontWeight: '500',
-          boxShadow: '0 1px 2px 0 rgba(60,64,67,0.30), 0 1px 3px 1px rgba(60,64,67,0.15)',
+          boxShadow: 'none',
           transition: 'box-shadow 0.3s ease',
           display: 'flex',
           alignItems: 'center',
@@ -61,12 +71,12 @@ const Login = () => {
         }}
         onMouseEnter={(e) => {
           if (!loading) {
-            e.target.style.boxShadow = '0 1px 3px 0 rgba(60,64,67,0.30), 0 4px 8px 3px rgba(60,64,67,0.15)';
+            e.target.style.backgroundColor = '#f8f8f9';
           }
         }}
         onMouseLeave={(e) => {
           if (!loading) {
-            e.target.style.boxShadow = '0 1px 2px 0 rgba(60,64,67,0.30), 0 1px 3px 1px rgba(60,64,67,0.15)';
+            e.target.style.backgroundColor = '#ffffff';
           }
         }}
       >
