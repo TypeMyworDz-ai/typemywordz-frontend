@@ -439,15 +439,16 @@ const TranscriptionDetail = () => {
   // Inline styles to override any CSS conflicts
   const containerStyle = {
     minHeight: '100vh',
-    background: 'linear-gradient(135deg, #f3e8ff 0%, #dbeafe 100%)',
-    padding: '20px',
-    fontFamily: 'system-ui, -apple-system, sans-serif'
+    background: '#ffffff',
+    padding: '24px 20px 40px',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif'
   };
 
   const headerStyle = {
     background: 'white',
     borderRadius: '12px',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', // Removed 's'
+    border: '1px solid #e5e6ea',
+    boxShadow: 'none',
     padding: '24px',
     marginBottom: '24px',
     maxWidth: '1200px',
@@ -466,7 +467,8 @@ const TranscriptionDetail = () => {
   const audioPlayerStyle = {
     background: 'white',
     borderRadius: '12px',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+    border: '1px solid #e5e6ea',
+    boxShadow: 'none',
     padding: '20px',
     position: 'sticky',
     top: '20px'
@@ -475,7 +477,8 @@ const TranscriptionDetail = () => {
   const textEditorContainerStyle = { 
     background: 'white',
     borderRadius: '12px',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+    border: '1px solid #e5e6ea',
+    boxShadow: 'none',
     padding: '24px'
   };
   if (!transcription) {
@@ -492,7 +495,8 @@ const TranscriptionDetail = () => {
             padding: '32px',
             background: 'white',
             borderRadius: '12px',
-            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+            border: '1px solid #e5e6ea',
+            boxShadow: 'none'
           }}>
             <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
               Transcription Not Found
@@ -500,10 +504,10 @@ const TranscriptionDetail = () => {
             <button 
               onClick={() => navigate('/dashboard')}
               style={{
-                background: '#7c3aed',
+                background: '#28a745',
                 color: 'white',
-                padding: '12px 24px',
-                borderRadius: '8px',
+                padding: '11px 20px',
+                borderRadius: '7px',
                 border: 'none',
                 cursor: 'pointer',
                 fontSize: '16px'
@@ -528,7 +532,7 @@ const TranscriptionDetail = () => {
             style={{
               display: 'flex',
               alignItems: 'center',
-              color: '#7c3aed',
+              color: '#218838',
               background: 'none',
               border: 'none',
               cursor: 'pointer',
@@ -644,7 +648,7 @@ const TranscriptionDetail = () => {
                 >
                   <div 
                     style={{
-                      background: '#7c3aed',
+                      background: '#28a745',
                       height: '8px',
                       borderRadius: '9999px',
                       width: `${audioDuration > 0 ? (audioCurrentTime / audioDuration) * 100 : 0}%`,
@@ -681,7 +685,7 @@ const TranscriptionDetail = () => {
                   disabled={isLoading || audioError}
                   style={{
                     padding: '12px',
-                    background: '#7c3aed',
+                    background: '#28a745',
                     color: 'white',
                     borderRadius: '50%',
                     border: 'none',
@@ -739,7 +743,7 @@ const TranscriptionDetail = () => {
                         border: 'none',
                         fontSize: '12px',
                         cursor: 'pointer',
-                        background: playbackRate === speed ? '#7c3aed' : '#f3f4f6',
+                        background: playbackRate === speed ? '#28a745' : '#f3f4f6',
                         color: playbackRate === speed ? 'white' : '#374151',
                         opacity: audioError ? 0.5 : 1
                       }}
