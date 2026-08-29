@@ -1320,7 +1320,7 @@ return (
     <Route path="/signup" element={<Signup />} />
     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
     <Route path="/dashboard" element={
-      <Dashboard setCurrentView={setCurrentView} showNewButton />
+      <Dashboard setCurrentView={setCurrentView} standalone />
     } />
     <Route path="/admin" element={isAdmin ? <AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} /> : <Navigate to="/" />} />
     
