@@ -3,7 +3,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { fetchUserTranscriptions, deleteTranscription, updateTranscription } from '../userService';
 import { useNavigate } from 'react-router-dom';
 
-const Dashboard = ({ setCurrentView, showNewButton = false }) => {
+// `standalone` means this page is on its own address rather than inside the
+// workspace, so it needs its own New transcription button and has to navigate
+// rather than switch the workspace view.
+const Dashboard = ({ setCurrentView, standalone = false }) => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [transcriptions, setTranscriptions] = useState([]);
@@ -108,14 +111,14 @@ const Dashboard = ({ setCurrentView, showNewButton = false }) => {
 
   // Handle the "Transcribe New Audio" button click - for standalone dashboard only
   const handleTranscribeNewAudio = useCallback(() => {
-    if (setCurrentView) {
-      // If we have setCurrentView, we're in the main app - use it
+    // Inside the workspace, switching the view is enough. On the standalone
+    // page there is no workspace to switch, so we go to the app itself.
+    if (setCurrentView && !standalone) {
       setCurrentView('transcribe');
     } else {
-      // If no setCurrentView, we're on standalone dashboard - navigate to home
       navigate('/');
     }
-  }, [setCurrentView, navigate]);
+  }, [setCurrentView, standalone, navigate]);
 
   // UPDATED: filteredTranscriptions with robust checks and DEBUG LOGS
   const filteredTranscriptions = transcriptions.filter(transcription => {
@@ -226,7 +229,7 @@ const Dashboard = ({ setCurrentView, showNewButton = false }) => {
             <h1 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#14161a', marginBottom: '0.35rem' }}>My files</h1>
             <p style={{ color: '#858a95', fontSize: '0.9rem', margin: 0 }}>Every transcription you have made.</p>
           </div>
-          {showNewButton && (
+          {standalone && (
             <button type="button" className="tm-primary" onClick={handleTranscribeNewAudio}>
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
                    strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
