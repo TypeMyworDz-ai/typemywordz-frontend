@@ -443,3 +443,443 @@ body {
   background-color: var(--tm-surface);
   color: var(--tm-ink);
 }
+
+/* ==================================================================
+   PHASE 2 — the workspace: sidebar on the left, content on the right
+   ================================================================== */
+
+.tm-shell {
+  display: flex;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.tm-side {
+  flex: 0 0 216px;
+  width: 216px;
+  border-right: 1px solid var(--tm-line);
+  background: var(--tm-white);
+  padding: 14px 12px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--tm-white);
+}
+
+/* ---------- the primary action ---------- */
+
+.tm-newbtn {
+  width: 100%;
+  height: 34px;
+  border: 0;
+  border-radius: var(--tm-radius);
+  background: var(--tm-green);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  margin-bottom: 18px;
+  transition: background-color 0.15s ease;
+}
+
+.tm-newbtn:hover { background: var(--tm-green-dark); }
+.tm-newbtn svg { width: 14px; height: 14px; }
+
+/* ---------- sidebar navigation ---------- */
+
+.tm-navlabel {
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tm-faint);
+  font-weight: 600;
+  padding: 0 8px;
+  margin: 14px 0 6px;
+}
+
+.tm-navlabel:first-of-type { margin-top: 0; }
+
+.tm-nav {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  background: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13.2px;
+  color: var(--tm-body);
+  text-align: left;
+  cursor: pointer;
+  margin-bottom: 1px;
+}
+
+.tm-nav svg { width: 15px; height: 15px; flex: 0 0 15px; }
+
+.tm-nav:hover { background: #eeeff1; }
+
+.tm-nav.tm-nav-on {
+  background: var(--tm-green-soft);
+  color: var(--tm-green-dark);
+  font-weight: 600;
+}
+
+.tm-nav.tm-nav-on svg { color: var(--tm-green); }
+
+/* AI is the one thing that is purple, never green */
+.tm-nav.tm-nav-ai.tm-nav-on {
+  background: var(--tm-purple-soft);
+  color: var(--tm-purple);
+}
+
+.tm-nav.tm-nav-ai.tm-nav-on svg { color: var(--tm-purple); }
+
+.tm-nav:disabled {
+  color: var(--tm-faint);
+  cursor: not-allowed;
+}
+
+.tm-nav:disabled:hover { background: none; }
+
+.tm-nav-lock {
+  margin-left: auto;
+  font-size: 10px;
+  border: 1px solid var(--tm-line);
+  border-radius: 20px;
+  padding: 1px 6px;
+  color: var(--tm-faint);
+}
+
+/* ---------- plan card, pinned to the bottom ---------- */
+
+.tm-plancard {
+  margin-top: auto;
+  border: 1px solid var(--tm-line);
+  background: var(--tm-surface);
+  border-radius: var(--tm-radius-lg);
+  padding: 11px 12px;
+}
+
+.tm-plancard-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--tm-ink);
+  margin-bottom: 3px;
+}
+
+.tm-plancard-sub {
+  font-size: 11.5px;
+  color: var(--tm-muted);
+}
+
+.tm-plancard-cta {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tm-green-dark);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------- account avatar and its menu ---------- */
+
+.tm-account { position: relative; }
+
+.tm-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--tm-purple);
+  color: #fff;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tm-avatar:hover { background: #4c37b4; }
+
+.tm-account-menu {
+  position: absolute;
+  top: 38px;
+  right: 0;
+  min-width: 232px;
+  background: #fff;
+  border: 1px solid var(--tm-line);
+  border-radius: 8px;
+  padding: 5px;
+  box-shadow: 0 8px 24px rgba(20, 22, 26, 0.09);
+  z-index: 400;
+  text-align: left;
+}
+
+.tm-account-head {
+  padding: 8px 10px 9px;
+  border-bottom: 1px solid var(--tm-line);
+  margin-bottom: 5px;
+}
+
+.tm-account-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tm-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-account-mail {
+  font-size: 11.5px;
+  color: var(--tm-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-account-plan {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 9px;
+  border-bottom: 1px solid var(--tm-line);
+  margin-bottom: 5px;
+}
+
+.tm-account-upgrade {
+  margin-left: auto;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tm-green-dark);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tm-account-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: 0;
+  background: none;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--tm-body);
+  cursor: pointer;
+}
+
+.tm-account-item:hover { background: var(--tm-surface); color: var(--tm-ink); }
+
+.tm-account-signout:hover { background: var(--tm-danger-soft); color: var(--tm-danger); }
+
+/* ---------- footer ---------- */
+
+.tm-footer {
+  text-align: center;
+  padding: 22px 20px;
+  color: var(--tm-faint);
+  font-size: 12.5px;
+  margin-top: auto;
+}
+
+/* ---------- responsive: sidebar becomes a scrolling strip ---------- */
+
+@media (max-width: 820px) {
+  .tm-shell { flex-direction: column; }
+
+  .tm-side {
+    flex: none;
+    width: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--tm-line);
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 8px 10px;
+  }
+
+  .tm-newbtn { width: auto; margin-bottom: 0; padding: 0 12px; white-space: nowrap; }
+  .tm-navlabel { display: none; }
+  .tm-nav { width: auto; white-space: nowrap; margin-bottom: 0; }
+  .tm-nav-lock { display: none; }
+  .tm-plancard { display: none; }
+}
+
+/* ==================================================================
+   Copy split button and Export menu
+   Copy sits LEFT of Export because clients use it constantly.
+   ================================================================== */
+
+.tm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.tm-split { position: relative; display: inline-flex; }
+
+/* --- the Copy body: one click, copies immediately --- */
+
+.tm-split-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: var(--tm-radius) 0 0 var(--tm-radius);
+  background: var(--tm-green);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.tm-split-main:hover { background: var(--tm-green-dark); }
+.tm-split-main svg { width: 16px; height: 16px; }
+
+/* --- the caret: opens the three modes --- */
+
+.tm-split-caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 38px;
+  border: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 0 var(--tm-radius) var(--tm-radius) 0;
+  background: var(--tm-green);
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.tm-split-caret:hover { background: var(--tm-green-dark); }
+.tm-split-caret svg { width: 13px; height: 13px; }
+
+/* --- Export: a quieter, secondary button --- */
+
+.tm-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 15px;
+  border: 1px solid #d2d5dc;
+  border-radius: var(--tm-radius);
+  background: #fff;
+  color: var(--tm-ink);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.tm-export-btn:hover { background: var(--tm-surface); }
+.tm-export-btn svg { width: 16px; height: 16px; }
+.tm-export-btn .tm-export-caret { width: 12px; height: 12px; opacity: 0.5; }
+
+/* --- the dropdown shared by both --- */
+
+.tm-split-menu {
+  position: absolute;
+  top: 43px;
+  left: 0;
+  min-width: 288px;
+  background: #fff;
+  border: 1px solid var(--tm-line);
+  border-radius: 9px;
+  padding: 5px;
+  box-shadow: 0 10px 28px rgba(20, 22, 26, 0.12);
+  z-index: 500;
+}
+
+.tm-split-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 9px;
+  border: 0;
+  background: none;
+  border-radius: 6px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.tm-split-item:hover { background: var(--tm-surface); }
+
+.tm-split-tick {
+  flex: 0 0 15px;
+  width: 15px;
+  height: 17px;
+  display: flex;
+  align-items: center;
+  color: var(--tm-green);
+}
+
+.tm-split-tick svg { width: 14px; height: 14px; }
+
+.tm-split-label {
+  display: block;
+  font-size: 13.5px;
+  color: var(--tm-ink);
+  line-height: 1.35;
+}
+
+.tm-split-item-on .tm-split-label { font-weight: 600; }
+
+.tm-split-hint {
+  display: block;
+  font-size: 11.5px;
+  color: var(--tm-muted);
+  margin-top: 1px;
+  line-height: 1.35;
+}
+
+.tm-split-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 9px 9px 7px;
+  border-top: 1px solid var(--tm-line);
+  font-size: 12.5px;
+  color: var(--tm-body);
+  cursor: pointer;
+}
+
+.tm-split-remember input { accent-color: var(--tm-green); margin: 0; }
