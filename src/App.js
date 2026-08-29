@@ -1323,46 +1323,6 @@ return (
 
         </div>
 
-        {/* Transcription Editor button above other navigation buttons */}
-        {currentView === 'transcribe' && (
-          <div style={{ 
-            textAlign: 'center', 
-            padding: '10px 20px',
-            backgroundColor: 'transparent'
-          }}>
-            <button
-              onClick={() => window.open('/transcription-editor', '_blank')}
-              style={{
-                backgroundColor: '#28a745',
-                color: 'white',
-                padding: '9px 16px',
-                border: 'none',
-                borderRadius: '7px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: '600',
-                boxShadow: 'none',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.3s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.backgroundColor = '#218838';
-
-                e.target.style.boxShadow = 'none';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.backgroundColor = '#28a745';
-
-                e.target.style.boxShadow = 'none';
-              }}
-            >
-              {/* Removed the favicon image here as well */}
-              Open Transcription Editor
-            </button>
-          </div>
-        )}
         {currentUser && !userProfile && ( 
           <div style={{
             textAlign: 'center',
@@ -1426,6 +1386,14 @@ return (
               Admin
             </button>
           )}
+          {currentView === 'transcribe' && (
+            <button
+              className="tm-tabs-cta"
+              onClick={() => window.open('/transcription-editor', '_blank')}
+            >
+              Open Transcription Editor
+            </button>
+          )}
         </div>
 
         {/* UPDATED: AnimatedBroadcastBoard - moved to occupy the space where "Logged in as..." was, made larger and more beautiful */}
@@ -1433,8 +1401,7 @@ return (
           <div style={{
             display: 'flex',
             justifyContent: 'center',
-            padding: '0 20px 20px',
-            marginTop: '-20px'
+            padding: '16px 20px 4px'
           }}>
             <div style={{
               width: '100%',
@@ -2248,61 +2215,72 @@ return (
               )}
 
               <div style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                borderRadius: '15px',
-                padding: '30px',
+                backgroundColor: '#ffffff',
+                border: '1px solid #e5e6ea',
+                borderRadius: '12px',
+                padding: '28px',
                 marginBottom: '30px',
                 textAlign: 'center',
-                boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
+                boxShadow: 'none'
               }}>
                 <h2 style={{ 
-                  color: '#6c5ce7', 
-                  margin: '0 0 20px 0',
-                  fontSize: '1.5rem'
+                  color: '#1a1b1f', 
+                  margin: '0 0 22px 0',
+                  fontSize: '1.25rem',
+                  fontWeight: '600'
                 }}>
-                  Record Audio or 📁 Upload File
+                  New transcription
                 </h2>
                 
                 <div style={{ marginBottom: '30px' }}>
                   <h3 style={{ 
-                    color: '#6c5ce7', 
-                    margin: '0 0 15px 0',
-                    fontSize: '1.2rem'
+                    color: '#6b6d76', 
+                    margin: '0 0 14px 0',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    letterSpacing: '0.07em',
+                    textTransform: 'uppercase'
                   }}>
-                    Record Audio
+                    Record audio
                   </h3>
                   
                   {isRecording && (
                     <div style={{
-                      color: '#e17055',
-                      fontSize: '18px',
-                      marginBottom: '10px',
-                      fontWeight: 'bold'
+                      color: '#c0392b',
+                      fontSize: '14px',
+                      marginBottom: '12px',
+                      fontWeight: '600'
                     }}>
-                      🔴 Recording: {formatTime(recordingTime)}
+                      Recording {formatTime(recordingTime)}
                     </div>
                   )}
                   
                   <button
                     onClick={isRecording ? stopRecording : startRecording}
                     style={{
-                      padding: '15px 30px',
-                      fontSize: '18px',
-                      backgroundColor: isRecording ? '#e17055' : '#e74c3c',
+                      padding: '10px 18px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      backgroundColor: isRecording ? '#c0392b' : '#28a745',
                       color: 'white',
                       border: 'none',
-                      borderRadius: '25px',
+                      borderRadius: '7px',
                       cursor: 'pointer',
-                      boxShadow: '0 5px 15px rgba(231, 76, 60, 0.4)',
-                      transition: 'all 0.3s ease'
+                      boxShadow: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      transition: 'background-color 0.15s ease'
                     }}
                   >
-                    <img 
-                      src="/favicon-32x32.png" 
-                      alt="Record Icon" 
-                      style={{ width: '20px', height: '20px' }} 
-                    />
-                    {isRecording ? 'Stop Recording' : 'Start Recording'}
+                    <span style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: 'white',
+                      display: 'inline-block'
+                    }} />
+                    {isRecording ? 'Stop recording' : 'Start recording'}
                   </button>
 
                   {recordedAudioBlobRef.current && !isRecording && (
@@ -2314,7 +2292,7 @@ return (
                         gap: '10px',
                         marginBottom: '10px'
                       }}>
-                        <label htmlFor="downloadFormat" style={{ color: '#6c5ce7', fontWeight: 'bold' }}>
+                        <label htmlFor="downloadFormat" style={{ color: '#1a1b1f', fontWeight: '500', fontSize: '14px' }}>
                           Download Format:
                         </label>
                         <select
@@ -2322,9 +2300,12 @@ return (
                           value={downloadFormat}
                           onChange={(e) => setDownloadFormat(e.target.value)}
                           style={{
-                            padding: '5px 10px',
-                            borderRadius: '5px',
-                            border: '1px solid #6c5ce7'
+                            padding: '6px 10px',
+                            borderRadius: '7px',
+                            border: '1px solid #d5d7dd',
+                            fontFamily: 'inherit',
+                            fontSize: '14px',
+                            background: '#fff'
                           }}
                         >
                           <option value="mp3">MP3 (Compressed)</option>
@@ -2334,38 +2315,42 @@ return (
                       <button
                         onClick={downloadRecordedAudio}
                         style={{
-                          padding: '10px 20px',
-                          backgroundColor: '#007bff',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '5px',
+                          padding: '8px 14px',
+                          backgroundColor: '#fff',
+                          color: '#1a1b1f',
+                          border: '1px solid #d5d7dd',
+                          borderRadius: '7px',
                           cursor: 'pointer',
+                          fontFamily: 'inherit',
                           fontSize: '14px'
                         }}
                       >
-                        📥 Download Recording ({downloadFormat.toUpperCase()})
+                        Download recording ({downloadFormat.toUpperCase()})
                       </button>
                     </div>
                   )}
                 </div>
                 <div style={{
-                  borderTop: '2px solid #e9ece2',
-                  paddingTop: '30px'
+                  borderTop: '1px solid #eceef1',
+                  paddingTop: '26px'
                 }}>
                   <h3 style={{ 
-                    color: '#6c5ce7', 
-                    margin: '0 0 15px 0',
-                    fontSize: '1.2rem'
+                    color: '#6b6d76', 
+                    margin: '0 0 14px 0',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    letterSpacing: '0.07em',
+                    textTransform: 'uppercase'
                   }}>
-                    📁 Or Upload Audio/Video File
+                    Or upload a file
                   </h3>
                   
                   <div style={{
-                    border: '2px dashed #6c5ce7',
+                    border: '1px dashed #ccced4',
                     borderRadius: '10px',
-                    padding: '20px',
+                    padding: '22px',
                     marginBottom: '20px',
-                    backgroundColor: '#f8f9ff'
+                    backgroundColor: '#fafafb'
                   }}>
                     <input
                       type="file"
@@ -2375,13 +2360,13 @@ return (
                     />
                     {selectedFile && (
                       <div style={{
-                        backgroundColor: '#d1f2eb',
-                        color: '#27ae60',
+                        backgroundColor: '#eaf7ee',
+                        color: '#1e7e34',
                         padding: '10px',
                         borderRadius: '5px',
                         marginTop: '10px'
                       }}>
-                        ✅ Selected: {selectedFile.name}
+                        Selected: {selectedFile.name}
                         <div style={{ fontSize: '12px', marginTop: '5px', opacity: '0.8' }}>
                           Ready for transcription
                         </div>
@@ -2390,7 +2375,7 @@ return (
                   </div>
 
                   <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
-                    <label htmlFor="languageSelect" style={{ color: '#6c5ce7', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                    <label htmlFor="languageSelect" style={{ color: '#1a1b1f', fontWeight: '500', fontSize: '14px' }}>
                       Transcription Language:
                     </label>
                     <select
@@ -2398,9 +2383,12 @@ return (
                       value={selectedLanguage}
                       onChange={(e) => setSelectedLanguage(e.target.value)}
                       style={{
-                        padding: '8px 15px',
-                        borderRadius: '8px',
-                        border: '1px solid #6c5ce7'
+                        padding: '8px 12px',
+                        borderRadius: '7px',
+                        border: '1px solid #d5d7dd',
+                        fontFamily: 'inherit',
+                        fontSize: '14px',
+                        background: '#fff'
                       }}
                     >
                       <option value="en">English (Default)</option>
@@ -2417,7 +2405,7 @@ return (
                   </div>
                   
                   <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
-                    <label htmlFor="speakerLabelsSelect" style={{ color: '#6c5ce7', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                    <label htmlFor="speakerLabelsSelect" style={{ color: '#1a1b1f', fontWeight: '500', fontSize: '14px' }}>
                       Speaker Tags:
                     </label>
                     <select
@@ -2425,9 +2413,12 @@ return (
                       value={speakerLabelsEnabled ? "true" : "false"}
                       onChange={(e) => setSpeakerLabelsEnabled(e.target.value === "true")}
                       style={{
-                        padding: '8px 15px',
-                        borderRadius: '8px',
-                        border: '1px solid #6c5ce7'
+                        padding: '8px 12px',
+                        borderRadius: '7px',
+                        border: '1px solid #d5d7dd',
+                        fontFamily: 'inherit',
+                        fontSize: '14px',
+                        background: '#fff'
                       }}
                     >
                       <option value="false">No Speakers (Default)</option>
