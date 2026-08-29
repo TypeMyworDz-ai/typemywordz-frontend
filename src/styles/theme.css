@@ -86,13 +86,16 @@ body {
 }
 
 .tm-brand-text {
-  line-height: 1.15;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .tm-wordmark {
   font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.015em;
+  line-height: 1.05;
   margin: 0;
 }
 
@@ -105,6 +108,7 @@ body {
   text-transform: uppercase;
   color: var(--tm-faint);
   font-weight: 500;
+  line-height: 1;
   margin: 0;
 }
 
