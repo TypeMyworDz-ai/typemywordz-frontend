@@ -1655,3 +1655,16 @@ body {
   cursor: pointer;
 }
 .tm-detail-del:hover { text-decoration: underline; }
+
+/* The banner on the sample-transcript page. */
+.tm-demo-note {
+  margin-bottom: 14px;
+  padding: 13px 16px;
+  border: 1px solid var(--tm-green-line);
+  border-radius: var(--tm-radius);
+  background: var(--tm-green-soft);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--tm-body);
+}
+.tm-demo-note strong { color: var(--tm-ink); }
