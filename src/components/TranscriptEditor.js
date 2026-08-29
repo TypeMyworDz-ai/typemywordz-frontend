@@ -138,7 +138,7 @@ const Segment = memo(function Segment({
           }}
           title="Click to correct this line"
         >
-          {body}
+          {uncertain ? <span className="tm-low-mark">{body}</span> : body}
           {uncertain && (
             <span className="tm-low-flag" title="The service was unsure about this line">
               check
