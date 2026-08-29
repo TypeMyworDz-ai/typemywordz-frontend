@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
+import './styles/theme.css';
 import { AuthProvider, useAuth, ToastNotification } from './contexts/AuthContext';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
@@ -958,6 +959,22 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   // Removed createMissingProfile as it was unused.
   // Removed handleUpgradeClick as it was unused.
 
+  // Short, human plan label for the top bar (replaces the long inline plan string)
+  const planLabel = (() => {
+    const p = userProfile?.plan;
+    const until = userProfile?.expiresAt
+      ? ' \u00b7 until ' + new Date(userProfile.expiresAt).toLocaleDateString()
+      : '';
+    if (p === 'Yearly Plan')    return { text: 'Yearly' + until, isFree: false };
+    if (p === 'Monthly Plan')   return { text: 'Monthly' + until, isFree: false };
+    if (p === 'One-Week Plan')  return { text: 'One week' + until, isFree: false };
+    if (p === 'Three-Day Plan') return { text: 'Three days' + until, isFree: false };
+    if (p === 'free' && !userProfile?.hasReceivedInitialFreeMinutes) {
+      return { text: 'Free trial \u00b7 ' + Math.max(0, 30 - (userProfile?.totalMinutesUsed || 0)) + ' min left', isFree: true };
+    }
+    return { text: 'Free plan', isFree: true };
+  })();
+
   // handleAIQuery for User AI Assistant with FormData - UPDATED for Gemini option and fallback
   const handleAIQuery = useCallback(async () => {
       if (!userProfile) { 
@@ -1113,58 +1130,50 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   // Login screen for non-authenticated users
   if (!currentUser) {
     return (
-      <div style={{ 
+      <div className="tm-app tm-login" style={{ 
         minHeight: '100vh', 
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: '#ffffff',
         display: 'flex',
         flexDirection: 'column'
       }}>
         
 
-        {/* The Menu (sidebar-menu) for non-authenticated users - uses global window functions */}
-        <div 
-            className="sidebar-menu" 
-            style={{
-                position: 'fixed',
-                right: '20px', 
-                top: '20px',
-                left: 'auto', 
-                display: 'flex', 
-                flexDirection: 'row', 
-                width: 'fit-content', 
-            }}
-        >
+        {/* ---- Signed-out top bar ---- */}
+        <div className="tm-topbar">
+          <div className="tm-brand">
+            <img className="tm-brand-logo" src="/android-chrome-192x192.png" alt="TypeMyworDz" />
+            <div className="tm-brand-text">
+              <div className="tm-wordmark">
+                <span className="tm-w-purple">Type</span><span className="tm-w-green">My</span><span className="tm-w-purple">worDz</span>
+              </div>
+              <div className="tm-slogan">You Talk, We Type</div>
+            </div>
+          </div>
+          <div className="tm-spacer"></div>
+          <div className="tm-menu">
             {/* Products Menu Item (non-authenticated) */}
             <div className="menu-item" onClick={() => window.showSpeechToText()}>
-                <span className="menu-icon">📦</span>
                 <span className="menu-text">Products</span>
             </div>
             
             {/* Pricing Menu Item (non-authenticated) */}
             <div className="menu-item" onClick={() => window.location.href = '/pricing'}>
-                <span className="menu-icon">💰</span>
                 <span className="menu-text">Pricing</span>
             </div>
 
             {/* Social Menu Item (non-authenticated) */}
             <div className="menu-item" onClick={() => window.openDonate()}>
-                <span className="menu-icon">🤝</span>
                 <span className="menu-text">Social</span>
             </div>
 
-            {/* Privacy Policy Menu Item (non-authenticated) */}
+            {/* Legal Menu Item (non-authenticated) */}
             <div className="menu-item" onClick={() => window.openPrivacyPolicy()}>
-                <span className="menu-icon">📋</span>
-                <span className="menu-text">Privacy Policy</span>
+                <span className="menu-text">Legal</span>
             </div>
+          </div>
         </div>
 
-        <header style={{ 
-          textAlign: 'center', 
-          padding: '60px 20px',
-          color: 'white'
-        }}>
-        </header>
+        <div style={{ height: '48px' }}></div>
         
         <div style={{ 
           flex: 1, 
@@ -1178,40 +1187,13 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           {/* Removed the 'Don't have an account? Sign Up' text and button */}
 
           {/* UPDATED: Login page tagline and logos */}
-          <p style={{ 
-            fontSize: '1.1rem', 
-            margin: '30px 0 0 0',
-            opacity: '0.8',
-            color: 'white',
-            textAlign: 'center'
-          }}>
-            Speech AI • Simple, Accurate, Powerful •
+          <p className="tm-login-tagline">
+            Accurate transcription for legal, medical and case work.
           </p>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '15px',
-            marginTop: '10px'
-          }}>
-                        <span style={{ color: 'white', fontSize: '1rem' }}>Powered with</span>
-            <img src="/claude_logo.png" alt="Claude AI Logo" style={{ width: '24px', height: '24px', verticalAlign: 'middle' }} />
-            <span style={{ 
-              color: '#000000', 
-              fontSize: '1.1rem', 
-              fontWeight: 'bold',
-              textShadow: '0 1px 2px rgba(255,255,255,0.8)',
-              marginLeft: '5px'
-            }}>Claude</span>
-            <span style={{ color: 'white', fontSize: '1.2rem', margin: '0 8px' }}>&amp;</span>
-            <img src="/gemini_logo.png" alt="Gemini AI Logo" style={{ width: '24px', height: '24px', verticalAlign: 'middle' }} />
-            <span style={{ 
-              color: '#000000',
-              fontSize: '1.1rem',
-              fontWeight: 'bold',
-              textShadow: '0 1px 2px rgba(255,255,255,0.8)',
-              marginLeft: '5px'
-            }}>Gemini</span>
+          <div className="tm-login-points">
+            <span>Word, PDF and plain-text export</span>
+            <span>Speaker labels</span>
+            <span>Your audio is never used to train AI</span>
           </div>
 
         </div>
@@ -1220,8 +1202,8 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         <footer style={{ 
           textAlign: 'center', 
           padding: '20px', 
-          color: 'rgba(255, 255, 255, 0.7)', 
-          fontSize: '0.9rem' 
+          color: '#a8acb5', 
+          fontSize: '0.85rem' 
         }}>
           © {new Date().getFullYear()} TypeMyworDz
         </footer>
@@ -1243,32 +1225,40 @@ return (
     <Route path="/admin" element={isAdmin ? <AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} /> : <Navigate to="/" />} />
     
     <Route path="/" element={
-      <div style={{ 
+      <div className="tm-app" style={{ 
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        background: (currentView === 'dashboard' || currentView === 'admin' || currentView === 'pricing' || currentView === 'ai_assistant') ? '#f8f9fa' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+        background: '#ffffff'
       }}>
         <ToastNotification message={message} type={messageType} clearMessage={clearMessage} />
         <CopiedNotification isVisible={copiedMessageVisible} />
 
-        {/* The Menu (sidebar-menu) will be rendered here directly when authenticated */}
-        <div 
-            className="sidebar-menu" 
-            style={{
-                position: 'fixed',
-                right: '20px', 
-                top: '20px',
-                left: 'auto', 
-                display: 'flex', 
-                flexDirection: 'row', 
-                width: 'fit-content', 
-            }}
+        {/* ---- Application top bar ---- */}
+        <div className="tm-topbar">
+
+          <div className="tm-brand">
+            <img
+              className="tm-brand-logo"
+              src="/android-chrome-192x192.png"
+              alt="TypeMyworDz"
+            />
+            <div className="tm-brand-text">
+              <div className="tm-wordmark">
+                <span className="tm-w-purple">Type</span><span className="tm-w-green">My</span><span className="tm-w-purple">worDz</span>
+              </div>
+              <div className="tm-slogan">You Talk, We Type</div>
+            </div>
+          </div>
+
+          <div className="tm-spacer"></div>
+
+          <div 
+            className="tm-menu" 
             onMouseLeave={() => setOpenSubmenu(null)}
-        >
+          >
             {/* Products Parent Menu */}
             <div className="menu-item" onClick={() => handleToggleSubmenu('productsSubmenu')}>
-                <span className="menu-icon">📦</span>
                 <span className="menu-text">Products</span>
                 <span className={`dropdown-arrow ${openSubmenu === 'productsSubmenu' ? 'rotated' : ''}`}>▼</span>
                 
@@ -1276,19 +1266,15 @@ return (
                 {openSubmenu === 'productsSubmenu' && (
                     <div className={`submenu ${openSubmenu === 'productsSubmenu' ? 'open' : ''}`} id="productsSubmenu">
                         <div className="submenu-item" onClick={() => window.showSpeechToText()}>
-                            <span className="submenu-icon">🎙️</span>
                             <span className="menu-text">Speech-to-Text</span>
                         </div>
                         <div className="submenu-item" onClick={() => window.showComingSoon('TypeMyNote')}>
-                            <span className="submenu-icon">🎤</span>
                             <span className="menu-text">TypeMyNote</span>
                         </div>
                         <div className="submenu-item" onClick={() => window.showComingSoon('Text-to-Speech')}>
-                            <span className="submenu-icon">🔊</span>
                             <span className="menu-text">Text-to-Speech</span>
                         </div>
                         <div className="submenu-item" onClick={() => window.showHumanTranscripts()}>
-                            <span className="submenu-icon">👥</span>
                             <span className="menu-text">Human Transcripts</span>
                         </div>
                     </div>
@@ -1297,13 +1283,11 @@ return (
             
             {/* Pricing Menu Item */}
             <div className="menu-item" onClick={handleOpenPricing}>
-                <span className="menu-icon">💰</span>
                 <span className="menu-text">Pricing</span>
             </div>
 
             {/* Social Parent Menu */}
             <div className="menu-item" onClick={() => handleToggleSubmenu('socialSubmenu')}>
-                <span className="menu-icon">🤝</span>
                 <span className="menu-text">Social</span>
                 <span className={`dropdown-arrow ${openSubmenu === 'socialSubmenu' ? 'rotated' : ''}`}>▼</span>
                 
@@ -1311,17 +1295,14 @@ return (
                 {openSubmenu === 'socialSubmenu' && (
                     <div className={`submenu ${openSubmenu === 'socialSubmenu' ? 'open' : ''}`} id="socialSubmenu">
                         <div className="submenu-item" onClick={() => window.openDonate()}>
-                            <span className="submenu-icon">💝</span>
                             <span className="submenu-text">Donate</span>
                         </div>
                         {/* NEW: Feedback Menu Item */}
                         <div className="submenu-item" onClick={handleOpenFeedback}>
-                            <span className="submenu-icon">📝</span>
                             <span className="submenu-text">Feedback</span>
                         </div>
                         {/* NEW: Share Menu Item */}
                         <div className="submenu-item" onClick={handleShare}>
-                            <span className="submenu-icon">📤</span>
                             <span className="menu-text">Share</span>
                         </div>
                     </div>
@@ -1330,121 +1311,17 @@ return (
 
             {/* Privacy Policy Menu Item */}
             <div className="menu-item" onClick={handleOpenPrivacyPolicy}>
-                <span className="menu-icon">📋</span>
-                <span className="menu-text">Privacy Policy</span>
+                <span className="menu-text">Legal</span>
             </div>
+          </div>
+
+          <div className="tm-account">
+            <span className="tm-username">{userProfile?.name || currentUser.email}</span>
+            <span className={"tm-plan" + (planLabel.isFree ? " tm-plan-free" : "")}>{planLabel.text}</span>
+            <button className="tm-logout" onClick={handleLogout}>Sign out</button>
+          </div>
+
         </div>
-
-        {/* UPDATED HEADER: Moved company name and tagline below logout button */}
-        {currentView === 'transcribe' && (
-          <header style={{ 
-            textAlign: 'center', 
-            padding: '20px 20px 10px',
-            color: 'white',
-            position: 'relative'
-          }}>
-            {/* Centered user info section at the top with Logout on LEFT */}
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'center', 
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '15px',
-              fontSize: '14px',
-              opacity: '0.9',
-              marginBottom: '20px',
-              backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              padding: '10px 20px',
-              borderRadius: '25px',
-              backdropFilter: 'blur(10px)',
-              position: 'relative'
-            }}>
-              {/* MOVED: Logout button to the LEFT */}
-              <button
-                onClick={handleLogout}
-                style={{
-                  position: 'absolute',
-                  left: '20px',
-                  padding: '6px 12px',
-                  backgroundColor: 'rgba(220, 53, 69, 0.8)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '12px'
-                }}
-              >
-                Logout
-              </button>
-              
-              {/* UPDATED: Removed "Logged in as:" text, just show user name */}
-              <span>{userProfile?.name || currentUser.email}</span>
-              {userProfile && userProfile.plan === 'Yearly Plan' ? ( 
-                <span>Plan: Yearly Plan (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
-              ) : userProfile && userProfile.plan === 'Monthly Plan' ? ( 
-                <span>Plan: Monthly Plan (Unlimited Transcription) {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span> 
-              ) : userProfile && userProfile.plan === 'One-Week Plan' ? ( 
-                <span>Plan: One-Week Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
-              ) : userProfile && userProfile.plan === 'Three-Day Plan' ? ( 
-                <span>Plan: Three-Day Plan {userProfile.expiresAt && `until ${new Date(userProfile.expiresAt).toLocaleDateString()}`}</span>
-              ) : userProfile && userProfile.plan === 'free' && !userProfile.hasReceivedInitialFreeMinutes ? ( 
-                <span>Plan: Free Trial ({Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining)</span>
-              ) : userProfile && userProfile.plan === 'free' && userProfile.hasReceivedInitialFreeMinutes ? ( 
-                <span>Plan: Free Trial (Used - Upgrade for Transcription)</span>
-              ) : (
-                <span>Plan: Free (Recording Only - Upgrade for Transcription)</span>
-              )}
-            </div>
-            
-            {/* NEW: Company name and tagline positioned below the logout button */}
-            <div style={{ 
-              position: 'absolute', 
-              top: '80px', 
-              left: '20px', 
-              zIndex: 100
-            }}>
-              <div style={{ position: 'relative', display: 'inline-block' }}>
-                {/* Removed the small favicon image completely */}
-                <h1 style={{ 
-                  fontSize: '1.8rem', 
-                  margin: '0 0 5px 0',
-                  fontWeight: 'bold', 
-                  textShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                  color: '#20cdd3ff' 
-                }}>
-                  TypeMyworDz
-                </h1>
-              </div>
-              <p style={{ 
-                fontSize: '1rem', 
-                margin: '0',
-                opacity: '0.9',
-                color: '#000000', 
-                fontStyle: 'italic', 
-                fontWeight: 'bold' 
-              }}>
-                You Talk, We Type
-              </p>
-            </div>
-
-            {/* BIG LOGO now positioned after the login info */}
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'center', 
-              marginBottom: '20px' 
-            }}>
-              <img 
-                src="/android-chrome-192x192.png" 
-                alt="TypeMyworDz Logo" 
-                style={{ 
-                  width: '80px', 
-                  height: '80px',
-                  filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))'
-                }} 
-              />
-            </div>
-          </header>
-        )}
 
         {/* Transcription Editor button above other navigation buttons */}
         {currentView === 'transcribe' && (
@@ -1458,13 +1335,13 @@ return (
               style={{
                 backgroundColor: '#28a745',
                 color: 'white',
-                padding: '10px 20px',
+                padding: '9px 16px',
                 border: 'none',
-                borderRadius: '20px',
+                borderRadius: '7px',
                 cursor: 'pointer',
                 fontSize: '14px',
                 fontWeight: '600',
-                boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)',
+                boxShadow: 'none',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
@@ -1472,17 +1349,17 @@ return (
               }}
               onMouseEnter={(e) => {
                 e.target.style.backgroundColor = '#218838';
-                e.target.style.transform = 'translateY(-2px)';
-                e.target.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.6)';
+
+                e.target.style.boxShadow = 'none';
               }}
               onMouseLeave={(e) => {
                 e.target.style.backgroundColor = '#28a745';
-                e.target.style.transform = 'translateY(0)';
-                e.target.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
+
+                e.target.style.boxShadow = 'none';
               }}
             >
               {/* Removed the favicon image here as well */}
-              ✏️ Transcription Editor
+              Open Transcription Editor
             </button>
           </div>
         )}
@@ -1500,86 +1377,53 @@ return (
           </div>
         )}
 
-        {/* Main Navigation Buttons */}
-        <div style={{ 
-          textAlign: 'center', 
-          padding: currentView === 'transcribe' ? '0 20px 40px' : '20px',
-          backgroundColor: (currentView === 'dashboard' || currentView === 'admin' || currentView === 'pricing' || currentView === 'ai_assistant') ? 'white' : 'transparent'
-        }}>
+        {/* ---- Main navigation tabs ---- */}
+        <div className="tm-tabs">
           <button
+            className={"tm-tab" + (currentView === 'transcribe' ? " tm-tab-active" : "")}
             onClick={() => setCurrentView('transcribe')}
-            style={{
-              padding: '12px 25px',
-              margin: '0 10px',
-              backgroundColor: currentView === 'transcribe' ? '#007bff' : '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '25px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
-            }}
           >
-            🎤 Transcribe
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M18.5 11.5v.5a6.5 6.5 0 0 1-13 0v-.5M12 18.5V22"/></svg>
+            Transcribe
           </button>
+
           <button
+            className={"tm-tab" + (currentView === 'dashboard' ? " tm-tab-active" : "")}
             onClick={() => setCurrentView('dashboard')}
-            style={{
-              padding: '12px 25px',
-              margin: '0 10px',
-              backgroundColor: currentView === 'dashboard' ? '#007bff' : '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '25px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
-            }}
           >
-            📊 History
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M4 6.5A1.5 1.5 0 0 1 5.5 5h3.2l1.8 2h8A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5z"/></svg>
+            My files
           </button>
-          
-          {/* AI Assistant Button in Main Navigation */}
+
           <button
+            className={"tm-tab tm-tab-ai" + (currentView === 'ai_assistant' ? " tm-tab-active" : "")}
             onClick={() => {
               if (!isPaidAIUser(userProfile)) {
-                showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.', 'error');
+                showMessage('The AI Assistant is available on the Three-Day, One-Week, Monthly and Yearly plans. Upgrade to switch it on.', 'error');
                 return;
               }
               setCurrentView('ai_assistant');
             }}
             disabled={!isPaidAIUser(userProfile)}
-            style={{
-              padding: '12px 25px',
-              margin: '0 10px',
-              backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : (currentView === 'ai_assistant' ? '#6c5ce7' : '#6c757d'),
-              color: 'white',
-              border: 'none',
-              borderRadius: '25px',
-              cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
-              fontSize: '16px',
-              boxShadow: (!isPaidAIUser(userProfile)) ? 'none' : '0 4px 15px rgba(108, 92, 231, 0.4)',
-              transition: 'all 0.3s ease'
-            }}
           >
-            ✨ Assistant
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>
+            Ask AI
+            {!isPaidAIUser(userProfile) && <span className="tm-tab-lock">Upgrade</span>}
           </button>
+
+          <button
+            className="tm-tab"
+            onClick={handleOpenPricing}
+          >
+            Pricing
+          </button>
+
           {isAdmin && (
             <button
+              className={"tm-tab" + (currentView === 'admin' ? " tm-tab-active" : "")}
               onClick={() => setCurrentView('admin')}
-              style={{
-                padding: '12px 25px',
-                margin: '0 10px',
-                backgroundColor: currentView === 'admin' ? '#dc3545' : '#6c757d',
-                color: 'white',
-                border: 'none',
-                borderRadius: '25px',
-                cursor: 'pointer',
-                fontSize: '16px',
-                boxShadow: '0 4px 15px rgba(220, 53, 69, 0.4)'
-              }}
             >
-              👑 Admin
+              Admin
             </button>
           )}
         </div>
@@ -1595,11 +1439,11 @@ return (
             <div style={{
               width: '100%',
               maxWidth: '800px',
-              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-              borderRadius: '15px',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
-              border: '1px solid #e9ecef',
-              padding: '20px',
+              backgroundColor: 'transparent',
+              borderRadius: '10px',
+              boxShadow: 'none',
+              border: 'none',
+              padding: '0',
               boxSizing: 'border-box', 
               textAlign: 'center'
             }}>
