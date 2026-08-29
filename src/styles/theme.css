@@ -883,3 +883,45 @@ body {
 }
 
 .tm-split-remember input { accent-color: var(--tm-green); margin: 0; }
+
+/* Keep the sidebar in view while the page scrolls */
+@media (min-width: 821px) {
+  .tm-side {
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: calc(100vh - 57px);
+    overflow-y: auto;
+  }
+}
+
+/* ------------------------------------------------------------------
+   The file picker. Browsers render the default control differently on
+   every platform and it always looks unfinished, so the button part is
+   restyled to match the rest of the app.
+   ------------------------------------------------------------------ */
+
+.tm-file {
+  font-family: inherit;
+  font-size: 13.5px;
+  color: var(--tm-body);
+  max-width: 100%;
+}
+
+.tm-file::file-selector-button {
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--tm-ink);
+  background: #fff;
+  border: 1px solid #d2d5dc;
+  border-radius: var(--tm-radius);
+  padding: 8px 14px;
+  margin-right: 11px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.tm-file::file-selector-button:hover {
+  background: var(--tm-surface);
+}
