@@ -1097,7 +1097,6 @@ body {
   background: #fff;
   border: 1px solid var(--tm-line);
   border-radius: var(--tm-radius);
-  overflow: hidden;
 }
 
 /* --- header: what this file is, and what you can do with it --- */
@@ -1540,8 +1539,10 @@ body {
 
 /* A line the service itself was unsure about. Amber, not red: it is a
    prompt to listen again, not an error. */
-.tm-seg-low .tm-seg-text {
+.tm-low-mark {
   background: linear-gradient(transparent 68%, #ffe9b8 68%);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 .tm-low-flag {
   display: inline-block;
@@ -1668,3 +1669,12 @@ body {
   color: var(--tm-body);
 }
 .tm-demo-note strong { color: var(--tm-ink); }
+
+/* Menus in the editor header hang from the right edge of their button, so a
+   wide one cannot run off the side of the panel or the screen. */
+.tm-ed-actions .tm-split-menu { left: auto; right: 0; }
+
+/* The panel no longer clips its children, so the strips that sit at the top
+   and bottom keep the rounded corners themselves. */
+.tm-ed > .tm-ed-head { border-radius: var(--tm-radius) var(--tm-radius) 0 0; }
+.tm-ed-foot { border-radius: 0 0 var(--tm-radius) var(--tm-radius); }
