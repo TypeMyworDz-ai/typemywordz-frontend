@@ -220,67 +220,21 @@ const Dashboard = ({ setCurrentView }) => {
   const isStandaloneDashboard = !setCurrentView;
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#ffffff', position: 'relative' }}>
-      {/* FLOATING TRANSCRIBE BUTTON - ONLY for standalone dashboard */}
-      {isStandaloneDashboard && (
-        <button
-          onClick={handleTranscribeNewAudio}
-          style={{
-            position: 'fixed',
-            top: '20px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 9999,
-            backgroundColor: '#7c3aed',
-            color: 'white',
-            padding: '12px 24px',
-            borderRadius: '50px',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '16px',
-            fontWeight: '600',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            boxShadow: '0 4px 20px rgba(124, 58, 237, 0.4)',
-            transition: 'all 0.3s ease',
-            backdropFilter: 'blur(10px)',
-            animation: 'float 3s ease-in-out infinite'
-          }}
-          onMouseEnter={(e) => {
-            e.target.style.backgroundColor = '#6d28d9';
-            e.target.style.transform = 'translateX(-50%) translateY(-2px)';
-            e.target.style.boxShadow = '0 6px 25px rgba(124, 58, 237, 0.6)';
-          }}
-          onMouseLeave={(e) => {
-            e.target.style.backgroundColor = '#7c3aed';
-            e.target.style.transform = 'translateX(-50%)';
-            e.target.style.boxShadow = '0 4px 20px rgba(124, 58, 237, 0.4)';
-          }}
-        >
-          <svg 
-            style={{ width: '20px', height: '20px' }} 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            <path 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
-              strokeWidth={2} 
-              d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" 
-            />
-          </svg>
-          New transcription
-        </button>
-      )}
 
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: isStandaloneDashboard ? '5rem 1rem 2rem' : '2rem 1rem' }}>
+      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '2rem 1rem' }}>
         {/* Header */}
-        <div style={{ marginBottom: '2rem' }}>
+        <div className="tm-page-head">
           <div>
             <h1 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#14161a', marginBottom: '0.35rem' }}>My files</h1>
             <p style={{ color: '#858a95', fontSize: '0.9rem', margin: 0 }}>Every transcription you have made.</p>
           </div>
+          {isStandaloneDashboard && (
+            <button type="button" className="tm-primary" onClick={handleTranscribeNewAudio}>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                   strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+              New transcription
+            </button>
+          )}
         </div>
 
         {/* Search and Filter */}
