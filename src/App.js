@@ -269,7 +269,7 @@ function AppContent() {
 
   // Enhanced reset function with better job cancellation - ADDING LOGS
   const resetTranscriptionProcessUI = useCallback(() => { 
-    console.log('🔄 DEBUG: resetTranscriptionProcessUI called. Stopping ongoing processes and resetting UI states.');
+    console.log('DEBUG: resetTranscriptionProcessUI called. Stopping ongoing processes and resetting UI states.');
     
     isCancelledRef.current = true;
     
@@ -285,19 +285,19 @@ function AppContent() {
     recordedAudioBlobRef.current = null;
     
     if (abortControllerRef.current) {
-      console.log('🔄 DEBUG: Aborting active fetch request.');
+      console.log('DEBUG: Aborting active fetch request.');
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
 
     if (transcriptionIntervalRef.current) {
-      console.log('🔄 DEBUG: Clearing transcription progress interval.');
+      console.log('DEBUG: Clearing transcription progress interval.');
       clearInterval(transcriptionIntervalRef.current);
       transcriptionIntervalRef.current = null;
     }
 
     if (statusCheckTimeoutRef.current) {
-      console.log('🔄 DEBUG: Clearing status check timeout.');
+      console.log('DEBUG: Clearing status check timeout.');
       clearTimeout(statusCheckTimeoutRef.current);
       statusCheckTimeoutRef.current = null;
     }
@@ -313,34 +313,34 @@ function AppContent() {
     const fileInput = document.querySelector('input[type="file"]');
     if (fileInput) {
       fileInput.value = '';
-      console.log('🔄 DEBUG: File input element cleared.');
+      console.log('DEBUG: File input element cleared.');
     } else {
-      console.log('🔄 DEBUG: File input element not found for clearing.');
+      console.log('DEBUG: File input element not found for clearing.');
     }
     
     setTimeout(() => {
       isCancelledRef.current = false;
-      console.log('✅ DEBUG: Reset complete, ready for new operations.');
+      console.log('DEBUG: Reset complete, ready for new operations.');
     }, 500);
   }, []); // No external dependencies, so empty array is correct
 
   // Enhanced file selection with proper job cancellation - ADDING LOGS
   const handleFileSelect = useCallback(async (event) => {
-    console.log('📁 DEBUG: handleFileSelect called.');
+    console.log('DEBUG: handleFileSelect called.');
     const file = event.target.files[0];
     
     if (!file) {
-      console.log('📁 DEBUG: No file selected. Exiting handleFileSelect.');
+      console.log('DEBUG: No file selected. Exiting handleFileSelect.');
       return;
     }
     
-    console.log('📁 DEBUG: File selected:', file.name);
+    console.log('DEBUG: File selected:', file.name);
     // Always reset UI when a new file is selected, effectively deselecting options
     // This also stops any ongoing transcription.
     resetTranscriptionProcessUI(); 
     
     setSelectedFile(file);
-    console.log('📁 DEBUG: setSelectedFile called with:', file.name);
+    console.log('DEBUG: setSelectedFile called with:', file.name);
     
     if (file && (file.type.startsWith('audio/') || file.type.startsWith('video/'))) { 
       const audio = new Audio(); 
@@ -348,28 +348,35 @@ function AppContent() {
       audio.onloadedmetadata = async () => {
         setAudioDuration(audio.duration);
         URL.revokeObjectURL(audio.src);
-        console.log(`📊 DEBUG: Audio metadata loaded. Duration: ${audio.duration} seconds.`);
+        console.log(`DEBUG: Audio metadata loaded. Duration: ${audio.duration} seconds.`);
         
         try {
           const originalSize = file.size / (1024 * 1024);
-          console.log(`📊 DEBUG: ${Math.round(audio.duration/60)}-minute file loaded (${originalSize.toFixed(2)} MB) - ready for quick transcription.`);
+          console.log(`DEBUG: ${Math.round(audio.duration/60)}-minute file loaded (${originalSize.toFixed(2)} MB) - ready for quick transcription.`);
         } catch (error) {
-          console.error('❌ DEBUG: Error getting file info in onloadedmetadata:', error);
+          console.error('DEBUG: Error getting file info in onloadedmetadata:', error);
           showMessage('Error getting file info: ' + error.message, 'error');
         }
       };
       audio.onerror = (e) => { // NEW: Add onerror handler for audio loading
-        console.error('❌ DEBUG: Audio element error during metadata loading:', e);
-        showMessage('Error loading audio file. Please ensure it is a valid audio/video format.', 'error');
-        resetTranscriptionProcessUI(); // Reset if audio file itself is problematic
+        console.error('DEBUG: Audio element error during metadata loading:', e);
+        resetTranscriptionProcessUI();
+        setSelectedFile(null);
+        showMessage(
+          file.size === 0
+            ? 'That file is empty, so there is nothing to transcribe. Please choose another file.'
+            : 'That file could not be opened as audio. Please check it plays on your computer, then try again.',
+          'error'
+        );
       };
       const audioUrl = URL.createObjectURL(file);
       audio.src = audioUrl;
-      console.log('📁 DEBUG: Audio URL created and assigned:', audioUrl);
+      console.log('DEBUG: Audio URL created and assigned:', audioUrl);
     } else {
-      console.log('📁 DEBUG: Selected file is not an audio/video type. No audio metadata loading.');
-      showMessage('Selected file is not a valid audio or video format.', 'error');
-      resetTranscriptionProcessUI(); // Reset if file type is wrong
+      console.log('DEBUG: Selected file is not an audio/video type. No audio metadata loading.');
+      resetTranscriptionProcessUI();
+      setSelectedFile(null);
+      showMessage('That is not an audio or video file. Please choose a recording to transcribe.', 'error');
     }
   }, [showMessage, resetTranscriptionProcessUI]);
 
@@ -402,7 +409,7 @@ function AppContent() {
 
   // Enhanced recording function with proper job cancellation
   const startRecording = useCallback(async () => {
-    console.log('🎙️ DEBUG: startRecording called.'); // NEW LOG
+    console.log('DEBUG: startRecording called.'); // NEW LOG
     // Always reset UI when starting a new recording, effectively deselecting options
     // This also stops any ongoing transcription.
     resetTranscriptionProcessUI(); 
@@ -411,7 +418,7 @@ function AppContent() {
     const fileInput = document.querySelector('input[type="file"]');
     if (fileInput) {
       fileInput.value = ''; // Clear file input
-      console.log('🎙️ DEBUG: File input element cleared before recording.'); // NEW LOG
+      console.log('DEBUG: File input element cleared before recording.'); // NEW LOG
     }
     
     try {
@@ -424,19 +431,19 @@ function AppContent() {
           autoGainControl: true
         } 
       });
-      console.log('🎙️ DEBUG: Microphone stream obtained.'); // NEW LOG
+      console.log('DEBUG: Microphone stream obtained.'); // NEW LOG
       
       let mimeType = 'audio/webm;codecs=opus';
       if (!MediaRecorder.isTypeSupported(mimeType)) {
         mimeType = 'audio/webm';
         if (!MediaRecorder.isTypeSupported(mimeType)) {
           mimeType = 'audio/wav';
-          console.warn('🎙️ DEBUG: Falling back to audio/wav for recording.'); // NEW LOG
+          console.warn('DEBUG: Falling back to audio/wav for recording.'); // NEW LOG
         } else {
-          console.warn('🎙️ DEBUG: Falling back to audio/webm for recording.'); // NEW LOG
+          console.warn('DEBUG: Falling back to audio/webm for recording.'); // NEW LOG
         }
       } else {
-        console.log(`🎙️ DEBUG: Using ${mimeType} for recording.`); // NEW LOG
+        console.log(`DEBUG: Using ${mimeType} for recording.`); // NEW LOG
       }
       
       mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
@@ -444,7 +451,7 @@ function AppContent() {
 
       mediaRecorderRef.current.ondataavailable = (event) => {
         chunks.push(event.data);
-        console.log('🎙️ DEBUG: Data available from MediaRecorder. Chunk size:', event.data.size); // NEW LOG
+        console.log('DEBUG: Data available from MediaRecorder. Chunk size:', event.data.size); // NEW LOG
       };
 
       mediaRecorderRef.current.onstop = async () => {
@@ -506,29 +513,29 @@ function AppContent() {
       mediaRecorderRef.current.start(1000);
       setIsRecording(true);
       setRecordingTime(0);
-      console.log('🎙️ DEBUG: MediaRecorder started. isRecording set to true.'); // NEW LOG
+      console.log('DEBUG: MediaRecorder started. isRecording set to true.'); // NEW LOG
 
       recordingIntervalRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
     } catch (error) {
-      console.error('❌🎙️ DEBUG: Could not access microphone:', error); // NEW LOG
+      console.error('DEBUG: Could not access microphone:', error); // NEW LOG
       showMessage('Could not access microphone: ' + error.message, 'error');
     }
   }, [resetTranscriptionProcessUI, showMessage, measureAudio]);
 
   const stopRecording = useCallback(() => {
-    console.log('🎙️ DEBUG: stopRecording called.'); // NEW LOG
+    console.log('DEBUG: stopRecording called.'); // NEW LOG
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       clearInterval(recordingIntervalRef.current);
-      console.log('🎙️ DEBUG: MediaRecorder stopped, isRecording set to false, interval cleared.'); // NEW LOG
+      console.log('DEBUG: MediaRecorder stopped, isRecording set to false, interval cleared.'); // NEW LOG
     }
   }, [isRecording]);
   // Improved cancel function with page refresh
   const handleCancelUpload = useCallback(async () => {
-    console.log('🛑 DEBUG: FORCE CANCEL - Stopping everything immediately');
+    console.log('DEBUG: FORCE CANCEL - Stopping everything immediately');
     
     isCancelledRef.current = true;
     
@@ -544,19 +551,19 @@ function AppContent() {
     recordedAudioBlobRef.current = null;
     
     if (abortControllerRef.current) {
-      console.log('🔄 DEBUG: Aborting active fetch request.');
+      console.log('DEBUG: Aborting active fetch request.');
       abortControllerRef.current.abort();
     }
     abortControllerRef.current = null;
 
     if (transcriptionIntervalRef.current) {
-      console.log('🔄 DEBUG: Clearing transcription progress interval.');
+      console.log('DEBUG: Clearing transcription progress interval.');
       clearInterval(transcriptionIntervalRef.current);
       transcriptionIntervalRef.current = null;
     }
 
     if (statusCheckTimeoutRef.current) {
-      console.log('🔄 DEBUG: Clearing status check timeout.');
+      console.log('DEBUG: Clearing status check timeout.');
       clearTimeout(statusCheckTimeoutRef.current);
       statusCheckTimeoutRef.current = null;
     }
@@ -571,14 +578,14 @@ function AppContent() {
     // Try to cancel job on Railway backend
     if (jobId) { 
       try {
-        console.log(`🛑 DEBUG: Attempting to cancel job ${jobId} on Railway backend.`);
+        console.log(`DEBUG: Attempting to cancel job ${jobId} on Railway backend.`);
         await fetch(`${RAILWAY_BACKEND_URL}/cancel/${jobId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         });
-        console.log('✅ DEBUG: Previous job cancelled successfully on Railway.');
+        console.log('DEBUG: Previous job cancelled successfully on Railway.');
       } catch (error) {
-        console.log('⚠️ DEBUG: Failed to cancel previous job on Railway, but continuing with force cancel:', error);
+        console.log('DEBUG: Failed to cancel previous job on Railway, but continuing with force cancel:', error);
       }
     }
     
@@ -588,7 +595,7 @@ function AppContent() {
       window.location.reload();
     }, 1500);
     
-    console.log('✅ DEBUG: Force cancellation complete. Page refresh initiated.');
+    console.log('DEBUG: Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage]);
 // Find this function in your App.js file:
 const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
@@ -671,7 +678,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
   const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => {
     if (isCancelledRef.current) {
-      console.log('🛑 DEBUG: Status check aborted - job was cancelled');
+      console.log('DEBUG: Status check aborted - job was cancelled');
       clearInterval(transcriptionInterval);
       return;
     }
@@ -683,7 +690,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       abortControllerRef.current = controller;
       
       timeoutId = setTimeout(() => {
-        console.log('⏰ DEBUG: Status check timeout - aborting');
+        console.log('DEBUG: Status check timeout - aborting');
         controller.abort();
       }, 10000); 
       
@@ -696,7 +703,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       clearTimeout(timeoutId);
       
       if (isCancelledRef.current) {
-        console.log('🛑 DEBUG: Job cancelled during fetch - stopping immediately');
+        console.log('DEBUG: Job cancelled during fetch - stopping immediately');
         clearInterval(transcriptionInterval);
         return;
       }
@@ -704,14 +711,14 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       const result = await response.json();
       
       if (isCancelledRef.current) {
-        console.log('🛑 DEBUG: Job cancelled after response - stopping immediately');
+        console.log('DEBUG: Job cancelled after response - stopping immediately');
         clearInterval(transcriptionInterval);
         return;
       }
       
       if (response.ok && result.status === 'completed') {
         if (isCancelledRef.current) {
-          console.log('🛑 DEBUG: Job cancelled - ignoring completion');
+          console.log('DEBUG: Job cancelled - ignoring completion');
           clearInterval(transcriptionInterval);
           return;
         }
@@ -743,7 +750,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         }
         
       } else if (response.ok && (result.status === 'cancelled' || result.status === 'canceled')) {
-        console.log('✅ DEBUG: Backend confirmed job cancellation');
+        console.log('DEBUG: Backend confirmed job cancellation');
         clearInterval(transcriptionInterval);
         // Removed setTranscriptionProgress as it was unused
         setStatus('idle');
@@ -753,19 +760,19 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         
       } else {
         if (result.status === 'processing' && !isCancelledRef.current) {
-          console.log('⏳ DEBUG: Job still processing - will check again');
+          console.log('DEBUG: Job still processing - will check again');
           statusCheckTimeoutRef.current = setTimeout(() => {
             if (!isCancelledRef.current) {
               checkJobStatus(jobIdToPass, transcriptionInterval); 
             } else {
-              console.log('🛑 DEBUG: Recursive call cancelled');
+              console.log('DEBUG: Recursive call cancelled');
               clearInterval(transcriptionInterval);
               showMessage('Transcription process interrupted. Please start a new one.','warning');
               resetTranscriptionProcessUI();
             }
           }, 2000);
         } else if (isCancelledRef.current) {
-          console.log('🛑 DEBUG: Job cancelled - stopping status checks');
+          console.log('DEBUG: Job cancelled - stopping status checks');
           clearInterval(transcriptionInterval);
           showMessage('Transcription process interrupted. Please start a new one.','warning');
           resetTranscriptionProcessUI();
@@ -784,7 +791,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       clearTimeout(timeoutId);
       
       if (error.name === 'AbortError' || isCancelledRef.current) {
-        console.log('🛑 DEBUG: Request aborted or job cancelled');
+        console.log('DEBUG: Request aborted or job cancelled');
         clearInterval(transcriptionInterval);
         if (!isCancelledRef.current) {
           setIsUploading(false);
@@ -793,7 +800,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         resetTranscriptionProcessUI();
         return;
       } else if (!isCancelledRef.current) {
-        console.error('❌ DEBUG: Status check error:', error);
+        console.error('DEBUG: Status check error:', error);
         clearInterval(transcriptionInterval); 
         // Removed setTranscriptionProgress as it was unused
         setStatus('failed'); 
@@ -807,16 +814,16 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   }, [handleTranscriptionComplete, showMessage, resetTranscriptionProcessUI]); // Removed RAILWAY_BACKEND_URL from dependencies
   // handleUpload with new backend logic for model selection
   const handleUpload = useCallback(async () => {
-    console.log('🚀 DEBUG: handleUpload called.');
+    console.log('DEBUG: handleUpload called.');
     if (!selectedFile) {
       showMessage('Please select a file first', 'warning');
-      console.log('❌ DEBUG: No file selected for upload..');
+      console.log('DEBUG: No file selected for upload..');
       return;
     }
 
     if (userProfile === undefined) {
       showMessage('Loading user profile... Please wait.', 'info');
-      console.log('⏳ DEBUG: User profile still loading or not available.');
+      console.log('DEBUG: User profile still loading or not available.');
       return;
     }
 
@@ -830,10 +837,10 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     }
 
     const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
-    console.log('📊 DEBUG: Estimated duration for upload:', estimatedDuration);
+    console.log('DEBUG: Estimated duration for upload:', estimatedDuration);
 
     const transcribeCheck = await canUserTranscribe(currentUser.uid, estimatedDuration);
-    console.log('✅ DEBUG: canUserTranscribe check result:', transcribeCheck);
+    console.log('DEBUG: canUserTranscribe check result:', transcribeCheck);
     
     if (!transcribeCheck.canTranscribe) {
       if (transcribeCheck.redirectToPricing) {
@@ -847,7 +854,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         }
 
         showMessage(userMessage, 'warning');
-        console.log('❌ DEBUG: Blocking transcription due to plan/limit. Redirecting to pricing.');
+        console.log('DEBUG: Blocking transcription due to plan/limit. Redirecting to pricing.');
         
         setTimeout(() => {
           setCurrentView('pricing');
@@ -856,13 +863,13 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         return;
       } else {
         showMessage('You do not have permission to transcribe audio. Please contact support if this is an error.', 'error');
-        console.log('❌ DEBUG: Blocking transcription due to insufficient permissions.');
+        console.log('DEBUG: Blocking transcription due to insufficient permissions.');
         resetTranscriptionProcessUI();
         return;
       }
     }
 
-    console.log(`🎯 DEBUG: Initiating transcription for ${Math.round(estimatedDuration/60)}-minute audio.`);
+    console.log(`DEBUG: Initiating transcription for ${Math.round(estimatedDuration/60)}-minute audio.`);
 
     isCancelledRef.current = false;
     setIsUploading(true);
@@ -883,7 +890,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     }
 
     try {
-      console.log(`🎯 DEBUG: Using unified transcription endpoint: ${RAILWAY_BACKEND_URL}/transcribe`);
+      console.log(`DEBUG: Using unified transcription endpoint: ${RAILWAY_BACKEND_URL}/transcribe`);
       const response = await fetch(`${RAILWAY_BACKEND_URL}/transcribe`, {
         method: 'POST',
         body: formData,
@@ -892,17 +899,17 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ DEBUG: Backend transcription service failed. Status:', response.status, 'Text:', errorText);
+        console.error('DEBUG: Backend transcription service failed. Status:', response.status, 'Text:', errorText);
         throw new Error(`Transcription service failed with status: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
-      console.log('✅ DEBUG: Backend transcription endpoint responded:', result);
+      console.log('DEBUG: Backend transcription endpoint responded:', result);
 
       if (result && result.job_id) {
         const transcriptionJobId = result.job_id;
-        console.log('✅ DEBUG: Transcription job started. Processing...');
-        console.log(`📊 DEBUG: Logic used: ${result.logic_used || 'Smart service selection'}`);
+        console.log('DEBUG: Transcription job started. Processing...');
+        console.log(`DEBUG: Logic used: ${result.logic_used || 'Smart service selection'}`);
         
         // Removed setUploadProgress as it was unused
         setStatus('processing');
@@ -910,12 +917,12 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         transcriptionIntervalRef.current = simulateProgress(() => {}, 500, -1); // Removed setTranscriptionProgress
         checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current);
       } else {
-        console.error(`❌ DEBUG: Transcription service returned no job ID: ${JSON.stringify(result)}`);
+        console.error(`DEBUG: Transcription service returned no job ID: ${JSON.stringify(result)}`);
         throw new Error(`Transcription service returned no job ID: ${JSON.stringify(result)}`);
       }
 
     } catch (transcriptionError) {
-      console.error('❌ DEBUG: Transcription failed in handleUpload catch block:', transcriptionError);
+      console.error('DEBUG: Transcription failed in handleUpload catch block:', transcriptionError);
       // Removed setUploadProgress and setTranscriptionProgress as they were unused
       setStatus('failed'); 
       setIsUploading(false);
@@ -963,7 +970,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ DEBUG: Word document generation failed. Status:', response.status, 'Text:', errorText);
+        console.error('DEBUG: Word document generation failed. Status:', response.status, 'Text:', errorText);
         throw new Error(`Failed to generate Word document: ${response.status} - ${errorText}`);
       }
 
@@ -1135,7 +1142,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   useEffect(() => {
     return () => {
       if (isCancelledRef.current) {
-        console.log('🧹 DEBUG: Component cleanup - clearing all intervals'); 
+        console.log('DEBUG: Component cleanup - clearing all intervals'); 
         const highestId = setInterval(() => {}, 0);
         for (let i = 1; i <= highestId; i++) {
           clearInterval(i);
