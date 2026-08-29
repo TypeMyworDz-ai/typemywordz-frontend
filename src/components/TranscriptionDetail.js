@@ -40,8 +40,26 @@ const LEADING_TIME = /^\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d{1,3})?\s+/;
 //
 // Order matters too: a timestamp usually sits BEFORE the speaker tag,
 // so it has to come off first or the tag no longer starts the line.
+// The transcript is stored as HTML, because the backend marks speaker
+// labels up as <strong>Speaker 1:</strong>. Turn it back into plain text
+// before anything else looks at it: <br> and </p> become line breaks, all
+// other tags are dropped, and the handful of entities that actually turn
+// up are decoded. Without this the copy modes would hand the client raw
+// markup, and the speaker tag pattern would never match.
+const htmlToText = (html) => String(html || '')
+  .replace(/\r\n?/g, '\n')
+  .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+  .replace(/<\s*\/\s*(p|div|li|h[1-6])\s*>/gi, '\n')
+  .replace(/<[^>]*>/g, '')
+  .replace(/&nbsp;/gi, ' ')
+  .replace(/&lt;/gi, '<')
+  .replace(/&gt;/gi, '>')
+  .replace(/&quot;/gi, '"')
+  .replace(/&#0?39;|&apos;/gi, "'")
+  .replace(/&amp;/gi, '&');
+
 const stripTags = (text) => {
-  const lines = String(text || '')
+  const lines = htmlToText(text)
     .replace(BRACKETED_TIME, '')
     .split('\n')
     .map((line) => {
@@ -65,13 +83,22 @@ const stripTags = (text) => {
 const applyCopyMode = (text, mode) => {
   const source = String(text || '');
   if (mode === 'clean') return stripTags(source);
+  if (mode === 'full') {
+    // "Exactly as it appears above" means what is on the screen, with the
+    // speaker names kept - not the HTML used to make them bold.
+    return htmlToText(source)
+      .split('\n')
+      .map((l) => l.replace(/[ \t]{2,}/g, ' ').trimEnd())
+      .join('\n')
+      .trim();
+  }
   if (mode === 'block') {
     // No separator between speaker turns - the client asked for one
     // truly continuous paragraph. Anyone who wants the tags exports
     // to Word instead.
     return stripTags(source).replace(/\s*\n+\s*/g, ' ').replace(/[ \t]{2,}/g, ' ').trim();
   }
-  return source;
+  return htmlToText(source).trim();
 };
 
 const COPY_MODE_KEY = 'tmwd.copyMode';
