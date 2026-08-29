@@ -1080,3 +1080,578 @@ body {
   .tm-ann-anim { animation: none; }
   .tm-ann-dot { transition: none; }
 }
+
+/* ============================================================
+   The proofreading editor
+   ------------------------------------------------------------
+   Built to be read for hours at a time. Generous line height,
+   a wide but bounded measure, and only two colours doing any
+   signalling: green for the line that is playing, amber for a
+   line the service was unsure about.
+   ============================================================ */
+
+.tm-ed {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #fff;
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius);
+  overflow: hidden;
+}
+
+/* --- header: what this file is, and what you can do with it --- */
+
+.tm-ed-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 22px 16px;
+  border-bottom: 1px solid var(--tm-line);
+  flex-wrap: wrap;
+}
+
+.tm-ed-id { min-width: 0; flex: 1 1 320px; }
+
+.tm-ed-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 9px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--tm-green);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tm-ed-back:hover { color: var(--tm-green-dark); text-decoration: underline; }
+
+.tm-ed-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--tm-ink);
+  word-break: break-word;
+}
+
+.tm-ed-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--tm-muted);
+}
+/* A thin dot between the facts, drawn rather than typed. */
+.tm-ed-meta > span + span::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  margin-right: 12px;
+  border-radius: 50%;
+  background: var(--tm-faint);
+  vertical-align: middle;
+}
+
+.tm-ed-save { font-weight: 600; color: var(--tm-muted); }
+.tm-ed-save-ok { color: var(--tm-green-dark); }
+.tm-ed-save-bad { color: #b4232a; }
+
+.tm-ed-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Ask AI is the one purple thing on this screen. */
+.tm-ed-ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 15px;
+  border: 1px solid var(--tm-purple-line);
+  border-radius: var(--tm-radius);
+  background: var(--tm-purple-soft);
+  color: var(--tm-purple);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.tm-ed-ai:hover { background: #e7e2fb; }
+.tm-ed-ai-off { opacity: 0.55; }
+
+/* Shown in the Export menu when subtitles cannot be offered. */
+.tm-split-note {
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--tm-line);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--tm-muted);
+}
+
+.tm-split-name { display: block; font-weight: 550; color: var(--tm-ink); }
+
+/* --- the player strip --- */
+
+.tm-play {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 22px;
+  border-bottom: 1px solid var(--tm-line);
+  background: #fafbfc;
+  flex-wrap: wrap;
+}
+
+.tm-play-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tm-green);
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.tm-play-btn:hover { background: var(--tm-green-dark); }
+
+.tm-play-skip {
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid #d2d5dc;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--tm-body);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.tm-play-skip:hover { border-color: var(--tm-green); color: var(--tm-green-dark); }
+
+.tm-play-time {
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--tm-muted);
+  min-width: 42px;
+  text-align: center;
+}
+
+.tm-play-bar {
+  flex: 1 1 180px;
+  min-width: 120px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #dfe2e7;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.tm-play-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tm-green);
+  cursor: pointer;
+}
+.tm-play-bar::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tm-green);
+  cursor: pointer;
+}
+
+.tm-play-speed {
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid #d2d5dc;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--tm-body);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.tm-play-rewind,
+.tm-split-remember {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--tm-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.tm-play-rewind input { accent-color: var(--tm-green); cursor: pointer; }
+
+/* --- no audio yet --- */
+
+.tm-attach {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 15px 22px;
+  border-bottom: 1px solid var(--tm-line);
+  background: var(--tm-green-soft);
+  flex-wrap: wrap;
+}
+.tm-attach strong { font-size: 14px; color: var(--tm-ink); }
+.tm-attach p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--tm-body);
+  max-width: 62ch;
+}
+.tm-attach-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 15px;
+  border-radius: var(--tm-radius);
+  background: var(--tm-green);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tm-attach-btn:hover { background: var(--tm-green-dark); }
+.tm-attach-btn input { display: none; }
+
+/* --- toolbar: speakers, things to check, find --- */
+
+.tm-ed-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 22px;
+  border-bottom: 1px solid var(--tm-line);
+  flex-wrap: wrap;
+}
+.tm-ed-sp { flex: 1 1 auto; }
+
+.tm-spk { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.tm-spk-label {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--tm-faint);
+}
+.tm-spk-chip {
+  height: 27px;
+  padding: 0 11px;
+  border: 1px solid var(--tm-line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--tm-body);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.tm-spk-chip:hover { border-color: var(--tm-green); color: var(--tm-green-dark); }
+.tm-spk-input {
+  height: 27px;
+  width: 140px;
+  padding: 0 9px;
+  border: 1px solid var(--tm-green);
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+
+.tm-ed-tool {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid #d2d5dc;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--tm-body);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.tm-ed-tool:hover { border-color: var(--tm-green); color: var(--tm-green-dark); }
+
+/* --- find and replace --- */
+
+.tm-find {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 22px;
+  border-bottom: 1px solid var(--tm-line);
+  background: #fafbfc;
+  flex-wrap: wrap;
+}
+.tm-find-in {
+  height: 32px;
+  width: 175px;
+  padding: 0 10px;
+  border: 1px solid #d2d5dc;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13.5px;
+  outline: none;
+}
+.tm-find-in:focus { border-color: var(--tm-green); }
+.tm-find-count { font-size: 12.5px; color: var(--tm-muted); }
+.tm-find-go {
+  height: 32px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--tm-green);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tm-find-go:hover:not(:disabled) { background: var(--tm-green-dark); }
+.tm-find-go:disabled { background: #c9ccd3; cursor: default; }
+
+/* --- the approximate-times notice --- */
+
+.tm-ed-warn {
+  margin: 0;
+  padding: 11px 22px;
+  border-bottom: 1px solid var(--tm-line);
+  background: var(--tm-warn-soft);
+  color: var(--tm-warn);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* --- the transcript itself --- */
+
+.tm-ed-list {
+  flex: 1 1 auto;
+  min-height: 320px;
+  max-height: 62vh;
+  overflow-y: auto;
+  padding: 10px 0 26px;
+  scroll-behavior: smooth;
+}
+
+.tm-ed-empty { padding: 34px 22px; color: var(--tm-muted); font-size: 14px; }
+
+.tm-seg {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 6px 22px 6px 18px;
+  border-left: 3px solid transparent;
+}
+.tm-seg:hover { background: #f7f8f9; }
+
+/* The line currently playing. Green, because it follows the audio the
+   user is driving. Kept as a left rule plus a tint so it never fights
+   with the text for attention. */
+.tm-seg-on {
+  background: var(--tm-green-soft);
+  border-left-color: var(--tm-green);
+}
+.tm-seg-on:hover { background: #e2f4e8; }
+
+.tm-seg-time {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  padding: 1px 5px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--tm-faint);
+  font-family: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  min-width: 46px;
+  text-align: right;
+}
+.tm-seg-time:hover { background: var(--tm-green); color: #fff; }
+.tm-seg-on .tm-seg-time { color: var(--tm-green-dark); font-weight: 600; }
+
+/* The tilde that marks an estimate. Small, but it is the difference
+   between a measurement and a guess. */
+.tm-approx { margin-left: 1px; opacity: 0.75; }
+
+.tm-seg-who {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--tm-ink);
+  white-space: nowrap;
+}
+
+.tm-seg-text {
+  flex: 1 1 auto;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--tm-body);
+  cursor: text;
+  border-radius: 4px;
+  max-width: 78ch;
+}
+.tm-seg-text:focus-visible { outline: 2px solid var(--tm-green); outline-offset: 2px; }
+
+.tm-seg-input {
+  flex: 1 1 auto;
+  max-width: 78ch;
+  padding: 2px 8px;
+  border: 1px solid var(--tm-green);
+  border-radius: 5px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--tm-ink);
+  resize: none;
+  overflow: hidden;
+  outline: none;
+}
+
+/* A line the service itself was unsure about. Amber, not red: it is a
+   prompt to listen again, not an error. */
+.tm-seg-low .tm-seg-text {
+  background: linear-gradient(transparent 68%, #ffe9b8 68%);
+}
+.tm-low-flag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--tm-warn-soft);
+  border: 1px solid #e8d6a8;
+  color: var(--tm-warn);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  vertical-align: 2px;
+}
+
+.tm-hit { background: #ffe9b8; color: var(--tm-ink); border-radius: 2px; }
+
+/* --- footer hints --- */
+
+.tm-ed-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 22px;
+  border-top: 1px solid var(--tm-line);
+  background: #fafbfc;
+  font-size: 12.5px;
+  color: var(--tm-muted);
+  flex-wrap: wrap;
+}
+.tm-ed-foot b { font-weight: 650; color: var(--tm-body); }
+
+@media (max-width: 720px) {
+  .tm-ed-head { padding: 15px 16px 13px; }
+  .tm-play, .tm-ed-bar, .tm-find, .tm-ed-foot, .tm-ed-warn { padding-left: 16px; padding-right: 16px; }
+  .tm-seg { padding-left: 13px; padding-right: 16px; gap: 9px; }
+  .tm-seg-text, .tm-seg-input { font-size: 14.5px; }
+  .tm-ed-list { max-height: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-ed-list { scroll-behavior: auto; }
+}
+
+/* A section heading inside a split-button menu. */
+.tm-split-head {
+  padding: 9px 14px 6px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--tm-faint);
+}
+
+/* The line under a fresh transcript pointing at where it was saved. */
+.tm-result-note {
+  margin: 14px 0 0;
+  font-size: 13.5px;
+  color: var(--tm-muted);
+  text-align: center;
+}
+.tm-result-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--tm-green);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.tm-result-link:hover { color: var(--tm-green-dark); }
+
+/* --- the single-transcript page --- */
+
+.tm-detail {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 26px 20px 44px;
+}
+
+.tm-detail-msg {
+  padding: 46px 24px;
+  text-align: center;
+  color: var(--tm-body);
+  font-size: 15px;
+}
+.tm-detail-msg h2 { margin: 0 0 8px; font-size: 20px; color: var(--tm-ink); }
+.tm-detail-msg p { margin: 0 0 20px; color: var(--tm-muted); }
+
+.tm-detail-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--tm-muted);
+  flex-wrap: wrap;
+}
+.tm-detail-del {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #b4232a;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.tm-detail-del:hover { text-decoration: underline; }
