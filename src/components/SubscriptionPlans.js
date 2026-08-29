@@ -134,7 +134,7 @@ const CreditPurchase = () => {
               width: '350px',
               textAlign: 'center',
               backgroundColor: 'white',
-              boxShadow: plan.popular ? '0 15px 40px rgba(40, 167, 69, 0.2)' : '0 10px 30px rgba(0,0,0,0.1)',
+              boxShadow: 'none',
               position: 'relative',
               transform: plan.popular ? 'scale(1.05)' : 'none'
             }}>

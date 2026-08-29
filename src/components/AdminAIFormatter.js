@@ -271,7 +271,7 @@ const AdminAIFormatter = React.memo(({ showMessage, latestTranscription }) => { 
             cursor: isButtonDisabled ? 'not-allowed' : 'pointer',
             fontSize: '1rem',
             fontWeight: 'bold',
-            boxShadow: isButtonDisabled ? 'none' : '0 4px 15px rgba(220, 53, 69, 0.4)',
+            boxShadow: 'none',
             transition: 'all 0.3s ease'
           }}
         >
@@ -297,15 +297,9 @@ const AdminAIFormatter = React.memo(({ showMessage, latestTranscription }) => { 
       </div>
 
       {aiLoading && (
-        <div style={{ textAlign: 'center', color: '#dc3545', marginBottom: '20px' }}>
-          <div className="progress-bar-indeterminate" style={{
-              backgroundColor: '#dc3545',
-              height: '20px',
-              width: '100%',
-              borderRadius: '10px',
-              marginBottom: '10px'
-          }}></div>
-          Applying AI formatting...
+        <div className="tm-thinking">
+          <div className="tm-thinking-track"><div className="tm-thinking-slide" /></div>
+          <span>Applying AI formatting…</span>
         </div>
       )}
 
