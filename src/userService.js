@@ -196,13 +196,13 @@ export const canUserRecord = async (uid) => {
 // UPDATED: Check if user can transcribe with proper validation and automatic pricing redirect
 export const canUserTranscribe = async (uid, estimatedDurationSeconds) => {
   try {
-    console.log("🔍 canUserTranscribe called with:", { uid, estimatedDurationSeconds });
+    console.log("canUserTranscribe called with:", { uid, estimatedDurationSeconds });
     
     const userProfile = await getUserProfile(uid);
-    console.log("👤 canUserTranscribe - User profile retrieved:", JSON.parse(JSON.stringify(userProfile)));
+    console.log("canUserTranscribe - User profile retrieved:", JSON.parse(JSON.stringify(userProfile)));
     
     if (!userProfile) {
-      console.warn("❌ canUserTranscribe: User profile not found for uid:", uid);
+      console.warn("canUserTranscribe: User profile not found for uid:", uid);
       return { canTranscribe: false, reason: 'profile_not_found' };
     }
 
@@ -211,10 +211,10 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds) => {
     
     if (allPaidPlans.includes(userProfile.plan)) {
         if (userProfile.expiresAt && userProfile.expiresAt > new Date()) {
-            console.log(`✅ ${userProfile.plan} plan user - plan active. Allowing transcription.`);
+            console.log(` ${userProfile.plan} plan user - plan active. Allowing transcription.`);
             return { canTranscribe: true, reason: 'paid_plan_active' };
         } else {
-            console.log(`❌ ${userProfile.plan} plan user - plan expired. Blocking transcription.`);
+            console.log(` ${userProfile.plan} plan user - plan expired. Blocking transcription.`);
             // Automatically downgrade happens in getUserProfile, so this is just a final check
             return { canTranscribe: false, reason: 'plan_expired', redirectToPricing: true };
         }
@@ -227,13 +227,13 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds) => {
 
       // Check if user has already used their free trial
       if (userProfile.hasReceivedInitialFreeMinutes) {
-        console.log(`❌ Free plan user - already used their 30-minute trial. Blocking transcription.`);
+        console.log(`Free plan user - already used their 30-minute trial. Blocking transcription.`);
         return { canTranscribe: false, reason: 'free_trial_exhausted', redirectToPricing: true };
       }
 
       // Check if the audio duration exceeds remaining minutes
       if (estimatedDurationMinutes > remainingFreeMinutes) {
-        console.log(`❌ Free plan user - ${estimatedDurationMinutes} minutes exceeds ${remainingFreeMinutes} remaining. Blocking transcription.`);
+        console.log(`Free plan user - ${estimatedDurationMinutes} minutes exceeds ${remainingFreeMinutes} remaining. Blocking transcription.`);
         return { 
           canTranscribe: false, 
           reason: 'exceeds_free_limit', 
@@ -244,7 +244,7 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds) => {
       }
 
       // User can transcribe
-      console.log(`✅ Free plan user - ${estimatedDurationMinutes} minutes within ${remainingFreeMinutes} remaining. Allowing transcription. `);
+      console.log(`Free plan user - ${estimatedDurationMinutes} minutes within ${remainingFreeMinutes} remaining. Allowing transcription. `);
       return { 
         canTranscribe: true, 
         reason: 'within_free_limit', 
@@ -253,11 +253,11 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds) => {
       };
     }
     
-    console.log("❌ canUserTranscribe: User plan not eligible for transcription. Current plan:", userProfile.plan);
+    console.log("canUserTranscribe: User plan not eligible for transcription. Current plan:", userProfile.plan);
     return { canTranscribe: false, reason: 'plan_not_eligible', redirectToPricing: true };
     
   } catch (error) {
-    console.error("❌ Error in canUserTranscribe:", error);
+    console.error("Error in canUserTranscribe:", error);
     return { canTranscribe: false, reason: 'error', error: error.message };
   }
 };
@@ -268,7 +268,7 @@ export const updateUserUsage = async (uid, durationSeconds) => {
   const userProfile = await getUserProfile(uid); // Get the latest profile
 
   if (!userProfile) {
-    console.warn(`⚠️ User ${uid}: Profile not found for usage update.`);
+    console.warn(`User ${uid}: Profile not found for usage update.`);
     return;
   }
 
@@ -285,17 +285,17 @@ export const updateUserUsage = async (uid, durationSeconds) => {
       hasReceivedInitialFreeMinutes: newTotalMinutesUsed >= 30, 
       lastAccessed: currentTime, // Use concrete Date object
     });
-    console.log(`📊 User ${uid} (free plan): Updated totalMinutesUsed by ${durationMinutes} mins to ${newTotalMinutesUsed} mins. Remaining: ${Math.max(0, 30 - newTotalMinutesUsed)} mins.`);
+    console.log(`User ${uid} (free plan): Updated totalMinutesUsed by ${durationMinutes} mins to ${newTotalMinutesUsed} mins. Remaining: ${Math.max(0, 30 - newTotalMinutesUsed)} mins.`);
   } else if (userProfile.plan !== 'free') { // For paid plans, just update lastAccessed
     await updateDoc(userRef, {
       lastAccessed: currentTime, // Use concrete Date object
     });
-    console.log(`📊 User ${uid} (${userProfile.plan} plan): Usage not tracked for this plan type. Updating lastAccessed.`);
+    console.log(`User ${uid} (${userProfile.plan} plan): Usage not tracked for this plan type. Updating lastAccessed.`);
   }
 };
 
 // Save transcription to Firestore (UPDATED to save to top-level collection with userId)
-export const saveTranscription = async (uid, fileName, transcriptionText, duration, jobId, ownerUid) => {
+export const saveTranscription = async (uid, fileName, transcriptionText, duration, jobId, ownerUid, segments = null) => {
   // Use the top-level 'transcriptions' collection directly
   const transcriptionsCollectionRef = collection(db, TRANSCRIPTIONS_COLLECTION); 
   const newTranscriptionRef = doc(transcriptionsCollectionRef, jobId); // Use jobId as document ID
@@ -310,6 +310,31 @@ export const saveTranscription = async (uid, fileName, transcriptionText, durati
     createdAt: currentTime, // Use concrete Date object
     expiresAt: new Date(currentTime.getTime() + 7 * 24 * 60 * 60 * 1000) // Transcriptions expire in 7 days
   };
+
+  // Keep the per-line timings the service returned, so the proofreading
+  // editor can jump the audio to the right place later on. Firestore caps a
+  // document at 1MB, so a very long transcript keeps the line starts and
+  // drops the rest rather than failing the save outright.
+  if (Array.isArray(segments) && segments.length > 0) {
+    const lean = segments.map((seg) => ({
+      start: Number(seg.start) || 0,
+      end: Number(seg.end) || 0,
+      speaker: seg.speaker || null,
+      text: String(seg.text || ''),
+      confidence: typeof seg.confidence === 'number' ? seg.confidence : null
+    }));
+    const bytes = JSON.stringify(lean).length;
+    if (bytes < 700000) {
+      transcriptionData.segments = lean;
+      transcriptionData.timingsSource = 'service';
+    } else {
+      console.log('Timings too large to store alongside the transcript, keeping line starts only');
+      transcriptionData.segments = lean.map((seg) => ({
+        start: seg.start, end: seg.end, speaker: seg.speaker, text: seg.text, confidence: null
+      })).filter((seg, i) => i % 2 === 0);
+      transcriptionData.timingsSource = 'service-reduced';
+    }
+  }
 
   await setDoc(newTranscriptionRef, transcriptionData);
   console.log("Transcription saved to Firestore with ID: ", newTranscriptionRef.id);
@@ -409,7 +434,7 @@ export const updateMonthlyRevenue = async (amount) => {
       }
       const newMonthlyRevenue = currentMonthlyRevenue + amount;
       transaction.set(adminStatsRef, { monthlyRevenue: newMonthlyRevenue, lastUpdated: new Date() }, { merge: true });
-      console.log(`📊 Monthly Revenue updated by ${amount} to ${newMonthlyRevenue}`);
+      console.log(`Monthly Revenue updated by ${amount} to ${newMonthlyRevenue}`);
     });
     return { success: true };
   } catch (e) {

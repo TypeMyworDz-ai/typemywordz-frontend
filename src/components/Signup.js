@@ -23,7 +23,7 @@ const Signup = () => {
     } catch (err) {
       console.error("Google signup error:", err);
       setError(err.message || "Failed to sign up with Google.");
-      showMessage(`❌ Failed to sign up with Google: ${err.message}`); // FIX: Use showMessage
+      showMessage(`Failed to sign up with Google: ${err.message}`); // FIX: Use showMessage
     } finally {
       setLoading(false);
     }
@@ -38,7 +38,7 @@ const Signup = () => {
     } catch (err) {
       console.error("Microsoft signup error:", err);
       setError(err.message || "Failed to sign up with Microsoft.");
-      showMessage(`❌ Failed to sign up with Microsoft: ${err.message}`); // FIX: Use showMessage
+      showMessage(`Failed to sign up with Microsoft: ${err.message}`); // FIX: Use showMessage
     } finally {
       setLoading(false);
     }
@@ -55,7 +55,7 @@ const Signup = () => {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
-      showMessage(`✅ Account created for ${user.email}! Please log in.`);
+      showMessage(`Account created for ${user.email}! Please log in.`);
       
       setEmail('');
       setPassword('');
@@ -70,8 +70,8 @@ const Signup = () => {
       } else if (err.code === 'auth/weak-password') {
         errorMessage = 'Password should be at least 6 characters.';
       }
-      setError(`❌ ${errorMessage}`);
-      showMessage(`❌ ${errorMessage}`); 
+      setError(`${errorMessage}`);
+      showMessage(`${errorMessage}`); 
     } finally {
       setLoading(false);
     }

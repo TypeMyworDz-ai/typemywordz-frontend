@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }) => {
         setUserProfile(profile);
       } catch (error) {
         console.error('Error refreshing user profile:', error);
-        showMessage(`❌ Error refreshing profile: ${error.message}`, 'error');
+        showMessage(`Error refreshing profile: ${error.message}`,'error');
       } finally {
         setProfileLoading(false);
       }
@@ -69,10 +69,10 @@ export const AuthProvider = ({ children }) => {
         await createUserProfile(result.user.uid, result.user.email, result.user.displayName);
         const profile = await getUserProfile(result.user.uid);
         setUserProfile(profile);
-        showMessage(`✅ Signed in as ${result.user.email}`, 'success');
+        showMessage(`Signed in as ${result.user.email}`,'success');
       } catch (error) {
         console.error('Error creating/loading profile after Google sign-in:', error);
-        showMessage(`❌ Error with profile after Google sign-in: ${error.message}`, 'error');
+        showMessage(`Error with profile after Google sign-in: ${error.message}`,'error');
       } finally {
         setProfileLoading(false);
       }
@@ -80,7 +80,7 @@ export const AuthProvider = ({ children }) => {
       return result;
     } catch (error) {
       console.error('Google sign-in error:', error);
-      showMessage(`❌ Google sign-in failed: ${error.message}`, 'error');
+      showMessage(`Google sign-in failed: ${error.message}`,'error');
       throw error;
     }
   };
@@ -94,10 +94,10 @@ export const AuthProvider = ({ children }) => {
         await createUserProfile(result.user.uid, result.user.email, result.user.displayName);
         const profile = await getUserProfile(result.user.uid);
         setUserProfile(profile);
-        showMessage(`✅ Signed in as ${result.user.email}`, 'success');
+        showMessage(`Signed in as ${result.user.email}`,'success');
       } catch (error) {
         console.error('Error creating/loading profile after Microsoft sign-in:', error);
-        showMessage(`❌ Error with profile after Microsoft sign-in: ${error.message}`, 'error');
+        showMessage(`Error with profile after Microsoft sign-in: ${error.message}`,'error');
       } finally {
         setProfileLoading(false);
       }
@@ -105,7 +105,7 @@ export const AuthProvider = ({ children }) => {
       return result;
     } catch (error) {
       console.error('Microsoft sign-in error:', error);
-      showMessage(`❌ Microsoft sign-in failed: ${error.message}`, 'error');
+      showMessage(`Microsoft sign-in failed: ${error.message}`,'error');
       throw error;
     }
   };
@@ -114,10 +114,10 @@ export const AuthProvider = ({ children }) => {
     try {
       await signOut(auth);
       setUserProfile(null);
-      showMessage('👋 Logged out successfully!', 'info');
+      showMessage('Logged out successfully!','info');
     } catch (error) {
       console.error('Error logging out:', error);
-      showMessage(`❌ Error logging out: ${error.message}`, 'error');
+      showMessage(`Error logging out: ${error.message}`,'error');
     }
   };
 
@@ -132,7 +132,7 @@ export const AuthProvider = ({ children }) => {
           setUserProfile(profile);
         } catch (error) {
           console.error('Error loading user profile in AuthContext:', error);
-          showMessage(`❌ Error loading profile: ${error.message}`, 'error');
+          showMessage(`Error loading profile: ${error.message}`,'error');
         } finally {
           setProfileLoading(false);
         }

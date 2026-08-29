@@ -642,7 +642,7 @@ const RichTextEditor = () => {
                 }}
                 title="Insert Timestamp (Ctrl+M)" // UPDATED: Changed from Ctrl+T to Ctrl+M
               >
-                ⏱️ Timestamp
+                 Timestamp
               </button>
               <button
                 onClick={exportAsTXT}
@@ -656,7 +656,7 @@ const RichTextEditor = () => {
                   fontSize: '12px'
                 }}
               >
-                📝 Export TXT
+                 Export TXT
               </button>
               <button
                 onClick={exportAsWord}
@@ -672,7 +672,7 @@ const RichTextEditor = () => {
                 }}
                 title={!currentUser ? 'Login to enable Word export' : 'Export to MS Word'}
               >
-                📄 Export Word
+                 Export Word
               </button>
             </div>
           </div>

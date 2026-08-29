@@ -443,3 +443,1252 @@ body {
   background-color: var(--tm-surface);
   color: var(--tm-ink);
 }
+
+/* ==================================================================
+   PHASE 2 — the workspace: sidebar on the left, content on the right
+   ================================================================== */
+
+.tm-shell {
+  display: flex;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.tm-side {
+  flex: 0 0 216px;
+  width: 216px;
+  border-right: 1px solid var(--tm-line);
+  background: var(--tm-white);
+  padding: 14px 12px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--tm-white);
+}
+
+/* ---------- the primary action ---------- */
+
+.tm-newbtn {
+  width: 100%;
+  height: 34px;
+  border: 0;
+  border-radius: var(--tm-radius);
+  background: var(--tm-green);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  margin-bottom: 18px;
+  transition: background-color 0.15s ease;
+}
+
+.tm-newbtn:hover { background: var(--tm-green-dark); }
+.tm-newbtn svg { width: 14px; height: 14px; }
+
+/* ---------- sidebar navigation ---------- */
+
+.tm-navlabel {
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tm-faint);
+  font-weight: 600;
+  padding: 0 8px;
+  margin: 14px 0 6px;
+}
+
+.tm-navlabel:first-of-type { margin-top: 0; }
+
+.tm-nav {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  background: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13.2px;
+  color: var(--tm-body);
+  text-align: left;
+  cursor: pointer;
+  margin-bottom: 1px;
+}
+
+.tm-nav svg { width: 15px; height: 15px; flex: 0 0 15px; }
+
+.tm-nav:hover { background: #eeeff1; }
+
+.tm-nav.tm-nav-on {
+  background: var(--tm-green-soft);
+  color: var(--tm-green-dark);
+  font-weight: 600;
+}
+
+.tm-nav.tm-nav-on svg { color: var(--tm-green); }
+
+/* AI is the one thing that is purple, never green */
+.tm-nav.tm-nav-ai.tm-nav-on {
+  background: var(--tm-purple-soft);
+  color: var(--tm-purple);
+}
+
+.tm-nav.tm-nav-ai.tm-nav-on svg { color: var(--tm-purple); }
+
+.tm-nav:disabled {
+  color: var(--tm-faint);
+  cursor: not-allowed;
+}
+
+.tm-nav:disabled:hover { background: none; }
+
+.tm-nav-lock {
+  margin-left: auto;
+  font-size: 10px;
+  border: 1px solid var(--tm-line);
+  border-radius: 20px;
+  padding: 1px 6px;
+  color: var(--tm-faint);
+}
+
+/* ---------- plan card, pinned to the bottom ---------- */
+
+.tm-plancard {
+  margin-top: auto;
+  border: 1px solid var(--tm-line);
+  background: var(--tm-surface);
+  border-radius: var(--tm-radius-lg);
+  padding: 11px 12px;
+}
+
+.tm-plancard-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--tm-ink);
+  margin-bottom: 3px;
+}
+
+.tm-plancard-sub {
+  font-size: 11.5px;
+  color: var(--tm-muted);
+}
+
+.tm-plancard-cta {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tm-green-dark);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------- account avatar and its menu ---------- */
+
+.tm-account { position: relative; }
+
+.tm-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--tm-purple);
+  color: #fff;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tm-avatar:hover { background: #4c37b4; }
+
+.tm-account-menu {
+  position: absolute;
+  top: 38px;
+  right: 0;
+  min-width: 232px;
+  background: #fff;
+  border: 1px solid var(--tm-line);
+  border-radius: 8px;
+  padding: 5px;
+  box-shadow: 0 8px 24px rgba(20, 22, 26, 0.09);
+  z-index: 400;
+  text-align: left;
+}
+
+.tm-account-head {
+  padding: 8px 10px 9px;
+  border-bottom: 1px solid var(--tm-line);
+  margin-bottom: 5px;
+}
+
+.tm-account-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tm-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-account-mail {
+  font-size: 11.5px;
+  color: var(--tm-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-account-plan {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 9px;
+  border-bottom: 1px solid var(--tm-line);
+  margin-bottom: 5px;
+}
+
+.tm-account-upgrade {
+  margin-left: auto;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tm-green-dark);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tm-account-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: 0;
+  background: none;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--tm-body);
+  cursor: pointer;
+}
+
+.tm-account-item:hover { background: var(--tm-surface); color: var(--tm-ink); }
+
+.tm-account-signout:hover { background: var(--tm-danger-soft); color: var(--tm-danger); }
+
+/* ---------- footer ---------- */
+
+.tm-footer {
+  text-align: center;
+  padding: 22px 20px;
+  color: var(--tm-faint);
+  font-size: 12.5px;
+  margin-top: auto;
+}
+
+/* ---------- responsive: sidebar becomes a scrolling strip ---------- */
+
+@media (max-width: 820px) {
+  .tm-shell { flex-direction: column; }
+
+  .tm-side {
+    flex: none;
+    width: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--tm-line);
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 8px 10px;
+  }
+
+  .tm-newbtn { width: auto; margin-bottom: 0; padding: 0 12px; white-space: nowrap; }
+  .tm-navlabel { display: none; }
+  .tm-nav { width: auto; white-space: nowrap; margin-bottom: 0; }
+  .tm-nav-lock { display: none; }
+  .tm-plancard { display: none; }
+}
+
+/* ==================================================================
+   Copy split button and Export menu
+   Copy sits LEFT of Export because clients use it constantly.
+   ================================================================== */
+
+.tm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.tm-split { position: relative; display: inline-flex; }
+
+/* --- the Copy body: one click, copies immediately --- */
+
+.tm-split-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: var(--tm-radius) 0 0 var(--tm-radius);
+  background: var(--tm-green);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.tm-split-main:hover { background: var(--tm-green-dark); }
+.tm-split-main svg { width: 16px; height: 16px; }
+
+/* --- the caret: opens the three modes --- */
+
+.tm-split-caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 38px;
+  border: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 0 var(--tm-radius) var(--tm-radius) 0;
+  background: var(--tm-green);
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.tm-split-caret:hover { background: var(--tm-green-dark); }
+.tm-split-caret svg { width: 13px; height: 13px; }
+
+/* --- Export: a quieter, secondary button --- */
+
+.tm-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 15px;
+  border: 1px solid #d2d5dc;
+  border-radius: var(--tm-radius);
+  background: #fff;
+  color: var(--tm-ink);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.tm-export-btn:hover { background: var(--tm-surface); }
+.tm-export-btn svg { width: 16px; height: 16px; }
+.tm-export-btn .tm-export-caret { width: 12px; height: 12px; opacity: 0.5; }
+
+/* --- the dropdown shared by both --- */
+
+.tm-split-menu {
+  position: absolute;
+  top: 43px;
+  left: 0;
+  min-width: 288px;
+  background: #fff;
+  border: 1px solid var(--tm-line);
+  border-radius: 9px;
+  padding: 5px;
+  box-shadow: 0 10px 28px rgba(20, 22, 26, 0.12);
+  z-index: 500;
+}
+
+.tm-split-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 9px;
+  border: 0;
+  background: none;
+  border-radius: 6px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.tm-split-item:hover { background: var(--tm-surface); }
+
+.tm-split-tick {
+  flex: 0 0 15px;
+  width: 15px;
+  height: 17px;
+  display: flex;
+  align-items: center;
+  color: var(--tm-green);
+}
+
+.tm-split-tick svg { width: 14px; height: 14px; }
+
+.tm-split-label {
+  display: block;
+  font-size: 13.5px;
+  color: var(--tm-ink);
+  line-height: 1.35;
+}
+
+.tm-split-item-on .tm-split-label { font-weight: 600; }
+
+.tm-split-hint {
+  display: block;
+  font-size: 11.5px;
+  color: var(--tm-muted);
+  margin-top: 1px;
+  line-height: 1.35;
+}
+
+.tm-split-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 9px 9px 7px;
+  border-top: 1px solid var(--tm-line);
+  font-size: 12.5px;
+  color: var(--tm-body);
+  cursor: pointer;
+}
+
+.tm-split-remember input { accent-color: var(--tm-green); margin: 0; }
+
+/* Keep the sidebar in view while the page scrolls */
+@media (min-width: 821px) {
+  .tm-side {
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: calc(100vh - 57px);
+    overflow-y: auto;
+  }
+}
+
+/* ------------------------------------------------------------------
+   The file picker. Browsers render the default control differently on
+   every platform and it always looks unfinished, so the button part is
+   restyled to match the rest of the app.
+   ------------------------------------------------------------------ */
+
+.tm-file {
+  font-family: inherit;
+  font-size: 13.5px;
+  color: var(--tm-body);
+  max-width: 100%;
+}
+
+.tm-file::file-selector-button {
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--tm-ink);
+  background: #fff;
+  border: 1px solid #d2d5dc;
+  border-radius: var(--tm-radius);
+  padding: 8px 14px;
+  margin-right: 11px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.tm-file::file-selector-button:hover {
+  background: var(--tm-surface);
+}
+
+/* ---------- feature ticks ----------
+   These lists used a tick emoji as their bullet. The marker is now drawn in
+   CSS so it inherits the brand green and lines up on every platform. */
+.tm-tick {
+  position: relative;
+  padding-left: 24px;
+  list-style: none;
+}
+
+.tm-tick::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0.52em;
+  width: 10px;
+  height: 5px;
+  border-left: 2px solid var(--tm-green, #28a745);
+  border-bottom: 2px solid var(--tm-green, #28a745);
+  transform: translateY(-60%) rotate(-45deg);
+}
+
+/* ---------- announcements strip ----------
+   Was a centred slogan carousel on a timer. Now a labelled, controllable strip
+   whose messages can carry you somewhere useful. */
+.tm-ann {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 46px;
+  padding: 8px 12px 8px 14px;
+  box-sizing: border-box;
+  background: #fbfbfc;
+  border: 1px solid var(--tm-line, #e5e6ea);
+  border-radius: 10px;
+  text-align: left;
+  outline: none;
+}
+
+.tm-ann:focus-visible { border-color: #b9bcc4; }
+
+/* The category label. Text, not an icon, so it is unambiguous. */
+.tm-ann-kind {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
+.tm-ann-tip     { color: #4a5160; background: #eceef1; }
+.tm-ann-new     { color: #1c6b32; background: var(--tm-green-soft, #eaf7ee); }
+.tm-ann-feature { color: #4a37a8; background: var(--tm-purple-soft, #f0edfd); }
+
+.tm-ann-body {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.tm-ann-anim { animation: tm-ann-in 320ms ease-out; }
+
+@keyframes tm-ann-in {
+  from { opacity: 0; transform: translateX(9px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.tm-ann-logo { height: 17px; width: auto; flex: 0 0 auto; }
+
+.tm-ann-text {
+  font-size: 13.5px;
+  color: var(--tm-ink, #22252b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The action is the point of the strip, so it reads as a link, not a banner. */
+.tm-ann-action {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: none;
+  padding: 2px 2px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tm-green-dark, #218838);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tm-ann-action:hover { text-decoration: underline; }
+
+.tm-ann-nav {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.tm-ann-arrow {
+  width: 21px;
+  height: 21px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: #969ba6;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+/* Arrows stay out of the way until you show intent. */
+.tm-ann:hover .tm-ann-arrow,
+.tm-ann:focus-within .tm-ann-arrow { opacity: 1; }
+
+.tm-ann-arrow:hover { background: #eceef1; color: var(--tm-ink, #22252b); }
+
+.tm-ann-dots { display: flex; align-items: center; gap: 4px; padding: 0 3px; }
+
+.tm-ann-dot {
+  width: 5px;
+  height: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #d3d6dc;
+  cursor: pointer;
+  transition: background 140ms ease, width 140ms ease;
+}
+
+.tm-ann-dot-on { width: 14px; border-radius: 3px; background: #9aa0ab; }
+
+@media (max-width: 900px) {
+  .tm-ann-text { white-space: normal; }
+  .tm-ann-dots { display: none; }
+  .tm-ann-arrow { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-ann-anim { animation: none; }
+  .tm-ann-dot { transition: none; }
+}
+
+/* ============================================================
+   The proofreading editor
+   ------------------------------------------------------------
+   Built to be read for hours at a time. Generous line height,
+   a wide but bounded measure, and only two colours doing any
+   signalling: green for the line that is playing, amber for a
+   line the service was unsure about.
+   ============================================================ */
+
+.tm-ed {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #fff;
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius);
+}
+
+/* --- header: what this file is, and what you can do with it --- */
+
+.tm-ed-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 22px 16px;
+  border-bottom: 1px solid var(--tm-line);
+  flex-wrap: wrap;
+}
+
+.tm-ed-id { min-width: 0; flex: 1 1 320px; }
+
+.tm-ed-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 9px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--tm-green);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tm-ed-back:hover { color: var(--tm-green-dark); text-decoration: underline; }
+
+.tm-ed-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--tm-ink);
+  word-break: break-word;
+}
+
+.tm-ed-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--tm-muted);
+}
+/* A thin dot between the facts, drawn rather than typed. */
+.tm-ed-meta > span + span::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  margin-right: 12px;
+  border-radius: 50%;
+  background: var(--tm-faint);
+  vertical-align: middle;
+}
+
+.tm-ed-save { font-weight: 600; color: var(--tm-muted); }
+.tm-ed-save-ok { color: var(--tm-green-dark); }
+.tm-ed-save-bad { color: #b4232a; }
+
+.tm-ed-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Ask AI is the one purple thing on this screen. */
+.tm-ed-ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 15px;
+  border: 1px solid var(--tm-purple-line);
+  border-radius: var(--tm-radius);
+  background: var(--tm-purple-soft);
+  color: var(--tm-purple);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.tm-ed-ai:hover { background: #e7e2fb; }
+.tm-ed-ai-off { opacity: 0.55; }
+
+/* Shown in the Export menu when subtitles cannot be offered. */
+.tm-split-note {
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--tm-line);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--tm-muted);
+}
+
+.tm-split-name { display: block; font-weight: 550; color: var(--tm-ink); }
+
+/* --- the player strip --- */
+
+.tm-play {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 22px;
+  border-bottom: 1px solid var(--tm-line);
+  background: #fafbfc;
+  flex-wrap: wrap;
+}
+
+.tm-play-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tm-green);
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.tm-play-btn:hover { background: var(--tm-green-dark); }
+
+.tm-play-skip {
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid #d2d5dc;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--tm-body);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.tm-play-skip:hover { border-color: var(--tm-green); color: var(--tm-green-dark); }
+
+.tm-play-time {
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--tm-muted);
+  min-width: 42px;
+  text-align: center;
+}
+
+.tm-play-bar {
+  flex: 1 1 180px;
+  min-width: 120px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #dfe2e7;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.tm-play-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tm-green);
+  cursor: pointer;
+}
+.tm-play-bar::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tm-green);
+  cursor: pointer;
+}
+
+.tm-play-speed {
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid #d2d5dc;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--tm-body);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.tm-play-rewind,
+.tm-split-remember {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--tm-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.tm-play-rewind input { accent-color: var(--tm-green); cursor: pointer; }
+
+/* --- no audio yet --- */
+
+.tm-attach {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 15px 22px;
+  border-bottom: 1px solid var(--tm-line);
+  background: var(--tm-green-soft);
+  flex-wrap: wrap;
+}
+.tm-attach strong { font-size: 14px; color: var(--tm-ink); }
+.tm-attach p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--tm-body);
+  max-width: 62ch;
+}
+.tm-attach-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 15px;
+  border-radius: var(--tm-radius);
+  background: var(--tm-green);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tm-attach-btn:hover { background: var(--tm-green-dark); }
+/* Hidden from view but still a real, focusable control, so a screen reader
+   and the keyboard can both reach it. display:none would remove it entirely. */
+.tm-attach-btn input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.tm-attach-btn:focus-within { outline: 2px solid var(--tm-green-dark); outline-offset: 2px; }
+
+/* --- toolbar: speakers, things to check, find --- */
+
+.tm-ed-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 22px;
+  border-bottom: 1px solid var(--tm-line);
+  flex-wrap: wrap;
+}
+.tm-ed-sp { flex: 1 1 auto; }
+
+.tm-spk { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.tm-spk-label {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--tm-faint);
+}
+.tm-spk-chip {
+  height: 27px;
+  padding: 0 11px;
+  border: 1px solid var(--tm-line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--tm-body);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.tm-spk-chip:hover { border-color: var(--tm-green); color: var(--tm-green-dark); }
+.tm-spk-input {
+  height: 27px;
+  width: 140px;
+  padding: 0 9px;
+  border: 1px solid var(--tm-green);
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+
+.tm-ed-tool {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid #d2d5dc;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--tm-body);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.tm-ed-tool:hover { border-color: var(--tm-green); color: var(--tm-green-dark); }
+
+/* --- find and replace --- */
+
+.tm-find {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 22px;
+  border-bottom: 1px solid var(--tm-line);
+  background: #fafbfc;
+  flex-wrap: wrap;
+}
+.tm-find-in {
+  height: 32px;
+  width: 175px;
+  padding: 0 10px;
+  border: 1px solid #d2d5dc;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13.5px;
+  outline: none;
+}
+.tm-find-in:focus { border-color: var(--tm-green); }
+.tm-find-count { font-size: 12.5px; color: var(--tm-muted); }
+.tm-find-go {
+  height: 32px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--tm-green);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tm-find-go:hover:not(:disabled) { background: var(--tm-green-dark); }
+.tm-find-go:disabled { background: #c9ccd3; cursor: default; }
+
+/* --- the approximate-times notice --- */
+
+.tm-ed-warn {
+  margin: 0;
+  padding: 11px 22px;
+  border-bottom: 1px solid var(--tm-line);
+  background: var(--tm-warn-soft);
+  color: var(--tm-warn);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* --- the transcript itself --- */
+
+.tm-ed-list {
+  flex: 1 1 auto;
+  min-height: 320px;
+  max-height: 62vh;
+  overflow-y: auto;
+  padding: 10px 0 26px;
+  scroll-behavior: smooth;
+}
+
+.tm-ed-empty { padding: 34px 22px; color: var(--tm-muted); font-size: 14px; }
+
+.tm-seg {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 6px 22px 6px 18px;
+  border-left: 3px solid transparent;
+}
+.tm-seg:hover { background: #f7f8f9; }
+
+/* The line currently playing. Green, because it follows the audio the
+   user is driving. Kept as a left rule plus a tint so it never fights
+   with the text for attention. */
+.tm-seg-on {
+  background: var(--tm-green-soft);
+  border-left-color: var(--tm-green);
+}
+.tm-seg-on:hover { background: #e2f4e8; }
+
+.tm-seg-time {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  padding: 1px 5px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--tm-faint);
+  font-family: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  min-width: 46px;
+  text-align: right;
+}
+.tm-seg-time:hover { background: var(--tm-green); color: #fff; }
+.tm-seg-on .tm-seg-time { color: var(--tm-green-dark); font-weight: 600; }
+
+/* The tilde that marks an estimate. Small, but it is the difference
+   between a measurement and a guess. */
+.tm-approx { margin-left: 1px; opacity: 0.75; }
+
+.tm-seg-who {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--tm-ink);
+  white-space: nowrap;
+}
+
+.tm-seg-text {
+  flex: 1 1 auto;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--tm-body);
+  cursor: text;
+  border-radius: 4px;
+  max-width: 78ch;
+}
+.tm-seg-text:focus-visible { outline: 2px solid var(--tm-green); outline-offset: 2px; }
+
+.tm-seg-input {
+  flex: 1 1 auto;
+  max-width: 78ch;
+  padding: 2px 8px;
+  border: 1px solid var(--tm-green);
+  border-radius: 5px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--tm-ink);
+  resize: none;
+  overflow: hidden;
+  outline: none;
+}
+
+/* A line the service itself was unsure about. Amber, not red: it is a
+   prompt to listen again, not an error. */
+.tm-low-mark {
+  background: linear-gradient(transparent 68%, #ffe9b8 68%);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.tm-low-flag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--tm-warn-soft);
+  border: 1px solid #e8d6a8;
+  color: var(--tm-warn);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  vertical-align: 2px;
+}
+
+.tm-hit { background: #ffe9b8; color: var(--tm-ink); border-radius: 2px; }
+
+/* --- footer hints --- */
+
+.tm-ed-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 22px;
+  border-top: 1px solid var(--tm-line);
+  background: #fafbfc;
+  font-size: 12.5px;
+  color: var(--tm-muted);
+  flex-wrap: wrap;
+}
+.tm-ed-foot b { font-weight: 650; color: var(--tm-body); }
+
+@media (max-width: 720px) {
+  .tm-ed-head { padding: 15px 16px 13px; }
+  .tm-play, .tm-ed-bar, .tm-find, .tm-ed-foot, .tm-ed-warn { padding-left: 16px; padding-right: 16px; }
+  .tm-seg { padding-left: 13px; padding-right: 16px; gap: 9px; }
+  .tm-seg-text, .tm-seg-input { font-size: 14.5px; }
+  .tm-ed-list { max-height: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-ed-list { scroll-behavior: auto; }
+}
+
+/* A section heading inside a split-button menu. */
+.tm-split-head {
+  padding: 9px 14px 6px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--tm-faint);
+}
+
+/* The line under a fresh transcript pointing at where it was saved. */
+.tm-result-note {
+  margin: 14px 0 0;
+  font-size: 13.5px;
+  color: var(--tm-muted);
+  text-align: center;
+}
+.tm-result-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--tm-green);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.tm-result-link:hover { color: var(--tm-green-dark); }
+
+/* --- the single-transcript page --- */
+
+.tm-detail {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 26px 20px 44px;
+}
+
+.tm-detail-msg {
+  padding: 46px 24px;
+  text-align: center;
+  color: var(--tm-body);
+  font-size: 15px;
+}
+.tm-detail-msg h2 { margin: 0 0 8px; font-size: 20px; color: var(--tm-ink); }
+.tm-detail-msg p { margin: 0 0 20px; color: var(--tm-muted); }
+
+.tm-detail-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--tm-muted);
+  flex-wrap: wrap;
+}
+.tm-detail-del {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #b4232a;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.tm-detail-del:hover { text-decoration: underline; }
+
+/* The banner on the sample-transcript page. */
+.tm-demo-note {
+  margin-bottom: 14px;
+  padding: 13px 16px;
+  border: 1px solid var(--tm-green-line);
+  border-radius: var(--tm-radius);
+  background: var(--tm-green-soft);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--tm-body);
+}
+.tm-demo-note strong { color: var(--tm-ink); }
+
+/* Menus in the editor header hang from the right edge of their button, so a
+   wide one cannot run off the side of the panel or the screen. */
+.tm-ed-actions .tm-split-menu { left: auto; right: 0; }
+
+/* The panel no longer clips its children, so the strips that sit at the top
+   and bottom keep the rounded corners themselves. */
+.tm-ed > .tm-ed-head { border-radius: var(--tm-radius) var(--tm-radius) 0 0; }
+.tm-ed-foot { border-radius: 0 0 var(--tm-radius) var(--tm-radius); }

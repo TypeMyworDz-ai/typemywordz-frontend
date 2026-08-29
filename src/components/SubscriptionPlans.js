@@ -7,11 +7,11 @@ const CreditPurchase = () => {
 
   // Currency options for African countries
   const currencies = {
-    KES: { name: 'Kenyan Shilling', symbol: 'KES', flag: '🇰🇪' },
-    NGN: { name: 'Nigerian Naira', symbol: 'NGN', flag: '🇳🇬' },
-    GHS: { name: 'Ghanaian Cedi', symbol: 'GHS', flag: '🇬🇭' },
-    ZAR: { name: 'South African Rand', symbol: 'ZAR', flag: '🇿🇦' },
-    USD: { name: 'US Dollar', symbol: 'USD', flag: '🌍' }
+    KES: { name:'Kenyan Shilling', symbol:'KES', flag:''},
+    NGN: { name:'Nigerian Naira', symbol:'NGN', flag:''},
+    GHS: { name:'Ghanaian Cedi', symbol:'GHS', flag:''},
+    ZAR: { name:'South African Rand', symbol:'ZAR', flag:''},
+    USD: { name:'US Dollar', symbol:'USD', flag:''}
   };
 
   // Base prices in USD, converted to local currencies
@@ -72,7 +72,7 @@ const CreditPurchase = () => {
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', maxWidth: '1000px', margin: '0 auto' }}>
       <h2 style={{ textAlign: 'center', color: '#6c5ce7', marginBottom: '10px' }}>
-        🌍 Buy Credits - Pro Feature Access
+         Buy Credits - Pro Feature Access
       </h2>
       <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
         Purchase temporary access to Pro features. Available across Africa with local currency support.
@@ -193,7 +193,7 @@ const CreditPurchase = () => {
                 }}>
                   {plan.features.map((feature, idx) => (
                     <li key={idx} style={{ color: '#666', fontSize: '14px' }}>
-                      ✅ {feature}
+                       {feature}
                     </li>
                   ))}
                 </ul>
@@ -234,7 +234,7 @@ const CreditPurchase = () => {
         textAlign: 'center'
       }}>
         <h3 style={{ color: '#6c5ce7', marginBottom: '20px' }}>
-          🌍 Supported African Countries:
+           Supported African Countries:
         </h3>
         <div style={{ 
           display: 'flex', 
@@ -243,11 +243,11 @@ const CreditPurchase = () => {
           gap: '20px',
           marginBottom: '30px'
         }}>
-          <div style={{ color: '#666' }}>🇰🇪 Kenya</div>
-          <div style={{ color: '#666' }}>🇳🇬 Nigeria</div>
-          <div style={{ color: '#666' }}>🇬🇭 Ghana</div>
-          <div style={{ color: '#666' }}>🇿🇦 South Africa</div>
-          <div style={{ color: '#666' }}>🌍 Other African Countries (USD)</div>
+          <div style={{ color:'#666'}}> Kenya</div>
+          <div style={{ color:'#666'}}> Nigeria</div>
+          <div style={{ color:'#666'}}> Ghana</div>
+          <div style={{ color:'#666'}}> South Africa</div>
+          <div style={{ color:'#666'}}> Other African Countries (USD)</div>
         </div>
         
         <h3 style={{ color: '#6c5ce7', marginBottom: '20px' }}>
@@ -275,7 +275,7 @@ const CreditPurchase = () => {
         </div>
         
         <div style={{ marginTop: '20px', fontSize: '14px', color: '#666' }}>
-          💡 <strong>Perfect for:</strong> Students, professionals, content creators across Africa
+           <strong>Perfect for:</strong> Students, professionals, content creators across Africa
         </div>
         
         <div style={{ marginTop: '15px', fontSize: '12px', color: '#999' }}>

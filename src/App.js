@@ -7,9 +7,11 @@ import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
+import TranscriptEditor from './components/TranscriptEditor';
+import EditorDemo from './components/EditorDemo';
 import Signup from './components/Signup';
 import FeedbackModal from './components/FeedbackModal';
-import { canUserTranscribe, updateUserUsage, saveTranscription, updateUserPlan, saveFeedback } from './userService'; // Removed createUserProfile
+import { canUserTranscribe, updateUserUsage, saveTranscription, updateTranscription, updateUserPlan, saveFeedback } from './userService'; // Removed createUserProfile
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 import PrivacyPolicy from './components/PrivacyPolicy';
@@ -24,6 +26,16 @@ const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https:
 // REMOVED: const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com/'; // This URL is for TypeMyworDz2 (Render)
 
 // Helper function to determine if a user has access to AI features
+const initialsOf = (nameOrEmail) => {
+  if (!nameOrEmail) return '?';
+  const cleaned = String(nameOrEmail).trim();
+  const namePart = cleaned.includes('@') ? cleaned.split('@')[0] : cleaned;
+  const words = namePart.replace(/[._-]+/g, ' ').split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+};
+
 const isPaidAIUser = (userProfile) => {
   if (!userProfile || !userProfile.plan) return false;
   // UPDATED: 'Monthly Plan' in economy tier is now part of paid AI users
@@ -51,7 +63,7 @@ const CopiedNotification = ({ isVisible }) => {
         pointerEvents: 'none', // Allow clicks to pass through
       }}
     >
-      📋 Copied to clipboard!
+       Copied to clipboard!
     </div>
   );
 };
@@ -84,6 +96,9 @@ function AppContent() {
   const [jobId, setJobId] = useState(null);
   const [status, setStatus] = useState('idle');
   const [transcription, setTranscription] = useState('');
+  // Per-line timings from the service, when it supplies them. Lets the
+  // proofreading editor jump the audio to any line.
+  const [transcriptSegments, setTranscriptSegments] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   // Removed uploadProgress state and its setter
   // Removed transcriptionProgress state and its setter
@@ -118,6 +133,7 @@ function AppContent() {
   const transcriptionIntervalRef = useRef(null);
   const statusCheckTimeoutRef = useRef(null);
   const isCancelledRef = useRef(false);
+  const accountRef = useRef(null);
 
   // UPDATED: Admin emails are now referenced from your backend configuration
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; 
@@ -219,7 +235,7 @@ function AppContent() {
             await updateUserPlan(currentUser.uid, data.data.plan, reference); 
             await refreshUserProfile();
             
-            showMessage(`🎉 Payment successful! ${data.data.plan} activated.`, 'success');
+            showMessage(`Payment successful! ${data.data.plan} activated.`,'success');
             setCurrentView('transcribe');
             
             // Crucial: Clear URL parameters AFTER successful processing
@@ -258,7 +274,7 @@ function AppContent() {
 
   // Enhanced reset function with better job cancellation - ADDING LOGS
   const resetTranscriptionProcessUI = useCallback(() => { 
-    console.log('🔄 DEBUG: resetTranscriptionProcessUI called. Stopping ongoing processes and resetting UI states.');
+    console.log('DEBUG: resetTranscriptionProcessUI called. Stopping ongoing processes and resetting UI states.');
     
     isCancelledRef.current = true;
     
@@ -274,19 +290,19 @@ function AppContent() {
     recordedAudioBlobRef.current = null;
     
     if (abortControllerRef.current) {
-      console.log('🔄 DEBUG: Aborting active fetch request.');
+      console.log('DEBUG: Aborting active fetch request.');
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
 
     if (transcriptionIntervalRef.current) {
-      console.log('🔄 DEBUG: Clearing transcription progress interval.');
+      console.log('DEBUG: Clearing transcription progress interval.');
       clearInterval(transcriptionIntervalRef.current);
       transcriptionIntervalRef.current = null;
     }
 
     if (statusCheckTimeoutRef.current) {
-      console.log('🔄 DEBUG: Clearing status check timeout.');
+      console.log('DEBUG: Clearing status check timeout.');
       clearTimeout(statusCheckTimeoutRef.current);
       statusCheckTimeoutRef.current = null;
     }
@@ -302,34 +318,34 @@ function AppContent() {
     const fileInput = document.querySelector('input[type="file"]');
     if (fileInput) {
       fileInput.value = '';
-      console.log('🔄 DEBUG: File input element cleared.');
+      console.log('DEBUG: File input element cleared.');
     } else {
-      console.log('🔄 DEBUG: File input element not found for clearing.');
+      console.log('DEBUG: File input element not found for clearing.');
     }
     
     setTimeout(() => {
       isCancelledRef.current = false;
-      console.log('✅ DEBUG: Reset complete, ready for new operations.');
+      console.log('DEBUG: Reset complete, ready for new operations.');
     }, 500);
   }, []); // No external dependencies, so empty array is correct
 
   // Enhanced file selection with proper job cancellation - ADDING LOGS
   const handleFileSelect = useCallback(async (event) => {
-    console.log('📁 DEBUG: handleFileSelect called.');
+    console.log('DEBUG: handleFileSelect called.');
     const file = event.target.files[0];
     
     if (!file) {
-      console.log('📁 DEBUG: No file selected. Exiting handleFileSelect.');
+      console.log('DEBUG: No file selected. Exiting handleFileSelect.');
       return;
     }
     
-    console.log('📁 DEBUG: File selected:', file.name);
+    console.log('DEBUG: File selected:', file.name);
     // Always reset UI when a new file is selected, effectively deselecting options
     // This also stops any ongoing transcription.
     resetTranscriptionProcessUI(); 
     
     setSelectedFile(file);
-    console.log('📁 DEBUG: setSelectedFile called with:', file.name);
+    console.log('DEBUG: setSelectedFile called with:', file.name);
     
     if (file && (file.type.startsWith('audio/') || file.type.startsWith('video/'))) { 
       const audio = new Audio(); 
@@ -337,34 +353,68 @@ function AppContent() {
       audio.onloadedmetadata = async () => {
         setAudioDuration(audio.duration);
         URL.revokeObjectURL(audio.src);
-        console.log(`📊 DEBUG: Audio metadata loaded. Duration: ${audio.duration} seconds.`);
+        console.log(`DEBUG: Audio metadata loaded. Duration: ${audio.duration} seconds.`);
         
         try {
           const originalSize = file.size / (1024 * 1024);
-          console.log(`📊 DEBUG: ${Math.round(audio.duration/60)}-minute file loaded (${originalSize.toFixed(2)} MB) - ready for quick transcription.`);
+          console.log(`DEBUG: ${Math.round(audio.duration/60)}-minute file loaded (${originalSize.toFixed(2)} MB) - ready for quick transcription.`);
         } catch (error) {
-          console.error('❌ DEBUG: Error getting file info in onloadedmetadata:', error);
+          console.error('DEBUG: Error getting file info in onloadedmetadata:', error);
           showMessage('Error getting file info: ' + error.message, 'error');
         }
       };
       audio.onerror = (e) => { // NEW: Add onerror handler for audio loading
-        console.error('❌ DEBUG: Audio element error during metadata loading:', e);
-        showMessage('Error loading audio file. Please ensure it is a valid audio/video format.', 'error');
-        resetTranscriptionProcessUI(); // Reset if audio file itself is problematic
+        console.error('DEBUG: Audio element error during metadata loading:', e);
+        resetTranscriptionProcessUI();
+        setSelectedFile(null);
+        showMessage(
+          file.size === 0
+            ? 'That file is empty, so there is nothing to transcribe. Please choose another file.'
+            : 'That file could not be opened as audio. Please check it plays on your computer, then try again.',
+          'error'
+        );
       };
       const audioUrl = URL.createObjectURL(file);
       audio.src = audioUrl;
-      console.log('📁 DEBUG: Audio URL created and assigned:', audioUrl);
+      console.log('DEBUG: Audio URL created and assigned:', audioUrl);
     } else {
-      console.log('📁 DEBUG: Selected file is not an audio/video type. No audio metadata loading.');
-      showMessage('Selected file is not a valid audio or video format.', 'error');
-      resetTranscriptionProcessUI(); // Reset if file type is wrong
+      console.log('DEBUG: Selected file is not an audio/video type. No audio metadata loading.');
+      resetTranscriptionProcessUI();
+      setSelectedFile(null);
+      showMessage('That is not an audio or video file. Please choose a recording to transcribe.', 'error');
     }
   }, [showMessage, resetTranscriptionProcessUI]);
 
+  // A recording shorter than this is silence or a failed capture, never speech.
+  // 2 KB is well under a second of Opus audio, so real recordings clear it easily.
+  const MIN_AUDIO_BYTES = 2048;
+
+  // Load an audio file's metadata to prove the browser can decode it and to
+  // read its true duration. MediaRecorder webm files often report Infinity for
+  // duration, which is a quirk rather than a fault, so that still counts as OK.
+  const measureAudio = useCallback((file) => {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const audio = new Audio();
+      let settled = false;
+      const finish = (ok, duration) => {
+        if (settled) return;
+        settled = true;
+        URL.revokeObjectURL(url);
+        resolve({ ok, duration: Number.isFinite(duration) ? duration : 0 });
+      };
+      audio.preload = 'metadata';
+      audio.onloadedmetadata = () => finish(true, audio.duration);
+      audio.onerror = () => finish(false, 0);
+      // Never let a stuck decode hang the button forever.
+      setTimeout(() => finish(true, 0), 6000);
+      audio.src = url;
+    });
+  }, []);
+
   // Enhanced recording function with proper job cancellation
   const startRecording = useCallback(async () => {
-    console.log('🎙️ DEBUG: startRecording called.'); // NEW LOG
+    console.log('DEBUG: startRecording called.'); // NEW LOG
     // Always reset UI when starting a new recording, effectively deselecting options
     // This also stops any ongoing transcription.
     resetTranscriptionProcessUI(); 
@@ -373,7 +423,7 @@ function AppContent() {
     const fileInput = document.querySelector('input[type="file"]');
     if (fileInput) {
       fileInput.value = ''; // Clear file input
-      console.log('🎙️ DEBUG: File input element cleared before recording.'); // NEW LOG
+      console.log('DEBUG: File input element cleared before recording.'); // NEW LOG
     }
     
     try {
@@ -386,19 +436,19 @@ function AppContent() {
           autoGainControl: true
         } 
       });
-      console.log('🎙️ DEBUG: Microphone stream obtained.'); // NEW LOG
+      console.log('DEBUG: Microphone stream obtained.'); // NEW LOG
       
       let mimeType = 'audio/webm;codecs=opus';
       if (!MediaRecorder.isTypeSupported(mimeType)) {
         mimeType = 'audio/webm';
         if (!MediaRecorder.isTypeSupported(mimeType)) {
           mimeType = 'audio/wav';
-          console.warn('🎙️ DEBUG: Falling back to audio/wav for recording.'); // NEW LOG
+          console.warn('DEBUG: Falling back to audio/wav for recording.'); // NEW LOG
         } else {
-          console.warn('🎙️ DEBUG: Falling back to audio/webm for recording.'); // NEW LOG
+          console.warn('DEBUG: Falling back to audio/webm for recording.'); // NEW LOG
         }
       } else {
-        console.log(`🎙️ DEBUG: Using ${mimeType} for recording.`); // NEW LOG
+        console.log(`DEBUG: Using ${mimeType} for recording.`); // NEW LOG
       }
       
       mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
@@ -406,60 +456,91 @@ function AppContent() {
 
       mediaRecorderRef.current.ondataavailable = (event) => {
         chunks.push(event.data);
-        console.log('🎙️ DEBUG: Data available from MediaRecorder. Chunk size:', event.data.size); // NEW LOG
+        console.log('DEBUG: Data available from MediaRecorder. Chunk size:', event.data.size); // NEW LOG
       };
 
       mediaRecorderRef.current.onstop = async () => {
-        console.log('🎙️ DEBUG: MediaRecorder stopped. Processing recorded audio.'); // NEW LOG
+        console.log('DEBUG: MediaRecorder stopped. Processing recorded audio.');
         const originalBlob = new Blob(chunks, { type: mimeType });
-        
+        stream.getTracks().forEach(track => track.stop());
+
         if (recordedAudioBlobRef.current) {
           recordedAudioBlobRef.current = null;
-          console.log('🎙️ DEBUG: Cleared previous recordedAudioBlobRef.'); // NEW LOG
         }
-        
+
+        // An empty or near-empty blob means the microphone captured nothing.
+        // Catch it here and say so plainly, rather than uploading silence and
+        // letting the transcription service return an error nobody can act on.
+        if (!originalBlob || originalBlob.size < MIN_AUDIO_BYTES) {
+          console.warn('DEBUG: Recording produced no usable audio. Bytes:', originalBlob ? originalBlob.size : 0);
+          setSelectedFile(null);
+          setAudioDuration(0);
+          showMessage(
+            'That recording came through empty, so there was nothing to transcribe. ' +
+            'Check that your microphone is connected and not in use by another program, ' +
+            'then record again.',
+            'error'
+          );
+          return;
+        }
+
         recordedAudioBlobRef.current = originalBlob;
-        
+
         let extension = 'wav';
         if (mimeType.includes('webm')) {
           extension = 'webm';
         }
-        
+
         const file = new File([originalBlob], `recording-${Date.now()}.${extension}`, { type: mimeType });
+
+        // Confirm the browser can actually decode what we just recorded, and
+        // read the true length so we stop guessing the duration from file size.
+        const measured = await measureAudio(file);
+        if (!measured.ok) {
+          console.warn('DEBUG: Recording could not be decoded.');
+          setSelectedFile(null);
+          setAudioDuration(0);
+          showMessage(
+            'That recording could not be read back, so it has not been sent. ' +
+            'Please record again.',
+            'error'
+          );
+          return;
+        }
+
+        if (measured.duration > 0) {
+          setAudioDuration(measured.duration);
+        }
         setSelectedFile(file);
-        stream.getTracks().forEach(track => track.stop());
-        console.log('🎙️ DEBUG: Stream tracks stopped. Selected file set from recording:', file.name); // NEW LOG
-        
-        const originalSize = originalBlob.size / (1024 * 1024);
-        console.log(`📊 DEBUG: Recording saved: ${originalSize.toFixed(2)} MB - ready for transcription.`);
+        console.log('DEBUG: Recording ready.', file.name, originalBlob.size, 'bytes,', measured.duration, 'seconds');
       };
 
       mediaRecorderRef.current.start(1000);
       setIsRecording(true);
       setRecordingTime(0);
-      console.log('🎙️ DEBUG: MediaRecorder started. isRecording set to true.'); // NEW LOG
+      console.log('DEBUG: MediaRecorder started. isRecording set to true.'); // NEW LOG
 
       recordingIntervalRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
     } catch (error) {
-      console.error('❌🎙️ DEBUG: Could not access microphone:', error); // NEW LOG
+      console.error('DEBUG: Could not access microphone:', error); // NEW LOG
       showMessage('Could not access microphone: ' + error.message, 'error');
     }
-  }, [resetTranscriptionProcessUI, showMessage]);
+  }, [resetTranscriptionProcessUI, showMessage, measureAudio]);
 
   const stopRecording = useCallback(() => {
-    console.log('🎙️ DEBUG: stopRecording called.'); // NEW LOG
+    console.log('DEBUG: stopRecording called.'); // NEW LOG
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       clearInterval(recordingIntervalRef.current);
-      console.log('🎙️ DEBUG: MediaRecorder stopped, isRecording set to false, interval cleared.'); // NEW LOG
+      console.log('DEBUG: MediaRecorder stopped, isRecording set to false, interval cleared.'); // NEW LOG
     }
   }, [isRecording]);
   // Improved cancel function with page refresh
   const handleCancelUpload = useCallback(async () => {
-    console.log('🛑 DEBUG: FORCE CANCEL - Stopping everything immediately');
+    console.log('DEBUG: FORCE CANCEL - Stopping everything immediately');
     
     isCancelledRef.current = true;
     
@@ -475,19 +556,19 @@ function AppContent() {
     recordedAudioBlobRef.current = null;
     
     if (abortControllerRef.current) {
-      console.log('🔄 DEBUG: Aborting active fetch request.');
+      console.log('DEBUG: Aborting active fetch request.');
       abortControllerRef.current.abort();
     }
     abortControllerRef.current = null;
 
     if (transcriptionIntervalRef.current) {
-      console.log('🔄 DEBUG: Clearing transcription progress interval.');
+      console.log('DEBUG: Clearing transcription progress interval.');
       clearInterval(transcriptionIntervalRef.current);
       transcriptionIntervalRef.current = null;
     }
 
     if (statusCheckTimeoutRef.current) {
-      console.log('🔄 DEBUG: Clearing status check timeout.');
+      console.log('DEBUG: Clearing status check timeout.');
       clearTimeout(statusCheckTimeoutRef.current);
       statusCheckTimeoutRef.current = null;
     }
@@ -502,27 +583,27 @@ function AppContent() {
     // Try to cancel job on Railway backend
     if (jobId) { 
       try {
-        console.log(`🛑 DEBUG: Attempting to cancel job ${jobId} on Railway backend.`);
+        console.log(`DEBUG: Attempting to cancel job ${jobId} on Railway backend.`);
         await fetch(`${RAILWAY_BACKEND_URL}/cancel/${jobId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         });
-        console.log('✅ DEBUG: Previous job cancelled successfully on Railway.');
+        console.log('DEBUG: Previous job cancelled successfully on Railway.');
       } catch (error) {
-        console.log('⚠️ DEBUG: Failed to cancel previous job on Railway, but continuing with force cancel:', error);
+        console.log('DEBUG: Failed to cancel previous job on Railway, but continuing with force cancel:', error);
       }
     }
     
-    showMessage("🛑 Transcription cancelled! Reloading page...", 'warning');
+    showMessage("Transcription cancelled! Reloading page...",'warning');
     
     setTimeout(() => {
       window.location.reload();
     }, 1500);
     
-    console.log('✅ DEBUG: Force cancellation complete. Page refresh initiated.');
+    console.log('DEBUG: Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage]);
 // Find this function in your App.js file:
-const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
+const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId, segments = null) => {
   try {
     // FIX: Ensure selectedFile is not null before accessing its properties
     const estimatedDuration = audioDuration || (selectedFile ? Math.max(60, selectedFile.size / 100000) : 0);
@@ -577,7 +658,8 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       transcriptionText, 
       estimatedDuration, 
       completedJobId,
-      currentUser.uid // Pass the userId here!
+      currentUser.uid, // Pass the userId here!
+      segments // Per-line timings, when the service returned them
     );
     console.log('DEBUG: saveTranscription call completed.');
     
@@ -585,7 +667,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     console.log('DIAGNOSTIC: After refreshUserProfile - userProfile.totalMinutesUsed:', userProfile?.totalMinutesUsed);
 
     // Success message with favicon and brand name
-    showMessage('✅ <img src="/favicon-32x32.png" alt="TypeMyworDz Logo" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 5px;"> TypeMyworDz, Done!', 'success');
+    showMessage('<img src="/favicon-32x32.png"alt="TypeMyworDz Logo"style="width: 16px; height: 16px; vertical-align: middle; margin-right: 5px;"> TypeMyworDz, Done!','success');
     
     // Save the latest transcription for the AI Assistant
     setLatestTranscription(transcriptionText);
@@ -602,7 +684,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
   const checkJobStatus = useCallback(async (jobIdToPass, transcriptionInterval) => {
     if (isCancelledRef.current) {
-      console.log('🛑 DEBUG: Status check aborted - job was cancelled');
+      console.log('DEBUG: Status check aborted - job was cancelled');
       clearInterval(transcriptionInterval);
       return;
     }
@@ -614,7 +696,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       abortControllerRef.current = controller;
       
       timeoutId = setTimeout(() => {
-        console.log('⏰ DEBUG: Status check timeout - aborting');
+        console.log('DEBUG: Status check timeout - aborting');
         controller.abort();
       }, 10000); 
       
@@ -627,7 +709,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       clearTimeout(timeoutId);
       
       if (isCancelledRef.current) {
-        console.log('🛑 DEBUG: Job cancelled during fetch - stopping immediately');
+        console.log('DEBUG: Job cancelled during fetch - stopping immediately');
         clearInterval(transcriptionInterval);
         return;
       }
@@ -635,29 +717,41 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       const result = await response.json();
       
       if (isCancelledRef.current) {
-        console.log('🛑 DEBUG: Job cancelled after response - stopping immediately');
+        console.log('DEBUG: Job cancelled after response - stopping immediately');
         clearInterval(transcriptionInterval);
         return;
       }
       
       if (response.ok && result.status === 'completed') {
         if (isCancelledRef.current) {
-          console.log('🛑 DEBUG: Job cancelled - ignoring completion');
+          console.log('DEBUG: Job cancelled - ignoring completion');
           clearInterval(transcriptionInterval);
           return;
         }
         
         setTranscription(result.transcription);
+        const jobSegments = Array.isArray(result.segments) && result.segments.length > 0
+          ? result.segments
+          : null;
+        setTranscriptSegments(jobSegments);
         clearInterval(transcriptionInterval); 
         // Removed setTranscriptionProgress as it was unused
         setStatus('completed'); 
         
-        await handleTranscriptionComplete(result.transcription, jobIdToPass);
+        await handleTranscriptionComplete(result.transcription, jobIdToPass, jobSegments);
         setIsUploading(false); 
         
       } else if (response.ok && result.status === 'failed') {
         if (!isCancelledRef.current) {
-          showMessage('❌ Transcription failed: ' + result.error + '. Please try again.', 'error');
+          // The service returns terse internal text. Translate the common case
+          // into something the person sitting in front of the screen can act on.
+          const raw = String(result.error || '');
+          const friendly = /multiple attempts|no speech|empty|too short|could not/i.test(raw)
+            ? 'We could not get any speech out of that audio. This usually means the recording ' +
+              'is silent, extremely quiet, or the file is damaged. Try playing it back first, ' +
+              'then upload it again.'
+            : 'That transcription did not complete: ' + raw;
+          showMessage(friendly, 'error');
           clearInterval(transcriptionInterval); 
           // Removed setTranscriptionProgress as it was unused
           setStatus('failed'); 
@@ -666,35 +760,35 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         }
         
       } else if (response.ok && (result.status === 'cancelled' || result.status === 'canceled')) {
-        console.log('✅ DEBUG: Backend confirmed job cancellation');
+        console.log('DEBUG: Backend confirmed job cancellation');
         clearInterval(transcriptionInterval);
         // Removed setTranscriptionProgress as it was unused
         setStatus('idle');
         setIsUploading(false);
-        showMessage('🛑 Transcription was cancelled. Please start a new one.', 'warning');
+        showMessage('Transcription was cancelled. Please start a new one.','warning');
         resetTranscriptionProcessUI();
         
       } else {
         if (result.status === 'processing' && !isCancelledRef.current) {
-          console.log('⏳ DEBUG: Job still processing - will check again');
+          console.log('DEBUG: Job still processing - will check again');
           statusCheckTimeoutRef.current = setTimeout(() => {
             if (!isCancelledRef.current) {
               checkJobStatus(jobIdToPass, transcriptionInterval); 
             } else {
-              console.log('🛑 DEBUG: Recursive call cancelled');
+              console.log('DEBUG: Recursive call cancelled');
               clearInterval(transcriptionInterval);
-              showMessage('🛑 Transcription process interrupted. Please start a new one.', 'warning');
+              showMessage('Transcription process interrupted. Please start a new one.','warning');
               resetTranscriptionProcessUI();
             }
           }, 2000);
         } else if (isCancelledRef.current) {
-          console.log('🛑 DEBUG: Job cancelled - stopping status checks');
+          console.log('DEBUG: Job cancelled - stopping status checks');
           clearInterval(transcriptionInterval);
-          showMessage('🛑 Transcription process interrupted. Please start a new one.', 'warning');
+          showMessage('Transcription process interrupted. Please start a new one.','warning');
           resetTranscriptionProcessUI();
         } else {
           const errorDetail = result.detail || `Unexpected status: ${result.status}`;
-          showMessage('❌ Status check failed: ' + errorDetail + '. Please try again.', 'error');
+          showMessage('Status check failed: ' + errorDetail + '. Please try again.', 'error');
           clearInterval(transcriptionInterval); 
           // Removed setTranscriptionProgress as it was unused
           setStatus('failed'); 
@@ -707,21 +801,21 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       clearTimeout(timeoutId);
       
       if (error.name === 'AbortError' || isCancelledRef.current) {
-        console.log('🛑 DEBUG: Request aborted or job cancelled');
+        console.log('DEBUG: Request aborted or job cancelled');
         clearInterval(transcriptionInterval);
         if (!isCancelledRef.current) {
           setIsUploading(false);
         }
-        showMessage('🛑 Transcription process interrupted. Please start a new one.', 'warning');
+        showMessage('Transcription process interrupted. Please start a new one.','warning');
         resetTranscriptionProcessUI();
         return;
       } else if (!isCancelledRef.current) {
-        console.error('❌ DEBUG: Status check error:', error);
+        console.error('DEBUG: Status check error:', error);
         clearInterval(transcriptionInterval); 
         // Removed setTranscriptionProgress as it was unused
         setStatus('failed'); 
         setIsUploading(false); 
-        showMessage('❌ Status check failed: ' + error.message + '. Please try again.', 'error');
+        showMessage('Status check failed: ' + error.message + '. Please try again.', 'error');
         resetTranscriptionProcessUI();
       }
     } finally {
@@ -730,24 +824,33 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   }, [handleTranscriptionComplete, showMessage, resetTranscriptionProcessUI]); // Removed RAILWAY_BACKEND_URL from dependencies
   // handleUpload with new backend logic for model selection
   const handleUpload = useCallback(async () => {
-    console.log('🚀 DEBUG: handleUpload called.');
+    console.log('DEBUG: handleUpload called.');
     if (!selectedFile) {
       showMessage('Please select a file first', 'warning');
-      console.log('❌ DEBUG: No file selected for upload..');
+      console.log('DEBUG: No file selected for upload..');
       return;
     }
 
     if (userProfile === undefined) {
       showMessage('Loading user profile... Please wait.', 'info');
-      console.log('⏳ DEBUG: User profile still loading or not available.');
+      console.log('DEBUG: User profile still loading or not available.');
+      return;
+    }
+
+    if (selectedFile.size < MIN_AUDIO_BYTES) {
+      showMessage(
+        'That file is empty, so there is nothing to transcribe. Please choose or record another file.',
+        'error'
+      );
+      resetTranscriptionProcessUI();
       return;
     }
 
     const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
-    console.log('📊 DEBUG: Estimated duration for upload:', estimatedDuration);
+    console.log('DEBUG: Estimated duration for upload:', estimatedDuration);
 
     const transcribeCheck = await canUserTranscribe(currentUser.uid, estimatedDuration);
-    console.log('✅ DEBUG: canUserTranscribe check result:', transcribeCheck);
+    console.log('DEBUG: canUserTranscribe check result:', transcribeCheck);
     
     if (!transcribeCheck.canTranscribe) {
       if (transcribeCheck.redirectToPricing) {
@@ -761,7 +864,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         }
 
         showMessage(userMessage, 'warning');
-        console.log('❌ DEBUG: Blocking transcription due to plan/limit. Redirecting to pricing.');
+        console.log('DEBUG: Blocking transcription due to plan/limit. Redirecting to pricing.');
         
         setTimeout(() => {
           setCurrentView('pricing');
@@ -770,13 +873,13 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         return;
       } else {
         showMessage('You do not have permission to transcribe audio. Please contact support if this is an error.', 'error');
-        console.log('❌ DEBUG: Blocking transcription due to insufficient permissions.');
+        console.log('DEBUG: Blocking transcription due to insufficient permissions.');
         resetTranscriptionProcessUI();
         return;
       }
     }
 
-    console.log(`🎯 DEBUG: Initiating transcription for ${Math.round(estimatedDuration/60)}-minute audio.`);
+    console.log(`DEBUG: Initiating transcription for ${Math.round(estimatedDuration/60)}-minute audio.`);
 
     isCancelledRef.current = false;
     setIsUploading(true);
@@ -797,7 +900,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     }
 
     try {
-      console.log(`🎯 DEBUG: Using unified transcription endpoint: ${RAILWAY_BACKEND_URL}/transcribe`);
+      console.log(`DEBUG: Using unified transcription endpoint: ${RAILWAY_BACKEND_URL}/transcribe`);
       const response = await fetch(`${RAILWAY_BACKEND_URL}/transcribe`, {
         method: 'POST',
         body: formData,
@@ -806,17 +909,17 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ DEBUG: Backend transcription service failed. Status:', response.status, 'Text:', errorText);
+        console.error('DEBUG: Backend transcription service failed. Status:', response.status, 'Text:', errorText);
         throw new Error(`Transcription service failed with status: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
-      console.log('✅ DEBUG: Backend transcription endpoint responded:', result);
+      console.log('DEBUG: Backend transcription endpoint responded:', result);
 
       if (result && result.job_id) {
         const transcriptionJobId = result.job_id;
-        console.log('✅ DEBUG: Transcription job started. Processing...');
-        console.log(`📊 DEBUG: Logic used: ${result.logic_used || 'Smart service selection'}`);
+        console.log('DEBUG: Transcription job started. Processing...');
+        console.log(`DEBUG: Logic used: ${result.logic_used || 'Smart service selection'}`);
         
         // Removed setUploadProgress as it was unused
         setStatus('processing');
@@ -824,93 +927,34 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         transcriptionIntervalRef.current = simulateProgress(() => {}, 500, -1); // Removed setTranscriptionProgress
         checkJobStatus(transcriptionJobId, transcriptionIntervalRef.current);
       } else {
-        console.error(`❌ DEBUG: Transcription service returned no job ID: ${JSON.stringify(result)}`);
+        console.error(`DEBUG: Transcription service returned no job ID: ${JSON.stringify(result)}`);
         throw new Error(`Transcription service returned no job ID: ${JSON.stringify(result)}`);
       }
 
     } catch (transcriptionError) {
-      console.error('❌ DEBUG: Transcription failed in handleUpload catch block:', transcriptionError);
+      console.error('DEBUG: Transcription failed in handleUpload catch block:', transcriptionError);
       // Removed setUploadProgress and setTranscriptionProgress as they were unused
       setStatus('failed'); 
       setIsUploading(false);
-      showMessage('❌ Transcription service is currently unavailable. Please try again later.', 'error');
+      showMessage('Transcription service is currently unavailable. Please try again later.','error');
     }
   }, [selectedFile, audioDuration, currentUser?.uid, currentUser?.email, showMessage, setCurrentView, resetTranscriptionProcessUI, userProfile, selectedLanguage, speakerLabelsEnabled, checkJobStatus]); // Removed RAILWAY_BACKEND_URL from dependencies
 
   // Copy to clipboard (now triggers CopiedNotification)
-  const copyToClipboard = useCallback(() => { 
-    // Check for AI paid user eligibility for this feature
-    if (!isPaidAIUser(userProfile)) {
-      showMessage('Copy to clipboard is only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade to access this feature.', 'warning');
-      return;
-    }
-    
-    // To copy HTML content, we need to create a temporary element
-    const tempElement = document.createElement('div');
-    tempElement.innerHTML = transcription;
-    navigator.clipboard.writeText(tempElement.textContent || tempElement.innerText); // Copy plain text content
-    
-    setCopiedMessageVisible(true); // Show copied message
-    setTimeout(() => setCopiedMessageVisible(false), 2000); // Hide after 2 seconds
-  }, [transcription, userProfile, showMessage]);
+  // The old Copy / Word / TXT buttons lived here. The proofreading editor
+  // now owns all of that, so every screen behaves the same way.
+
+  // A correction made on the transcript that has just come back is saved to
+  // the same record the History list reads, so the fix is not lost the moment
+  // the user navigates away.
+  const handleSaveFreshTranscript = useCallback(async (html) => {
+    if (!currentUser?.uid || !jobId) return;
+    await updateTranscription(currentUser.uid, jobId, { transcriptionText: html });
+  }, [currentUser?.uid, jobId]);
 
   // Download as Word - now calls backend for formatted DOCX
-  const downloadAsWord = useCallback(async () => { 
-    // Check for AI paid user eligibility for this feature
-    if (!isPaidAIUser(userProfile)) {
-      showMessage('MS Word download is only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade to access this feature.', 'warning');
-      return;
-    }
-    
-    try {
-      showMessage('Generating formatted Word document...', 'info');
-      const response = await fetch(`${RAILWAY_BACKEND_URL}/generate-formatted-word`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          transcription_html: transcription,
-          filename: `transcription_${Date.now()}.docx`
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ DEBUG: Word document generation failed. Status:', response.status, 'Text:', errorText);
-        throw new Error(`Failed to generate Word document: ${response.status} - ${errorText}`);
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `transcription_${Date.now()}.docx`; // Use .docx extension
-      a.click();
-      URL.revokeObjectURL(url);
-      showMessage('Word document generated successfully!', 'success');
-
-    } catch (error) {
-      console.error('Error downloading Word document:', error);
-      showMessage('Failed to generate Word document: ' + error.message, 'error');
-    }
-  }, [transcription, userProfile, showMessage]); // Removed RAILWAY_BACKEND_URL from dependencies
 
   // TXT download - available for all users
-  const downloadAsTXT = useCallback(() => { 
-    // For TXT download, we want plain text, so strip HTML tags
-    const tempElement = document.createElement('div');
-    tempElement.innerHTML = transcription;
-    const plainTextTranscription = tempElement.textContent || tempElement.innerText;
-
-    const blob = new Blob([plainTextTranscription], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'transcription.txt';
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [transcription]);
 
   // Download recorded audio (Note: This is for recorded audio, not transcription results)
   const downloadRecordedAudio = useCallback(async () => { 
@@ -983,7 +1027,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       }
       // Check if user is eligible for AI features
       if (!isPaidAIUser(userProfile)) {
-          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.', 'error');
+          showMessage('TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.','error');
           return;
       }
 
@@ -1035,11 +1079,11 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           const data = await response.json();
           // The admin formatting endpoints return 'formatted_transcript'
           setAIResponse(data.formatted_transcript); 
-          showMessage('✨ AI response generated successfully!', 'success');
+          showMessage('AI response generated successfully!','success');
 
       } catch (error) {
           console.error('AI Assistant Error:', error);
-          showMessage('❌ AI Assistant failed: ' + error.message + '. If using Gemini, try Claude for sensitive content.', 'error');
+          showMessage('AI Assistant failed: ' + error.message + '. If using Gemini, try Claude for sensitive content.', 'error');
       } finally {
           setAILoading(false);
       }
@@ -1049,7 +1093,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   useEffect(() => {
     return () => {
       if (isCancelledRef.current) {
-        console.log('🧹 DEBUG: Component cleanup - clearing all intervals'); 
+        console.log('DEBUG: Component cleanup - clearing all intervals'); 
         const highestId = setInterval(() => {}, 0);
         for (let i = 1; i <= highestId; i++) {
           clearInterval(i);
@@ -1061,6 +1105,27 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
   // NEW: State and handlers for Feedback Modal
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+
+  // Close the account menu on an outside click or Escape. Without this the
+  // menu had to rely on the pointer never leaving it, which made it impossible
+  // to reach the items inside.
+  useEffect(() => {
+    if (!accountMenuOpen) return undefined;
+    const onDown = (e) => {
+      if (accountRef.current && !accountRef.current.contains(e.target)) {
+        setAccountMenuOpen(false);
+      }
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setAccountMenuOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [accountMenuOpen]);
+
   // eslint-disable-next-line no-unused-vars
   const [feedbackName, setFeedbackName] = useState(currentUser?.displayName || '');
   // eslint-disable-next-line no-unused-vars
@@ -1085,11 +1150,11 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     setIsSendingFeedback(true);
     try {
       await saveFeedback(name, email, feedback);
-      showMessage('✅ Feedback sent successfully! Thank you.', 'success');
+      showMessage('Feedback sent successfully! Thank you.','success');
       setShowFeedbackModal(false);
     } catch (error) {
       console.error('Error sending feedback:', error);
-      showMessage('❌ Failed to send feedback: ' + error.message, 'error');
+      showMessage('Failed to send feedback: ' + error.message, 'error');
     } finally {
       setIsSendingFeedback(false);
     }
@@ -1110,7 +1175,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         console.log('Shared successfully');
       } catch (err) {
         console.log('Share failed:', err);
-        showMessage('❌ Sharing cancelled or failed.', 'warning');
+        showMessage('Sharing cancelled or failed.','warning');
       }
     } else {
       // Fallback for browsers that do not support the Web Share API
@@ -1121,7 +1186,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       navigator.clipboard.writeText(fallbackText)
         .then(() => setCopiedMessageVisible(true))
         .then(() => setTimeout(() => setCopiedMessageVisible(false), 2000))
-        .catch(() => showMessage('❌ Failed to copy link.', 'error'));
+        .catch(() => showMessage('Failed to copy link.','error'));
 
     }
   }, [showMessage]);
@@ -1260,7 +1325,9 @@ return (
             {/* Products Parent Menu */}
             <div className="menu-item" onClick={() => handleToggleSubmenu('productsSubmenu')}>
                 <span className="menu-text">Products</span>
-                <span className={`dropdown-arrow ${openSubmenu === 'productsSubmenu' ? 'rotated' : ''}`}>▼</span>
+                <span className={`dropdown-arrow ${openSubmenu === 'productsSubmenu' ? 'rotated' : ''}`} aria-hidden="true">
+                  <svg viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 4.5L6 8l3.5-3.5"/></svg>
+                </span>
                 
                 {/* Products Submenu */}
                 {openSubmenu === 'productsSubmenu' && (
@@ -1289,7 +1356,9 @@ return (
             {/* Social Parent Menu */}
             <div className="menu-item" onClick={() => handleToggleSubmenu('socialSubmenu')}>
                 <span className="menu-text">Social</span>
-                <span className={`dropdown-arrow ${openSubmenu === 'socialSubmenu' ? 'rotated' : ''}`}>▼</span>
+                <span className={`dropdown-arrow ${openSubmenu === 'socialSubmenu' ? 'rotated' : ''}`} aria-hidden="true">
+                  <svg viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 4.5L6 8l3.5-3.5"/></svg>
+                </span>
                 
                 {/* Social Submenu */}
                 {openSubmenu === 'socialSubmenu' && (
@@ -1315,10 +1384,40 @@ return (
             </div>
           </div>
 
-          <div className="tm-account">
-            <span className="tm-username">{userProfile?.name || currentUser.email}</span>
-            <span className={"tm-plan" + (planLabel.isFree ? " tm-plan-free" : "")}>{planLabel.text}</span>
-            <button className="tm-logout" onClick={handleLogout}>Sign out</button>
+          <div className="tm-account" ref={accountRef}>
+            <button
+              className="tm-avatar"
+              onClick={() => setAccountMenuOpen(o => !o)}
+              title={userProfile?.name || currentUser.email}
+              aria-label="Account menu"
+              aria-haspopup="menu"
+              aria-expanded={accountMenuOpen}
+            >
+              {initialsOf(userProfile?.name || currentUser.email)}
+            </button>
+
+            {accountMenuOpen && (
+              <div className="tm-account-menu">
+                <div className="tm-account-head">
+                  <div className="tm-account-name">{userProfile?.name || 'Signed in'}</div>
+                  <div className="tm-account-mail">{currentUser.email}</div>
+                </div>
+                <div className="tm-account-plan">
+                  <span className={"tm-plan" + (planLabel.isFree ? " tm-plan-free" : "")}>{planLabel.text}</span>
+                  {planLabel.isFree && (
+                    <button className="tm-account-upgrade" onClick={() => { setAccountMenuOpen(false); handleOpenPricing(); }}>
+                      Upgrade
+                    </button>
+                  )}
+                </div>
+                <button className="tm-account-item" onClick={() => { setAccountMenuOpen(false); handleOpenFeedback(); }}>
+                  Send feedback
+                </button>
+                <button className="tm-account-item tm-account-signout" onClick={handleLogout}>
+                  Sign out
+                </button>
+              </div>
+            )}
           </div>
 
         </div>
@@ -1332,69 +1431,93 @@ return (
             borderRadius: '10px'
           }}>
             <div style={{ color: '#6c5ce7', fontSize: '16px' }}>
-              🔄 Loading your profile...
+               Loading your profile...
             </div>
           </div>
         )}
 
-        {/* ---- Main navigation tabs ---- */}
-        <div className="tm-tabs">
-          <button
-            className={"tm-tab" + (currentView === 'transcribe' ? " tm-tab-active" : "")}
-            onClick={() => setCurrentView('transcribe')}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M18.5 11.5v.5a6.5 6.5 0 0 1-13 0v-.5M12 18.5V22"/></svg>
-            Transcribe
-          </button>
+        {/* ---- Workspace: sidebar on the left, everything else on the right ---- */}
+        <div className="tm-shell">
 
-          <button
-            className={"tm-tab" + (currentView === 'dashboard' ? " tm-tab-active" : "")}
-            onClick={() => setCurrentView('dashboard')}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M4 6.5A1.5 1.5 0 0 1 5.5 5h3.2l1.8 2h8A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5z"/></svg>
-            My files
-          </button>
+          <aside className="tm-side">
 
-          <button
-            className={"tm-tab tm-tab-ai" + (currentView === 'ai_assistant' ? " tm-tab-active" : "")}
-            onClick={() => {
-              if (!isPaidAIUser(userProfile)) {
-                showMessage('The AI Assistant is available on the Three-Day, One-Week, Monthly and Yearly plans. Upgrade to switch it on.', 'error');
-                return;
-              }
-              setCurrentView('ai_assistant');
-            }}
-            disabled={!isPaidAIUser(userProfile)}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>
-            Ask AI
-            {!isPaidAIUser(userProfile) && <span className="tm-tab-lock">Upgrade</span>}
-          </button>
-
-          <button
-            className="tm-tab"
-            onClick={handleOpenPricing}
-          >
-            Pricing
-          </button>
-
-          {isAdmin && (
             <button
-              className={"tm-tab" + (currentView === 'admin' ? " tm-tab-active" : "")}
-              onClick={() => setCurrentView('admin')}
+              className="tm-newbtn"
+              onClick={() => setCurrentView('transcribe')}
             >
-              Admin
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              New transcription
             </button>
-          )}
-          {currentView === 'transcribe' && (
+
+            <div className="tm-navlabel">Workspace</div>
+
             <button
-              className="tm-tabs-cta"
+              className={"tm-nav" + (currentView === 'transcribe' ? " tm-nav-on" : "")}
+              onClick={() => setCurrentView('transcribe')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M18.5 11.5v.5a6.5 6.5 0 0 1-13 0v-.5M12 18.5V22"/></svg>
+              Transcribe
+            </button>
+
+            <button
+              className={"tm-nav" + (currentView === 'dashboard' ? " tm-nav-on" : "")}
+              onClick={() => setCurrentView('dashboard')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M4 6.5A1.5 1.5 0 0 1 5.5 5h3.2l1.8 2h8A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5z"/></svg>
+              My files
+            </button>
+
+            <button
+              className="tm-nav"
               onClick={() => window.open('/transcription-editor', '_blank')}
             >
-              Open Transcription Editor
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h9"/></svg>
+              Editor
             </button>
-          )}
-        </div>
+
+            <button
+              className={"tm-nav tm-nav-ai" + (currentView === 'ai_assistant' ? " tm-nav-on" : "")}
+              onClick={() => {
+                if (!isPaidAIUser(userProfile)) {
+                  showMessage('The AI Assistant is available on the Three-Day, One-Week, Monthly and Yearly plans. Upgrade to switch it on.', 'error');
+                  return;
+                }
+                setCurrentView('ai_assistant');
+              }}
+              disabled={!isPaidAIUser(userProfile)}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>
+              Ask AI
+              {!isPaidAIUser(userProfile) && <span className="tm-nav-lock">Upgrade</span>}
+            </button>
+
+            {isAdmin && (
+              <>
+                <div className="tm-navlabel">Admin</div>
+                <button
+                  className={"tm-nav" + (currentView === 'admin' ? " tm-nav-on" : "")}
+                  onClick={() => setCurrentView('admin')}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M12 3l7.5 3.5v5c0 4.6-3.1 8.4-7.5 9.5-4.4-1.1-7.5-4.9-7.5-9.5v-5z"/></svg>
+                  Admin
+                </button>
+              </>
+            )}
+
+            <div className="tm-plancard">
+              <div className="tm-plancard-name">{planLabel.text}</div>
+              {planLabel.isFree ? (
+                <button className="tm-plancard-cta" onClick={handleOpenPricing}>
+                  See plans
+                </button>
+              ) : (
+                <div className="tm-plancard-sub">Thanks for subscribing</div>
+              )}
+            </div>
+
+          </aside>
+
+          <main className="tm-main">
 
         {/* UPDATED: AnimatedBroadcastBoard - moved to occupy the space where "Logged in as..." was, made larger and more beautiful */}
         {currentView === 'transcribe' && (
@@ -1414,7 +1537,13 @@ return (
               boxSizing: 'border-box', 
               textAlign: 'center'
             }}>
-              <AnimatedBroadcastBoard />
+              <AnimatedBroadcastBoard
+                onNavigate={(view) => {
+                  if (view === 'feedback') { handleOpenFeedback(); return; }
+                  if (view === 'editor') { window.location.href = '/transcription-editor'; return; }
+                  setCurrentView(view);
+                }}
+              />
             </div>
           </div>
         )}
@@ -1459,7 +1588,7 @@ return (
                     fontSize: '16px'
                   }}
                 >
-                  💸 Economy Plans
+                   Economy Plans
                 </button>
                 {/* Updated Button for Premium Plans */}
                 <button
@@ -1475,14 +1604,14 @@ return (
                     fontSize: '16px'
                   }}
                 >
-                  💳 Premium Plans
+                   Premium Plans
                 </button>
               </div>
               {pricingView === 'credits' ? (
                 <>
                   <div style={{ marginTop: '20px' }}>
                     <h2 style={{ color: '#007bff', marginBottom: '30px' }}>
-                      💸 Economy Plans
+                       Economy Plans
                     </h2>
                     <p style={{ color: '#666', marginBottom: '30px', fontSize: '14px', textAlign: 'center' }}>
                       For our African Market
@@ -1738,7 +1867,7 @@ return (
                 <>
                   <div style={{ marginTop: '20px' }}>
                     <h2 style={{ color: '#28a745', marginBottom: '30px' }}>
-                      💳 Premium Plans
+                       Premium Plans
                     </h2>
                     <p style={{ color: '#666', marginBottom: '30px' }}>
                       Monthly and Yearly premium access plans, paid once.
@@ -1801,14 +1930,14 @@ return (
                             marginBottom: '20px', 
                             fontSize: '0.9rem' 
                           }}>
-                            <li>✅ Everything in Free Plan</li>
-                            <li>✅ Unlimited transcription access</li>
-                            <li>✅ High accuracy AI transcription</li>
-                            <li>✅ Priority processing</li>
-                            <li>✅ Copy to clipboard feature</li>
-                            <li>✅ MS Word &amp; TXT downloads</li>
-                            <li>✅ 30-day file storage</li>
-                            <li>✅ Email support</li>
+                            <li className="tm-tick">Everything in Free Plan</li>
+                            <li className="tm-tick">Unlimited transcription access</li>
+                            <li className="tm-tick">High accuracy AI transcription</li>
+                            <li className="tm-tick">Priority processing</li>
+                            <li className="tm-tick">Copy to clipboard feature</li>
+                            <li className="tm-tick">MS Word &amp; TXT downloads</li>
+                            <li> 30-day file storage</li>
+                            <li className="tm-tick">Email support</li>
                           </ul>
                           <button 
                             onClick={() => {
@@ -1890,14 +2019,14 @@ return (
                             marginBottom: '20px', 
                             fontSize: '0.9rem' 
                           }}>
-                            <li>✅ Everything in Free Plan</li>
-                            <li>✅ Unlimited transcription access</li>
-                            <li>✅ High accuracy AI transcription</li>
-                            <li>✅ Priority processing</li>
-                            <li>✅ ✅ Copy to clipboard feature</li>
-                            <li>✅ MS Word &amp; TXT downloads</li>
-                            <li>✅ 365-day file storage</li>
-                            <li>✅ Email support (yearly)</li>
+                            <li className="tm-tick">Everything in Free Plan</li>
+                            <li className="tm-tick">Unlimited transcription access</li>
+                            <li className="tm-tick">High accuracy AI transcription</li>
+                            <li className="tm-tick">Priority processing</li>
+                            <li className="tm-tick">Copy to clipboard feature</li>
+                            <li className="tm-tick">MS Word &amp; TXT downloads</li>
+                            <li> 365-day file storage</li>
+                            <li className="tm-tick">Email support (yearly)</li>
                           </ul>
                           <button 
                             onClick={() => {
@@ -1937,7 +2066,7 @@ return (
                 boxShadow: '0 5px 15px rgba(0,0,0,0.1)'
               }}>
                 <h3 style={{ color: '#6c5ce7', marginBottom: '20px' }}>
-                  🔒 All plans include:
+                   All plans include:
                 </h3>
                 <div style={{ 
                   display: 'grid', 
@@ -1946,9 +2075,9 @@ return (
                   textAlign: 'left',
                   color: '#666'
                 }}>
-                  <div>✅ Transcript management under History</div>
-                  <div>✅ Easy-to-use interface</div>
-                  <div>✅ Client Support</div>
+                  <div className="tm-tick">Transcript management under History</div>
+                  <div className="tm-tick">Easy-to-use interface</div>
+                  <div className="tm-tick">Client Support</div>
                 </div>
               </div>
             </div>
@@ -1969,7 +2098,7 @@ return (
                 <h2 style={{ color: '#6c5ce7', textAlign: 'center', marginBottom: '30px' }}>TypeMyworDz Assistant</h2>
                 {!isPaidAIUser(userProfile) && (
                   <p style={{ textAlign: 'center', color: '#dc3545', marginBottom: '30px', fontWeight: 'bold' }}>
-                    ❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.
+                     TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.
                   </p>
                 )}
                 <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
@@ -2070,7 +2199,7 @@ return (
                             transition: 'all 0.3s ease'
                         }}
                     >
-                        {aiLoading ? 'Processing...' : `✨ Format with ${selectedAIProvider === 'claude' ? 'Claude' : 'Gemini'}`}
+                        {aiLoading ?'Processing...':`Format with ${selectedAIProvider ==='claude'?'Claude':'Gemini'}`}
                     </button>
                     <button
                         onClick={() => { setLatestTranscription(''); setUserPrompt(''); setAIResponse(''); }}
@@ -2142,7 +2271,7 @@ return (
                             onMouseEnter={(e) => e.target.style.backgroundColor = '#218838'}
                             onMouseLeave={(e) => e.target.style.backgroundColor = '#27ae60'}
                           >
-                            📋 Copy AI Response
+                             Copy AI Response
                           </button>
                         </div>
                     </div>
@@ -2195,7 +2324,7 @@ return (
                     </>
                   ) : (
                     <>
-                      🎵 Your free trial has ended. Please{' '}
+                       Your free trial has ended. Please{''}
                       <button 
                         onClick={() => setCurrentView('pricing')}
                         style={{
@@ -2353,10 +2482,10 @@ return (
                     backgroundColor: '#fafafb'
                   }}>
                     <input
+                      className="tm-file"
                       type="file"
                       accept="audio/mp3,audio/mpeg,audio/*,video/*"
                       onChange={handleFileSelect}
-                      style={{ marginBottom: '10px' }}
                     />
                     {selectedFile && (
                       <div style={{
@@ -2376,7 +2505,7 @@ return (
 
                   <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
                     <label htmlFor="languageSelect" style={{ color: '#1a1b1f', fontWeight: '500', fontSize: '14px' }}>
-                      Transcription Language:
+                      Language
                     </label>
                     <select
                       id="languageSelect"
@@ -2406,7 +2535,7 @@ return (
                   
                   <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
                     <label htmlFor="speakerLabelsSelect" style={{ color: '#1a1b1f', fontWeight: '500', fontSize: '14px' }}>
-                      Speaker Tags:
+                      Speaker tags
                     </label>
                     <select
                       id="speakerLabelsSelect"
@@ -2443,7 +2572,7 @@ return (
                         }}></div>
                       </div>
                       <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
-                        🎯 Processing...
+                         Processing...
                       </div>
                     </div>
                   )}
@@ -2454,17 +2583,18 @@ return (
                         onClick={handleUpload}
                         disabled={!selectedFile || isUploading}
                         style={{
-                          padding: '15px 30px',
-                          fontSize: '18px',
-                          backgroundColor: (!selectedFile || isUploading) ? '#6c757d' : '#6c5ce7',
+                          padding: '12px 26px',
+                          fontSize: '15px',
+                          fontWeight: 600,
+                          backgroundColor: (!selectedFile || isUploading) ? '#adb2bb' : '#28a745',
                           color: 'white',
                           border: 'none',
-                          borderRadius: '25px',
+                          borderRadius: '8px',
                           cursor: (!selectedFile || isUploading) ? 'not-allowed' : 'pointer',
-                          boxShadow: '0 5px 15px rgba(108, 92, 231, 0.4)'
+                          boxShadow: 'none'
                         }}
                       >
-                        🚀 Start Transcription
+                        Start transcription
                       </button>
                     )}
 
@@ -2501,7 +2631,7 @@ return (
                     color: status === 'completed' ? '#27ae60' : '#f39c12',
                     margin: '0'
                   }}>
-                    {status === 'completed' ? '✅ Transcription Completed!' : `❌ Status: ${status}`}
+                    {status ==='completed'?'Transcription Completed!':`Status: ${status}`}
                   </h3>
                   {status === 'failed' && (
                     <p style={{ margin: '10px 0 0 0', color: '#666' }}>
@@ -2512,180 +2642,35 @@ return (
               )}
               
               {transcription && (
-                <div style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                  borderRadius: '15px',
-                  padding: '30px',
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
-                }}>
-                  <h3 style={{ 
-                    color: '#6c5ce7',
-                    margin: '0 0 20px 0',
-                    textAlign: 'center',
-                    fontSize: '1.5rem'
-                  }}>
-                    📄 Transcription Result:
-                  </h3>
-                  
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    gap: '15px',
-                    marginBottom: '20px',
-                    flexWrap: 'wrap'
-                  }}>
-                    <button
-                      onClick={copyToClipboard}
-                      disabled={!isPaidAIUser(userProfile)}
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#27ae60',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
-                        fontSize: '14px',
-                        opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
-                      }}
-                    >
-                      {!isPaidAIUser(userProfile) ? '🔒 Copy (Pro AI Only)' : '📋 Copy to Clipboard'}
-                    </button>
-                    
-                    <button
-                      onClick={downloadAsWord}
-                      disabled={!isPaidAIUser(userProfile)}
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#007bff',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
-                        fontSize: '14px',
-                        opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
-                      }}
-                    >
-                      {!isPaidAIUser(userProfile) ? '🔒 Word (Pro AI Only)' : '📄 MS Word'}
-                    </button>
-                    
-                    <button
-                      onClick={downloadAsTXT}
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: '#6c757d',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontSize: '14px'
-                      }}
-                    >
-                      📝 TXT
-                    </button>
+                <TranscriptEditor
+                  fileName={selectedFile ? selectedFile.name : 'Your transcript'}
+                  rawText={transcription}
+                  segments={transcriptSegments}
+                  durationSeconds={audioDuration || 0}
+                  audioFile={selectedFile}
+                  onSave={handleSaveFreshTranscript}
+                  onAskAI={isPaidAIUser(userProfile) ? () => setCurrentView('ai_assistant') : null}
+                  canUseAI={isPaidAIUser(userProfile)}
+                />
+              )}
 
-                    <button
-                      onClick={() => {
-                        if (!isPaidAIUser(userProfile)) {
-                          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.', 'error');
-                          return;
-                        }
-                        setCurrentView('ai_assistant');
-                      }}
-                      disabled={!isPaidAIUser(userProfile)}
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#6c5ce7',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
-                        fontSize: '14px',
-                        opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
-                      }}
-                    >
-                      ✨ TypeMyworDz Assistant
-                    </button>
-                  </div>
-                  
-                  {!isPaidAIUser(userProfile) && (
-                    <div style={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                      color: '#856404',
-                      padding: '10px',
-                      borderRadius: '5px',
-                      marginBottom: '20px',
-                      textAlign: 'center',
-                      fontSize: '14px'
-                    }}>
-                      🔒 Copy to clipboard, MS Word downloads, and AI Assistant are available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans).{' '}
-                      <button 
-                        onClick={() => setCurrentView('pricing')}
-                        style={{
-                          backgroundColor: 'transparent',
-                          color: '#007bff',
-                          border: 'none',
-                          textDecoration: 'underline',
-                          cursor: 'pointer',
-                          fontWeight: 'bold'
-                        }}
-                      >
-                        Upgrade now
-                      </button>
-                    </div>
-                  )}
-                  
-                  <div style={{
-                    backgroundColor: '#f8f9fa',
-                    padding: '20px',
-                    borderRadius: '10px',
-                    textAlign: 'left',
-                    lineHeight: '1.6',
-                    whiteSpace: 'pre-wrap',
-                    border: '1px solid #dee2e6'
-                  }}>
-                    <div dangerouslySetInnerHTML={{ __html: transcription.replace(/\n/g, '<br>') }} />
-                  </div>
-                  
-                  <div style={{ 
-                    marginTop: '15px', 
-                    textAlign: 'center', 
-                    color: '#27ae60',
-                    fontSize: '14px'
-                  }}>
-                    ✅ Check your{' '}
-                    <button
-                      onClick={() => setCurrentView('dashboard')}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#007bff',
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        fontWeight: 'bold',
-                        padding: 0
-                      }}
-                      onMouseEnter={(e) => e.target.style.color = '#0056b3'}
-                      onMouseLeave={(e) => e.target.style.color = '#007bff'}
-                    >
-                      History
-                    </button>
-                    {' '}for your saved transcripts.
-                  </div>
-                </div>
+              {transcription && (
+                <p className="tm-result-note">
+                  This transcript is saved. You can come back to it any time from{' '}
+                  <button type="button" className="tm-result-link" onClick={() => setCurrentView('dashboard')}>
+                    My files
+                  </button>.
+                </p>
               )}
             </main>
           </div>
         )}
-        <footer style={{ 
-          textAlign: 'center', 
-          padding: '20px', 
-          color: 'rgba(255, 255, 255, 0.7)', 
-          fontSize: '0.9rem',
-          marginTop: 'auto'
-        }}>
+        <footer className="tm-footer">
           © {new Date().getFullYear()} TypeMyworDz
         </footer>
+
+          </main>
+        </div>
 
         <FeedbackModal
           show={showFeedbackModal}
@@ -2710,6 +2695,8 @@ function App() {
           {/* Standalone routes that don't require auth check */}
           <Route path="/transcription-editor" element={<RichTextEditor />} />
           <Route path="/transcription/:id" element={<TranscriptionDetail />} />
+          {/* Try the proofreading editor on a sample transcript, no minutes spent. */}
+          <Route path="/editor-demo" element={<EditorDemo />} />
           
           {/* Main app routes */}
           <Route path="/*" element={<AppContent />} /> 
