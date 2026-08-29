@@ -61,7 +61,7 @@ const CopiedNotification = ({ isVisible }) => {
         pointerEvents: 'none', // Allow clicks to pass through
       }}
     >
-      📋 Copied to clipboard!
+       Copied to clipboard!
     </div>
   );
 };
@@ -128,6 +128,7 @@ function AppContent() {
   const transcriptionIntervalRef = useRef(null);
   const statusCheckTimeoutRef = useRef(null);
   const isCancelledRef = useRef(false);
+  const accountRef = useRef(null);
 
   // UPDATED: Admin emails are now referenced from your backend configuration
   const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; 
@@ -229,7 +230,7 @@ function AppContent() {
             await updateUserPlan(currentUser.uid, data.data.plan, reference); 
             await refreshUserProfile();
             
-            showMessage(`🎉 Payment successful! ${data.data.plan} activated.`, 'success');
+            showMessage(`Payment successful! ${data.data.plan} activated.`,'success');
             setCurrentView('transcribe');
             
             // Crucial: Clear URL parameters AFTER successful processing
@@ -372,6 +373,33 @@ function AppContent() {
     }
   }, [showMessage, resetTranscriptionProcessUI]);
 
+  // A recording shorter than this is silence or a failed capture, never speech.
+  // 2 KB is well under a second of Opus audio, so real recordings clear it easily.
+  const MIN_AUDIO_BYTES = 2048;
+
+  // Load an audio file's metadata to prove the browser can decode it and to
+  // read its true duration. MediaRecorder webm files often report Infinity for
+  // duration, which is a quirk rather than a fault, so that still counts as OK.
+  const measureAudio = useCallback((file) => {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const audio = new Audio();
+      let settled = false;
+      const finish = (ok, duration) => {
+        if (settled) return;
+        settled = true;
+        URL.revokeObjectURL(url);
+        resolve({ ok, duration: Number.isFinite(duration) ? duration : 0 });
+      };
+      audio.preload = 'metadata';
+      audio.onloadedmetadata = () => finish(true, audio.duration);
+      audio.onerror = () => finish(false, 0);
+      // Never let a stuck decode hang the button forever.
+      setTimeout(() => finish(true, 0), 6000);
+      audio.src = url;
+    });
+  }, []);
+
   // Enhanced recording function with proper job cancellation
   const startRecording = useCallback(async () => {
     console.log('🎙️ DEBUG: startRecording called.'); // NEW LOG
@@ -420,28 +448,59 @@ function AppContent() {
       };
 
       mediaRecorderRef.current.onstop = async () => {
-        console.log('🎙️ DEBUG: MediaRecorder stopped. Processing recorded audio.'); // NEW LOG
+        console.log('DEBUG: MediaRecorder stopped. Processing recorded audio.');
         const originalBlob = new Blob(chunks, { type: mimeType });
-        
+        stream.getTracks().forEach(track => track.stop());
+
         if (recordedAudioBlobRef.current) {
           recordedAudioBlobRef.current = null;
-          console.log('🎙️ DEBUG: Cleared previous recordedAudioBlobRef.'); // NEW LOG
         }
-        
+
+        // An empty or near-empty blob means the microphone captured nothing.
+        // Catch it here and say so plainly, rather than uploading silence and
+        // letting the transcription service return an error nobody can act on.
+        if (!originalBlob || originalBlob.size < MIN_AUDIO_BYTES) {
+          console.warn('DEBUG: Recording produced no usable audio. Bytes:', originalBlob ? originalBlob.size : 0);
+          setSelectedFile(null);
+          setAudioDuration(0);
+          showMessage(
+            'That recording came through empty, so there was nothing to transcribe. ' +
+            'Check that your microphone is connected and not in use by another program, ' +
+            'then record again.',
+            'error'
+          );
+          return;
+        }
+
         recordedAudioBlobRef.current = originalBlob;
-        
+
         let extension = 'wav';
         if (mimeType.includes('webm')) {
           extension = 'webm';
         }
-        
+
         const file = new File([originalBlob], `recording-${Date.now()}.${extension}`, { type: mimeType });
+
+        // Confirm the browser can actually decode what we just recorded, and
+        // read the true length so we stop guessing the duration from file size.
+        const measured = await measureAudio(file);
+        if (!measured.ok) {
+          console.warn('DEBUG: Recording could not be decoded.');
+          setSelectedFile(null);
+          setAudioDuration(0);
+          showMessage(
+            'That recording could not be read back, so it has not been sent. ' +
+            'Please record again.',
+            'error'
+          );
+          return;
+        }
+
+        if (measured.duration > 0) {
+          setAudioDuration(measured.duration);
+        }
         setSelectedFile(file);
-        stream.getTracks().forEach(track => track.stop());
-        console.log('🎙️ DEBUG: Stream tracks stopped. Selected file set from recording:', file.name); // NEW LOG
-        
-        const originalSize = originalBlob.size / (1024 * 1024);
-        console.log(`📊 DEBUG: Recording saved: ${originalSize.toFixed(2)} MB - ready for transcription.`);
+        console.log('DEBUG: Recording ready.', file.name, originalBlob.size, 'bytes,', measured.duration, 'seconds');
       };
 
       mediaRecorderRef.current.start(1000);
@@ -456,7 +515,7 @@ function AppContent() {
       console.error('❌🎙️ DEBUG: Could not access microphone:', error); // NEW LOG
       showMessage('Could not access microphone: ' + error.message, 'error');
     }
-  }, [resetTranscriptionProcessUI, showMessage]);
+  }, [resetTranscriptionProcessUI, showMessage, measureAudio]);
 
   const stopRecording = useCallback(() => {
     console.log('🎙️ DEBUG: stopRecording called.'); // NEW LOG
@@ -523,7 +582,7 @@ function AppContent() {
       }
     }
     
-    showMessage("🛑 Transcription cancelled! Reloading page...", 'warning');
+    showMessage("Transcription cancelled! Reloading page...",'warning');
     
     setTimeout(() => {
       window.location.reload();
@@ -595,7 +654,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     console.log('DIAGNOSTIC: After refreshUserProfile - userProfile.totalMinutesUsed:', userProfile?.totalMinutesUsed);
 
     // Success message with favicon and brand name
-    showMessage('✅ <img src="/favicon-32x32.png" alt="TypeMyworDz Logo" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 5px;"> TypeMyworDz, Done!', 'success');
+    showMessage('<img src="/favicon-32x32.png"alt="TypeMyworDz Logo"style="width: 16px; height: 16px; vertical-align: middle; margin-right: 5px;"> TypeMyworDz, Done!','success');
     
     // Save the latest transcription for the AI Assistant
     setLatestTranscription(transcriptionText);
@@ -667,7 +726,15 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         
       } else if (response.ok && result.status === 'failed') {
         if (!isCancelledRef.current) {
-          showMessage('❌ Transcription failed: ' + result.error + '. Please try again.', 'error');
+          // The service returns terse internal text. Translate the common case
+          // into something the person sitting in front of the screen can act on.
+          const raw = String(result.error || '');
+          const friendly = /multiple attempts|no speech|empty|too short|could not/i.test(raw)
+            ? 'We could not get any speech out of that audio. This usually means the recording ' +
+              'is silent, extremely quiet, or the file is damaged. Try playing it back first, ' +
+              'then upload it again.'
+            : 'That transcription did not complete: ' + raw;
+          showMessage(friendly, 'error');
           clearInterval(transcriptionInterval); 
           // Removed setTranscriptionProgress as it was unused
           setStatus('failed'); 
@@ -681,7 +748,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         // Removed setTranscriptionProgress as it was unused
         setStatus('idle');
         setIsUploading(false);
-        showMessage('🛑 Transcription was cancelled. Please start a new one.', 'warning');
+        showMessage('Transcription was cancelled. Please start a new one.','warning');
         resetTranscriptionProcessUI();
         
       } else {
@@ -693,18 +760,18 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
             } else {
               console.log('🛑 DEBUG: Recursive call cancelled');
               clearInterval(transcriptionInterval);
-              showMessage('🛑 Transcription process interrupted. Please start a new one.', 'warning');
+              showMessage('Transcription process interrupted. Please start a new one.','warning');
               resetTranscriptionProcessUI();
             }
           }, 2000);
         } else if (isCancelledRef.current) {
           console.log('🛑 DEBUG: Job cancelled - stopping status checks');
           clearInterval(transcriptionInterval);
-          showMessage('🛑 Transcription process interrupted. Please start a new one.', 'warning');
+          showMessage('Transcription process interrupted. Please start a new one.','warning');
           resetTranscriptionProcessUI();
         } else {
           const errorDetail = result.detail || `Unexpected status: ${result.status}`;
-          showMessage('❌ Status check failed: ' + errorDetail + '. Please try again.', 'error');
+          showMessage('Status check failed: ' + errorDetail + '. Please try again.', 'error');
           clearInterval(transcriptionInterval); 
           // Removed setTranscriptionProgress as it was unused
           setStatus('failed'); 
@@ -722,7 +789,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         if (!isCancelledRef.current) {
           setIsUploading(false);
         }
-        showMessage('🛑 Transcription process interrupted. Please start a new one.', 'warning');
+        showMessage('Transcription process interrupted. Please start a new one.','warning');
         resetTranscriptionProcessUI();
         return;
       } else if (!isCancelledRef.current) {
@@ -731,7 +798,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         // Removed setTranscriptionProgress as it was unused
         setStatus('failed'); 
         setIsUploading(false); 
-        showMessage('❌ Status check failed: ' + error.message + '. Please try again.', 'error');
+        showMessage('Status check failed: ' + error.message + '. Please try again.', 'error');
         resetTranscriptionProcessUI();
       }
     } finally {
@@ -750,6 +817,15 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     if (userProfile === undefined) {
       showMessage('Loading user profile... Please wait.', 'info');
       console.log('⏳ DEBUG: User profile still loading or not available.');
+      return;
+    }
+
+    if (selectedFile.size < MIN_AUDIO_BYTES) {
+      showMessage(
+        'That file is empty, so there is nothing to transcribe. Please choose or record another file.',
+        'error'
+      );
+      resetTranscriptionProcessUI();
       return;
     }
 
@@ -843,7 +919,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       // Removed setUploadProgress and setTranscriptionProgress as they were unused
       setStatus('failed'); 
       setIsUploading(false);
-      showMessage('❌ Transcription service is currently unavailable. Please try again later.', 'error');
+      showMessage('Transcription service is currently unavailable. Please try again later.','error');
     }
   }, [selectedFile, audioDuration, currentUser?.uid, currentUser?.email, showMessage, setCurrentView, resetTranscriptionProcessUI, userProfile, selectedLanguage, speakerLabelsEnabled, checkJobStatus]); // Removed RAILWAY_BACKEND_URL from dependencies
 
@@ -993,7 +1069,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       }
       // Check if user is eligible for AI features
       if (!isPaidAIUser(userProfile)) {
-          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.', 'error');
+          showMessage('TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.','error');
           return;
       }
 
@@ -1045,11 +1121,11 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           const data = await response.json();
           // The admin formatting endpoints return 'formatted_transcript'
           setAIResponse(data.formatted_transcript); 
-          showMessage('✨ AI response generated successfully!', 'success');
+          showMessage('AI response generated successfully!','success');
 
       } catch (error) {
           console.error('AI Assistant Error:', error);
-          showMessage('❌ AI Assistant failed: ' + error.message + '. If using Gemini, try Claude for sensitive content.', 'error');
+          showMessage('AI Assistant failed: ' + error.message + '. If using Gemini, try Claude for sensitive content.', 'error');
       } finally {
           setAILoading(false);
       }
@@ -1072,6 +1148,26 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   // NEW: State and handlers for Feedback Modal
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+
+  // Close the account menu on an outside click or Escape. Without this the
+  // menu had to rely on the pointer never leaving it, which made it impossible
+  // to reach the items inside.
+  useEffect(() => {
+    if (!accountMenuOpen) return undefined;
+    const onDown = (e) => {
+      if (accountRef.current && !accountRef.current.contains(e.target)) {
+        setAccountMenuOpen(false);
+      }
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setAccountMenuOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [accountMenuOpen]);
+
   // eslint-disable-next-line no-unused-vars
   const [feedbackName, setFeedbackName] = useState(currentUser?.displayName || '');
   // eslint-disable-next-line no-unused-vars
@@ -1096,11 +1192,11 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     setIsSendingFeedback(true);
     try {
       await saveFeedback(name, email, feedback);
-      showMessage('✅ Feedback sent successfully! Thank you.', 'success');
+      showMessage('Feedback sent successfully! Thank you.','success');
       setShowFeedbackModal(false);
     } catch (error) {
       console.error('Error sending feedback:', error);
-      showMessage('❌ Failed to send feedback: ' + error.message, 'error');
+      showMessage('Failed to send feedback: ' + error.message, 'error');
     } finally {
       setIsSendingFeedback(false);
     }
@@ -1121,7 +1217,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         console.log('Shared successfully');
       } catch (err) {
         console.log('Share failed:', err);
-        showMessage('❌ Sharing cancelled or failed.', 'warning');
+        showMessage('Sharing cancelled or failed.','warning');
       }
     } else {
       // Fallback for browsers that do not support the Web Share API
@@ -1132,7 +1228,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       navigator.clipboard.writeText(fallbackText)
         .then(() => setCopiedMessageVisible(true))
         .then(() => setTimeout(() => setCopiedMessageVisible(false), 2000))
-        .catch(() => showMessage('❌ Failed to copy link.', 'error'));
+        .catch(() => showMessage('Failed to copy link.','error'));
 
     }
   }, [showMessage]);
@@ -1271,7 +1367,9 @@ return (
             {/* Products Parent Menu */}
             <div className="menu-item" onClick={() => handleToggleSubmenu('productsSubmenu')}>
                 <span className="menu-text">Products</span>
-                <span className={`dropdown-arrow ${openSubmenu === 'productsSubmenu' ? 'rotated' : ''}`}>▼</span>
+                <span className={`dropdown-arrow ${openSubmenu === 'productsSubmenu' ? 'rotated' : ''}`} aria-hidden="true">
+                  <svg viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 4.5L6 8l3.5-3.5"/></svg>
+                </span>
                 
                 {/* Products Submenu */}
                 {openSubmenu === 'productsSubmenu' && (
@@ -1300,7 +1398,9 @@ return (
             {/* Social Parent Menu */}
             <div className="menu-item" onClick={() => handleToggleSubmenu('socialSubmenu')}>
                 <span className="menu-text">Social</span>
-                <span className={`dropdown-arrow ${openSubmenu === 'socialSubmenu' ? 'rotated' : ''}`}>▼</span>
+                <span className={`dropdown-arrow ${openSubmenu === 'socialSubmenu' ? 'rotated' : ''}`} aria-hidden="true">
+                  <svg viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 4.5L6 8l3.5-3.5"/></svg>
+                </span>
                 
                 {/* Social Submenu */}
                 {openSubmenu === 'socialSubmenu' && (
@@ -1326,15 +1426,14 @@ return (
             </div>
           </div>
 
-          <div
-            className="tm-account"
-            onMouseLeave={() => setAccountMenuOpen(false)}
-          >
+          <div className="tm-account" ref={accountRef}>
             <button
               className="tm-avatar"
               onClick={() => setAccountMenuOpen(o => !o)}
               title={userProfile?.name || currentUser.email}
               aria-label="Account menu"
+              aria-haspopup="menu"
+              aria-expanded={accountMenuOpen}
             >
               {initialsOf(userProfile?.name || currentUser.email)}
             </button>
@@ -1374,7 +1473,7 @@ return (
             borderRadius: '10px'
           }}>
             <div style={{ color: '#6c5ce7', fontSize: '16px' }}>
-              🔄 Loading your profile...
+               Loading your profile...
             </div>
           </div>
         )}
@@ -1480,7 +1579,13 @@ return (
               boxSizing: 'border-box', 
               textAlign: 'center'
             }}>
-              <AnimatedBroadcastBoard />
+              <AnimatedBroadcastBoard
+                onNavigate={(view) => {
+                  if (view === 'feedback') { handleOpenFeedback(); return; }
+                  if (view === 'editor') { window.location.href = '/transcription-editor'; return; }
+                  setCurrentView(view);
+                }}
+              />
             </div>
           </div>
         )}
@@ -1525,7 +1630,7 @@ return (
                     fontSize: '16px'
                   }}
                 >
-                  💸 Economy Plans
+                   Economy Plans
                 </button>
                 {/* Updated Button for Premium Plans */}
                 <button
@@ -1541,14 +1646,14 @@ return (
                     fontSize: '16px'
                   }}
                 >
-                  💳 Premium Plans
+                   Premium Plans
                 </button>
               </div>
               {pricingView === 'credits' ? (
                 <>
                   <div style={{ marginTop: '20px' }}>
                     <h2 style={{ color: '#007bff', marginBottom: '30px' }}>
-                      💸 Economy Plans
+                       Economy Plans
                     </h2>
                     <p style={{ color: '#666', marginBottom: '30px', fontSize: '14px', textAlign: 'center' }}>
                       For our African Market
@@ -1804,7 +1909,7 @@ return (
                 <>
                   <div style={{ marginTop: '20px' }}>
                     <h2 style={{ color: '#28a745', marginBottom: '30px' }}>
-                      💳 Premium Plans
+                       Premium Plans
                     </h2>
                     <p style={{ color: '#666', marginBottom: '30px' }}>
                       Monthly and Yearly premium access plans, paid once.
@@ -1867,14 +1972,14 @@ return (
                             marginBottom: '20px', 
                             fontSize: '0.9rem' 
                           }}>
-                            <li>✅ Everything in Free Plan</li>
-                            <li>✅ Unlimited transcription access</li>
-                            <li>✅ High accuracy AI transcription</li>
-                            <li>✅ Priority processing</li>
-                            <li>✅ Copy to clipboard feature</li>
-                            <li>✅ MS Word &amp; TXT downloads</li>
-                            <li>✅ 30-day file storage</li>
-                            <li>✅ Email support</li>
+                            <li className="tm-tick">Everything in Free Plan</li>
+                            <li className="tm-tick">Unlimited transcription access</li>
+                            <li className="tm-tick">High accuracy AI transcription</li>
+                            <li className="tm-tick">Priority processing</li>
+                            <li className="tm-tick">Copy to clipboard feature</li>
+                            <li className="tm-tick">MS Word &amp; TXT downloads</li>
+                            <li> 30-day file storage</li>
+                            <li className="tm-tick">Email support</li>
                           </ul>
                           <button 
                             onClick={() => {
@@ -1956,14 +2061,14 @@ return (
                             marginBottom: '20px', 
                             fontSize: '0.9rem' 
                           }}>
-                            <li>✅ Everything in Free Plan</li>
-                            <li>✅ Unlimited transcription access</li>
-                            <li>✅ High accuracy AI transcription</li>
-                            <li>✅ Priority processing</li>
-                            <li>✅ ✅ Copy to clipboard feature</li>
-                            <li>✅ MS Word &amp; TXT downloads</li>
-                            <li>✅ 365-day file storage</li>
-                            <li>✅ Email support (yearly)</li>
+                            <li className="tm-tick">Everything in Free Plan</li>
+                            <li className="tm-tick">Unlimited transcription access</li>
+                            <li className="tm-tick">High accuracy AI transcription</li>
+                            <li className="tm-tick">Priority processing</li>
+                            <li className="tm-tick">Copy to clipboard feature</li>
+                            <li className="tm-tick">MS Word &amp; TXT downloads</li>
+                            <li> 365-day file storage</li>
+                            <li className="tm-tick">Email support (yearly)</li>
                           </ul>
                           <button 
                             onClick={() => {
@@ -2003,7 +2108,7 @@ return (
                 boxShadow: '0 5px 15px rgba(0,0,0,0.1)'
               }}>
                 <h3 style={{ color: '#6c5ce7', marginBottom: '20px' }}>
-                  🔒 All plans include:
+                   All plans include:
                 </h3>
                 <div style={{ 
                   display: 'grid', 
@@ -2012,9 +2117,9 @@ return (
                   textAlign: 'left',
                   color: '#666'
                 }}>
-                  <div>✅ Transcript management under History</div>
-                  <div>✅ Easy-to-use interface</div>
-                  <div>✅ Client Support</div>
+                  <div className="tm-tick">Transcript management under History</div>
+                  <div className="tm-tick">Easy-to-use interface</div>
+                  <div className="tm-tick">Client Support</div>
                 </div>
               </div>
             </div>
@@ -2035,7 +2140,7 @@ return (
                 <h2 style={{ color: '#6c5ce7', textAlign: 'center', marginBottom: '30px' }}>TypeMyworDz Assistant</h2>
                 {!isPaidAIUser(userProfile) && (
                   <p style={{ textAlign: 'center', color: '#dc3545', marginBottom: '30px', fontWeight: 'bold' }}>
-                    ❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.
+                     TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.
                   </p>
                 )}
                 <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
@@ -2136,7 +2241,7 @@ return (
                             transition: 'all 0.3s ease'
                         }}
                     >
-                        {aiLoading ? 'Processing...' : `✨ Format with ${selectedAIProvider === 'claude' ? 'Claude' : 'Gemini'}`}
+                        {aiLoading ?'Processing...':`Format with ${selectedAIProvider ==='claude'?'Claude':'Gemini'}`}
                     </button>
                     <button
                         onClick={() => { setLatestTranscription(''); setUserPrompt(''); setAIResponse(''); }}
@@ -2208,7 +2313,7 @@ return (
                             onMouseEnter={(e) => e.target.style.backgroundColor = '#218838'}
                             onMouseLeave={(e) => e.target.style.backgroundColor = '#27ae60'}
                           >
-                            📋 Copy AI Response
+                             Copy AI Response
                           </button>
                         </div>
                     </div>
@@ -2261,7 +2366,7 @@ return (
                     </>
                   ) : (
                     <>
-                      🎵 Your free trial has ended. Please{' '}
+                       Your free trial has ended. Please{''}
                       <button 
                         onClick={() => setCurrentView('pricing')}
                         style={{
@@ -2509,7 +2614,7 @@ return (
                         }}></div>
                       </div>
                       <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
-                        🎯 Processing...
+                         Processing...
                       </div>
                     </div>
                   )}
@@ -2520,17 +2625,18 @@ return (
                         onClick={handleUpload}
                         disabled={!selectedFile || isUploading}
                         style={{
-                          padding: '15px 30px',
-                          fontSize: '18px',
-                          backgroundColor: (!selectedFile || isUploading) ? '#6c757d' : '#6c5ce7',
+                          padding: '12px 26px',
+                          fontSize: '15px',
+                          fontWeight: 600,
+                          backgroundColor: (!selectedFile || isUploading) ? '#adb2bb' : '#28a745',
                           color: 'white',
                           border: 'none',
-                          borderRadius: '25px',
+                          borderRadius: '8px',
                           cursor: (!selectedFile || isUploading) ? 'not-allowed' : 'pointer',
-                          boxShadow: '0 5px 15px rgba(108, 92, 231, 0.4)'
+                          boxShadow: 'none'
                         }}
                       >
-                        🚀 Start Transcription
+                        Start transcription
                       </button>
                     )}
 
@@ -2567,7 +2673,7 @@ return (
                     color: status === 'completed' ? '#27ae60' : '#f39c12',
                     margin: '0'
                   }}>
-                    {status === 'completed' ? '✅ Transcription Completed!' : `❌ Status: ${status}`}
+                    {status ==='completed'?'Transcription Completed!':`Status: ${status}`}
                   </h3>
                   {status === 'failed' && (
                     <p style={{ margin: '10px 0 0 0', color: '#666' }}>
@@ -2590,7 +2696,7 @@ return (
                     textAlign: 'center',
                     fontSize: '1.5rem'
                   }}>
-                    📄 Transcription Result:
+                     Transcription Result:
                   </h3>
                   
                   <div style={{
@@ -2614,7 +2720,7 @@ return (
                         opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
                       }}
                     >
-                      {!isPaidAIUser(userProfile) ? '🔒 Copy (Pro AI Only)' : '📋 Copy to Clipboard'}
+                      {!isPaidAIUser(userProfile) ?'Copy (Pro AI Only)':'Copy to Clipboard'}
                     </button>
                     
                     <button
@@ -2631,7 +2737,7 @@ return (
                         opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
                       }}
                     >
-                      {!isPaidAIUser(userProfile) ? '🔒 Word (Pro AI Only)' : '📄 MS Word'}
+                      {!isPaidAIUser(userProfile) ?'Word (Pro AI Only)':'MS Word'}
                     </button>
                     
                     <button
@@ -2646,13 +2752,13 @@ return (
                         fontSize: '14px'
                       }}
                     >
-                      📝 TXT
+                       TXT
                     </button>
 
                     <button
                       onClick={() => {
                         if (!isPaidAIUser(userProfile)) {
-                          showMessage('❌ TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.', 'error');
+                          showMessage('TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.','error');
                           return;
                         }
                         setCurrentView('ai_assistant');
@@ -2669,7 +2775,7 @@ return (
                         opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
                       }}
                     >
-                      ✨ TypeMyworDz Assistant
+                       TypeMyworDz Assistant
                     </button>
                   </div>
                   
@@ -2683,7 +2789,7 @@ return (
                       textAlign: 'center',
                       fontSize: '14px'
                     }}>
-                      🔒 Copy to clipboard, MS Word downloads, and AI Assistant are available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans).{' '}
+                       Copy to clipboard, MS Word downloads, and AI Assistant are available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans).{''}
                       <button 
                         onClick={() => setCurrentView('pricing')}
                         style={{
@@ -2718,7 +2824,7 @@ return (
                     color: '#27ae60',
                     fontSize: '14px'
                   }}>
-                    ✅ Check your{' '}
+                     Check your{''}
                     <button
                       onClick={() => setCurrentView('dashboard')}
                       style={{
