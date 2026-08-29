@@ -171,7 +171,7 @@ const Dashboard = ({ setCurrentView }) => {
 
   if (!currentUser) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff' }}>
         <div style={{ textAlign: 'center', padding: '2rem', backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           <h2 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1f2937', marginBottom: '1rem' }}>Access Required</h2>
           <p style={{ color: '#6b7280' }}>Please log in to view your dashboard.</p>
@@ -182,7 +182,7 @@ const Dashboard = ({ setCurrentView }) => {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff' }}>
         <div style={{ textAlign: 'center', padding: '2rem' }}>
           <div style={{ 
             width: '2rem', 
@@ -201,7 +201,7 @@ const Dashboard = ({ setCurrentView }) => {
 
   if (error) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff' }}>
         <div style={{ textAlign: 'center', padding: '2rem', backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #ef4444' }}>
           <h2 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#dc2626', marginBottom: '1rem' }}>Error</h2>
           <p style={{ color: '#6b7280', marginBottom: '1rem' }}>{error}</p>
@@ -219,7 +219,7 @@ const Dashboard = ({ setCurrentView }) => {
   // Check if we're on standalone dashboard route (no setCurrentView prop)
   const isStandaloneDashboard = !setCurrentView;
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb', position: 'relative' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#ffffff', position: 'relative' }}>
       {/* FLOATING TRANSCRIBE BUTTON - ONLY for standalone dashboard */}
       {isStandaloneDashboard && (
         <button
@@ -270,7 +270,7 @@ const Dashboard = ({ setCurrentView }) => {
               d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" 
             />
           </svg>
-          🎤 New Transcription
+          New transcription
         </button>
       )}
 
@@ -278,83 +278,13 @@ const Dashboard = ({ setCurrentView }) => {
         {/* Header */}
         <div style={{ marginBottom: '2rem' }}>
           <div>
-            <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: '#111827', marginBottom: '0.5rem' }}>Your Transcriptions</h1>
-            <p style={{ color: '#6b7280' }}>Manage and edit your audio transcriptions</p>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#14161a', marginBottom: '0.35rem' }}>My files</h1>
+            <p style={{ color: '#858a95', fontSize: '0.9rem', margin: 0 }}>Every transcription you have made.</p>
           </div>
         </div>
 
-        {/* NEW: Transcription Editor Button */}
-        <div style={{ 
-          backgroundColor: 'white', 
-          borderRadius: '0.5rem', 
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)', 
-          padding: '1.5rem', 
-          marginBottom: '2rem',
-          textAlign: 'center',
-          border: '2px solid #7c3aed'
-        }}>
-          <h3 style={{ 
-            fontSize: '1.125rem', 
-            fontWeight: '600', 
-            color: '#7c3aed', 
-            marginBottom: '0.5rem' 
-          }}>
-            ✏️ Advanced Text Editor
-          </h3>
-          <p style={{ 
-            color: '#6b7280', 
-            marginBottom: '1rem', 
-            fontSize: '0.875rem' 
-          }}>
-            Use our advanced transcription editor with audio playback, rich text formatting, and professional editing tools.
-          </p>
-          <button
-            onClick={() => navigate('/transcription-editor')}
-            style={{
-              backgroundColor: '#7c3aed',
-              color: 'white',
-              padding: '12px 24px',
-              borderRadius: '8px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: '600',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              margin: '0 auto',
-              boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
-              transition: 'all 0.3s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.backgroundColor = '#6d28d9';
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 6px 20px rgba(124, 58, 237, 0.4)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.backgroundColor = '#7c3aed';
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = '0 4px 12px rgba(124, 58, 237, 0.3)';
-            }}
-          >
-            <svg 
-              style={{ width: '20px', height: '20px' }} 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
-              />
-            </svg>
-            Open Transcription Editor
-          </button>
-        </div>
         {/* Search and Filter */}
-        <div style={{ backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1.5rem', marginBottom: '2rem' }}>
+        <div style={{ marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <div style={{ flex: '1', position: 'relative', minWidth: '200px' }}>
               <input
@@ -364,12 +294,14 @@ const Dashboard = ({ setCurrentView }) => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 style={{ 
                   width: '100%', 
+                  boxSizing: 'border-box',
                   paddingLeft: '2.5rem', 
                   paddingRight: '1rem', 
                   paddingTop: '0.5rem', 
                   paddingBottom: '0.5rem', 
-                  border: '1px solid #d1d5db', 
-                  borderRadius: '0.5rem',
+                  border: '1px solid #d5d7dd', 
+                  borderRadius: '7px',
+                  fontFamily: 'inherit',
                   fontSize: '0.875rem'
                 }}
               />
@@ -378,15 +310,17 @@ const Dashboard = ({ setCurrentView }) => {
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <label style={{ fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>Sort by:</label>
+              <label style={{ fontSize: '0.875rem', fontWeight: '500', color: '#3f434c', whiteSpace: 'nowrap' }}>Sort by</label>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 style={{ 
                   padding: '0.5rem 0.75rem', 
-                  border: '1px solid #d1d5db', 
-                  borderRadius: '0.5rem',
-                  fontSize: '0.875rem'
+                  border: '1px solid #d5d7dd', 
+                  borderRadius: '7px',
+                  fontFamily: 'inherit',
+                  fontSize: '0.875rem',
+                  background: '#fff'
                 }}
               >
                 <option value="newest">Newest First</option>
@@ -399,11 +333,11 @@ const Dashboard = ({ setCurrentView }) => {
         </div>
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-          <div style={{ backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.85rem', marginBottom: '1.75rem' }}>
+          <div style={{ backgroundColor: '#fff', border: '1px solid #e5e6ea', borderRadius: '10px', boxShadow: 'none', padding: '1.15rem 1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              <div style={{ padding: '0.5rem', backgroundColor: '#dbeafe', borderRadius: '0.5rem', marginRight: '1rem' }}>
-                <svg style={{ width: '1.25rem', height: '1.25rem', color: '#2563eb' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              <div style={{ padding: '0.5rem', backgroundColor: '#f8f8f9', borderRadius: '7px', marginRight: '0.85rem', display: 'flex' }}>
+                <svg style={{ width: '1.1rem', height: '1.1rem', color: '#858a95' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
               </div>
               <div>
                 <p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#6b7280', margin: 0 }}>Total</p>
@@ -411,10 +345,10 @@ const Dashboard = ({ setCurrentView }) => {
               </div>
             </div>
           </div>
-          <div style={{ backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1.5rem' }}>
+          <div style={{ backgroundColor: '#fff', border: '1px solid #e5e6ea', borderRadius: '10px', boxShadow: 'none', padding: '1.15rem 1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              <div style={{ padding: '0.5rem', backgroundColor: '#dcfce7', borderRadius: '0.5rem', marginRight: '1rem' }}>
-                <svg style={{ width: '1.25rem', height: '1.25rem', color: '#16a34a' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <div style={{ padding: '0.5rem', backgroundColor: '#eaf7ee', borderRadius: '7px', marginRight: '0.85rem', display: 'flex' }}>
+                <svg style={{ width: '1.1rem', height: '1.1rem', color: '#218838' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               </div>
               <div>
                 <p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#6b7280', margin: 0 }}>Minutes</p>
@@ -422,10 +356,10 @@ const Dashboard = ({ setCurrentView }) => {
               </div>
             </div>
           </div>
-          <div style={{ backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1.5rem' }}>
+          <div style={{ backgroundColor: '#fff', border: '1px solid #e5e6ea', borderRadius: '10px', boxShadow: 'none', padding: '1.15rem 1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              <div style={{ padding: '0.5rem', backgroundColor: '#f3e8ff', borderRadius: '0.5rem', marginRight: '1rem' }}>
-                <svg style={{ width: '1.25rem', height: '1.25rem', color: '#9333ea' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <div style={{ padding: '0.5rem', backgroundColor: '#f8f8f9', borderRadius: '7px', marginRight: '0.85rem', display: 'flex' }}>
+                <svg style={{ width: '1.1rem', height: '1.1rem', color: '#858a95' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               </div>
               <div>
                 <p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#6b7280', margin: 0 }}>This Week</p>
@@ -437,8 +371,8 @@ const Dashboard = ({ setCurrentView }) => {
         {/* Conditional rendering for Transcriptions List */}
         {sortedTranscriptions.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: '500', color: '#111827', marginBottom: '0.5rem' }}>No Transcriptions Yet</h3>
-            <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>Start by uploading your first audio file to get transcribed.</p>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: '600', color: '#14161a', marginBottom: '0.5rem' }}>Nothing here yet</h3>
+            <p style={{ color: '#858a95', marginBottom: '1.5rem' }}>Upload or record something and it will appear here.</p>
             <button 
               onClick={handleTranscribeNewAudio}
               style={{ 

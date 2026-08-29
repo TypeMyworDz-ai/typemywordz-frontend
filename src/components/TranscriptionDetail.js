@@ -3,6 +3,98 @@ import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { updateTranscription, deleteTranscription } from '../userService';
 
+// ------------------------------------------------------------------
+// Copy modes
+//
+// The backend hands us plain text that may contain speaker tags and
+// timestamps. These transforms are deliberately forgiving: if a
+// pattern isn't present, the text is returned unchanged rather than
+// mangled. Worst case the user gets their transcript exactly as it
+// was, which is what the old single Copy button always did.
+// ------------------------------------------------------------------
+
+const COPY_MODES = [
+  { id: 'full',  label: 'With speakers and timestamps', hint: 'Exactly as it appears above' },
+  { id: 'clean', label: 'Clean text, keep paragraphs',  hint: 'No speaker tags or timestamps' },
+  { id: 'block', label: 'As one block',                 hint: 'One continuous paragraph' },
+];
+
+// "Speaker 1:", "Speaker A:", "SPEAKER 02:", "[Speaker 1] -", "<Speaker B>:"
+const SPEAKER_TAG = /^[[<(]?\s*speaker\s*[-_ ]?\w+\s*[\]>)]?\s*[:\-–—]\s*/i;
+
+// A bracketed clock: "[00:01:23]", "(1:02)", "[00:01:23.456]".
+// Safe to remove anywhere, because brackets mark it as machine output.
+const BRACKETED_TIME = /[[(]\s*\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d{1,3})?\s*[\])]/g;
+
+// A subtitle range on its own line: "00:00:01,000 --> 00:00:04,000".
+const SRT_RANGE = /^\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d{1,3})?\s*-->\s*\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d{1,3})?$/;
+
+// A bare clock at the very START of a line: "00:12 Right, let's begin."
+// Only ever stripped from the line start.
+const LEADING_TIME = /^\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d{1,3})?\s+/;
+
+// IMPORTANT: times that appear inside a sentence ("we met at 9:30") are
+// left completely alone. For legal and medical work those are evidence,
+// not formatting. Only bracketed clocks, subtitle ranges and clocks at
+// the start of a line are treated as machine timestamps.
+//
+// Order matters too: a timestamp usually sits BEFORE the speaker tag,
+// so it has to come off first or the tag no longer starts the line.
+const stripTags = (text) => {
+  const lines = String(text || '')
+    .replace(BRACKETED_TIME, '')
+    .split('\n')
+    .map((line) => {
+      let out = line.trim();
+      if (SRT_RANGE.test(out)) return '';
+      out = out.replace(LEADING_TIME, '');
+      out = out.replace(SPEAKER_TAG, '');
+      return out.replace(/[ \t]{2,}/g, ' ').trim();
+    });
+
+  // Collapse runs of blank lines to a single blank line so real
+  // paragraph breaks survive but gaps left by removals do not.
+  const kept = [];
+  for (const line of lines) {
+    if (line === '' && kept[kept.length - 1] === '') continue;
+    kept.push(line);
+  }
+  return kept.join('\n').trim();
+};
+
+const applyCopyMode = (text, mode) => {
+  const source = String(text || '');
+  if (mode === 'clean') return stripTags(source);
+  if (mode === 'block') {
+    // No separator between speaker turns - the client asked for one
+    // truly continuous paragraph. Anyone who wants the tags exports
+    // to Word instead.
+    return stripTags(source).replace(/\s*\n+\s*/g, ' ').replace(/[ \t]{2,}/g, ' ').trim();
+  }
+  return source;
+};
+
+const COPY_MODE_KEY = 'tmwd.copyMode';
+const COPY_REMEMBER_KEY = 'tmwd.copyRemember';
+
+const readStoredMode = () => {
+  try {
+    if (localStorage.getItem(COPY_REMEMBER_KEY) === 'false') return 'full';
+    const stored = localStorage.getItem(COPY_MODE_KEY);
+    return COPY_MODES.some((m) => m.id === stored) ? stored : 'full';
+  } catch (e) {
+    return 'full';
+  }
+};
+
+const readStoredRemember = () => {
+  try {
+    return localStorage.getItem(COPY_REMEMBER_KEY) !== 'false';
+  } catch (e) {
+    return true;
+  }
+};
+
 const TranscriptionDetail = () => {
   // eslint-disable-next-line no-unused-vars
   const { id } = useParams(); // 'id' is assigned a value but never used
@@ -16,6 +108,11 @@ const TranscriptionDetail = () => {
   const [transcription, setTranscription] = useState(state?.transcription || null);
   const [editableText, setEditableText] = useState(transcription?.transcriptionText || transcription?.text || '');
   const [isEditing, setIsEditing] = useState(false);
+  const [copyMode, setCopyMode] = useState(readStoredMode);
+  const [rememberCopyMode, setRememberCopyMode] = useState(readStoredRemember);
+  const [copyMenuOpen, setCopyMenuOpen] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [justCopied, setJustCopied] = useState(false);
   const [isSaving, setSaving] = useState(false);
   const [audioCurrentTime, setAudioCurrentTime] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
@@ -164,10 +261,61 @@ const TranscriptionDetail = () => {
     }
   }, [currentUser?.uid, transcription, navigate]); // Added dependencies
 
-  const handleCopy = useCallback(() => { // Wrapped in useCallback
-    navigator.clipboard.writeText(editableText);
-    alert('Transcription copied to clipboard!');
-  }, [editableText]); // Added dependency
+  const copyWithMode = useCallback((mode) => {
+    const payload = applyCopyMode(editableText, mode);
+    const done = () => {
+      setJustCopied(true);
+      setCopyMenuOpen(false);
+      window.setTimeout(() => setJustCopied(false), 1600);
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(payload).then(done).catch(() => {
+        window.prompt('Copy the transcript below:', payload);
+      });
+    } else {
+      // Older browsers
+      const helper = document.createElement('textarea');
+      helper.value = payload;
+      helper.setAttribute('readonly', '');
+      helper.style.position = 'absolute';
+      helper.style.left = '-9999px';
+      document.body.appendChild(helper);
+      helper.select();
+      try { document.execCommand('copy'); done(); } catch (e) { /* ignore */ }
+      document.body.removeChild(helper);
+    }
+  }, [editableText]);
+
+  const handleCopy = useCallback(() => copyWithMode(copyMode), [copyWithMode, copyMode]);
+
+  const chooseCopyMode = useCallback((mode) => {
+    setCopyMode(mode);
+    try {
+      if (rememberCopyMode) localStorage.setItem(COPY_MODE_KEY, mode);
+    } catch (e) { /* storage unavailable, not fatal */ }
+    copyWithMode(mode);
+  }, [copyWithMode, rememberCopyMode]);
+
+  const toggleRemember = useCallback((next) => {
+    setRememberCopyMode(next);
+    try {
+      localStorage.setItem(COPY_REMEMBER_KEY, next ? 'true' : 'false');
+      if (next) localStorage.setItem(COPY_MODE_KEY, copyMode);
+    } catch (e) { /* storage unavailable, not fatal */ }
+  }, [copyMode]);
+
+  // Ctrl+Shift+C copies using the last-used mode
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
+        e.preventDefault();
+        handleCopy();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [handleCopy]);
 
   const handleDownload = useCallback((format) => { // Wrapped in useCallback
     const blob = new Blob([editableText], { 
@@ -807,63 +955,100 @@ const TranscriptionDetail = () => {
             paddingTop: '24px', 
             borderTop: '1px solid #e5e7eb'
           }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
-              <button
-                onClick={handleCopy}
-                style={{
-                  background: '#10b981',
-                  color: 'white',
-                  padding: '12px 24px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontWeight: '500'
-                }}
-              >
-                <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                <span>Copy to Clipboard</span>
-              </button>
-              
-              <button
-                onClick={() => handleDownload('txt')}
-                style={{
-                  background: '#6b7280',
-                  color: 'white',
-                  padding: '12px 24px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontWeight: '500'
-                }}
-              >
-                <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                <span>Download as TXT</span>
-              </button>
-              
-              <button
-                onClick={() => handleDownload('word')}
-                style={{
-                  background: '#3b82f6',
-                  color: 'white',
-                  padding: '12px 24px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontWeight: '500'
-                }}
-              >
-                <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                <span>Download as DOC</span>
-              </button>
+            <div className="tm-actions">
+
+              {/* Copy: split button. Body copies straight away using the
+                  last-used mode; the caret opens the three modes. */}
+              <div className="tm-split" onMouseLeave={() => setCopyMenuOpen(false)}>
+                <button
+                  className="tm-split-main"
+                  onClick={handleCopy}
+                  title="Copy the transcript (Ctrl+Shift+C)"
+                >
+                  {justCopied ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
+                  )}
+                  {justCopied ? 'Copied' : 'Copy'}
+                </button>
+
+                <button
+                  className="tm-split-caret"
+                  onClick={() => setCopyMenuOpen((o) => !o)}
+                  aria-label="Choose what to copy"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 9l7 7 7-7"/></svg>
+                </button>
+
+                {copyMenuOpen && (
+                  <div className="tm-split-menu">
+                    {COPY_MODES.map((m) => (
+                      <button
+                        key={m.id}
+                        className={"tm-split-item" + (copyMode === m.id ? " tm-split-item-on" : "")}
+                        onClick={() => chooseCopyMode(m.id)}
+                      >
+                        <span className="tm-split-tick">
+                          {copyMode === m.id ? (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                          ) : null}
+                        </span>
+                        <span>
+                          <span className="tm-split-label">{m.label}</span>
+                          <span className="tm-split-hint">{m.hint}</span>
+                        </span>
+                      </button>
+                    ))}
+
+                    <label className="tm-split-remember">
+                      <input
+                        type="checkbox"
+                        checked={rememberCopyMode}
+                        onChange={(e) => toggleRemember(e.target.checked)}
+                      />
+                      Remember my choice
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* Export */}
+              <div className="tm-split" onMouseLeave={() => setExportMenuOpen(false)}>
+                <button
+                  className="tm-export-btn"
+                  onClick={() => setExportMenuOpen((o) => !o)}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                  Export
+                  <svg className="tm-export-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 9l7 7 7-7"/></svg>
+                </button>
+
+                {exportMenuOpen && (
+                  <div className="tm-split-menu">
+                    <button
+                      className="tm-split-item"
+                      onClick={() => { setExportMenuOpen(false); handleDownload('word'); }}
+                    >
+                      <span className="tm-split-tick" />
+                      <span>
+                        <span className="tm-split-label">Word document</span>
+                        <span className="tm-split-hint">Keeps speaker tags and layout</span>
+                      </span>
+                    </button>
+                    <button
+                      className="tm-split-item"
+                      onClick={() => { setExportMenuOpen(false); handleDownload('txt'); }}
+                    >
+                      <span className="tm-split-tick" />
+                      <span>
+                        <span className="tm-split-label">Plain text</span>
+                        <span className="tm-split-hint">.txt file</span>
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
