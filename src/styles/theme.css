@@ -396,3 +396,50 @@ body {
   padding: 4px 11px;
   background: var(--tm-surface);
 }
+
+/* ------------------------------------------------------------------
+   Overrides for the legacy public/menu.css
+
+   menu.css was written for the old purple gradient background, so it
+   sets the menu text to white. On the new white canvas that made the
+   whole top menu invisible. These rules pull it back to the new
+   neutral styling. Scoped under .tm-menu so nothing else is affected.
+   ------------------------------------------------------------------ */
+
+.tm-menu .menu-item {
+  background-color: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.tm-menu .menu-item:hover {
+  background-color: var(--tm-surface);
+  box-shadow: none;
+  transform: none;
+}
+
+.tm-menu .menu-text,
+.tm-menu .submenu-text {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.tm-menu .dropdown-arrow {
+  color: inherit;
+  margin-left: 0;
+}
+
+.tm-menu .submenu {
+  background-color: var(--tm-white);
+}
+
+.tm-menu .submenu-item {
+  background-color: transparent;
+  color: var(--tm-body);
+}
+
+.tm-menu .submenu-item:hover {
+  background-color: var(--tm-surface);
+  color: var(--tm-ink);
+}
