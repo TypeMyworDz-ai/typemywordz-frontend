@@ -1,1107 +1,138 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { updateTranscription, deleteTranscription } from '../userService';
+import { updateTranscription, deleteTranscription, fetchUserTranscriptions } from '../userService';
+import TranscriptEditor from './TranscriptEditor';
 
-// ------------------------------------------------------------------
-// Copy modes
+// ---------------------------------------------------------------------------
+// One saved transcript, opened from My files.
 //
-// The backend hands us plain text that may contain speaker tags and
-// timestamps. These transforms are deliberately forgiving: if a
-// pattern isn't present, the text is returned unchanged rather than
-// mangled. Worst case the user gets their transcript exactly as it
-// was, which is what the old single Copy button always did.
-// ------------------------------------------------------------------
+// This page used to carry its own audio player, its own copy menu and its own
+// export code, all slightly different from the versions on the transcribe
+// screen. All of that now lives in TranscriptEditor, so there is exactly one
+// way a transcript behaves anywhere in the app. What is left here is what
+// genuinely belongs to the page: finding the transcript, saving a correction,
+// deleting it, and getting back to the list.
+// ---------------------------------------------------------------------------
 
-const COPY_MODES = [
-  { id: 'full',  label: 'With speakers and timestamps', hint: 'Exactly as it appears above' },
-  { id: 'clean', label: 'Clean text, keep paragraphs',  hint: 'No speaker tags or timestamps' },
-  { id: 'block', label: 'As one block',                 hint: 'One continuous paragraph' },
-];
-
-// "Speaker 1:", "Speaker A:", "SPEAKER 02:", "[Speaker 1] -", "<Speaker B>:"
-const SPEAKER_TAG = /^[[<(]?\s*speaker\s*[-_ ]?\w+\s*[\]>)]?\s*[:\-–—]\s*/i;
-
-// A bracketed clock: "[00:01:23]", "(1:02)", "[00:01:23.456]".
-// Safe to remove anywhere, because brackets mark it as machine output.
-const BRACKETED_TIME = /[[(]\s*\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d{1,3})?\s*[\])]/g;
-
-// A subtitle range on its own line: "00:00:01,000 --> 00:00:04,000".
-const SRT_RANGE = /^\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d{1,3})?\s*-->\s*\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d{1,3})?$/;
-
-// A bare clock at the very START of a line: "00:12 Right, let's begin."
-// Only ever stripped from the line start.
-const LEADING_TIME = /^\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d{1,3})?\s+/;
-
-// IMPORTANT: times that appear inside a sentence ("we met at 9:30") are
-// left completely alone. For legal and medical work those are evidence,
-// not formatting. Only bracketed clocks, subtitle ranges and clocks at
-// the start of a line are treated as machine timestamps.
-//
-// Order matters too: a timestamp usually sits BEFORE the speaker tag,
-// so it has to come off first or the tag no longer starts the line.
-// The transcript is stored as HTML, because the backend marks speaker
-// labels up as <strong>Speaker 1:</strong>. Turn it back into plain text
-// before anything else looks at it: <br> and </p> become line breaks, all
-// other tags are dropped, and the handful of entities that actually turn
-// up are decoded. Without this the copy modes would hand the client raw
-// markup, and the speaker tag pattern would never match.
-const htmlToText = (html) => String(html || '')
-  .replace(/\r\n?/g, '\n')
-  .replace(/<\s*br\s*\/?\s*>/gi, '\n')
-  .replace(/<\s*\/\s*(p|div|li|h[1-6])\s*>/gi, '\n')
-  .replace(/<[^>]*>/g, '')
-  .replace(/&nbsp;/gi, ' ')
-  .replace(/&lt;/gi, '<')
-  .replace(/&gt;/gi, '>')
-  .replace(/&quot;/gi, '"')
-  .replace(/&#0?39;|&apos;/gi, "'")
-  .replace(/&amp;/gi, '&');
-
-const stripTags = (text) => {
-  const lines = htmlToText(text)
-    .replace(BRACKETED_TIME, '')
-    .split('\n')
-    .map((line) => {
-      let out = line.trim();
-      if (SRT_RANGE.test(out)) return '';
-      out = out.replace(LEADING_TIME, '');
-      out = out.replace(SPEAKER_TAG, '');
-      return out.replace(/[ \t]{2,}/g, ' ').trim();
-    });
-
-  // Collapse runs of blank lines to a single blank line so real
-  // paragraph breaks survive but gaps left by removals do not.
-  const kept = [];
-  for (const line of lines) {
-    if (line === '' && kept[kept.length - 1] === '') continue;
-    kept.push(line);
-  }
-  return kept.join('\n').trim();
-};
-
-const applyCopyMode = (text, mode) => {
-  const source = String(text || '');
-  if (mode === 'clean') return stripTags(source);
-  if (mode === 'full') {
-    // "Exactly as it appears above" means what is on the screen, with the
-    // speaker names kept - not the HTML used to make them bold.
-    return htmlToText(source)
-      .split('\n')
-      .map((l) => l.replace(/[ \t]{2,}/g, ' ').trimEnd())
-      .join('\n')
-      .trim();
-  }
-  if (mode === 'block') {
-    // No separator between speaker turns - the client asked for one
-    // truly continuous paragraph. Anyone who wants the tags exports
-    // to Word instead.
-    return stripTags(source).replace(/\s*\n+\s*/g, ' ').replace(/[ \t]{2,}/g, ' ').trim();
-  }
-  return htmlToText(source).trim();
-};
-
-const COPY_MODE_KEY = 'tmwd.copyMode';
-const COPY_REMEMBER_KEY = 'tmwd.copyRemember';
-
-const readStoredMode = () => {
+const toDate = (value) => {
+  if (!value) return null;
   try {
-    if (localStorage.getItem(COPY_REMEMBER_KEY) === 'false') return 'full';
-    const stored = localStorage.getItem(COPY_MODE_KEY);
-    return COPY_MODES.some((m) => m.id === stored) ? stored : 'full';
-  } catch (e) {
-    return 'full';
+    if (typeof value.toDate === 'function') return value.toDate();
+    if (value instanceof Date) return value;
+    if (typeof value === 'object' && typeof value.seconds === 'number') {
+      return new Date(value.seconds * 1000);
+    }
+    const parsed = new Date(value);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  } catch (error) {
+    return null;
   }
 };
 
-const readStoredRemember = () => {
-  try {
-    return localStorage.getItem(COPY_REMEMBER_KEY) !== 'false';
-  } catch (e) {
-    return true;
-  }
+const formatDate = (value) => {
+  const date = toDate(value);
+  if (!date) return null;
+  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
 const TranscriptionDetail = () => {
-  // eslint-disable-next-line no-unused-vars
-  const { id } = useParams(); // 'id' is assigned a value but never used
+  const { id } = useParams();
   const { state } = useLocation();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const audioRef = useRef(null);
-  const fileInputRef = useRef(null); // Ref for hidden file input
 
-  // FIX: Initialize with 'transcriptionText' first, fallback to 'text'
   const [transcription, setTranscription] = useState(state?.transcription || null);
-  const [editableText, setEditableText] = useState(transcription?.transcriptionText || transcription?.text || '');
-  const [isEditing, setIsEditing] = useState(false);
-  const [copyMode, setCopyMode] = useState(readStoredMode);
-  const [rememberCopyMode, setRememberCopyMode] = useState(readStoredRemember);
-  const [copyMenuOpen, setCopyMenuOpen] = useState(false);
-  const [exportMenuOpen, setExportMenuOpen] = useState(false);
-  const [justCopied, setJustCopied] = useState(false);
-  const [isSaving, setSaving] = useState(false);
-  const [audioCurrentTime, setAudioCurrentTime] = useState(0);
-  const [audioDuration, setAudioDuration] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(1);
-  const [volume, setVolume] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const [audioError, setAudioError] = useState(false);
-  const [localAudioFile, setLocalAudioFile] = useState(null); // State for locally uploaded audio
-  const [localAudioUrl, setLocalAudioUrl] = useState(null);   // URL for local audio
-  // FIX: Initialize sourceAudioUrl using the correct field name from the incoming transcription object
-  const [sourceAudioUrl, setSourceAudioUrl] = useState(transcription?.audioUrl || null);
+  const [loading, setLoading] = useState(!state?.transcription);
+  const [notFound, setNotFound] = useState(false);
 
-  // Helper function to safely convert date (No change)
-  const convertToDate = (dateValue) => {
-    if (!dateValue) return null;
-    try {
-      if (dateValue.toDate && typeof dateValue.toDate === 'function') {
-        return dateValue.toDate();
+  // Arriving straight at the address, or after a refresh, there is no
+  // navigation state to read. Look the transcript up instead of showing a
+  // dead end.
+  useEffect(() => {
+    if (transcription || !currentUser?.uid || !id) {
+      if (!transcription && !currentUser?.uid) setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const all = await fetchUserTranscriptions(currentUser.uid);
+        const found = (all || []).find((t) => t.id === id);
+        if (cancelled) return;
+        if (found) { setTranscription(found); } else { setNotFound(true); }
+      } catch (error) {
+        console.error('Could not load the transcript:', error);
+        if (!cancelled) setNotFound(true);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      if (dateValue.seconds) {
-        return new Date(dateValue.seconds * 1000);
-      }
-      return new Date(dateValue);
-    } catch (error) {
-      console.error('Date conversion error:', error);
-      return null;
-    }
-  };
+    })();
+    return () => { cancelled = true; };
+  }, [transcription, currentUser?.uid, id]);
 
-  const formatDate = (date) => {
-    if (!date) return 'Unknown date';
-    try {
-      return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString();
-    } catch (error) {
-      return 'Unknown date';
-    }
-  };
+  const handleSave = useCallback(async (html) => {
+    if (!currentUser?.uid || !transcription?.id) return;
+    await updateTranscription(currentUser.uid, transcription.id, { transcriptionText: html });
+  }, [currentUser?.uid, transcription?.id]);
 
-  useEffect(() => {
-    if (transcription) {
-      // FIX: Use 'transcriptionText' for editableText, fallback to 'text'
-      setEditableText(transcription.transcriptionText || transcription.text || '');
-      // FIX: Ensure sourceAudioUrl is set on transcription load from the correct field
-      setSourceAudioUrl(transcription.audioUrl || null);
-    }
-  }, [transcription]);
-
-  // NEW: Effect to update local audio URL when localAudioFile changes
-  useEffect(() => {
-    if (localAudioFile) {
-      const url = URL.createObjectURL(localAudioFile);
-      setLocalAudioUrl(url);
-      setSourceAudioUrl(url); // Use local audio as primary source
-      // Clean up previous URL object when component unmounts or file changes
-      return () => URL.revokeObjectURL(url);
-    } else {
-      setLocalAudioUrl(null);
-      // FIX: Fallback to original audioUrl from transcription object
-      setSourceAudioUrl(transcription?.audioUrl || null);
-    }
-  }, [localAudioFile, transcription]);
-
-  // UPDATED: useEffect for audio event listeners
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (audio) {
-      // Set initial volume
-      audio.volume = volume;
-
-      const updateTime = () => setAudioCurrentTime(audio.currentTime);
-      const updateDuration = () => {
-        if (!isNaN(audio.duration)) {
-          setAudioDuration(audio.duration);
-        }
-      };
-      const handlePlay = () => setIsPlaying(true);
-      const handlePause = () => setIsPlaying(false);
-      const handleLoadStart = () => setIsLoading(true);
-      const handleCanPlay = () => {
-        setIsLoading(false);
-        setAudioError(false);
-      };
-      const handleError = (e) => {
-        setIsLoading(false);
-        setAudioError(true);
-        console.error('Audio loading error:', e);
-      };
-
-      audio.addEventListener('timeupdate', updateTime);
-      audio.addEventListener('loadedmetadata', updateDuration);
-      audio.addEventListener('play', handlePlay);
-      audio.addEventListener('pause', handlePause);
-      audio.addEventListener('ended', handlePause);
-      audio.addEventListener('loadstart', handleLoadStart);
-      audio.addEventListener('canplay', handleCanPlay);
-      audio.addEventListener('error', handleError);
-
-      return () => {
-        audio.removeEventListener('timeupdate', updateTime);
-        audio.removeEventListener('loadedmetadata', updateDuration);
-        audio.removeEventListener('play', handlePlay);
-        audio.removeEventListener('pause', handlePause);
-        audio.removeEventListener('ended', handlePause);
-        audio.removeEventListener('loadstart', handleLoadStart);
-        audio.removeEventListener('canplay', handleCanPlay);
-        audio.removeEventListener('error', handleError);
-      };
-    }
-  }, [sourceAudioUrl, volume]); // Rerun effect if sourceAudioUrl or volume changes
-
-  const handleSave = useCallback(async () => { // Wrapped in useCallback
-    if (!currentUser?.uid || !transcription) return;
-    
-    setSaving(true);
-    try {
-      // FIX: Update 'transcriptionText' field, not 'text'
-      await updateTranscription(currentUser.uid, transcription.id, { transcriptionText: editableText });
-      // FIX: Update local state with 'transcriptionText'
-      setTranscription({ ...transcription, transcriptionText: editableText });
-      setIsEditing(false);
-      alert('Transcription saved successfully!');
-    } catch (error) {
-      console.error('Error saving transcription:', error);
-      alert('Failed to save transcription. Please try again.');
-    } finally {
-      setSaving(false);
-    }
-  }, [currentUser?.uid, transcription, editableText]); // Added dependencies
-
-  const handleCancelEdit = useCallback(() => { // Wrapped in useCallback
-    setIsEditing(false);
-    // FIX: Use 'transcriptionText' for editableText, fallback to 'text'
-    setEditableText(transcription?.transcriptionText || transcription?.text || '');
-  }, [transcription]); // Added dependency
-
-  const handleDelete = useCallback(async () => { // Wrapped in useCallback
-    if (!window.confirm('Are you sure you want to delete this transcription?')) return;
-    
+  const handleDelete = useCallback(async () => {
+    if (!window.confirm('Delete this transcript? This cannot be undone.')) return;
     try {
       await deleteTranscription(currentUser.uid, transcription.id);
       navigate('/dashboard');
     } catch (error) {
       console.error('Error deleting transcription:', error);
-      alert('Failed to delete transcription. Please try again.');
+      window.alert('We could not delete it just now. Please try again.');
     }
-  }, [currentUser?.uid, transcription, navigate]); // Added dependencies
+  }, [currentUser?.uid, transcription, navigate]);
 
-  const copyWithMode = useCallback((mode) => {
-    const payload = applyCopyMode(editableText, mode);
-    const done = () => {
-      setJustCopied(true);
-      setCopyMenuOpen(false);
-      window.setTimeout(() => setJustCopied(false), 1600);
-    };
-
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(payload).then(done).catch(() => {
-        window.prompt('Copy the transcript below:', payload);
-      });
-    } else {
-      // Older browsers
-      const helper = document.createElement('textarea');
-      helper.value = payload;
-      helper.setAttribute('readonly', '');
-      helper.style.position = 'absolute';
-      helper.style.left = '-9999px';
-      document.body.appendChild(helper);
-      helper.select();
-      try { document.execCommand('copy'); done(); } catch (e) { /* ignore */ }
-      document.body.removeChild(helper);
-    }
-  }, [editableText]);
-
-  const handleCopy = useCallback(() => copyWithMode(copyMode), [copyWithMode, copyMode]);
-
-  const chooseCopyMode = useCallback((mode) => {
-    setCopyMode(mode);
-    try {
-      if (rememberCopyMode) localStorage.setItem(COPY_MODE_KEY, mode);
-    } catch (e) { /* storage unavailable, not fatal */ }
-    copyWithMode(mode);
-  }, [copyWithMode, rememberCopyMode]);
-
-  const toggleRemember = useCallback((next) => {
-    setRememberCopyMode(next);
-    try {
-      localStorage.setItem(COPY_REMEMBER_KEY, next ? 'true' : 'false');
-      if (next) localStorage.setItem(COPY_MODE_KEY, copyMode);
-    } catch (e) { /* storage unavailable, not fatal */ }
-  }, [copyMode]);
-
-  // Ctrl+Shift+C copies using the last-used mode
-  useEffect(() => {
-    const onKey = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
-        e.preventDefault();
-        handleCopy();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [handleCopy]);
-
-  const handleDownload = useCallback((format) => { // Wrapped in useCallback
-    const blob = new Blob([editableText], { 
-      type: format === 'word' ? 'application/msword' : 'text/plain' 
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${transcription.fileName?.split('.')[0] || 'transcription'}.${format === 'word' ? 'doc' : 'txt'}`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [editableText, transcription]); // Added dependencies
-
-  const togglePlayPause = useCallback(() => { // Wrapped in useCallback
-    const audio = audioRef.current;
-    if (audio && !audioError) {
-      if (isPlaying) {
-        audio.pause();
-      } else {
-        audio.play().catch(console.error);
-      }
-    }
-  }, [isPlaying, audioError]); // Dependencies for useCallback
-
-  const handleSeek = (e) => { // No change
-    const audio = audioRef.current;
-    if (audio && audioDuration && !audioError) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const percent = (e.clientX - rect.left) / rect.width;
-      audio.currentTime = percent * audioDuration;
-    }
-  };
-
-  const skipTime = useCallback((seconds) => { // Wrapped in useCallback
-    const audio = audioRef.current;
-    if (audio && !audioError && !isNaN(audioDuration)) { // Check audioDuration for valid number
-      audio.currentTime = Math.max(0, Math.min(audio.currentTime + seconds, audioDuration));
-    }
-  }, [audioError, audioDuration]); // Dependencies for useCallback
-
-  const changePlaybackRate = useCallback((rate) => { // Wrapped in useCallback
-    const audio = audioRef.current;
-    if (audio && !audioError) {
-      audio.playbackRate = rate;
-      setPlaybackRate(rate);
-    }
-  }, [audioError]); // Dependencies for useCallback
-
-  const changeVolume = useCallback((newVolume) => { // Wrapped in useCallback
-    const audio = audioRef.current;
-    if (audio) {
-      audio.volume = newVolume;
-      setVolume(newVolume);
-    }
-  }, []); // Dependencies for useCallback
-
-  const formatTime = (seconds) => { // No change
-    if (isNaN(seconds) || seconds === 0) return '0:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // UPDATED: Keyboard Shortcuts Effect - REMOVED FOCUS CHECK
-  useEffect(() => {
-    const handleKeyDown = (event) => {
-      // Removed: if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) { return; }
-      // The Ctrl/Cmd key acts as a sufficient modifier to prevent conflicts with regular typing.
-
-      if (event.ctrlKey || event.metaKey) { // Ctrl for Windows/Linux, Cmd for Mac
-        switch (event.code) {
-          case 'Space':
-            event.preventDefault(); // Prevent page scroll
-            togglePlayPause();
-            break;
-          case 'ArrowLeft':
-            event.preventDefault();
-            skipTime(-2); // Skip back 2 seconds
-            break;
-          case 'ArrowRight':
-            event.preventDefault();
-            skipTime(5); // Skip forward 5 seconds
-            break;
-          default:
-            break;
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [togglePlayPause, skipTime]); // Dependencies for useCallback functions
-
-  // NEW: Handler for local audio file selection
-  const handleLocalAudioFileSelect = useCallback((event) => { // Wrapped in useCallback
-    const file = event.target.files[0];
-    if (file && file.type.startsWith('audio/')) {
-      setLocalAudioFile(file);
-      setAudioError(false); // Clear previous audio error
-      setIsPlaying(false); // Pause if anything was playing
-      setAudioCurrentTime(0); // Reset time
-      setAudioDuration(0); // Reset duration until new metadata loads
-      console.log('DEBUG: Local audio file selected:', file.name);
-    } else {
-      setLocalAudioFile(null);
-      setLocalAudioUrl(null);
-      // FIX: Fallback to original audioUrl from transcription object
-      setSourceAudioUrl(transcription?.audioUrl || null);
-      setAudioError(true);
-      console.warn('WARNING: Invalid file type selected for local audio.');
-    }
-  }, [transcription]); // Dependency for useCallback
-
-  // NEW: Trigger file input click
-  const triggerFileInput = useCallback(() => { // Wrapped in useCallback
-    fileInputRef.current.click();
-  }, []);
-  // Inline styles to override any CSS conflicts
-  const containerStyle = {
-    minHeight: '100vh',
-    background: '#ffffff',
-    padding: '24px 20px 40px',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif'
-  };
-
-  const headerStyle = {
-    background: 'white',
-    borderRadius: '12px',
-    border: '1px solid #e5e6ea',
-    boxShadow: 'none',
-    padding: '24px',
-    marginBottom: '24px',
-    maxWidth: '1200px',
-    margin: '0 auto 24px auto'
-  };
-
-  const mainContentStyle = {
-    maxWidth: '1200px',
-    margin: '0 auto',
-    display: 'grid',
-    gridTemplateColumns: '350px 1fr',
-    gap: '24px',
-    alignItems: 'start'
-  };
-
-  const audioPlayerStyle = {
-    background: 'white',
-    borderRadius: '12px',
-    border: '1px solid #e5e6ea',
-    boxShadow: 'none',
-    padding: '20px',
-    position: 'sticky',
-    top: '20px'
-  };
-
-  const textEditorContainerStyle = { 
-    background: 'white',
-    borderRadius: '12px',
-    border: '1px solid #e5e6ea',
-    boxShadow: 'none',
-    padding: '24px'
-  };
-  if (!transcription) {
+  if (loading) {
     return (
-      <div style={containerStyle}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: '50vh'
-        }}>
-          <div style={{
-            textAlign: 'center',
-            padding: '32px',
-            background: 'white',
-            borderRadius: '12px',
-            border: '1px solid #e5e6ea',
-            boxShadow: 'none'
-          }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
-              Transcription Not Found
-            </h2>
-            <button 
-              onClick={() => navigate('/dashboard')}
-              style={{
-                background: '#28a745',
-                color: 'white',
-                padding: '11px 20px',
-                borderRadius: '7px',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '16px'
-              }}
-            >
-              Back to History/Editor {/* UPDATED TEXT */}
-            </button>
-          </div>
+      <div className="tm-detail">
+        <p className="tm-detail-msg">Opening your transcript…</p>
+      </div>
+    );
+  }
+
+  if (!transcription || notFound) {
+    return (
+      <div className="tm-detail">
+        <div className="tm-detail-msg">
+          <h2>We could not find that transcript</h2>
+          <p>It may have expired, or been deleted.</p>
+          <button type="button" className="tm-newbtn" onClick={() => navigate('/dashboard')}>
+            Back to my files
+          </button>
         </div>
       </div>
     );
   }
 
-  const createdDate = convertToDate(transcription.createdAt);
+  const text = transcription.transcriptionText || transcription.text || '';
+  const created = formatDate(transcription.createdAt);
+  const expires = formatDate(transcription.expiresAt);
+
   return (
-    <div style={containerStyle}>
-      {/* Header */}
-      <div style={headerStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-          <button
-            onClick={() => navigate('/dashboard')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              color: '#218838',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '16px'
-            }}
-          >
-            <svg style={{ width: '20px', height: '20px', marginRight: '8px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-            Back to History/Editor {/* UPDATED TEXT */}
-          </button>
-          <button
-            onClick={handleDelete}
-            style={{
-              background: '#ef4444',
-              color: 'white',
-              padding: '8px 16px',
-              borderRadius: '8px',
-              border: 'none',
-              cursor: 'pointer'
-            }}
-          >
-            Delete
-          </button>
-        </div>
-        <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>
-          {transcription.fileName || 'Untitled'}
-        </h1>
-        <p style={{ color: '#6b7280' }}>
-          Transcribed on {formatDate(createdDate)}
-        </p>
+    <div className="tm-detail">
+      <TranscriptEditor
+        fileName={transcription.fileName || 'Transcript'}
+        rawText={text}
+        segments={Array.isArray(transcription.segments) ? transcription.segments : null}
+        durationSeconds={Number(transcription.duration) || 0}
+        audioUrl={transcription.audioUrl || null}
+        createdAt={created}
+        onSave={handleSave}
+        showBack
+        onBack={() => navigate('/dashboard')}
+      />
+
+      <div className="tm-detail-foot">
+        {expires && <span>Available until {expires}</span>}
+        <button type="button" className="tm-detail-del" onClick={handleDelete}>
+          Delete this transcript
+        </button>
       </div>
-
-      {/* Main Content */}
-      <div style={mainContentStyle}>
-        {/* Audio Player */}
-        <div style={audioPlayerStyle}>
-          <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
-            Audio Player
-          </h2>
-          
-          {/* UPDATED: Dynamic audio source */} {/* MOVED COMMENT HERE */}
-          <audio
-            ref={audioRef}
-            src={localAudioUrl || sourceAudioUrl}
-            preload="metadata"
-            crossOrigin="anonymous"
-          />
-          
-          {/* NEW: Hidden file input for local audio */}
-          <input
-            type="file"
-            accept="audio/*"
-            ref={fileInputRef}
-            onChange={handleLocalAudioFileSelect}
-            style={{ display: 'none' }}
-          />
-
-          {(audioError || !sourceAudioUrl) ? ( 
-            <div style={{ textAlign: 'center', padding: '24px' }}>
-              <div style={{
-                width: '64px',
-                height: '64px',
-                margin: '0 auto 12px',
-                background: '#fee2e2',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <svg style={{ width: '32px', height: '32px', color: '#ef4444' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              </div>
-              <p style={{ fontSize: '14px', color: '#ef4444', fontWeight: '500' }}>
-                {localAudioFile ? 'Error loading local audio' : 'Audio file not found'}
-              </p>
-              <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                {localAudioFile ? 'Check file format' : 'Original audio may have expired'}
-              </p>
-              {/* NEW: Upload Local Audio button when audio not found */}
-              <button 
-                onClick={triggerFileInput}
-                style={{
-                  background: '#3b82f6',
-                  color: 'white',
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  marginTop: '16px'
-                }}
-              >
-                Upload Local Audio
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* NEW: Currently playing from indicator */}
-              {localAudioFile && (
-                <p style={{ fontSize: '12px', color: '#10b981', fontWeight: '500', textAlign: 'center', marginBottom: '-8px' }}>
-                  Playing from: {localAudioFile.name}
-                </p>
-              )}
-              {/* Progress Bar */}
-              <div>
-                <div 
-                  onClick={handleSeek}
-                  style={{
-                    background: '#e5e7eb',
-                    borderRadius: '9999px',
-                    height: '8px',
-                    cursor: 'pointer',
-                    position: 'relative',
-                    marginBottom: '8px'
-                  }}
-                >
-                  <div 
-                    style={{
-                      background: '#28a745',
-                      height: '8px',
-                      borderRadius: '9999px',
-                      width: `${audioDuration > 0 ? (audioCurrentTime / audioDuration) * 100 : 0}%`,
-                      transition: 'width 0.2s'
-                    }}
-                  />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#6b7280' }}>
-                  <span>{formatTime(audioCurrentTime)}</span>
-                  <span>{formatTime(audioDuration)}</span>
-                </div>
-              </div>
-
-              {/* Play Controls */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-                <button
-                  onClick={() => skipTime(-10)}
-                  disabled={audioError}
-                  style={{
-                    padding: '8px',
-                    background: '#f3f4f6',
-                    borderRadius: '50%',
-                    border: 'none',
-                    cursor: 'pointer',
-                    opacity: audioError ? 0.5 : 1
-                  }}
-                  title="Rewind 10s"
-                >
-                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.334 4z" /></svg>
-                </button>
-                
-                <button
-                  onClick={togglePlayPause}
-                  disabled={isLoading || audioError}
-                  style={{
-                    padding: '12px',
-                    background: '#28a745',
-                    color: 'white',
-                    borderRadius: '50%',
-                    border: 'none',
-                    cursor: 'pointer',
-                    opacity: (isLoading || audioError) ? 0.5 : 1
-                  }}
-                >
-                  {isLoading ? (
-                    <div style={{
-                      width: '20px',
-                      height: '20px',
-                      border: '2px solid white',
-                      borderTop: '2px solid transparent',
-                      borderRadius: '50%',
-                      animation: 'spin 1s linear infinite'
-                    }} />
-                  ) : isPlaying ? (
-                    <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" /></svg>
-                  ) : (
-                    <svg style={{ width: '20px', height: '20px' }} fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                  )}
-                </button>
-                
-                <button
-                  onClick={() => skipTime(10)}
-                  disabled={audioError}
-                  style={{
-                    padding: '8px',
-                    background: '#f3f4f6',
-                    borderRadius: '50%',
-                    border: 'none',
-                    cursor: 'pointer',
-                    opacity: audioError ? 0.5 : 1
-                  }}
-                  title="Forward 10s"
-                >
-                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4z" /></svg>
-                </button>
-              </div>
-
-              {/* Speed Control */}
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: '500', color: '#374151', display: 'block', marginBottom: '8px' }}>
-                  Speed
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4px' }}>
-                  {[0.75, 1, 1.25, 1.5, 1.75, 2].map((speed) => (
-                    <button
-                      key={speed}
-                      onClick={() => changePlaybackRate(speed)}
-                      disabled={audioError}
-                      style={{
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        border: 'none',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        background: playbackRate === speed ? '#28a745' : '#f3f4f6',
-                        color: playbackRate === speed ? 'white' : '#374151',
-                        opacity: audioError ? 0.5 : 1
-                      }}
-                    >
-                      {speed}x
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Volume Control */}
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: '500', color: '#374151', display: 'block', marginBottom: '8px' }}>
-                  Volume
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <svg style={{ width: '12px', height: '12px', color: '#9ca3af' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M9 12a1 1 0 01-.707-.293L6.586 10H4a1 1 0 01-1-1V8a1 1 0 011-1h2.586l1.707-1.707A1 1 0 019 6v6z" /></svg>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={volume}
-                    onChange={(e) => changeVolume(parseFloat(e.target.value))}
-                    disabled={audioError}
-                    style={{
-                      flex: 1,
-                      height: '4px',
-                      background: '#e5e7eb',
-                      borderRadius: '2px',
-                      outline: 'none',
-                      opacity: audioError ? 0.5 : 1,
-                      cursor: 'pointer'
-                    }}
-                  />
-                  <span style={{ fontSize: '12px', color: '#6b7280', width: '32px' }}>
-                    {Math.round(volume * 100)}%
-                  </span>
-                </div>
-              </div>
-              {/* NEW: Upload Local Audio Button */}
-              <button 
-                onClick={triggerFileInput}
-                style={{
-                  background: '#3b82f6',
-                  color: 'white',
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  marginTop: '8px'
-                }}
-              >
-                Upload Local Audio
-              </button>
-            </div>
-          )}
-        </div>
-        {/* Text Editor */}
-        <div style={textEditorContainerStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1f2937' }}>
-              Transcription
-            </h2>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              {isEditing ? (
-                <>
-                  <button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    style={{
-                      background: '#10b981',
-                      color: 'white',
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      opacity: isSaving ? 0.7 : 1
-                    }}
-                  >
-                    {isSaving ? 'Saving...' : 'Save Changes'}
-                  </button>
-                  <button
-                    onClick={handleCancelEdit}
-                    style={{
-                      background: '#6b7280',
-                      color: 'white',
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: '500'
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => setIsEditing(true)}
-                  style={{
-                    background: '#3b82f6',
-                    color: 'white',
-                    padding: '10px 20px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '14px',
-                    fontWeight: '500'
-                  }}
-                >
-                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                  <span>Edit</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Text Editor Area */}
-          {isEditing ? (
-            <textarea
-              value={editableText}
-              onChange={(e) => setEditableText(e.target.value)}
-              dir="ltr" // Added dir attribute
-              style={{
-                width: '100%',
-                minHeight: '400px',
-                padding: '20px',
-                border: '2px solid #d1d5db',
-                borderRadius: '8px',
-                fontSize: '16px',
-                lineHeight: '1.6',
-                fontFamily: 'system-ui, -apple-system, sans-serif',
-                outline: 'none',
-                backgroundColor: 'white',
-                overflowY: 'auto'
-              }}
-              placeholder="Start typing your transcription here..."
-            />
-          ) : (
-            <div 
-              dir="ltr" // Added dir attribute
-              style={{
-                background: '#f9fafb',
-                borderRadius: '8px',
-                padding: '20px',
-                minHeight: '400px',
-                border: '2px solid #e5e7eb',
-                boxSizing: 'border-box',
-                overflowY: 'auto'
-              }}>
-              {editableText ? (
-                <p 
-                  style={{
-                    color: '#1f2937',
-                    fontSize: '16px',
-                    lineHeight: '1.6',
-                    fontFamily: 'system-ui, -apple-system, sans-serif',
-                    margin: 0
-                  }}>
-                  {editableText}
-                </p>
-              ) : (
-                <div style={{
-                  height: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: '300px'
-                }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <svg style={{ 
-                      width: '64px', 
-                      height: '64px', 
-                      margin: '0 auto 16px', 
-                      color: '#d1d5db' 
-                    }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    <p style={{ color: '#6b7280', fontSize: '18px', marginBottom: '8px' }}>
-                      No transcription text available
-                    </p>
-                    <p style={{ color: '#9ca3af', fontSize: '14px' }}>
-                      Click "Edit" to add content
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {editableText && (
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              fontSize: '14px', 
-              color: '#6b7280',
-              marginTop: '12px',
-              marginBottom: '24px'
-            }}>
-              <span>{editableText.length} characters</span>
-              <span>Click Edit to modify</span>
-            </div>
-          )}
-
-          {/* Action Buttons */}
-          <div style={{ 
-            marginTop: '32px', 
-            paddingTop: '24px', 
-            borderTop: '1px solid #e5e7eb'
-          }}>
-            <div className="tm-actions">
-
-              {/* Copy: split button. Body copies straight away using the
-                  last-used mode; the caret opens the three modes. */}
-              <div className="tm-split" onMouseLeave={() => setCopyMenuOpen(false)}>
-                <button
-                  className="tm-split-main"
-                  onClick={handleCopy}
-                  title="Copy the transcript (Ctrl+Shift+C)"
-                >
-                  {justCopied ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
-                  )}
-                  {justCopied ? 'Copied' : 'Copy'}
-                </button>
-
-                <button
-                  className="tm-split-caret"
-                  onClick={() => setCopyMenuOpen((o) => !o)}
-                  aria-label="Choose what to copy"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 9l7 7 7-7"/></svg>
-                </button>
-
-                {copyMenuOpen && (
-                  <div className="tm-split-menu">
-                    {COPY_MODES.map((m) => (
-                      <button
-                        key={m.id}
-                        className={"tm-split-item" + (copyMode === m.id ? " tm-split-item-on" : "")}
-                        onClick={() => chooseCopyMode(m.id)}
-                      >
-                        <span className="tm-split-tick">
-                          {copyMode === m.id ? (
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-                          ) : null}
-                        </span>
-                        <span>
-                          <span className="tm-split-label">{m.label}</span>
-                          <span className="tm-split-hint">{m.hint}</span>
-                        </span>
-                      </button>
-                    ))}
-
-                    <label className="tm-split-remember">
-                      <input
-                        type="checkbox"
-                        checked={rememberCopyMode}
-                        onChange={(e) => toggleRemember(e.target.checked)}
-                      />
-                      Remember my choice
-                    </label>
-                  </div>
-                )}
-              </div>
-
-              {/* Export */}
-              <div className="tm-split" onMouseLeave={() => setExportMenuOpen(false)}>
-                <button
-                  className="tm-export-btn"
-                  onClick={() => setExportMenuOpen((o) => !o)}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-                  Export
-                  <svg className="tm-export-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 9l7 7 7-7"/></svg>
-                </button>
-
-                {exportMenuOpen && (
-                  <div className="tm-split-menu">
-                    <button
-                      className="tm-split-item"
-                      onClick={() => { setExportMenuOpen(false); handleDownload('word'); }}
-                    >
-                      <span className="tm-split-tick" />
-                      <span>
-                        <span className="tm-split-label">Word document</span>
-                        <span className="tm-split-hint">Keeps speaker tags and layout</span>
-                      </span>
-                    </button>
-                    <button
-                      className="tm-split-item"
-                      onClick={() => { setExportMenuOpen(false); handleDownload('txt'); }}
-                    >
-                      <span className="tm-split-tick" />
-                      <span>
-                        <span className="tm-split-label">Plain text</span>
-                        <span className="tm-split-hint">.txt file</span>
-                      </span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Global CSS override for contenteditable elements */}
-      <style>{`
-        [contenteditable="true"] {
-          direction: ltr !important;
-          text-align: left !important; /* Ensure text alignment is also left */
-        }
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        
-        @media (max-width: 1024px) {
-          .main-content-grid {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
     </div>
   );
 };
