@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { fetchUserTranscriptions, deleteTranscription, updateTranscription } from '../userService';
 import { useNavigate } from 'react-router-dom';
 
-const Dashboard = ({ setCurrentView }) => {
+const Dashboard = ({ setCurrentView, showNewButton = false }) => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [transcriptions, setTranscriptions] = useState([]);
@@ -216,8 +216,6 @@ const Dashboard = ({ setCurrentView }) => {
     );
   }
 
-  // Check if we're on standalone dashboard route (no setCurrentView prop)
-  const isStandaloneDashboard = !setCurrentView;
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#ffffff', position: 'relative' }}>
 
@@ -228,7 +226,7 @@ const Dashboard = ({ setCurrentView }) => {
             <h1 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#14161a', marginBottom: '0.35rem' }}>My files</h1>
             <p style={{ color: '#858a95', fontSize: '0.9rem', margin: 0 }}>Every transcription you have made.</p>
           </div>
-          {isStandaloneDashboard && (
+          {showNewButton && (
             <button type="button" className="tm-primary" onClick={handleTranscribeNewAudio}>
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
                    strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
