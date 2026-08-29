@@ -1858,3 +1858,51 @@ body {
   .tm-prog-step + .tm-prog-step::before { width: 14px; margin: 0 7px; }
   .tm-prog-step { font-size: 11.5px; }
 }
+
+/* ============================================================
+   Waiting on the AI
+   ------------------------------------------------------------
+   Unlike a transcription, there is no way to know how long a
+   model will take, so this stays indeterminate. It is honest
+   about that: a slim sliver that travels, rather than a thick
+   bar pretending to fill up.
+   ============================================================ */
+
+.tm-thinking {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 18px;
+  font-size: 13.5px;
+  color: var(--tm-purple);
+}
+
+.tm-thinking-track {
+  flex: 1 1 auto;
+  position: relative;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--tm-purple-soft);
+  overflow: hidden;
+}
+
+.tm-thinking-slide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 32%;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--tm-purple-light);
+  animation: tm-thinking-move 1.25s ease-in-out infinite;
+}
+
+@keyframes tm-thinking-move {
+  0%   { transform: translateX(-110%); }
+  100% { transform: translateX(420%); }
+}
+
+/* Movement is decoration here; the words carry the meaning. */
+@media (prefers-reduced-motion: reduce) {
+  .tm-thinking-slide { animation: none; width: 100%; opacity: 0.5; }
+}
