@@ -367,11 +367,11 @@ const TranscriptEditor = ({
 
   // Never let a correction disappear because a tab was closed.
   useEffect(() => {
-    if (!dirty) return undefined;
+    if (!dirty || !onSave) return undefined;
     const warn = (e) => { e.preventDefault(); e.returnValue = ''; return ''; };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
+  }, [dirty, onSave]);
 
   // ---- copy ----
   const [copyMode, setCopyMode] = useState(() => {
@@ -563,7 +563,7 @@ const TranscriptEditor = ({
             {saveState === 'saving' && <span className="tm-ed-save">Saving…</span>}
             {saveState === 'saved' && <span className="tm-ed-save tm-ed-save-ok">Saved</span>}
             {saveState === 'error' && <span className="tm-ed-save tm-ed-save-bad">Not saved — retrying</span>}
-            {saveState === 'idle' && dirty && <span className="tm-ed-save">Unsaved changes</span>}
+            {saveState === 'idle' && dirty && onSave && <span className="tm-ed-save">Unsaved changes</span>}
           </p>
         </div>
 
