@@ -24,6 +24,16 @@ const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https:
 // REMOVED: const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com/'; // This URL is for TypeMyworDz2 (Render)
 
 // Helper function to determine if a user has access to AI features
+const initialsOf = (nameOrEmail) => {
+  if (!nameOrEmail) return '?';
+  const cleaned = String(nameOrEmail).trim();
+  const namePart = cleaned.includes('@') ? cleaned.split('@')[0] : cleaned;
+  const words = namePart.replace(/[._-]+/g, ' ').split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+};
+
 const isPaidAIUser = (userProfile) => {
   if (!userProfile || !userProfile.plan) return false;
   // UPDATED: 'Monthly Plan' in economy tier is now part of paid AI users
@@ -1061,6 +1071,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
   // NEW: State and handlers for Feedback Modal
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   // eslint-disable-next-line no-unused-vars
   const [feedbackName, setFeedbackName] = useState(currentUser?.displayName || '');
   // eslint-disable-next-line no-unused-vars
@@ -1315,10 +1326,41 @@ return (
             </div>
           </div>
 
-          <div className="tm-account">
-            <span className="tm-username">{userProfile?.name || currentUser.email}</span>
-            <span className={"tm-plan" + (planLabel.isFree ? " tm-plan-free" : "")}>{planLabel.text}</span>
-            <button className="tm-logout" onClick={handleLogout}>Sign out</button>
+          <div
+            className="tm-account"
+            onMouseLeave={() => setAccountMenuOpen(false)}
+          >
+            <button
+              className="tm-avatar"
+              onClick={() => setAccountMenuOpen(o => !o)}
+              title={userProfile?.name || currentUser.email}
+              aria-label="Account menu"
+            >
+              {initialsOf(userProfile?.name || currentUser.email)}
+            </button>
+
+            {accountMenuOpen && (
+              <div className="tm-account-menu">
+                <div className="tm-account-head">
+                  <div className="tm-account-name">{userProfile?.name || 'Signed in'}</div>
+                  <div className="tm-account-mail">{currentUser.email}</div>
+                </div>
+                <div className="tm-account-plan">
+                  <span className={"tm-plan" + (planLabel.isFree ? " tm-plan-free" : "")}>{planLabel.text}</span>
+                  {planLabel.isFree && (
+                    <button className="tm-account-upgrade" onClick={() => { setAccountMenuOpen(false); handleOpenPricing(); }}>
+                      Upgrade
+                    </button>
+                  )}
+                </div>
+                <button className="tm-account-item" onClick={() => { setAccountMenuOpen(false); handleOpenFeedback(); }}>
+                  Send feedback
+                </button>
+                <button className="tm-account-item tm-account-signout" onClick={handleLogout}>
+                  Sign out
+                </button>
+              </div>
+            )}
           </div>
 
         </div>
@@ -1337,64 +1379,88 @@ return (
           </div>
         )}
 
-        {/* ---- Main navigation tabs ---- */}
-        <div className="tm-tabs">
-          <button
-            className={"tm-tab" + (currentView === 'transcribe' ? " tm-tab-active" : "")}
-            onClick={() => setCurrentView('transcribe')}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M18.5 11.5v.5a6.5 6.5 0 0 1-13 0v-.5M12 18.5V22"/></svg>
-            Transcribe
-          </button>
+        {/* ---- Workspace: sidebar on the left, everything else on the right ---- */}
+        <div className="tm-shell">
 
-          <button
-            className={"tm-tab" + (currentView === 'dashboard' ? " tm-tab-active" : "")}
-            onClick={() => setCurrentView('dashboard')}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M4 6.5A1.5 1.5 0 0 1 5.5 5h3.2l1.8 2h8A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5z"/></svg>
-            My files
-          </button>
+          <aside className="tm-side">
 
-          <button
-            className={"tm-tab tm-tab-ai" + (currentView === 'ai_assistant' ? " tm-tab-active" : "")}
-            onClick={() => {
-              if (!isPaidAIUser(userProfile)) {
-                showMessage('The AI Assistant is available on the Three-Day, One-Week, Monthly and Yearly plans. Upgrade to switch it on.', 'error');
-                return;
-              }
-              setCurrentView('ai_assistant');
-            }}
-            disabled={!isPaidAIUser(userProfile)}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>
-            Ask AI
-            {!isPaidAIUser(userProfile) && <span className="tm-tab-lock">Upgrade</span>}
-          </button>
-
-          <button
-            className="tm-tab"
-            onClick={handleOpenPricing}
-          >
-            Pricing
-          </button>
-
-          {isAdmin && (
             <button
-              className={"tm-tab" + (currentView === 'admin' ? " tm-tab-active" : "")}
-              onClick={() => setCurrentView('admin')}
+              className="tm-newbtn"
+              onClick={() => setCurrentView('transcribe')}
             >
-              Admin
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              New transcription
             </button>
-          )}
-          {currentView === 'transcribe' && (
+
+            <div className="tm-navlabel">Workspace</div>
+
             <button
-              className="tm-tabs-cta"
+              className={"tm-nav" + (currentView === 'transcribe' ? " tm-nav-on" : "")}
+              onClick={() => setCurrentView('transcribe')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M18.5 11.5v.5a6.5 6.5 0 0 1-13 0v-.5M12 18.5V22"/></svg>
+              Transcribe
+            </button>
+
+            <button
+              className={"tm-nav" + (currentView === 'dashboard' ? " tm-nav-on" : "")}
+              onClick={() => setCurrentView('dashboard')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M4 6.5A1.5 1.5 0 0 1 5.5 5h3.2l1.8 2h8A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5z"/></svg>
+              My files
+            </button>
+
+            <button
+              className="tm-nav"
               onClick={() => window.open('/transcription-editor', '_blank')}
             >
-              Open Transcription Editor
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h9"/></svg>
+              Editor
             </button>
-          )}
-        </div>
+
+            <button
+              className={"tm-nav tm-nav-ai" + (currentView === 'ai_assistant' ? " tm-nav-on" : "")}
+              onClick={() => {
+                if (!isPaidAIUser(userProfile)) {
+                  showMessage('The AI Assistant is available on the Three-Day, One-Week, Monthly and Yearly plans. Upgrade to switch it on.', 'error');
+                  return;
+                }
+                setCurrentView('ai_assistant');
+              }}
+              disabled={!isPaidAIUser(userProfile)}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>
+              Ask AI
+              {!isPaidAIUser(userProfile) && <span className="tm-nav-lock">Upgrade</span>}
+            </button>
+
+            {isAdmin && (
+              <>
+                <div className="tm-navlabel">Admin</div>
+                <button
+                  className={"tm-nav" + (currentView === 'admin' ? " tm-nav-on" : "")}
+                  onClick={() => setCurrentView('admin')}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M12 3l7.5 3.5v5c0 4.6-3.1 8.4-7.5 9.5-4.4-1.1-7.5-4.9-7.5-9.5v-5z"/></svg>
+                  Admin
+                </button>
+              </>
+            )}
+
+            <div className="tm-plancard">
+              <div className="tm-plancard-name">{planLabel.text}</div>
+              {planLabel.isFree ? (
+                <button className="tm-plancard-cta" onClick={handleOpenPricing}>
+                  See plans
+                </button>
+              ) : (
+                <div className="tm-plancard-sub">Thanks for subscribing</div>
+              )}
+            </div>
+
+          </aside>
+
+          <main className="tm-main">
 
         {/* UPDATED: AnimatedBroadcastBoard - moved to occupy the space where "Logged in as..." was, made larger and more beautiful */}
         {currentView === 'transcribe' && (
@@ -2677,15 +2743,12 @@ return (
             </main>
           </div>
         )}
-        <footer style={{ 
-          textAlign: 'center', 
-          padding: '20px', 
-          color: 'rgba(255, 255, 255, 0.7)', 
-          fontSize: '0.9rem',
-          marginTop: 'auto'
-        }}>
+        <footer className="tm-footer">
           © {new Date().getFullYear()} TypeMyworDz
         </footer>
+
+          </main>
+        </div>
 
         <FeedbackModal
           show={showFeedbackModal}
