@@ -158,7 +158,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
         backgroundColor: '#f8f9fa',
         minHeight: '100vh'
       }}>
-        <h2 style={{ color: '#dc3545' }}>⛔ Access Denied</h2>
+        <h2 style={{ color:'#dc3545'}}> Access Denied</h2>
         <p>You don't have permission to view the admin dashboard.</p>
       </div> 
     );
@@ -172,7 +172,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
         backgroundColor: '#f8f9fa',
         minHeight: '100vh'
       }}>
-        <h2>📊 Loading Admin Dashboard...</h2>
+        <h2> Loading Admin Dashboard...</h2>
       </div>
     );
   }
@@ -192,7 +192,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
           boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
         }}>
           <h1 style={{ color: '#6c5ce7', margin: '0 0 10px 0' }}>
-            👑 TypeMyworDz Admin Dashboard
+             TypeMyworDz Admin Dashboard
           </h1>
           <p style={{ color: '#666', margin: '0' }}>
             Business Overview &amp; User Management
@@ -214,7 +214,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
               fontSize: '1rem'
             }}
           >
-            📊 Overview
+             Overview
           </button>
           <button
             onClick={() => setActiveTab('users')}
@@ -229,7 +229,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
               fontSize: '1rem'
             }}
           >
-            👥 Users
+             Users
           </button>
           <button
             onClick={() => setActiveTab('aiFormatter')}
@@ -244,7 +244,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
               fontSize: '1rem'
             }}
           >
-            🤖 AI Formatter
+             AI Formatter
           </button>
           {/* REMOVED: Revenue Tab button */}
         </div>
@@ -266,7 +266,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
                 boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
                 textAlign: 'center'
               }}>
-                <h3 style={{ color: '#007bff', margin: '0 0 10px 0' }}>👥 Total Users</h3>
+                <h3 style={{ color:'#007bff', margin:'0 0 10px 0'}}> Total Users</h3>
                 <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
                   {stats.totalUsers}
                 </p>
@@ -280,7 +280,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
                 boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
                 textAlign: 'center'
               }}>
-                <h3 style={{ color: '#ffc107', margin: '0 0 10px 0' }}>✅ Active Paid Users</h3>
+                <h3 style={{ color:'#ffc107', margin:'0 0 10px 0'}}> Active Paid Users</h3>
                 <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
                   {stats.activePaidUsers}
                 </p>
@@ -295,7 +295,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
               boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
               marginBottom: '30px'
             }}>
-              <h3 style={{ color: '#333', marginBottom: '20px' }}>📊 Plan Distribution</h3>
+              <h3 style={{ color:'#333', marginBottom:'20px'}}> Plan Distribution</h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' }}>
                 {Object.entries(stats.planDistribution).map(([plan, count]) => (
                   <div key={plan} style={{ 
@@ -325,7 +325,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
                   boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
                 }}
               >
-                📥 Export User Data (CSV)
+                 Export User Data (CSV)
               </button>
             </div>
           </>
@@ -340,7 +340,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
             boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
             overflowX: 'auto'
           }}>
-            <h3 style={{ color: '#333', marginBottom: '20px' }}>👥 All Users</h3>
+            <h3 style={{ color:'#333', marginBottom:'20px'}}> All Users</h3>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ backgroundColor: '#f8f9fa' }}>

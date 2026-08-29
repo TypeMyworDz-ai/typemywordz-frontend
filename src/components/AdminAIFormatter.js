@@ -106,7 +106,7 @@ const AdminAIFormatter = React.memo(({ showMessage, latestTranscription }) => { 
     navigator.clipboard.writeText(formattedOutput);
     setCopiedMessageVisible(true);
     setTimeout(() => setCopiedMessageVisible(false), 2000);
-    showMessage('✅ AI response copied to clipboard!', 'success'); // Updated message type
+    showMessage('AI response copied to clipboard!','success'); // Updated message type
   }, [formattedOutput, showMessage]);
 
   
@@ -163,11 +163,11 @@ const AdminAIFormatter = React.memo(({ showMessage, latestTranscription }) => { 
 
       const data = await response.json();
       setFormattedOutput(data.formatted_transcript);
-      showMessage('✅ Transcript formatted by AI successfully!', 'success'); // Updated message type
+      showMessage('Transcript formatted by AI successfully!','success'); // Updated message type
 
     } catch (error) {
       console.error('Admin AI Formatter Error:', error);
-      showMessage('❌ Admin AI Formatter failed: ' + error.message, 'error'); // Updated message type
+      showMessage('Admin AI Formatter failed: ' + error.message, 'error'); // Updated message type
     } finally {
       setAILoading(false);
     }
@@ -177,7 +177,7 @@ const AdminAIFormatter = React.memo(({ showMessage, latestTranscription }) => { 
   const isButtonDisabled = profileLoading || !userProfile || !transcriptInput || !formattingInstructions || aiLoading;
   return (
     <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto', backgroundColor: '#f8f9fa', borderRadius: '15px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', marginTop: '20px' }}>
-      <h2 style={{ color: '#dc3545', textAlign: 'center', marginBottom: '30px' }}>👑 Admin AI Formatter</h2>
+      <h2 style={{ color:'#dc3545', textAlign:'center', marginBottom:'30px'}}> Admin AI Formatter</h2>
       <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
         Provide a raw transcript and detailed instructions for the AI to format and polish it.
         This feature is now available for all users.
@@ -275,7 +275,7 @@ const AdminAIFormatter = React.memo(({ showMessage, latestTranscription }) => { 
             transition: 'all 0.3s ease'
           }}
         >
-          {aiLoading ? 'Formatting...' : `👑 Format with ${selectedAIProvider === 'claude' ? 'Claude' : 'Gemini'}`}
+          {aiLoading ?'Formatting...':`Format with ${selectedAIProvider ==='claude'?'Claude':'Gemini'}`}
         </button>
         <button
           onClick={() => { setTranscriptInput(''); setFormattingInstructions(DEFAULT_FORMATTING_INSTRUCTIONS); setFormattedOutput(''); }}
@@ -344,7 +344,7 @@ const AdminAIFormatter = React.memo(({ showMessage, latestTranscription }) => { 
               onMouseEnter={(e) => e.target.style.backgroundColor = '#218838'}
               onMouseLeave={(e) => e.target.style.backgroundColor = '#27ae60'}
             >
-              📋 Copy AI Response
+               Copy AI Response
             </button>
           </div>
           
@@ -365,7 +365,7 @@ const AdminAIFormatter = React.memo(({ showMessage, latestTranscription }) => { 
           boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
           zIndex: 1000
         }}>
-          📋 Copied to clipboard!
+           Copied to clipboard!
         </div>
       )}
     </div>

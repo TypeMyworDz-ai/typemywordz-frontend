@@ -18,7 +18,7 @@ const Login = () => {
     } catch (err) {
       console.error("Google login error:", err);
       setError(err.message || "Failed to sign in with Google.");
-      showMessage(`❌ Failed to sign in with Google: ${err.message}`); 
+      showMessage(`Failed to sign in with Google: ${err.message}`); 
     } finally {
       setLoading(false);
     }
