@@ -9,11 +9,11 @@ import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
 import TranscriptEditor from './components/TranscriptEditor';
 import EditorDemo from './components/EditorDemo';
+import TranscribeProgress from './components/TranscribeProgress';
 import Signup from './components/Signup';
 import FeedbackModal from './components/FeedbackModal';
 import { canUserTranscribe, updateUserUsage, saveTranscription, updateTranscription, updateUserPlan, saveFeedback } from './userService'; // Removed createUserProfile
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import AnimatedBroadcastBoard from './components/AnimatedBroadcastBoard';
 import { db } from './firebase';
@@ -99,6 +99,10 @@ function AppContent() {
   // Per-line timings from the service, when it supplies them. Lets the
   // proofreading editor jump the audio to any line.
   const [transcriptSegments, setTranscriptSegments] = useState(null);
+  // How much of the file has actually reached the server, and which stage the
+  // job is at. The upload figure is measured, not guessed.
+  const [uploadPercent, setUploadPercent] = useState(0);
+  const [transcribePhase, setTranscribePhase] = useState('uploading');
   const [isUploading, setIsUploading] = useState(false);
   // Removed uploadProgress state and its setter
   // Removed transcriptionProgress state and its setter
@@ -882,6 +886,8 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     console.log(`DEBUG: Initiating transcription for ${Math.round(estimatedDuration/60)}-minute audio.`);
 
     isCancelledRef.current = false;
+    setUploadPercent(0);
+    setTranscribePhase('uploading');
     setIsUploading(true);
     setStatus('processing');
     abortControllerRef.current = new AbortController();
@@ -901,19 +907,51 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
     try {
       console.log(`DEBUG: Using unified transcription endpoint: ${RAILWAY_BACKEND_URL}/transcribe`);
-      const response = await fetch(`${RAILWAY_BACKEND_URL}/transcribe`, {
-        method: 'POST',
-        body: formData,
-        signal: abortControllerRef.current.signal
+
+      // Sent with XMLHttpRequest rather than fetch purely so the browser will
+      // report upload progress. fetch cannot do that, which is why the old bar
+      // had nothing real to show. The request itself is identical.
+      const result = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${RAILWAY_BACKEND_URL}/transcribe`);
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable && event.total > 0) {
+            setUploadPercent((event.loaded / event.total) * 100);
+          }
+        };
+
+        xhr.upload.onload = () => {
+          // Everything has reached the server; from here it is the service's turn.
+          setUploadPercent(100);
+          setTranscribePhase('transcribing');
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolve(JSON.parse(xhr.responseText));
+            } catch (parseError) {
+              reject(new Error('The transcription service sent a reply we could not read.'));
+            }
+          } else {
+            console.error('DEBUG: Backend transcription service failed. Status:', xhr.status, 'Text:', xhr.responseText);
+            reject(new Error(`Transcription service failed with status: ${xhr.status} - ${xhr.responseText}`));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('We could not reach the transcription service. Please check your connection.'));
+        xhr.ontimeout = () => reject(new Error('The upload timed out.'));
+        xhr.onabort = () => reject(new DOMException('Upload cancelled', 'AbortError'));
+
+        // Keep the existing Stop button working exactly as before.
+        if (abortControllerRef.current) {
+          abortControllerRef.current.signal.addEventListener('abort', () => xhr.abort());
+        }
+
+        xhr.send(formData);
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('DEBUG: Backend transcription service failed. Status:', response.status, 'Text:', errorText);
-        throw new Error(`Transcription service failed with status: ${response.status} - ${errorText}`);
-      }
-
-      const result = await response.json();
       console.log('DEBUG: Backend transcription endpoint responded:', result);
 
       if (result && result.job_id) {
@@ -1282,10 +1320,7 @@ return (
     <Route path="/signup" element={<Signup />} />
     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
     <Route path="/dashboard" element={
-      <>
-        <FloatingTranscribeButton />
-        <Dashboard setCurrentView={setCurrentView} />
-      </>
+      <Dashboard setCurrentView={setCurrentView} standalone />
     } />
     <Route path="/admin" element={isAdmin ? <AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} /> : <Navigate to="/" />} />
     
@@ -2556,25 +2591,12 @@ return (
                   </div>
 
                   {(status === 'processing' || status === 'uploading') && (
-                    <div style={{ marginBottom: '20px' }}>
-                      <div className="progress-bar-container" style={{
-                        backgroundColor: '#e9ecef',
-                        height: '30px',
-                        borderRadius: '15px',
-                        overflow: 'hidden',
-                        marginBottom: '10px'
-                      }}>
-                        <div className="progress-bar-indeterminate" style={{
-                          backgroundColor: '#6c5ce7',
-                          height: '100%',
-                          width: '100%',
-                          borderRadius: '15px'
-                        }}></div>
-                      </div>
-                      <div style={{ color: '#6c5ce7', fontSize: '14px' }}>
-                         Processing...
-                      </div>
-                    </div>
+                    <TranscribeProgress
+                      phase={transcribePhase}
+                      uploadPercent={uploadPercent}
+                      expectedSeconds={Math.max(10, (audioDuration || 0) * 0.3)}
+                      onCancel={handleCancelUpload}
+                    />
                   )}
 
                   <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
@@ -2598,23 +2620,8 @@ return (
                       </button>
                     )}
 
-                    {(status === 'uploading' || status === 'processing') && (
-                      <button
-                        onClick={handleCancelUpload}
-                        style={{
-                          padding: '15px 30px',
-                          fontSize: '18px',
-                          backgroundColor: '#dc3545',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '25px',
-                          cursor: 'pointer',
-                          boxShadow: '0 5px 15px rgba(220, 53, 69, 0.4)'
-                        }}
-                      >
-                        Stop
-                      </button>
-                    )}
+                    {/* Cancel now lives inside the progress panel, beside the
+                        thing it cancels, rather than as a large red pill. */}
                   </div>
                 </div>
               </div>
