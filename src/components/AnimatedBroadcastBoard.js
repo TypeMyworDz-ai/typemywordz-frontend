@@ -60,11 +60,6 @@ const messages = [
   },
   {
     type: 'text',
-    content: "Make sure to click 'Start Transcription' after recording or choosing file.",
-    color: '#e90606ff'
-  },
-  {
-    type: 'text',
     content: "We do not store your audios/videos, we value your privacy!",
     color: '#0d248abd'
   },
@@ -111,17 +106,17 @@ const AnimatedBroadcastBoard = () => {
   return (
     <div style={{
       width: '100%',
-      height: '120px', // Increased height to make it more beautiful
+      height: '64px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden',
       position: 'relative',
-      borderRadius: '15px', // More rounded corners
-      border: '2px solid #e9ecef', // Slightly thicker border
-      boxShadow: '0 8px 25px rgba(0,0,0,0.15)', // Enhanced shadow
-      backgroundColor: 'white',
-      padding: '20px 30px', // Increased padding
+      borderRadius: '10px',
+      border: '1px solid #e5e6ea',
+      boxShadow: 'none',
+      backgroundColor: '#f8f8f9',
+      padding: '12px 24px',
       boxSizing: 'border-box'
     }}>
       <div className={fade} style={{
@@ -136,9 +131,9 @@ const AnimatedBroadcastBoard = () => {
         {currentMessage.type === 'text' ? (
           <p style={{
             margin: 0,
-            fontSize: '1.3rem', // Increased font size
-            fontWeight: 'bold',
-            color: currentMessage.color,
+            fontSize: '0.95rem',
+            fontWeight: 500,
+            color: '#3f434c',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -151,12 +146,12 @@ const AnimatedBroadcastBoard = () => {
             <img 
               src={currentMessage.content} 
               alt={currentMessage.alt} 
-              style={{ height: '40px', width: 'auto', verticalAlign: 'middle' }} // Increased image size
+              style={{ height: '22px', width: 'auto', verticalAlign: 'middle' }}
             />
             <span style={{ 
-              fontSize: '1.3rem', // Increased font size
-              fontWeight: 'bold', 
-              color: '#333',
+              fontSize: '0.95rem',
+              fontWeight: 500, 
+              color: '#3f434c',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
