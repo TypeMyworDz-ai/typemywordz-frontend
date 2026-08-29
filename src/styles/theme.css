@@ -221,6 +221,24 @@ body {
 
 .tm-tab svg { width: 16px; height: 16px; }
 
+/* Primary action parked at the right-hand end of the tab bar */
+.tm-tabs-cta {
+  margin-left: auto;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--tm-green);
+  border: 0;
+  border-radius: var(--tm-radius);
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.tm-tabs-cta:hover { background: var(--tm-green-dark); }
+
 /* ---------- buttons ---------- */
 
 .tm-btn {
@@ -343,6 +361,10 @@ body {
   .tm-menu { order: 3; width: 100%; overflow-x: auto; }
   .tm-username { display: none; }
   .tm-tabs { padding: 0 10px; overflow-x: auto; }
+}
+
+@media (max-width: 720px) {
+  .tm-tabs-cta { margin-left: 8px; }
 }
 
 /* ---------- signed-out / login screen ---------- */
