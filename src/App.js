@@ -7,9 +7,10 @@ import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
 import RichTextEditor from './components/RichTextEditor';
+import TranscriptEditor from './components/TranscriptEditor';
 import Signup from './components/Signup';
 import FeedbackModal from './components/FeedbackModal';
-import { canUserTranscribe, updateUserUsage, saveTranscription, updateUserPlan, saveFeedback } from './userService'; // Removed createUserProfile
+import { canUserTranscribe, updateUserUsage, saveTranscription, updateTranscription, updateUserPlan, saveFeedback } from './userService'; // Removed createUserProfile
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FloatingTranscribeButton from './components/FloatingTranscribeButton';
 import PrivacyPolicy from './components/PrivacyPolicy';
@@ -94,6 +95,9 @@ function AppContent() {
   const [jobId, setJobId] = useState(null);
   const [status, setStatus] = useState('idle');
   const [transcription, setTranscription] = useState('');
+  // Per-line timings from the service, when it supplies them. Lets the
+  // proofreading editor jump the audio to any line.
+  const [transcriptSegments, setTranscriptSegments] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   // Removed uploadProgress state and its setter
   // Removed transcriptionProgress state and its setter
@@ -598,7 +602,7 @@ function AppContent() {
     console.log('DEBUG: Force cancellation complete. Page refresh initiated.');
   }, [jobId, showMessage]);
 // Find this function in your App.js file:
-const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId) => {
+const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId, segments = null) => {
   try {
     // FIX: Ensure selectedFile is not null before accessing its properties
     const estimatedDuration = audioDuration || (selectedFile ? Math.max(60, selectedFile.size / 100000) : 0);
@@ -653,7 +657,8 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       transcriptionText, 
       estimatedDuration, 
       completedJobId,
-      currentUser.uid // Pass the userId here!
+      currentUser.uid, // Pass the userId here!
+      segments // Per-line timings, when the service returned them
     );
     console.log('DEBUG: saveTranscription call completed.');
     
@@ -724,11 +729,15 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         }
         
         setTranscription(result.transcription);
+        const jobSegments = Array.isArray(result.segments) && result.segments.length > 0
+          ? result.segments
+          : null;
+        setTranscriptSegments(jobSegments);
         clearInterval(transcriptionInterval); 
         // Removed setTranscriptionProgress as it was unused
         setStatus('completed'); 
         
-        await handleTranscriptionComplete(result.transcription, jobIdToPass);
+        await handleTranscriptionComplete(result.transcription, jobIdToPass, jobSegments);
         setIsUploading(false); 
         
       } else if (response.ok && result.status === 'failed') {
@@ -931,79 +940,20 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   }, [selectedFile, audioDuration, currentUser?.uid, currentUser?.email, showMessage, setCurrentView, resetTranscriptionProcessUI, userProfile, selectedLanguage, speakerLabelsEnabled, checkJobStatus]); // Removed RAILWAY_BACKEND_URL from dependencies
 
   // Copy to clipboard (now triggers CopiedNotification)
-  const copyToClipboard = useCallback(() => { 
-    // Check for AI paid user eligibility for this feature
-    if (!isPaidAIUser(userProfile)) {
-      showMessage('Copy to clipboard is only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade to access this feature.', 'warning');
-      return;
-    }
-    
-    // To copy HTML content, we need to create a temporary element
-    const tempElement = document.createElement('div');
-    tempElement.innerHTML = transcription;
-    navigator.clipboard.writeText(tempElement.textContent || tempElement.innerText); // Copy plain text content
-    
-    setCopiedMessageVisible(true); // Show copied message
-    setTimeout(() => setCopiedMessageVisible(false), 2000); // Hide after 2 seconds
-  }, [transcription, userProfile, showMessage]);
+  // The old Copy / Word / TXT buttons lived here. The proofreading editor
+  // now owns all of that, so every screen behaves the same way.
+
+  // A correction made on the transcript that has just come back is saved to
+  // the same record the History list reads, so the fix is not lost the moment
+  // the user navigates away.
+  const handleSaveFreshTranscript = useCallback(async (html) => {
+    if (!currentUser?.uid || !jobId) return;
+    await updateTranscription(currentUser.uid, jobId, { transcriptionText: html });
+  }, [currentUser?.uid, jobId]);
 
   // Download as Word - now calls backend for formatted DOCX
-  const downloadAsWord = useCallback(async () => { 
-    // Check for AI paid user eligibility for this feature
-    if (!isPaidAIUser(userProfile)) {
-      showMessage('MS Word download is only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade to access this feature.', 'warning');
-      return;
-    }
-    
-    try {
-      showMessage('Generating formatted Word document...', 'info');
-      const response = await fetch(`${RAILWAY_BACKEND_URL}/generate-formatted-word`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          transcription_html: transcription,
-          filename: `transcription_${Date.now()}.docx`
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('DEBUG: Word document generation failed. Status:', response.status, 'Text:', errorText);
-        throw new Error(`Failed to generate Word document: ${response.status} - ${errorText}`);
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `transcription_${Date.now()}.docx`; // Use .docx extension
-      a.click();
-      URL.revokeObjectURL(url);
-      showMessage('Word document generated successfully!', 'success');
-
-    } catch (error) {
-      console.error('Error downloading Word document:', error);
-      showMessage('Failed to generate Word document: ' + error.message, 'error');
-    }
-  }, [transcription, userProfile, showMessage]); // Removed RAILWAY_BACKEND_URL from dependencies
 
   // TXT download - available for all users
-  const downloadAsTXT = useCallback(() => { 
-    // For TXT download, we want plain text, so strip HTML tags
-    const tempElement = document.createElement('div');
-    tempElement.innerHTML = transcription;
-    const plainTextTranscription = tempElement.textContent || tempElement.innerText;
-
-    const blob = new Blob([plainTextTranscription], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'transcription.txt';
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [transcription]);
 
   // Download recorded audio (Note: This is for recorded audio, not transcription results)
   const downloadRecordedAudio = useCallback(async () => { 
@@ -2691,167 +2641,25 @@ return (
               )}
               
               {transcription && (
-                <div style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                  borderRadius: '15px',
-                  padding: '30px',
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
-                }}>
-                  <h3 style={{ 
-                    color: '#6c5ce7',
-                    margin: '0 0 20px 0',
-                    textAlign: 'center',
-                    fontSize: '1.5rem'
-                  }}>
-                     Transcription Result:
-                  </h3>
-                  
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    gap: '15px',
-                    marginBottom: '20px',
-                    flexWrap: 'wrap'
-                  }}>
-                    <button
-                      onClick={copyToClipboard}
-                      disabled={!isPaidAIUser(userProfile)}
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#27ae60',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
-                        fontSize: '14px',
-                        opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
-                      }}
-                    >
-                      {!isPaidAIUser(userProfile) ?'Copy (Pro AI Only)':'Copy to Clipboard'}
-                    </button>
-                    
-                    <button
-                      onClick={downloadAsWord}
-                      disabled={!isPaidAIUser(userProfile)}
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#007bff',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
-                        fontSize: '14px',
-                        opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
-                      }}
-                    >
-                      {!isPaidAIUser(userProfile) ?'Word (Pro AI Only)':'MS Word'}
-                    </button>
-                    
-                    <button
-                      onClick={downloadAsTXT}
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: '#6c757d',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontSize: '14px'
-                      }}
-                    >
-                       TXT
-                    </button>
+                <TranscriptEditor
+                  fileName={selectedFile ? selectedFile.name : 'Your transcript'}
+                  rawText={transcription}
+                  segments={transcriptSegments}
+                  durationSeconds={audioDuration || 0}
+                  audioFile={selectedFile}
+                  onSave={handleSaveFreshTranscript}
+                  onAskAI={isPaidAIUser(userProfile) ? () => setCurrentView('ai_assistant') : null}
+                  canUseAI={isPaidAIUser(userProfile)}
+                />
+              )}
 
-                    <button
-                      onClick={() => {
-                        if (!isPaidAIUser(userProfile)) {
-                          showMessage('TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.','error');
-                          return;
-                        }
-                        setCurrentView('ai_assistant');
-                      }}
-                      disabled={!isPaidAIUser(userProfile)}
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#6c5ce7',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
-                        fontSize: '14px',
-                        opacity: (!isPaidAIUser(userProfile)) ? 0.6 : 1
-                      }}
-                    >
-                       TypeMyworDz Assistant
-                    </button>
-                  </div>
-                  
-                  {!isPaidAIUser(userProfile) && (
-                    <div style={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                      color: '#856404',
-                      padding: '10px',
-                      borderRadius: '5px',
-                      marginBottom: '20px',
-                      textAlign: 'center',
-                      fontSize: '14px'
-                    }}>
-                       Copy to clipboard, MS Word downloads, and AI Assistant are available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans).{''}
-                      <button 
-                        onClick={() => setCurrentView('pricing')}
-                        style={{
-                          backgroundColor: 'transparent',
-                          color: '#007bff',
-                          border: 'none',
-                          textDecoration: 'underline',
-                          cursor: 'pointer',
-                          fontWeight: 'bold'
-                        }}
-                      >
-                        Upgrade now
-                      </button>
-                    </div>
-                  )}
-                  
-                  <div style={{
-                    backgroundColor: '#f8f9fa',
-                    padding: '20px',
-                    borderRadius: '10px',
-                    textAlign: 'left',
-                    lineHeight: '1.6',
-                    whiteSpace: 'pre-wrap',
-                    border: '1px solid #dee2e6'
-                  }}>
-                    <div dangerouslySetInnerHTML={{ __html: transcription.replace(/\n/g, '<br>') }} />
-                  </div>
-                  
-                  <div style={{ 
-                    marginTop: '15px', 
-                    textAlign: 'center', 
-                    color: '#27ae60',
-                    fontSize: '14px'
-                  }}>
-                     Check your{''}
-                    <button
-                      onClick={() => setCurrentView('dashboard')}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#007bff',
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        fontWeight: 'bold',
-                        padding: 0
-                      }}
-                      onMouseEnter={(e) => e.target.style.color = '#0056b3'}
-                      onMouseLeave={(e) => e.target.style.color = '#007bff'}
-                    >
-                      History
-                    </button>
-                    {' '}for your saved transcripts.
-                  </div>
-                </div>
+              {transcription && (
+                <p className="tm-result-note">
+                  This transcript is saved. You can come back to it any time from{' '}
+                  <button type="button" className="tm-result-link" onClick={() => setCurrentView('dashboard')}>
+                    My files
+                  </button>.
+                </p>
               )}
             </main>
           </div>

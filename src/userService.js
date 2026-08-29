@@ -295,7 +295,7 @@ export const updateUserUsage = async (uid, durationSeconds) => {
 };
 
 // Save transcription to Firestore (UPDATED to save to top-level collection with userId)
-export const saveTranscription = async (uid, fileName, transcriptionText, duration, jobId, ownerUid) => {
+export const saveTranscription = async (uid, fileName, transcriptionText, duration, jobId, ownerUid, segments = null) => {
   // Use the top-level 'transcriptions' collection directly
   const transcriptionsCollectionRef = collection(db, TRANSCRIPTIONS_COLLECTION); 
   const newTranscriptionRef = doc(transcriptionsCollectionRef, jobId); // Use jobId as document ID
@@ -310,6 +310,31 @@ export const saveTranscription = async (uid, fileName, transcriptionText, durati
     createdAt: currentTime, // Use concrete Date object
     expiresAt: new Date(currentTime.getTime() + 7 * 24 * 60 * 60 * 1000) // Transcriptions expire in 7 days
   };
+
+  // Keep the per-line timings the service returned, so the proofreading
+  // editor can jump the audio to the right place later on. Firestore caps a
+  // document at 1MB, so a very long transcript keeps the line starts and
+  // drops the rest rather than failing the save outright.
+  if (Array.isArray(segments) && segments.length > 0) {
+    const lean = segments.map((seg) => ({
+      start: Number(seg.start) || 0,
+      end: Number(seg.end) || 0,
+      speaker: seg.speaker || null,
+      text: String(seg.text || ''),
+      confidence: typeof seg.confidence === 'number' ? seg.confidence : null
+    }));
+    const bytes = JSON.stringify(lean).length;
+    if (bytes < 700000) {
+      transcriptionData.segments = lean;
+      transcriptionData.timingsSource = 'service';
+    } else {
+      console.log('Timings too large to store alongside the transcript, keeping line starts only');
+      transcriptionData.segments = lean.map((seg) => ({
+        start: seg.start, end: seg.end, speaker: seg.speaker, text: seg.text, confidence: null
+      })).filter((seg, i) => i % 2 === 0);
+      transcriptionData.timingsSource = 'service-reduced';
+    }
+  }
 
   await setDoc(newTranscriptionRef, transcriptionData);
   console.log("Transcription saved to Firestore with ID: ", newTranscriptionRef.id);
