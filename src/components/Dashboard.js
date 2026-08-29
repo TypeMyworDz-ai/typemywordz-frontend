@@ -188,7 +188,7 @@ const Dashboard = ({ setCurrentView }) => {
             width: '2rem', 
             height: '2rem', 
             border: '2px solid #e5e7eb', 
-            borderTop: '2px solid #3b82f6', 
+            borderTop: '2px solid #28a745', 
             borderRadius: '50%', 
             animation: 'spin 1s linear infinite',
             margin: '0 auto 1rem auto'
@@ -207,7 +207,7 @@ const Dashboard = ({ setCurrentView }) => {
           <p style={{ color: '#6b7280', marginBottom: '1rem' }}>{error}</p>
           <button 
             onClick={loadTranscriptions}
-            style={{ backgroundColor: '#3b82f6', color: 'white', padding: '0.5rem 1rem', borderRadius: '0.25rem', border: 'none', cursor: 'pointer' }}
+            style={{ backgroundColor: '#28a745', color: 'white', padding: '0.5rem 1rem', borderRadius: '7px', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
           >
             Try Again
           </button>
@@ -376,14 +376,15 @@ const Dashboard = ({ setCurrentView }) => {
             <button 
               onClick={handleTranscribeNewAudio}
               style={{ 
-                backgroundColor: '#3b82f6', 
+                backgroundColor: '#28a745', 
                 color: 'white', 
                 padding: '0.75rem 1.5rem', 
-                borderRadius: '0.5rem', 
+                borderRadius: '7px', 
                 border: 'none', 
                 cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500'
+                fontFamily: 'inherit',
+                fontSize: '0.9rem',
+                fontWeight: '600'
               }}
             >
               Start Transcribing
@@ -438,7 +439,7 @@ const Dashboard = ({ setCurrentView }) => {
                       <button
                         onClick={(e) => handleEdit(transcription, e)}
                         style={{ 
-                          color: '#3b82f6', 
+                          color: '#858a95', 
                           padding: '0.5rem',
                           border: 'none',
                           background: 'none',
@@ -449,12 +450,12 @@ const Dashboard = ({ setCurrentView }) => {
                           gap: '0.25rem'
                         }}
                         onMouseEnter={(e) => {
-                          e.target.style.backgroundColor = '#eff6ff';
-                          e.target.style.color = '#1d4ed8';
+                          e.target.style.backgroundColor = '#f8f8f9';
+                          e.target.style.color = '#14161a';
                         }}
                         onMouseLeave={(e) => {
                           e.target.style.backgroundColor = 'transparent';
-                          e.target.style.color = '#3b82f6';
+                          e.target.style.color = '#858a95';
                         }}
                         title="Edit transcription"
                       >
@@ -552,7 +553,7 @@ const Dashboard = ({ setCurrentView }) => {
                     <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.75rem', color: '#6b7280' }}>
                       Click to edit
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: '#3b82f6', fontWeight: '500' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#218838', fontWeight: '600' }}>
                       Open →
                     </div>
                   </div>
