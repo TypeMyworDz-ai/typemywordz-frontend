@@ -2419,10 +2419,10 @@ return (
                     backgroundColor: '#fafafb'
                   }}>
                     <input
+                      className="tm-file"
                       type="file"
                       accept="audio/mp3,audio/mpeg,audio/*,video/*"
                       onChange={handleFileSelect}
-                      style={{ marginBottom: '10px' }}
                     />
                     {selectedFile && (
                       <div style={{
@@ -2442,7 +2442,7 @@ return (
 
                   <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
                     <label htmlFor="languageSelect" style={{ color: '#1a1b1f', fontWeight: '500', fontSize: '14px' }}>
-                      Transcription Language:
+                      Language
                     </label>
                     <select
                       id="languageSelect"
@@ -2472,7 +2472,7 @@ return (
                   
                   <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
                     <label htmlFor="speakerLabelsSelect" style={{ color: '#1a1b1f', fontWeight: '500', fontSize: '14px' }}>
-                      Speaker Tags:
+                      Speaker tags
                     </label>
                     <select
                       id="speakerLabelsSelect"
