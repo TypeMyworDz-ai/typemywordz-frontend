@@ -1325,6 +1325,7 @@ body {
   max-width: 62ch;
 }
 .tm-attach-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   height: 36px;
@@ -1338,7 +1339,20 @@ body {
   white-space: nowrap;
 }
 .tm-attach-btn:hover { background: var(--tm-green-dark); }
-.tm-attach-btn input { display: none; }
+/* Hidden from view but still a real, focusable control, so a screen reader
+   and the keyboard can both reach it. display:none would remove it entirely. */
+.tm-attach-btn input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.tm-attach-btn:focus-within { outline: 2px solid var(--tm-green-dark); outline-offset: 2px; }
 
 /* --- toolbar: speakers, things to check, find --- */
 
