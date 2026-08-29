@@ -925,3 +925,158 @@ body {
 .tm-file::file-selector-button:hover {
   background: var(--tm-surface);
 }
+
+/* ---------- feature ticks ----------
+   These lists used a tick emoji as their bullet. The marker is now drawn in
+   CSS so it inherits the brand green and lines up on every platform. */
+.tm-tick {
+  position: relative;
+  padding-left: 24px;
+  list-style: none;
+}
+
+.tm-tick::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0.52em;
+  width: 10px;
+  height: 5px;
+  border-left: 2px solid var(--tm-green, #28a745);
+  border-bottom: 2px solid var(--tm-green, #28a745);
+  transform: translateY(-60%) rotate(-45deg);
+}
+
+/* ---------- announcements strip ----------
+   Was a centred slogan carousel on a timer. Now a labelled, controllable strip
+   whose messages can carry you somewhere useful. */
+.tm-ann {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 46px;
+  padding: 8px 12px 8px 14px;
+  box-sizing: border-box;
+  background: #fbfbfc;
+  border: 1px solid var(--tm-line, #e5e6ea);
+  border-radius: 10px;
+  text-align: left;
+  outline: none;
+}
+
+.tm-ann:focus-visible { border-color: #b9bcc4; }
+
+/* The category label. Text, not an icon, so it is unambiguous. */
+.tm-ann-kind {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
+.tm-ann-tip     { color: #4a5160; background: #eceef1; }
+.tm-ann-new     { color: #1c6b32; background: var(--tm-green-soft, #eaf7ee); }
+.tm-ann-feature { color: #4a37a8; background: var(--tm-purple-soft, #f0edfd); }
+
+.tm-ann-body {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.tm-ann-anim { animation: tm-ann-in 320ms ease-out; }
+
+@keyframes tm-ann-in {
+  from { opacity: 0; transform: translateX(9px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.tm-ann-logo { height: 17px; width: auto; flex: 0 0 auto; }
+
+.tm-ann-text {
+  font-size: 13.5px;
+  color: var(--tm-ink, #22252b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The action is the point of the strip, so it reads as a link, not a banner. */
+.tm-ann-action {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: none;
+  padding: 2px 2px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tm-green-dark, #218838);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tm-ann-action:hover { text-decoration: underline; }
+
+.tm-ann-nav {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.tm-ann-arrow {
+  width: 21px;
+  height: 21px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: #969ba6;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+/* Arrows stay out of the way until you show intent. */
+.tm-ann:hover .tm-ann-arrow,
+.tm-ann:focus-within .tm-ann-arrow { opacity: 1; }
+
+.tm-ann-arrow:hover { background: #eceef1; color: var(--tm-ink, #22252b); }
+
+.tm-ann-dots { display: flex; align-items: center; gap: 4px; padding: 0 3px; }
+
+.tm-ann-dot {
+  width: 5px;
+  height: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #d3d6dc;
+  cursor: pointer;
+  transition: background 140ms ease, width 140ms ease;
+}
+
+.tm-ann-dot-on { width: 14px; border-radius: 3px; background: #9aa0ab; }
+
+@media (max-width: 900px) {
+  .tm-ann-text { white-space: normal; }
+  .tm-ann-dots { display: none; }
+  .tm-ann-arrow { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-ann-anim { animation: none; }
+  .tm-ann-dot { transition: none; }
+}
