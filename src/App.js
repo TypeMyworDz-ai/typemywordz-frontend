@@ -1751,7 +1751,7 @@ return (
                         backgroundColor: 'white',
                         padding: '30px 25px',
                         borderRadius: '15px',
-                        boxShadow: '0 8px 25px rgba(40, 167, 69, 0.2)',
+                        boxShadow: 'none',
                         minWidth: '280px',
                         maxWidth: '320px',
                         border: '3px solid #28a745',
@@ -1915,7 +1915,7 @@ return (
                         backgroundColor: 'white',
                         padding: '20px 15px', 
                         borderRadius: '15px', 
-                        boxShadow: '0 10px 30px rgba(40, 167, 69, 0.2)', 
+                        boxShadow: 'none', 
                         minWidth: '250px', 
                         maxWidth: '280px', 
                         border: '3px solid #28a745',
@@ -2230,7 +2230,7 @@ return (
                             cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
                             fontSize: '1rem',
                             fontWeight: 'bold',
-                            boxShadow: (!isPaidAIUser(userProfile)) ? 'none' : '0 4px 15px rgba(108, 92, 231, 0.4)',
+                            boxShadow: 'none',
                             transition: 'all 0.3s ease'
                         }}
                     >
@@ -2248,7 +2248,7 @@ return (
                             cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
                             fontSize: '1rem',
                             fontWeight: 'bold',
-                            boxShadow: (!isPaidAIUser(userProfile)) ? 'none' : '0 4px 15px rgba(220, 53, 69, 0.4)',
+                            boxShadow: 'none',
                             transition: 'all 0.3s ease'
                         }}
                     >
@@ -2257,15 +2257,9 @@ return (
                 </div>
 
                 {aiLoading && (
-                    <div style={{ textAlign: 'center', color: '#6c5ce7', marginBottom: '20px' }}>
-                        <div className="progress-bar-indeterminate" style={{
-                            backgroundColor: '#6c5ce7',
-                            height: '20px',
-                            width: '100%',
-                            borderRadius: '10px',
-                            marginBottom: '10px'
-                        }}></div>
-                        Applying AI formatting...
+                    <div className="tm-thinking">
+                        <div className="tm-thinking-track"><div className="tm-thinking-slide" /></div>
+                        <span>Applying AI formatting…</span>
                     </div>
                 )}
 

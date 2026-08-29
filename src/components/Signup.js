@@ -186,7 +186,7 @@ const Signup = () => {
             fontSize: '1rem',
             fontWeight: 'bold',
             width: '100%',
-            boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)',
+            boxShadow: 'none',
             transition: 'all 0.3s ease'
           }}
           onMouseEnter={(e) => e.target.style.backgroundColor = '#218838'}
