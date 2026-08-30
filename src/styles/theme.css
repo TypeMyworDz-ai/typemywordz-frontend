@@ -67,7 +67,10 @@ body {
   padding: 0 20px;
   background: var(--tm-white);
   border-bottom: 1px solid var(--tm-line);
-  position: relative;
+  /* Stays in view while the page scrolls. The background is solid and the
+     stacking order is above the sidebar, so nothing shows through it. */
+  position: sticky;
+  top: 0;
   z-index: 200;
 }
 
@@ -357,7 +360,8 @@ body {
 /* ---------- responsive ---------- */
 
 @media (max-width: 860px) {
-  .tm-topbar { height: auto; flex-wrap: wrap; padding: 10px 14px; gap: 10px; }
+  .tm-topbar { height: auto; flex-wrap: wrap; padding: 10px 14px; gap: 10px;
+               position: static; }
   .tm-menu { order: 3; width: 100%; overflow-x: auto; }
   .tm-username { display: none; }
   .tm-tabs { padding: 0 10px; overflow-x: auto; }
@@ -888,7 +892,8 @@ body {
 @media (min-width: 821px) {
   .tm-side {
     position: sticky;
-    top: 0;
+    /* 56px bar + its 1px bottom border */
+    top: 57px;
     align-self: flex-start;
     height: calc(100vh - 57px);
     overflow-y: auto;
