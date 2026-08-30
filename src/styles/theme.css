@@ -46,6 +46,11 @@
 
 /* ---------- base ---------- */
 
+html {
+  /* so in-page jumps clear the pinned bar */
+  scroll-padding-top: 57px;
+}
+
 body {
   background: var(--tm-white);
   color: var(--tm-body);
@@ -895,6 +900,11 @@ body {
     /* 56px bar + its 1px bottom border */
     top: 57px;
     align-self: flex-start;
+    /* border-box matters here: the padding has to count towards the
+       height, otherwise the sidebar is taller than the space below the
+       bar, runs out of room inside .tm-shell, and gets pushed up
+       underneath the bar as the page scrolls. */
+    box-sizing: border-box;
     height: calc(100vh - 57px);
     overflow-y: auto;
   }
