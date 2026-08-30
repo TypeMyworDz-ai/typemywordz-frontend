@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { fetchAllUsers, getMonthlyRevenue } from '../userService'; // Removed fetchUserTranscriptions import
 import { collection, getDocs } from 'firebase/firestore'; // Removed query, orderBy, where imports
 import { db } from '../firebase';
+import { ADMIN_EMAILS, isAdminEmail } from '../adminEmails';
 // ADDED: Import AdminAIFormatter
 import AdminAIFormatter from './AdminAIFormatter';
 // REMOVED: Import AdminRevenue component
@@ -27,9 +28,8 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed mo
 
   // Removed PLAN_PRICES_USD as it was unused.
 
-  // Admin emails
-  const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com'];
-  const isAdmin = ADMIN_EMAILS.includes(currentUser?.email);
+  // Admin list lives in src/adminEmails.js so it cannot drift from the backend.
+  const isAdmin = isAdminEmail(currentUser?.email);
 
   const fetchAdminData = useCallback(async () => {
     try {
