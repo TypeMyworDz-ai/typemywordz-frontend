@@ -663,7 +663,8 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       estimatedDuration, 
       completedJobId,
       currentUser.uid, // Pass the userId here!
-      segments // Per-line timings, when the service returned them
+      segments, // Per-line timings, when the service returned them
+      userProfile?.plan || 'free' // decides how long the file is kept
     );
     console.log('DEBUG: saveTranscription call completed.');
     

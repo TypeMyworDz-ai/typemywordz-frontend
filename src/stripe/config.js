@@ -12,7 +12,7 @@ export const STRIPE_CONFIG = {
         'Priority processing',
         'Copy to clipboard feature',
         'MS Word & TXT downloads',
-        '7-day file storage',
+        '30-day file storage',
         'Email support'
       ]
     }

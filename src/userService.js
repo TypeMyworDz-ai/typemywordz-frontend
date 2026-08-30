@@ -295,7 +295,16 @@ export const updateUserUsage = async (uid, durationSeconds) => {
 };
 
 // Save transcription to Firestore (UPDATED to save to top-level collection with userId)
-export const saveTranscription = async (uid, fileName, transcriptionText, duration, jobId, ownerUid, segments = null) => {
+// How long a saved transcript is kept before it is cleaned up.
+// These must match what the pricing page tells people they are buying:
+// 30-day file storage on every plan, 365-day on the yearly one.
+export const TRANSCRIPT_RETENTION_DAYS = 30;
+export const TRANSCRIPT_RETENTION_DAYS_YEARLY = 365;
+
+export const retentionDaysForPlan = (plan) =>
+  plan === 'Yearly Plan' ? TRANSCRIPT_RETENTION_DAYS_YEARLY : TRANSCRIPT_RETENTION_DAYS;
+
+export const saveTranscription = async (uid, fileName, transcriptionText, duration, jobId, ownerUid, segments = null, userPlan = null) => {
   // Use the top-level 'transcriptions' collection directly
   const transcriptionsCollectionRef = collection(db, TRANSCRIPTIONS_COLLECTION); 
   const newTranscriptionRef = doc(transcriptionsCollectionRef, jobId); // Use jobId as document ID
@@ -308,7 +317,10 @@ export const saveTranscription = async (uid, fileName, transcriptionText, durati
     duration,
     userId: ownerUid, // Use the passed ownerUid here
     createdAt: currentTime, // Use concrete Date object
-    expiresAt: new Date(currentTime.getTime() + 7 * 24 * 60 * 60 * 1000) // Transcriptions expire in 7 days
+    // Kept for as long as the person's plan was sold for.
+    expiresAt: new Date(
+      currentTime.getTime() + retentionDaysForPlan(userPlan) * 24 * 60 * 60 * 1000
+    )
   };
 
   // Keep the per-line timings the service returned, so the proofreading
