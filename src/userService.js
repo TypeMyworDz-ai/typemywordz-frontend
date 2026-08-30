@@ -1,4 +1,5 @@
 import { db } from './firebase';
+import { isAdminEmail } from './adminEmails';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc, addDoc, runTransaction } from 'firebase/firestore'; // Keep serverTimestamp just in case for other uses, but we'll manually set for this fix
 
 const USERS_COLLECTION = 'users';
@@ -194,9 +195,15 @@ export const canUserRecord = async (uid) => {
 };
 
 // UPDATED: Check if user can transcribe with proper validation and automatic pricing redirect
-export const canUserTranscribe = async (uid, estimatedDurationSeconds) => {
+export const canUserTranscribe = async (uid, estimatedDurationSeconds, userEmail = null) => {
   try {
-    console.log("canUserTranscribe called with:", { uid, estimatedDurationSeconds });
+    console.log("canUserTranscribe called with:", { uid, estimatedDurationSeconds, userEmail });
+
+    // Admin accounts are never limited by plan or free-trial rules.
+    if (isAdminEmail(userEmail)) {
+      console.log("canUserTranscribe: admin account, bypassing plan checks.");
+      return { canTranscribe: true, reason: 'admin' };
+    }
     
     const userProfile = await getUserProfile(uid);
     console.log("canUserTranscribe - User profile retrieved:", JSON.parse(JSON.stringify(userProfile)));

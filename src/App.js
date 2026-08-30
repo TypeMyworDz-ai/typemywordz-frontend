@@ -18,6 +18,7 @@ import PrivacyPolicy from './components/PrivacyPolicy';
 import AnimatedBroadcastBoard from './components/AnimatedBroadcastBoard';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { isAdminEmail } from './adminEmails';
 
 
 // UPDATED Configuration - RE-ADDED Render Whisper URL
@@ -139,9 +140,8 @@ function AppContent() {
   const isCancelledRef = useRef(false);
   const accountRef = useRef(null);
 
-  // UPDATED: Admin emails are now referenced from your backend configuration
-  const ADMIN_EMAILS = ['typemywordz@gmail.com', 'gracenyaitara@gmail.com']; 
-  const isAdmin = ADMIN_EMAILS.includes(currentUser?.email); 
+  // Admin list lives in src/adminEmails.js so it cannot drift from the backend.
+  const isAdmin = isAdminEmail(currentUser?.email);
 
   // NEW: State to prevent duplicate payment verification
   const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
@@ -854,7 +854,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
     console.log('DEBUG: Estimated duration for upload:', estimatedDuration);
 
-    const transcribeCheck = await canUserTranscribe(currentUser.uid, estimatedDuration);
+    const transcribeCheck = await canUserTranscribe(currentUser.uid, estimatedDuration, currentUser.email);
     console.log('DEBUG: canUserTranscribe check result:', transcribeCheck);
     
     if (!transcribeCheck.canTranscribe) {
