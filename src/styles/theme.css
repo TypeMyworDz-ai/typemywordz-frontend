@@ -2147,3 +2147,38 @@ body {
   color: var(--tm-body);
   font-weight: 400;
 }
+
+/* ---- The quiet moment before we know who is signed in ---- */
+
+.tm-boot{
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--tm-white);
+}
+.tm-boot-mark{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  animation: tm-boot-in 260ms ease-out;
+}
+.tm-boot-word{
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.tm-boot-p{ color: var(--tm-purple); }
+.tm-boot-g{ color: var(--tm-green); }
+.tm-boot-sub{
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--tm-muted);
+}
+@keyframes tm-boot-in{ from{ opacity: 0 } to{ opacity: 1 } }
+@media (prefers-reduced-motion: reduce){ .tm-boot-mark{ animation: none; } }
+
+/* The plan chip while the profile is still on its way. */
+.tm-plan-pending{ color: var(--tm-muted); }
