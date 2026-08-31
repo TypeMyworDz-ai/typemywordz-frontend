@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { fetchUserTranscriptions, deleteTranscription, updateTranscription } from '../userService';
 import { useNavigate } from 'react-router-dom';
 import ConfirmDialog from './ConfirmDialog';
+import { htmlToText } from '../lib/transcript';
 
 // `standalone` means this page is on its own address rather than inside the
 // workspace, so it needs its own New transcription button and has to navigate
@@ -134,18 +135,14 @@ const Dashboard = ({ setCurrentView, standalone = false }) => {
 
   // UPDATED: filteredTranscriptions with robust checks and DEBUG LOGS
   const filteredTranscriptions = transcriptions.filter(transcription => {
-    console.log('DEBUG FILTER: Processing transcription:', transcription); // NEW LOG
     const lowerSearchTerm = searchTerm.toLowerCase();
     const fileName = transcription.fileName ? transcription.fileName.toLowerCase() : '';
-    // FIX: Prioritize 'transcriptionText' for search, fallback to 'text'
-    const textContent = transcription.transcriptionText || transcription.text || '';
-    const text = textContent.toLowerCase();
-
-    const matches = fileName.includes(lowerSearchTerm) || text.includes(lowerSearchTerm);
-    console.log(`DEBUG FILTER: FileName: ${fileName}, Text: ${text}, SearchTerm: ${lowerSearchTerm}, Matches: ${matches}`); // NEW LOG
-    return matches;
+    // Search the words that were actually spoken, not the HTML they are stored
+    // in. Searching the raw markup meant a search for "strong" matched every
+    // transcript that had speaker names in it.
+    const text = htmlToText(transcription.transcriptionText || transcription.text).toLowerCase();
+    return fileName.includes(lowerSearchTerm) || text.includes(lowerSearchTerm);
   });
-  console.log('DEBUG: After filtering, filteredTranscriptions.length:', filteredTranscriptions.length); // NEW LOG
 
   // UPDATED: sortedTranscriptions with DEBUG LOGS
   const sortedTranscriptions = [...filteredTranscriptions].sort((a, b) => {
@@ -507,11 +504,13 @@ const Dashboard = ({ setCurrentView, standalone = false }) => {
                     <div style={{ backgroundColor: '#f9fafb', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem' }}>
                       <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
                         {/* FIX: Prioritize 'transcriptionText' for display */}
-                        {(transcription.transcriptionText || transcription.text) ? 
-                          (transcription.transcriptionText || transcription.text).substring(0, 150) + 
-                          ((transcription.transcriptionText || transcription.text).length > 150 ? '...' : '') :
-                          'No transcription text available'
-                        }
+                        {(() => {
+                          // Transcripts are stored as HTML, so the tags have to
+                          // come off before this is shown as a preview.
+                          const plain = htmlToText(transcription.transcriptionText || transcription.text).trim();
+                          if (!plain) return 'This transcript is empty.';
+                          return plain.length > 150 ? plain.slice(0, 150) + '\u2026' : plain;
+                        })()}
                       </p>
                     </div>
                   )}

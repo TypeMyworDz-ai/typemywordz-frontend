@@ -6,7 +6,7 @@ import 'react-quill/dist/quill.snow.css';
 
 const RichTextEditor = () => {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser, showMessage } = useAuth();
   const audioRef = useRef(null);
   const fileInputRef = useRef(null);
   const quillRef = useRef(null);
@@ -105,7 +105,7 @@ const RichTextEditor = () => {
   // Export functions - FIXED Word Export
   const exportAsWord = useCallback(() => {
     if (!currentUser) {
-      alert('Please log in to export as Word.');
+      showMessage('Please sign in to export as a Word document.', 'warning');
       return;
     }
     
@@ -151,7 +151,7 @@ const RichTextEditor = () => {
     a.download = 'transcription.doc';
     a.click();
     URL.revokeObjectURL(url);
-  }, [editorContent, currentUser]);
+  }, [editorContent, currentUser, showMessage]);
 
   const exportAsTXT = useCallback(() => {
     // Convert HTML to plain text
@@ -296,7 +296,7 @@ const RichTextEditor = () => {
               if (audioRef.current && !isNaN(audioRef.current.currentTime)) {
                 insertTimestamp();
               } else {
-                alert('Please load an audio file first to use timestamps.');
+                showMessage('Add the audio file first, then you can insert timestamps.', 'info');
               }
               break;
             default:
@@ -308,7 +308,7 @@ const RichTextEditor = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlayPause, skipTime, insertTimestamp]);
+  }, [togglePlayPause, skipTime, insertTimestamp, showMessage]);
 
   // File handling
   const handleLocalAudioFileSelect = useCallback((event) => {
