@@ -380,31 +380,8 @@ body {
 
 .tm-login { background: var(--tm-white); }
 
-.tm-login-tagline {
-  font-size: 1.05rem;
-  margin: 28px 0 0 0;
-  color: var(--tm-muted);
-  text-align: center;
-  max-width: 420px;
-}
 
-.tm-login-points {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 18px;
-  max-width: 520px;
-}
 
-.tm-login-points span {
-  font-size: 12px;
-  color: var(--tm-muted);
-  border: 1px solid var(--tm-line);
-  border-radius: 20px;
-  padding: 4px 11px;
-  background: var(--tm-surface);
-}
 
 /* ------------------------------------------------------------------
    Overrides for the legacy public/menu.css
@@ -2394,3 +2371,201 @@ body {
 .tm-sitefoot-links{ display: inline-flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
 .tm-sitefoot-links a{ color: var(--tm-muted); text-decoration: none; }
 .tm-sitefoot-links a:hover{ color: var(--tm-ink); text-decoration: underline; }
+
+/* ============================================================
+   Landing page (signed out)
+   ============================================================ */
+
+.tm-lp{ display: block; background: var(--tm-white); }
+.tm-lp .tm-menu .menu-item{ text-decoration: none; }
+
+.tm-lp-inner{ max-width: 1060px; margin: 0 auto; padding: 0 28px; }
+.tm-lp-narrow{ max-width: 780px; }
+
+/* ---- Hero ---- */
+.tm-lp-hero{
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 68px 28px 76px;
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 60px;
+  align-items: start;
+}
+.tm-lp-hero h1{
+  font-size: 2.7rem;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  color: var(--tm-ink);
+  margin: 0 0 20px;
+  font-weight: 700;
+}
+.tm-lp-lede{
+  font-size: 1.06rem;
+  line-height: 1.68;
+  color: var(--tm-body);
+  margin: 0 0 26px;
+  max-width: 33em;
+}
+.tm-lp-ticks{ list-style: none; margin: 0; padding: 0; }
+.tm-lp-ticks li{
+  position: relative;
+  padding-left: 26px;
+  margin: 0 0 11px;
+  color: var(--tm-body);
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+/* A restrained check drawn in CSS rather than an icon font or an emoji. */
+.tm-lp-ticks li::before{
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 6px;
+  width: 5px;
+  height: 10px;
+  border: solid var(--tm-green);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.tm-lp-hero-card{
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius-lg);
+  background: var(--tm-white);
+  padding: 26px 24px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.tm-lp-hero-card > div{ border: 0 !important; padding: 0 !important; max-width: none !important; }
+.tm-lp-freenote{
+  margin: 18px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--tm-muted);
+  text-align: center;
+  border-top: 1px solid var(--tm-line);
+  padding-top: 16px;
+  width: 100%;
+}
+.tm-lp-freenote strong{ color: var(--tm-green-dark); }
+
+/* ---- Bands ---- */
+.tm-lp-band{
+  background: var(--tm-surface);
+  border-top: 1px solid var(--tm-line);
+  padding: 66px 0;
+}
+.tm-lp-band-plain{ background: var(--tm-white); }
+
+.tm-lp-band h2{
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+  color: var(--tm-ink);
+  margin: 0 0 10px;
+  font-weight: 700;
+}
+.tm-lp-sub{
+  color: var(--tm-muted);
+  margin: 0 0 34px;
+  line-height: 1.65;
+  max-width: 56em;
+}
+
+/* ---- What we transcribe ---- */
+.tm-lp-grid{
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+.tm-lp-card{
+  background: var(--tm-white);
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius-lg);
+  padding: 22px 22px 24px;
+}
+.tm-lp-band-plain .tm-lp-card{ background: var(--tm-surface); }
+.tm-lp-card h3{
+  font-size: 1rem;
+  color: var(--tm-ink);
+  margin: 0 0 8px;
+  font-weight: 650;
+}
+.tm-lp-card p{ margin: 0; color: var(--tm-body); line-height: 1.62; font-size: 0.92rem; }
+
+/* ---- How it works ---- */
+.tm-lp-steps{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px; }
+.tm-lp-step h3{ font-size: 1.02rem; color: var(--tm-ink); margin: 0 0 8px; font-weight: 650; }
+.tm-lp-step p{ margin: 0; color: var(--tm-body); line-height: 1.65; font-size: 0.94rem; }
+.tm-lp-stepnum{
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--tm-green-line);
+  background: var(--tm-green-soft);
+  color: var(--tm-green-dark);
+  font-weight: 700;
+  font-size: 0.85rem;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 0 14px;
+}
+
+/* ---- Privacy promises ---- */
+.tm-lp-promises{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px; }
+.tm-lp-promise h3{
+  font-size: 0.95rem; color: var(--tm-ink); margin: 0 0 8px; font-weight: 650;
+  padding-top: 13px; border-top: 2px solid var(--tm-green);
+}
+.tm-lp-promise p{ margin: 0; color: var(--tm-body); line-height: 1.62; font-size: 0.9rem; }
+.tm-lp-readmore{ margin: 30px 0 0; color: var(--tm-muted); font-size: 0.92rem; line-height: 1.65; }
+.tm-lp-readmore a{ color: var(--tm-ink); text-decoration: underline; text-underline-offset: 2px; }
+
+/* ---- Plans ---- */
+.tm-lp-plans{ width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.tm-lp-plans td{
+  padding: 13px 12px 13px 0;
+  border-bottom: 1px solid var(--tm-line);
+  color: var(--tm-body);
+}
+.tm-lp-plans td:first-child{ color: var(--tm-ink); font-weight: 650; width: 40%; }
+.tm-lp-plans tr:first-child td{ border-top: 1px solid var(--tm-line); }
+
+/* ---- Closing call to action ---- */
+.tm-lp-cta{
+  border-top: 1px solid var(--tm-line);
+  background: var(--tm-white);
+  padding: 66px 0 74px;
+  text-align: center;
+}
+.tm-lp-cta h2{
+  font-size: 1.55rem; letter-spacing: -0.02em; color: var(--tm-ink);
+  margin: 0 0 10px; font-weight: 700;
+}
+.tm-lp-cta p{ color: var(--tm-body); margin: 0 auto 26px; max-width: 34em; line-height: 1.65; }
+.tm-lp-cta-btn{
+  font: inherit;
+  font-weight: 650;
+  font-size: 0.95rem;
+  color: var(--tm-white);
+  background: var(--tm-green);
+  border: 1px solid var(--tm-green);
+  border-radius: var(--tm-radius);
+  padding: 12px 30px;
+  cursor: pointer;
+}
+.tm-lp-cta-btn:hover{ background: var(--tm-green-dark); border-color: var(--tm-green-dark); }
+
+/* ---- Narrower screens ---- */
+@media (max-width: 940px){
+  .tm-lp-hero{ grid-template-columns: 1fr; gap: 40px; padding: 46px 24px 56px; }
+  .tm-lp-hero h1{ font-size: 2.1rem; }
+  .tm-lp-hero-card{ max-width: 420px; }
+  .tm-lp-grid, .tm-lp-steps, .tm-lp-promises{ grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px){
+  .tm-lp-hero h1{ font-size: 1.8rem; }
+  .tm-lp-inner{ padding: 0 20px; }
+  .tm-lp-band{ padding: 46px 0; }
+  .tm-lp-grid, .tm-lp-steps, .tm-lp-promises{ grid-template-columns: 1fr; gap: 20px; }
+  .tm-lp-plans td:first-child{ width: 50%; }
+}
