@@ -1,7 +1,7 @@
 import React from 'react';
 import LegalShell from './LegalShell';
 
-const SUPPORT_EMAIL = 'info@typemywordz.com';
+const SUPPORT_EMAIL = 'info@typemywordz.ai';
 
 const PrivacyPolicy = () => (
   <LegalShell title="Privacy and Security" updated="31 August 2026">
