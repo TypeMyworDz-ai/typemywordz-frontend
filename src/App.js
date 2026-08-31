@@ -39,9 +39,11 @@ const initialsOf = (nameOrEmail) => {
   return (words[0][0] + words[words.length - 1][0]).toUpperCase();
 };
 
-const isPaidAIUser = (userProfile) => {
+const isPaidAIUser = (userProfile, email) => {
+  // Admins always have it. The plan check alone used to lock the team out of
+  // their own assistant, the same way it locked them out of transcribing.
+  if (isAdminEmail(email) || isAdminEmail(userProfile && userProfile.email)) return true;
   if (!userProfile || !userProfile.plan) return false;
-  // UPDATED: 'Monthly Plan' in economy tier is now part of paid AI users
   const paidPlansForAI = ['Three-Day Plan', 'One-Week Plan', 'Monthly Plan', 'Yearly Plan'];
   return paidPlansForAI.includes(userProfile.plan);
 };
@@ -123,6 +125,7 @@ function AppContent() {
   // Cancelling a transcription that is already running throws away work,
   // so it asks first.
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const uploadInFlightRef = useRef(false);
   // State to store the latest completed transcription for AI Assistant
   const [latestTranscription, setLatestTranscription] = useState(''); 
 
@@ -294,6 +297,7 @@ function AppContent() {
     setStatus('idle');
     setTranscription('');
     setAudioDuration(0);
+    uploadInFlightRef.current = false;
     setIsUploading(false);
     // Removed setUploadProgress(0);
     // Removed setTranscriptionProgress(0);
@@ -560,6 +564,7 @@ function AppContent() {
     setStatus('idle');
     setTranscription('');
     setAudioDuration(0);
+    uploadInFlightRef.current = false;
     setIsUploading(false);
     // Removed setUploadProgress(0);
     // Removed setTranscriptionProgress(0);
@@ -680,7 +685,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     console.log('DIAGNOSTIC: After refreshUserProfile - userProfile.totalMinutesUsed:', userProfile?.totalMinutesUsed);
 
     // Success message with favicon and brand name
-    showMessage('<img src="/favicon-32x32.png"alt="TypeMyworDz Logo"style="width: 16px; height: 16px; vertical-align: middle; margin-right: 5px;"> TypeMyworDz, Done!','success');
+    showMessage('TypeMyworDz, Done!', 'success', undefined, { icon: 'brand' });
     
     // Save the latest transcription for the AI Assistant
     setLatestTranscription(transcriptionText);
@@ -752,6 +757,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         setStatus('completed'); 
         
         await handleTranscriptionComplete(result.transcription, jobIdToPass, jobSegments);
+        uploadInFlightRef.current = false;
         setIsUploading(false); 
         
       } else if (response.ok && result.status === 'failed') {
@@ -768,6 +774,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           clearInterval(transcriptionInterval); 
           // Removed setTranscriptionProgress as it was unused
           setStatus('failed'); 
+          uploadInFlightRef.current = false;
           setIsUploading(false);
           resetTranscriptionProcessUI();
         }
@@ -777,6 +784,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         clearInterval(transcriptionInterval);
         // Removed setTranscriptionProgress as it was unused
         setStatus('idle');
+        uploadInFlightRef.current = false;
         setIsUploading(false);
         showMessage('Transcription was cancelled. Please start a new one.','warning');
         resetTranscriptionProcessUI();
@@ -805,6 +813,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           clearInterval(transcriptionInterval); 
           // Removed setTranscriptionProgress as it was unused
           setStatus('failed'); 
+          uploadInFlightRef.current = false;
           setIsUploading(false); 
           resetTranscriptionProcessUI();
         }
@@ -817,6 +826,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         console.log('DEBUG: Request aborted or job cancelled');
         clearInterval(transcriptionInterval);
         if (!isCancelledRef.current) {
+          uploadInFlightRef.current = false;
           setIsUploading(false);
         }
         showMessage('Transcription process interrupted. Please start a new one.','warning');
@@ -827,6 +837,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         clearInterval(transcriptionInterval); 
         // Removed setTranscriptionProgress as it was unused
         setStatus('failed'); 
+        uploadInFlightRef.current = false;
         setIsUploading(false); 
         showMessage('Status check failed: ' + error.message + '. Please try again.', 'error');
         resetTranscriptionProcessUI();
@@ -837,7 +848,13 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   }, [handleTranscriptionComplete, showMessage, resetTranscriptionProcessUI]); // Removed RAILWAY_BACKEND_URL from dependencies
   // handleUpload with new backend logic for model selection
   const handleUpload = useCallback(async () => {
-    console.log('DEBUG: handleUpload called.');
+    // A double click, or a click while the first request is still in flight,
+    // used to be able to start two jobs for the same recording. That is how
+    // duplicate entries appear in My files.
+    if (uploadInFlightRef.current) {
+      console.log('DEBUG: handleUpload ignored, a transcription is already starting.');
+      return;
+    }
     if (!selectedFile) {
       showMessage('Please select a file first', 'warning');
       console.log('DEBUG: No file selected for upload..');
@@ -881,6 +898,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         }
 
         setPlanBlock(userMessage);
+        uploadInFlightRef.current = false;
         setIsUploading(false);
         setStatus('idle');
         console.log('DEBUG: Blocking transcription due to plan/limit.');
@@ -898,6 +916,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     isCancelledRef.current = false;
     setUploadPercent(0);
     setTranscribePhase('uploading');
+    uploadInFlightRef.current = true;
     setIsUploading(true);
     setStatus('processing');
     abortControllerRef.current = new AbortController();
@@ -983,6 +1002,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       console.error('DEBUG: Transcription failed in handleUpload catch block:', transcriptionError);
       // Removed setUploadProgress and setTranscriptionProgress as they were unused
       setStatus('failed'); 
+      uploadInFlightRef.current = false;
       setIsUploading(false);
       showMessage('Transcription service is currently unavailable. Please try again later.','error');
     }
@@ -1074,7 +1094,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           return;
       }
       // Check if user is eligible for AI features
-      if (!isPaidAIUser(userProfile)) {
+      if (!isPaidAIUser(userProfile, currentUser?.email)) {
           showMessage('TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.','error');
           return;
       }
@@ -1135,7 +1155,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       } finally {
           setAILoading(false);
       }
-  }, [latestTranscription, userPrompt, userProfile, showMessage, selectedAIProvider]); // Removed RAILWAY_BACKEND_URL from dependencies
+  }, [latestTranscription, userPrompt, userProfile, currentUser?.email, showMessage, selectedAIProvider]);
   
   // Cleanup effect to ensure cancellation works
   useEffect(() => {
@@ -1521,17 +1541,17 @@ return (
             <button
               className={"tm-nav tm-nav-ai" + (currentView === 'ai_assistant' ? " tm-nav-on" : "")}
               onClick={() => {
-                if (!isPaidAIUser(userProfile)) {
+                if (!isPaidAIUser(userProfile, currentUser?.email)) {
                   showMessage('The AI Assistant is available on the Three-Day, One-Week, Monthly and Yearly plans. Upgrade to switch it on.', 'error');
                   return;
                 }
                 setCurrentView('ai_assistant');
               }}
-              disabled={!isPaidAIUser(userProfile)}
+              disabled={!isPaidAIUser(userProfile, currentUser?.email)}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>
               Ask AI
-              {!isPaidAIUser(userProfile) && <span className="tm-nav-lock">Upgrade</span>}
+              {!isPaidAIUser(userProfile, currentUser?.email) && <span className="tm-nav-lock">Upgrade</span>}
             </button>
 
             {isAdmin && (
@@ -2139,7 +2159,7 @@ return (
               marginTop: '20px'
             }}>
                 <h2 style={{ color: '#6c5ce7', textAlign: 'center', marginBottom: '30px' }}>TypeMyworDz Assistant</h2>
-                {!isPaidAIUser(userProfile) && (
+                {!isPaidAIUser(userProfile, currentUser?.email) && (
                   <p style={{ textAlign: 'center', color: '#dc3545', marginBottom: '30px', fontWeight: 'bold' }}>
                      TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.
                   </p>
@@ -2160,7 +2180,7 @@ return (
                         value="claude"
                         checked={selectedAIProvider === 'claude'}
                         onChange={(e) => setSelectedAIProvider(e.target.value)}
-                        disabled={!isPaidAIUser(userProfile)}
+                        disabled={!isPaidAIUser(userProfile, currentUser?.email)}
                         style={{ marginRight: '8px' }}
                       />
                       Anthropic Claude
@@ -2172,7 +2192,7 @@ return (
                         value="gemini"
                         checked={selectedAIProvider === 'gemini'}
                         onChange={(e) => setSelectedAIProvider(e.target.value)}
-                        disabled={!isPaidAIUser(userProfile)}
+                        disabled={!isPaidAIUser(userProfile, currentUser?.email)}
                         style={{ marginRight: '8px' }}
                       />
                       Google Gemini
@@ -2198,7 +2218,7 @@ return (
                             resize: 'vertical',
                             boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
                         }}
-                        disabled={!isPaidAIUser(userProfile)}
+                        disabled={!isPaidAIUser(userProfile, currentUser?.email)}
                     ></textarea>
                 </div>
 
@@ -2222,7 +2242,7 @@ return (
                             resize: 'vertical',
                             boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
                         }}
-                        disabled={!isPaidAIUser(userProfile)}
+                        disabled={!isPaidAIUser(userProfile, currentUser?.email)}
                     ></textarea>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '30px', flexWrap: 'wrap' }}>
@@ -2246,7 +2266,7 @@ return (
                     </button>
                     <button
                         onClick={() => { setLatestTranscription(''); setUserPrompt(''); setAIResponse(''); }}
-                        disabled={!isPaidAIUser(userProfile)}
+                        disabled={!isPaidAIUser(userProfile, currentUser?.email)}
                         style={{
                             padding: '12px 25px',
                             backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#dc3545',
