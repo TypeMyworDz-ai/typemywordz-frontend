@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchUserTranscriptions, deleteTranscription, updateTranscription } from '../userService';
 import { useNavigate } from 'react-router-dom';
+import ConfirmDialog from './ConfirmDialog';
 
 // `standalone` means this page is on its own address rather than inside the
 // workspace, so it needs its own New transcription button and has to navigate
@@ -17,6 +18,8 @@ const Dashboard = ({ setCurrentView, standalone = false }) => {
   const [editingId, setEditingId] = useState(null);
   const [editingText, setEditingText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const loadTranscriptions = useCallback(async () => {
     if (currentUser?.uid) {
@@ -50,18 +53,27 @@ const Dashboard = ({ setCurrentView, standalone = false }) => {
     loadTranscriptions();
   }, [loadTranscriptions]);
 
-  const handleDelete = useCallback(async (transcriptionId, e) => {
+  // Ask first. Deleting a transcript cannot be undone.
+  const handleDelete = useCallback((transcriptionId, e) => {
     e.stopPropagation();
-    if (window.confirm("Are you sure you want to delete this transcription?")) {
-      try {
-        await deleteTranscription(currentUser.uid, transcriptionId);
-        loadTranscriptions();
-      } catch (err) {
-        console.error("Error deleting transcription:", err);
-        setError("Failed to delete transcription. Please try again.");
-      }
+    setPendingDelete(transcriptionId);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      await deleteTranscription(currentUser.uid, pendingDelete);
+      setPendingDelete(null);
+      loadTranscriptions();
+    } catch (err) {
+      console.error("Error deleting transcription:", err);
+      setError("Failed to delete transcription. Please try again.");
+      setPendingDelete(null);
+    } finally {
+      setDeleting(false);
     }
-  }, [currentUser?.uid, loadTranscriptions]);
+  }, [currentUser?.uid, loadTranscriptions, pendingDelete]);
 
   const handleEdit = useCallback((transcription, e) => {
     e.stopPropagation();
@@ -528,6 +540,18 @@ const Dashboard = ({ setCurrentView, standalone = false }) => {
             50% { transform: translateX(-50%) translateY(-3px); }
           }
         `}</style>
+
+        <ConfirmDialog
+          open={!!pendingDelete}
+          title="Delete this transcript?"
+          body="The transcript and its wording will be removed from your files. This cannot be undone."
+          confirmLabel="Delete"
+          cancelLabel="Keep it"
+          tone="danger"
+          busy={deleting}
+          onConfirm={confirmDelete}
+          onCancel={() => setPendingDelete(null)}
+        />
       </div>
     </div>
   );
