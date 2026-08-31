@@ -79,8 +79,10 @@ function AppContent() {
   
   // Utility functions
   const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const n = Number(seconds);
+    if (!Number.isFinite(n) || n < 0) return '0:00';
+    const mins = Math.floor(n / 60);
+    const secs = Math.floor(n % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
@@ -126,6 +128,7 @@ function AppContent() {
   // so it asks first.
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const uploadInFlightRef = useRef(false);
+  const recordingExtensionRef = useRef('webm');
   // State to store the latest completed transcription for AI Assistant
   const [latestTranscription, setLatestTranscription] = useState(''); 
 
@@ -417,10 +420,34 @@ function AppContent() {
         if (settled) return;
         settled = true;
         URL.revokeObjectURL(url);
-        resolve({ ok, duration: Number.isFinite(duration) ? duration : 0 });
+        resolve({ ok, duration: Number.isFinite(duration) && duration > 0 ? duration : 0 });
       };
       audio.preload = 'metadata';
-      audio.onloadedmetadata = () => finish(true, audio.duration);
+
+      audio.onloadedmetadata = () => {
+        if (Number.isFinite(audio.duration) && audio.duration > 0) {
+          finish(true, audio.duration);
+          return;
+        }
+        // A file recorded in the browser has no length written into its
+        // header, so the browser reports Infinity. Asking it to seek far past
+        // the end forces it to read to the end and work the real length out.
+        // Once it knows, we put the playhead back at the start.
+        const onKnown = () => {
+          if (Number.isFinite(audio.duration) && audio.duration > 0) {
+            audio.removeEventListener('durationchange', onKnown);
+            try { audio.currentTime = 0; } catch (e) { /* nothing to undo */ }
+            finish(true, audio.duration);
+          }
+        };
+        audio.addEventListener('durationchange', onKnown);
+        try {
+          audio.currentTime = 1e101;
+        } catch (e) {
+          finish(true, 0);
+        }
+      };
+
       audio.onerror = () => finish(false, 0);
       // Never let a stuck decode hang the button forever.
       setTimeout(() => finish(true, 0), 6000);
@@ -454,20 +481,30 @@ function AppContent() {
       });
       console.log('DEBUG: Microphone stream obtained.'); // NEW LOG
       
-      let mimeType = 'audio/webm;codecs=opus';
-      if (!MediaRecorder.isTypeSupported(mimeType)) {
-        mimeType = 'audio/webm';
-        if (!MediaRecorder.isTypeSupported(mimeType)) {
-          mimeType = 'audio/wav';
-          console.warn('DEBUG: Falling back to audio/wav for recording.'); // NEW LOG
-        } else {
-          console.warn('DEBUG: Falling back to audio/webm for recording.'); // NEW LOG
-        }
-      } else {
-        console.log(`DEBUG: Using ${mimeType} for recording.`); // NEW LOG
-      }
-      
-      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
+      // Browsers cannot record MP3. What they can record is Opus inside a
+      // WebM file, and on Apple devices AAC inside an MP4 file. For a single
+      // voice, Opus at 32 kbps is clear and roughly a tenth the size of the
+      // old recordings. AAC needs more room to sound the same, so it gets 64.
+      // The old list ended in audio/wav, which no browser can record at all.
+      const RECORDING_FORMATS = [
+        { mimeType: 'audio/webm;codecs=opus', bits: 32000,  extension: 'webm' },
+        { mimeType: 'audio/ogg;codecs=opus',  bits: 32000,  extension: 'ogg'  },
+        { mimeType: 'audio/mp4;codecs=mp4a.40.2', bits: 64000, extension: 'm4a' },
+        { mimeType: 'audio/mp4',              bits: 64000,  extension: 'm4a' },
+        { mimeType: 'audio/webm',             bits: 32000,  extension: 'webm' },
+      ];
+      const chosen =
+        RECORDING_FORMATS.find((f) =>
+          typeof MediaRecorder.isTypeSupported === 'function' &&
+          MediaRecorder.isTypeSupported(f.mimeType)
+        ) || null;
+
+      const mimeType = chosen ? chosen.mimeType : '';
+      recordingExtensionRef.current = chosen ? chosen.extension : 'webm';
+
+      mediaRecorderRef.current = chosen
+        ? new MediaRecorder(stream, { mimeType, audioBitsPerSecond: chosen.bits })
+        : new MediaRecorder(stream);
       const chunks = [];
 
       mediaRecorderRef.current.ondataavailable = (event) => {
@@ -502,11 +539,7 @@ function AppContent() {
 
         recordedAudioBlobRef.current = originalBlob;
 
-        let extension = 'wav';
-        if (mimeType.includes('webm')) {
-          extension = 'webm';
-        }
-
+        const extension = recordingExtensionRef.current || 'webm';
         const file = new File([originalBlob], `recording-${Date.now()}.${extension}`, { type: mimeType });
 
         // Confirm the browser can actually decode what we just recorded, and
@@ -685,7 +718,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     console.log('DIAGNOSTIC: After refreshUserProfile - userProfile.totalMinutesUsed:', userProfile?.totalMinutesUsed);
 
     // Success message with favicon and brand name
-    showMessage('TypeMyworDz, Done!', 'success', undefined, { icon: 'brand' });
+    showMessage('TypeMyworDz, Done!', 'success', 1600, { variant: 'flash' });
     
     // Save the latest transcription for the AI Assistant
     setLatestTranscription(transcriptionText);
@@ -2691,6 +2724,14 @@ return (
                   {status === 'failed' && (
                     <p style={{ margin: '10px 0 0 0', color: '#666' }}>
                       Transcription failed: 1. Ensure Your Internet is Good and Connected; 2. Refresh the Page.
+                    </p>
+                  )}
+                  {status === 'completed' && (
+                    <p className="tm-keepnote">
+                      Your transcript is saved and waiting in My files. We do not keep
+                      your recording, so when you come back to proofread, open the
+                      transcript and pick the audio file from your own computer to play
+                      it alongside.
                     </p>
                   )}
                 </div>
