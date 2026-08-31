@@ -1,7 +1,7 @@
 import React from 'react';
 import LegalShell from './LegalShell';
 
-const SUPPORT_EMAIL = 'info@typemywordz.com';
+const SUPPORT_EMAIL = 'info@typemywordz.ai';
 
 const TermsOfService = () => (
   <LegalShell title="Terms of Service" updated="31 August 2026">
