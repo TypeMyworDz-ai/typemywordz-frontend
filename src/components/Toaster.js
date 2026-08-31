@@ -26,7 +26,7 @@ export const durationForType = (type) =>
   TOAST_DURATIONS[type] != null ? TOAST_DURATIONS[type] : TOAST_DURATIONS.info;
 
 const Toast = ({ toast, onDismiss }) => {
-  const { id, text, type, duration } = toast;
+  const { id, text, type, duration, icon } = toast;
   const [leaving, setLeaving] = useState(false);
   const timerRef = useRef(null);
   const remainingRef = useRef(duration);
@@ -75,6 +75,9 @@ const Toast = ({ toast, onDismiss }) => {
       onFocus={pause}
       onBlur={resume}
     >
+      {icon === 'brand' && (
+        <img className="tm-toast-logo" src="/favicon-32x32.png" alt="" width="16" height="16" />
+      )}
       <span className="tm-toast-text">{text}</span>
       <button
         type="button"
