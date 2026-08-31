@@ -33,7 +33,10 @@ export const AuthProvider = ({ children }) => {
 
   // Signature is unchanged so every existing call site keeps working.
   // Passing duration 0 means "stay until the client dismisses it".
-  const showMessage = useCallback((text, type = 'info', duration) => {
+  // The fourth argument is for presentation only, e.g. { icon: 'brand' }.
+  // Message text is always rendered as text, never as HTML, so a message
+  // can never inject markup into the page.
+  const showMessage = useCallback((text, type = 'info', duration, options) => {
     if (text == null || text === '') return;
     const safeType = ['success', 'error', 'warning', 'info'].includes(type) ? type : 'info';
     toastSeq.current += 1;
@@ -45,7 +48,13 @@ export const AuthProvider = ({ children }) => {
       const duplicate = list.some((t) => t.text === String(text) && t.type === safeType);
       if (duplicate) return list;
       // Keep at most four on screen.
-      const next = [...list, { id, text: String(text), type: safeType, duration: ms }];
+      const next = [...list, {
+        id,
+        text: String(text),
+        type: safeType,
+        duration: ms,
+        icon: options && options.icon ? options.icon : null,
+      }];
       return next.slice(-4);
     });
   }, []);
