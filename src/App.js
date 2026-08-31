@@ -1334,9 +1334,21 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     );
   }
 
-  // Sign-in screen, only once we know for certain nobody is signed in
+  // Nobody is signed in.
+  //
+  // The landing page is what almost every visitor should see, but the legal
+  // pages must be reachable WITHOUT an account: Google's OAuth reviewer, Paddle's
+  // reviewer, and any prospective client all need to read them before signing up.
+  // Returning <Landing /> for every address meant the links changed the address
+  // bar and then showed the landing page again, which is the bug this fixes.
   if (!currentUser) {
-    return <Landing />;
+    return (
+      <Routes>
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
+        <Route path="*" element={<Landing />} />
+      </Routes>
+    );
   }
 
 return (
