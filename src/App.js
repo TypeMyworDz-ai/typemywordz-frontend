@@ -4,7 +4,6 @@ import './styles/theme.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ConfirmDialog from './components/ConfirmDialog';
 import { FREE_TRIAL_MINUTES } from './userService';
-import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
@@ -18,6 +17,7 @@ import { canUserTranscribe, updateUserUsage, saveTranscription, updateTranscript
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import TermsOfService from './components/TermsOfService';
+import Landing from './components/Landing';
 import AnimatedBroadcastBoard from './components/AnimatedBroadcastBoard';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -1337,85 +1337,9 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
   // Sign-in screen, only once we know for certain nobody is signed in
   if (!currentUser) {
-    return (
-      <div className="tm-app tm-login" style={{ 
-        minHeight: '100vh', 
-        background: '#ffffff',
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
-        
-
-        {/* ---- Signed-out top bar ---- */}
-        <div className="tm-topbar">
-          <div className="tm-brand">
-            <img className="tm-brand-logo" src="/android-chrome-192x192.png" alt="TypeMyworDz" />
-            <div className="tm-brand-text">
-              <div className="tm-wordmark">
-                <span className="tm-w-purple">Type</span><span className="tm-w-green">My</span><span className="tm-w-purple">worDz</span>
-              </div>
-              <div className="tm-slogan">You Talk, We Type</div>
-            </div>
-          </div>
-          <div className="tm-spacer"></div>
-          <div className="tm-menu">
-            {/* Products Menu Item (non-authenticated) */}
-            <div className="menu-item" onClick={() => window.showSpeechToText()}>
-                <span className="menu-text">Products</span>
-            </div>
-            
-            {/* Pricing Menu Item (non-authenticated) */}
-            <div className="menu-item" onClick={() => window.location.href = '/pricing'}>
-                <span className="menu-text">Pricing</span>
-            </div>
-
-            {/* Social Menu Item (non-authenticated) */}
-            <div className="menu-item" onClick={() => window.openDonate()}>
-                <span className="menu-text">Social</span>
-            </div>
-
-            {/* Legal Menu Item (non-authenticated) */}
-            <div className="menu-item" onClick={() => window.openPrivacyPolicy()}>
-                <span className="menu-text">Legal</span>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ height: '48px' }}></div>
-        
-        <div style={{ 
-          flex: 1, 
-          display: 'flex', 
-          flexDirection: 'column',
-          justifyContent: 'center', 
-          alignItems: 'center',
-          padding: '0 20px'
-        }}>
-          <Login />
-          {/* Removed the 'Don't have an account? Sign Up' text and button */}
-
-          {/* UPDATED: Login page tagline and logos */}
-          <p className="tm-login-tagline">
-            Accurate transcription for legal, medical and case work.
-          </p>
-          <div className="tm-login-points">
-            <span>Word, PDF and plain-text export</span>
-            <span>Speaker labels</span>
-            <span>Your audio is never used to train AI</span>
-          </div>
-
-        </div>
-        {/* Removed the 'Don't have an account? Sign Up' text and button */}
-        <footer className="tm-sitefoot">
-          <span>© {new Date().getFullYear()} TypeMyworDz</span>
-          <span className="tm-sitefoot-links">
-            <Link to="/privacy-policy">Privacy &amp; Security</Link>
-            <Link to="/terms">Terms of Service</Link>
-          </span>
-        </footer>
-      </div>
-    );
+    return <Landing />;
   }
+
 return (
   <Routes>
     <Route path="/transcription/:id" element={<TranscriptionDetail />} />
