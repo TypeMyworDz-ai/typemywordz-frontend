@@ -14,7 +14,6 @@ function showSpeechToText() {
   const toast = document.createElement('div');
   toast.className = 'toast-notification';
   toast.innerHTML = `
-    <div style="font-size: 24px; margin-bottom: 10px;">🎙️</div>
     <div><strong>Speech-to-Text</strong></div>
     <div style="margin-top: 8px; font-size: 14px; line-height: 1.4;">
       Record/Upload your audios/videos and get transcripts in minutes!
@@ -32,7 +31,6 @@ function showComingSoon(productName) {
   const toast = document.createElement('div');
   toast.className = 'toast-notification';
   toast.innerHTML = `
-    <div style="font-size: 24px; margin-bottom: 10px;">🚀</div>
     <div><strong>${productName}</strong></div>
     <div style="margin-top: 5px; opacity: 0.9;">Coming Soon!</div>
   `;
@@ -48,7 +46,6 @@ function showHumanTranscripts() {
   const toast = document.createElement('div');
   toast.className = 'toast-notification';
   toast.innerHTML = `
-    <div style="font-size: 24px; margin-bottom: 10px;">💬</div>
     <div><strong>Human Transcripts</strong></div>
     <div style="margin-top: 8px; font-size: 14px; line-height: 1.4;">
       Send Us an Email on typemywordz@gmail.com or Chat with Us on Our Live Chat to Get a Quote
@@ -109,7 +106,7 @@ function openDonate() {
     <div class="donate-modal" id="donateModal">
       <div class="donate-content">
         <span class="close-btn" onclick="closeDonate()">&times;</span>
-        <h2>💝 Support TypeMyworDz</h2>
+        <h2>Support TypeMyworDz</h2>
         
         <p style="text-align: center; margin-bottom: 25px; font-size: 16px; line-height: 1.4;">
           Support Us To Make Transcription AI affordable to Everyone Around the World
@@ -136,12 +133,12 @@ function openDonate() {
         
         <div style="text-align: center; margin-top: 20px;">
           <button onclick="processDonation()" class="donate-btn-main" id="donateBtn">
-            💝 Donate Now
+            Donate Now
           </button>
         </div>
         
         <p style="font-size: 12px; text-align: center; margin-top: 20px; opacity: 0.8;">
-          Secure payment powered by Paystack 🙏
+          Secure payment powered by Paystack
         </p>
       </div>
     </div>
@@ -203,7 +200,6 @@ function processPaystackPayment(amount) {
       toast.className = 'toast-notification';
       toast.style.background = 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)';
       toast.innerHTML = `
-        <div style="font-size: 24px; margin-bottom: 10px;">✅</div>
         <div><strong>Thank You!</strong></div>
         <div style="margin-top: 8px; font-size: 14px;">Your donation of USD ${amount} was successful!</div>
         <div style="margin-top: 5px; font-size: 12px; opacity: 0.9;">Reference: ${response.reference}</div>
@@ -233,7 +229,7 @@ function processPaystackPayment(amount) {
       const donateBtn = document.getElementById('donateBtn');
       if (donateBtn) {
         donateBtn.disabled = false;
-        donateBtn.innerHTML = '💝 Donate Now';
+        donateBtn.innerHTML = 'Donate Now';
       }
       
       showErrorToast('Payment was cancelled. You can try again anytime.');
@@ -249,7 +245,6 @@ function showSuccessToast(message) {
   toast.className = 'toast-notification';
   toast.style.background = 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)';
   toast.innerHTML = `
-    <div style="font-size: 24px; margin-bottom: 10px;">✅</div>
     <div><strong>Success!</strong></div>
     <div style="margin-top: 8px; font-size: 14px; line-height: 1.4;">${message}</div>
   `;
@@ -266,7 +261,6 @@ function showErrorToast(message) {
   toast.className = 'toast-notification';
   toast.style.background = 'linear-gradient(135deg, #ff6b6b 0%, #ff5252 100%)';
   toast.innerHTML = `
-    <div style="font-size: 24px; margin-bottom: 10px;">❌</div>
     <div><strong>Error</strong></div>
     <div style="margin-top: 8px; font-size: 14px; line-height: 1.4;">${message}</div>
   `;

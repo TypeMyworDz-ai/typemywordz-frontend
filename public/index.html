@@ -10,7 +10,7 @@
     <meta name="theme-color" content="#667eea" />
     <meta
       name="description"
-      content="TypeMyworDz AI - AI Transcription Service. Convert speech to text with simple, accurate, powerful AI technology."
+      content="TypeMyworDz turns recordings into accurate, speaker-separated transcripts you can edit and export. For legal, medical, research, media, business and general work."
     />
     <meta name="keywords" content="transcription, speech to text, AI transcription, audio to text, voice recognition, TypeMyworDz" />
     <meta name="author" content="TypeMyworDz" />
@@ -48,7 +48,38 @@
     <noscript>You need to enable JavaScript to run this app.</noscript>
     
     <!-- The menu will now be rendered entirely by React within the #root div -->
-    <div id="root"></div>
+    <div id="root">
+      <!--
+        This block is replaced by the application the instant it starts.
+
+        It exists for two reasons. First, it matches the app's own loading screen,
+        so a returning client sees the wordmark rather than a blank white page while
+        the app downloads. Second, anything that does not run JavaScript - Google's
+        OAuth reviewer, link previews, search crawlers - can still read the app name,
+        what the app does, and reach the privacy policy and terms.
+      -->
+      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#ffffff;font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+        <div style="text-align:center;padding:24px;max-width:560px">
+          <h1 style="font-size:27px;font-weight:700;letter-spacing:-0.02em;margin:0">
+            <span style="color:#5b44cf">Type</span><span style="color:#28a745">My</span><span style="color:#5b44cf">worDz</span>
+          </h1>
+          <p style="font-size:10.5px;letter-spacing:0.16em;text-transform:uppercase;color:#858a95;margin:6px 0 0">You Talk, We Type</p>
+          <p style="color:#858a95;font-size:13px;line-height:1.7;margin:26px 0 0">
+            TypeMyworDz is a transcription service. It turns audio and video recordings into
+            accurate, speaker-separated written transcripts that you can correct in the browser
+            and export to Word or plain text. It is used for legal, medical, research and
+            academic, media and interview, business and general transcription work.
+            New accounts get five minutes free.
+          </p>
+          <p style="margin:20px 0 0;font-size:12px">
+            <a href="/privacy-policy" style="color:#858a95">Privacy and Security</a>
+            <span style="color:#e5e6ea">&nbsp;&middot;&nbsp;</span>
+            <a href="/terms" style="color:#858a95">Terms of Service</a>
+          </p>
+        </div>
+      </div>
+    </div>
+    </div>
 
     <!-- The menu.js script is still needed for menu functionality (toast, donate, etc.) -->
     <script src="menu.js"></script>
