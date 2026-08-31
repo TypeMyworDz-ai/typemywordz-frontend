@@ -15,8 +15,9 @@ import TranscribeProgress from './components/TranscribeProgress';
 import Signup from './components/Signup';
 import FeedbackModal from './components/FeedbackModal';
 import { canUserTranscribe, updateUserUsage, saveTranscription, updateTranscription, updateUserPlan, saveFeedback } from './userService'; // Removed createUserProfile
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
 import PrivacyPolicy from './components/PrivacyPolicy';
+import TermsOfService from './components/TermsOfService';
 import AnimatedBroadcastBoard from './components/AnimatedBroadcastBoard';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -1405,13 +1406,12 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
         </div>
         {/* Removed the 'Don't have an account? Sign Up' text and button */}
-        <footer style={{ 
-          textAlign: 'center', 
-          padding: '20px', 
-          color: '#a8acb5', 
-          fontSize: '0.85rem' 
-        }}>
-          © {new Date().getFullYear()} TypeMyworDz
+        <footer className="tm-sitefoot">
+          <span>© {new Date().getFullYear()} TypeMyworDz</span>
+          <span className="tm-sitefoot-links">
+            <Link to="/privacy-policy">Privacy &amp; Security</Link>
+            <Link to="/terms">Terms of Service</Link>
+          </span>
         </footer>
       </div>
     );
@@ -1422,6 +1422,7 @@ return (
     <Route path="/transcription-editor" element={<RichTextEditor />} />
     <Route path="/signup" element={<Signup />} />
     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+    <Route path="/terms" element={<TermsOfService />} />
     <Route path="/dashboard" element={
       <Dashboard setCurrentView={setCurrentView} standalone />
     } />
@@ -2788,8 +2789,12 @@ return (
             </main>
           </div>
         )}
-        <footer className="tm-footer">
-          © {new Date().getFullYear()} TypeMyworDz
+        <footer className="tm-footer tm-sitefoot">
+          <span>© {new Date().getFullYear()} TypeMyworDz</span>
+          <span className="tm-sitefoot-links">
+            <Link to="/privacy-policy">Privacy &amp; Security</Link>
+            <Link to="/terms">Terms of Service</Link>
+          </span>
         </footer>
 
           </main>
