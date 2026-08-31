@@ -1566,6 +1566,13 @@ body {
 }
 
 .tm-hit { background: #ffe9b8; color: var(--tm-ink); border-radius: 2px; }
+/* The one match the client is standing on, so it is obvious which of several
+   highlighted words Enter has just jumped to. Solid outline, no glow. */
+.tm-hit-on {
+  background: #ffc94d;
+  outline: 2px solid var(--tm-ink);
+  outline-offset: 0;
+}
 
 /* --- footer hints --- */
 
