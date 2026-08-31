@@ -2569,3 +2569,203 @@ body {
   .tm-lp-grid, .tm-lp-steps, .tm-lp-promises{ grid-template-columns: 1fr; gap: 20px; }
   .tm-lp-plans td:first-child{ width: 50%; }
 }
+
+/* ============================================================
+   Sign in / create account card
+   Lives inside .tm-lp-hero-card on the landing page, which already
+   supplies the white panel, border and padding, so this block is
+   transparent and simply fills the width it is given.
+   ============================================================ */
+
+.tm-auth{
+  width: 100%;
+  text-align: center;
+  font-family: var(--tm-font);
+}
+
+.tm-auth-title{
+  color: var(--tm-ink);
+  margin: 0 0 4px;
+  font-size: 1.3rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+.tm-auth-blurb{
+  color: var(--tm-muted);
+  font-size: 13px;
+  margin: 0 0 20px;
+}
+
+.tm-auth-error,
+.tm-auth-notice{
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: var(--tm-radius);
+  border: 1px solid;
+}
+.tm-auth-error{
+  color: var(--tm-danger);
+  background: var(--tm-danger-soft);
+  border-color: var(--tm-danger);
+}
+.tm-auth-notice{
+  color: var(--tm-green-dark);
+  background: var(--tm-green-soft);
+  border-color: var(--tm-green-line);
+}
+
+.tm-auth-google{
+  width: 100%;
+  padding: 11px 18px;
+  background: var(--tm-white);
+  color: #3c4043;
+  border: 1px solid #d2d5dc;
+  border-radius: var(--tm-radius);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.tm-auth-google:hover:not(:disabled){ background: var(--tm-surface); }
+.tm-auth-google:disabled{ opacity: .6; cursor: not-allowed; }
+
+.tm-auth-or{
+  position: relative;
+  margin: 18px 0 16px;
+  color: var(--tm-faint);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+.tm-auth-or::before{
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 50%;
+  border-top: 1px solid var(--tm-line);
+}
+.tm-auth-or span{
+  position: relative;
+  background: var(--tm-white);
+  padding: 0 10px;
+}
+
+.tm-auth-label{
+  display: block;
+  text-align: left;
+  color: var(--tm-body);
+  font-size: 12.5px;
+  font-weight: 550;
+  margin: 0 0 5px;
+}
+
+.tm-auth-input{
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  margin: 0 0 14px;
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius);
+  background: var(--tm-white);
+  color: var(--tm-ink);
+  font-family: inherit;
+  font-size: 14px;
+}
+.tm-auth-input:focus,
+.tm-auth-input:focus-visible{
+  outline: 2px solid var(--tm-ink);
+  outline-offset: 1px;
+  border-color: var(--tm-ink);
+}
+.tm-auth-input:disabled{ background: var(--tm-surface); }
+
+/* The password field and its Show/Hide control share one row. The input keeps
+   its own bottom margin, so the wrapper carries none. */
+.tm-auth-pwwrap{ position: relative; }
+.tm-auth-pwwrap .tm-auth-input{ padding-right: 62px; }
+.tm-auth-peek{
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: var(--tm-muted);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+}
+.tm-auth-peek:hover:not(:disabled){ color: var(--tm-ink); }
+
+.tm-auth-hint{
+  text-align: left;
+  color: var(--tm-faint);
+  font-size: 12px;
+  margin: -8px 0 14px;
+}
+
+.tm-auth-submit{
+  width: 100%;
+  padding: 11px 18px;
+  background: var(--tm-green);
+  color: var(--tm-white);
+  border: 0;
+  border-radius: var(--tm-radius);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.tm-auth-submit:hover:not(:disabled){ background: var(--tm-green-dark); }
+.tm-auth-submit:disabled{ opacity: .6; cursor: not-allowed; }
+
+.tm-auth-link{
+  display: block;
+  width: 100%;
+  margin: 12px 0 0;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: var(--tm-muted);
+  font-family: inherit;
+  font-size: 12.5px;
+  text-decoration: underline;
+}
+.tm-auth-link:hover{ color: var(--tm-ink); }
+
+.tm-auth-swap{
+  margin: 16px 0 0;
+  color: var(--tm-muted);
+  font-size: 12.5px;
+}
+.tm-auth-swapbtn{
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-left: 5px;
+  cursor: pointer;
+  color: var(--tm-green-dark);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: underline;
+}
+.tm-auth-swapbtn:hover{ color: var(--tm-ink); }
+
+.tm-auth-google:focus-visible,
+.tm-auth-submit:focus-visible,
+.tm-auth-peek:focus-visible,
+.tm-auth-link:focus-visible,
+.tm-auth-swapbtn:focus-visible{
+  outline: 2px solid var(--tm-ink);
+  outline-offset: 2px;
+}
