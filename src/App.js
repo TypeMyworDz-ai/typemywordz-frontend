@@ -75,7 +75,7 @@ const CopiedNotification = ({ isVisible }) => {
 function AppContent() {
   const navigate = useNavigate();
   // Removed signInWithGoogle as it's not used in AppContent
-  const { currentUser, logout, userProfile, refreshUserProfile, showMessage } = useAuth();
+  const { currentUser, logout, userProfile, refreshUserProfile, showMessage, loading: authLoading } = useAuth();
   
   // Utility functions
   const formatTime = (seconds) => {
@@ -129,6 +129,19 @@ function AppContent() {
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const uploadInFlightRef = useRef(false);
   const recordingExtensionRef = useRef('webm');
+
+  // The brand screen only appears if the wait is long enough to notice.
+  // Under about half a second the page simply stays quiet, so a returning
+  // client goes straight to their workspace with nothing flashing in between.
+  const [bootVisible, setBootVisible] = useState(false);
+  useEffect(() => {
+    if (!authLoading) {
+      setBootVisible(false);
+      return undefined;
+    }
+    const t = setTimeout(() => setBootVisible(true), 450);
+    return () => clearTimeout(t);
+  }, [authLoading]);
   // State to store the latest completed transcription for AI Assistant
   const [latestTranscription, setLatestTranscription] = useState(''); 
 
@@ -1106,6 +1119,9 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
   // Short, human plan label for the top bar (replaces the long inline plan string)
   const planLabel = (() => {
+    // Until the profile has arrived we do not know which plan this is, and
+    // guessing "Free plan" told paying clients the wrong thing for a moment.
+    if (!userProfile) return { text: 'Checking your plan', isFree: false, pending: true };
     const p = userProfile?.plan;
     const until = userProfile?.expiresAt
       ? ' \u00b7 until ' + new Date(userProfile.expiresAt).toLocaleDateString()
@@ -1293,7 +1309,32 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   }, [showMessage]);
 
 
-  // Login screen for non-authenticated users
+  // While Firebase is working out whether this person is already signed in,
+  // we must not show the sign-in page. A returning client is signed in within
+  // a moment, and showing them a sign-in card they never asked for, only to
+  // replace it a heartbeat later, is the single most obvious sign of an app
+  // that has not been finished properly.
+  //
+  // We also do not immediately show a loading screen, because on a fast
+  // connection that would flash by just as badly. The page stays quiet for a
+  // short moment, and only if the wait is genuinely long does a calm brand
+  // screen appear.
+  if (authLoading) {
+    return (
+      <div className="tm-boot">
+        {bootVisible && (
+          <div className="tm-boot-mark">
+            <span className="tm-boot-word">
+              <span className="tm-boot-p">Type</span><span className="tm-boot-g">My</span><span className="tm-boot-p">worDz</span>
+            </span>
+            <span className="tm-boot-sub">You Talk, We Type</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Sign-in screen, only once we know for certain nobody is signed in
   if (!currentUser) {
     return (
       <div className="tm-app tm-login" style={{ 
@@ -1499,7 +1540,7 @@ return (
                   <div className="tm-account-mail">{currentUser.email}</div>
                 </div>
                 <div className="tm-account-plan">
-                  <span className={"tm-plan" + (planLabel.isFree ? " tm-plan-free" : "")}>{planLabel.text}</span>
+                  <span className={"tm-plan" + (planLabel.isFree ? " tm-plan-free" : "") + (planLabel.pending ? " tm-plan-pending" : "")}>{planLabel.text}</span>
                   {planLabel.isFree && (
                     <button className="tm-account-upgrade" onClick={() => { setAccountMenuOpen(false); handleOpenPricing(); }}>
                       Upgrade
@@ -1517,20 +1558,6 @@ return (
           </div>
 
         </div>
-
-        {currentUser && !userProfile && ( 
-          <div style={{
-            textAlign: 'center',
-            padding: '20px',
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-            margin: '20px',
-            borderRadius: '10px'
-          }}>
-            <div style={{ color: '#6c5ce7', fontSize: '16px' }}>
-               Loading your profile...
-            </div>
-          </div>
-        )}
 
         {/* ---- Workspace: sidebar on the left, everything else on the right ---- */}
         <div className="tm-shell">
@@ -1601,8 +1628,8 @@ return (
             )}
 
             <div className="tm-plancard">
-              <div className="tm-plancard-name">{planLabel.text}</div>
-              {planLabel.isFree ? (
+              <div className={"tm-plancard-name" + (planLabel.pending ? " tm-plan-pending" : "")}>{planLabel.text}</div>
+              {planLabel.pending ? null : planLabel.isFree ? (
                 <button className="tm-plancard-cta" onClick={handleOpenPricing}>
                   See plans
                 </button>
