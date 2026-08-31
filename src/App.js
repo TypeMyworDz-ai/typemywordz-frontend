@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
 import './styles/theme.css';
-import { AuthProvider, useAuth, ToastNotification } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import ConfirmDialog from './components/ConfirmDialog';
+import { FREE_TRIAL_MINUTES } from './userService';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
@@ -71,7 +73,7 @@ const CopiedNotification = ({ isVisible }) => {
 function AppContent() {
   const navigate = useNavigate();
   // Removed signInWithGoogle as it's not used in AppContent
-  const { currentUser, logout, userProfile, refreshUserProfile, showMessage, message, messageType, clearMessage } = useAuth(); 
+  const { currentUser, logout, userProfile, refreshUserProfile, showMessage } = useAuth();
   
   // Utility functions
   const formatTime = (seconds) => {
@@ -115,6 +117,12 @@ function AppContent() {
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en'); 
   const [speakerLabelsEnabled, setSpeakerLabelsEnabled] = useState(false);
+  // Set when a transcription is blocked by the client's plan. Shown as a calm
+  // panel on the page rather than a warning followed by a forced redirect.
+  const [planBlock, setPlanBlock] = useState(null);
+  // Cancelling a transcription that is already running throws away work,
+  // so it asks first.
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   // State to store the latest completed transcription for AI Assistant
   const [latestTranscription, setLatestTranscription] = useState(''); 
 
@@ -854,27 +862,28 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
     console.log('DEBUG: Estimated duration for upload:', estimatedDuration);
 
+    setPlanBlock(null);
     const transcribeCheck = await canUserTranscribe(currentUser.uid, estimatedDuration, currentUser.email);
     console.log('DEBUG: canUserTranscribe check result:', transcribeCheck);
     
     if (!transcribeCheck.canTranscribe) {
       if (transcribeCheck.redirectToPricing) {
-        let userMessage = 'Please upgrade to continue transcribing.';
+        // The client stays exactly where they are and keeps the file they chose.
+        // Being thrown onto the pricing page mid-task, two seconds after a
+        // warning they may not have finished reading, is not a good experience.
+        let userMessage = 'You need a plan to transcribe this.';
         if (transcribeCheck.reason === 'exceeds_free_limit') {
-          userMessage = `This ${transcribeCheck.requiredMinutes}-minute audio exceeds your ${transcribeCheck.remainingMinutes} remaining free minutes. Redirecting to pricing...`;
+          userMessage = `This audio is about ${transcribeCheck.requiredMinutes} minutes, and you have ${transcribeCheck.remainingMinutes} free minutes left.`;
         } else if (transcribeCheck.reason === 'free_trial_exhausted') {
-          userMessage = 'Your 30-minute free trial has been used. Redirecting to pricing...';
+          userMessage = `You have used your ${FREE_TRIAL_MINUTES} free minutes.`;
         } else if (transcribeCheck.reason === 'plan_expired') {
-          userMessage = 'Your paid plan has expired. Redirecting to pricing...';
+          userMessage = 'Your plan has expired.';
         }
 
-        showMessage(userMessage, 'warning');
-        console.log('DEBUG: Blocking transcription due to plan/limit. Redirecting to pricing.');
-        
-        setTimeout(() => {
-          setCurrentView('pricing');
-          resetTranscriptionProcessUI();
-        }, 2000);
+        setPlanBlock(userMessage);
+        setIsUploading(false);
+        setStatus('idle');
+        console.log('DEBUG: Blocking transcription due to plan/limit.');
         return;
       } else {
         showMessage('You do not have permission to transcribe audio. Please contact support if this is an error.', 'error');
@@ -977,7 +986,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       setIsUploading(false);
       showMessage('Transcription service is currently unavailable. Please try again later.','error');
     }
-  }, [selectedFile, audioDuration, currentUser?.uid, currentUser?.email, showMessage, setCurrentView, resetTranscriptionProcessUI, userProfile, selectedLanguage, speakerLabelsEnabled, checkJobStatus]); // Removed RAILWAY_BACKEND_URL from dependencies
+  }, [selectedFile, audioDuration, currentUser?.uid, currentUser?.email, showMessage, resetTranscriptionProcessUI, userProfile, selectedLanguage, speakerLabelsEnabled, checkJobStatus]); // Removed RAILWAY_BACKEND_URL from dependencies
 
   // Copy to clipboard (now triggers CopiedNotification)
   // The old Copy / Word / TXT buttons lived here. The proofreading editor
@@ -1053,7 +1062,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     if (p === 'One-Week Plan')  return { text: 'One week' + until, isFree: false };
     if (p === 'Three-Day Plan') return { text: 'Three days' + until, isFree: false };
     if (p === 'free' && !userProfile?.hasReceivedInitialFreeMinutes) {
-      return { text: 'Free trial \u00b7 ' + Math.max(0, 30 - (userProfile?.totalMinutesUsed || 0)) + ' min left', isFree: true };
+      return { text: 'Free trial \u00b7 ' + Math.max(0, FREE_TRIAL_MINUTES - (userProfile?.totalMinutesUsed || 0)) + ' min left', isFree: true };
     }
     return { text: 'Free plan', isFree: true };
   })();
@@ -1302,7 +1311,6 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
         </div>
         {/* Removed the 'Don't have an account? Sign Up' text and button */}
-        {/* REMOVED: ToastNotification component call from here */}
         <footer style={{ 
           textAlign: 'center', 
           padding: '20px', 
@@ -1332,7 +1340,6 @@ return (
         flexDirection: 'column',
         background: '#ffffff'
       }}>
-        <ToastNotification message={message} type={messageType} clearMessage={clearMessage} />
         <CopiedNotification isVisible={copiedMessageVisible} />
 
         {/* ---- Application top bar ---- */}
@@ -2324,6 +2331,32 @@ return (
               width: '100%',
               padding: '0',
             }}>
+              <ConfirmDialog
+                open={confirmingCancel}
+                title="Stop this transcription?"
+                body="The work done so far will be lost and you will need to start again. Your file stays selected."
+                confirmLabel="Stop it"
+                cancelLabel="Keep going"
+                tone="danger"
+                onConfirm={() => { setConfirmingCancel(false); handleCancelUpload(); }}
+                onCancel={() => setConfirmingCancel(false)}
+              />
+              {planBlock && (
+                <div className="tm-blocked" role="alert">
+                  <div className="tm-blocked-text">
+                    <strong>{planBlock}</strong>
+                    <span>Your file is still selected. Choose a plan and it will be ready to go.</span>
+                  </div>
+                  <div className="tm-blocked-acts">
+                    <button type="button" className="tm-blocked-go" onClick={() => setCurrentView('pricing')}>
+                      See plans
+                    </button>
+                    <button type="button" className="tm-blocked-x" onClick={() => setPlanBlock(null)}>
+                      Not now
+                    </button>
+                  </div>
+                </div>
+              )}
               {userProfile && userProfile.plan === 'free' && (
                 <div style={{
                   backgroundColor: 'rgba(255, 255, 255, 0.95)', 
@@ -2335,9 +2368,9 @@ return (
                   backdropFilter: 'blur(10px)',
                   border: '1px solid #ffecb3' 
                 }}>
-                  {userProfile.totalMinutesUsed < 30 && !userProfile.hasReceivedInitialFreeMinutes ? (
+                  {userProfile.totalMinutesUsed < FREE_TRIAL_MINUTES && !userProfile.hasReceivedInitialFreeMinutes ? (
                     <>
-                      <strong>Free Trial:</strong> {Math.max(0, 30 - (userProfile.totalMinutesUsed || 0))} minutes remaining!{' '}
+                      <strong>Free trial:</strong> {Math.max(0, FREE_TRIAL_MINUTES - (userProfile.totalMinutesUsed || 0))} minutes remaining.{' '}
                       <button 
                         onClick={() => setCurrentView('pricing')}
                         style={{
@@ -2590,7 +2623,7 @@ return (
                       phase={transcribePhase}
                       uploadPercent={uploadPercent}
                       expectedSeconds={Math.max(10, (audioDuration || 0) * 0.3)}
-                      onCancel={handleCancelUpload}
+                      onCancel={() => setConfirmingCancel(true)}
                     />
                   )}
 
