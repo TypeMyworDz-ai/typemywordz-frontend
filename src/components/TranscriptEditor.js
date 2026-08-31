@@ -52,7 +52,7 @@ const writeLS = (key, value) => {
 
 const Segment = memo(function Segment({
   seg, index, isActive, isEditing, showTimes, approximate, speakerNames,
-  onSeek, onEdit, onCommit, onEditKeyDown, highlight
+  onSeek, onEdit, onCommit, onEditKeyDown, highlight, activeHit
 }) {
   const areaRef = useRef(null);
 
@@ -80,15 +80,23 @@ const Segment = memo(function Segment({
     let at = 0;
     let found = hay.indexOf(needle, at);
     if (found === -1) return text;
+    // Which occurrence within this line is the one the client is standing on.
+    let occ = 0;
     while (found !== -1) {
       if (found > at) parts.push(text.slice(at, found));
-      parts.push(<mark key={found} className="tm-hit">{text.slice(found, found + highlight.length)}</mark>);
+      const isOn = activeHit === occ;
+      parts.push(
+        <mark key={found} className={isOn ? 'tm-hit tm-hit-on' : 'tm-hit'}>
+          {text.slice(found, found + highlight.length)}
+        </mark>
+      );
+      occ += 1;
       at = found + highlight.length;
       found = hay.indexOf(needle, at);
     }
     if (at < text.length) parts.push(text.slice(at));
     return parts;
-  }, [seg.text, highlight]);
+  }, [seg.text, highlight, activeHit]);
 
   return (
     <div
@@ -448,17 +456,55 @@ const TranscriptEditor = ({
   const [replace, setReplace] = useState('');
   const findRef = useRef(null);
 
-  const matchCount = useMemo(() => {
-    if (!find) return 0;
+  // Every match in reading order, so that Enter can walk through them one at
+  // a time instead of only telling the client how many there are.
+  const matches = useMemo(() => {
+    if (!find) return [];
     const needle = find.toLowerCase();
-    return segments.reduce((n, s) => {
+    const out = [];
+    segments.forEach((s, line) => {
       const hay = s.text.toLowerCase();
-      let count = 0;
       let at = hay.indexOf(needle);
-      while (at !== -1) { count++; at = hay.indexOf(needle, at + needle.length); }
-      return n + count;
-    }, 0);
+      let occ = 0;
+      while (at !== -1) {
+        out.push({ line, occ });
+        occ += 1;
+        at = hay.indexOf(needle, at + needle.length);
+      }
+    });
+    return out;
   }, [find, segments]);
+
+  const matchCount = matches.length;
+
+  // Which match is currently under the cursor. Kept as a number rather than a
+  // reference to a match so that editing the transcript cannot leave it
+  // pointing at something that no longer exists.
+  const [matchAt, setMatchAt] = useState(0);
+
+  // A new search term always starts again from the first match.
+  useEffect(() => { setMatchAt(0); }, [find]);
+
+  const goToMatch = useCallback((step) => {
+    if (matches.length === 0) return;
+    // Wrap around in both directions, so the end of the list rolls back to
+    // the start rather than dead-ending.
+    const next = ((matchAt + step) % matches.length + matches.length) % matches.length;
+    setMatchAt(next);
+    const target = matches[next].line;
+    const el = listRef.current && listRef.current.querySelector(`[data-index="${target}"]`);
+    if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    // Follow-the-audio would immediately drag the view back, so stop it.
+    followRef.current = false;
+    if (showTimes && segments[target]) seek(segments[target].start);
+  }, [matches, matchAt, segments, seek, showTimes]);
+
+  const onFindKeyDown = useCallback((e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      goToMatch(e.shiftKey ? -1 : 1);
+    }
+  }, [goToMatch]);
 
   const replaceAll = useCallback(() => {
     if (!find) return;
@@ -794,12 +840,23 @@ const TranscriptEditor = ({
       {findOpen && (
         <div className="tm-find">
           <input ref={findRef} className="tm-find-in" placeholder="Find" value={find}
-                 onChange={(e) => setFind(e.target.value)} />
+                 onChange={(e) => setFind(e.target.value)}
+                 onKeyDown={onFindKeyDown} />
           <input className="tm-find-in" placeholder="Replace with" value={replace}
                  onChange={(e) => setReplace(e.target.value)} />
           <span className="tm-find-count">
-            {find ? `${matchCount} match${matchCount === 1 ? '' : 'es'}` : 'Not case sensitive'}
+            {!find
+              ? 'Not case sensitive'
+              : matchCount === 0
+                ? 'No matches'
+                : `${matchAt + 1} of ${matchCount}`}
           </span>
+          <button type="button" className="tm-ed-tool" disabled={matchCount === 0}
+                  title="Previous match (Shift and Enter)"
+                  onClick={() => goToMatch(-1)}>Previous</button>
+          <button type="button" className="tm-ed-tool" disabled={matchCount === 0}
+                  title="Next match (Enter)"
+                  onClick={() => goToMatch(1)}>Next</button>
           <button type="button" className="tm-find-go" disabled={!find || matchCount === 0}
                   onClick={replaceAll}>Replace all</button>
           <button type="button" className="tm-ed-tool" onClick={() => { setFindOpen(false); setFind(''); }}>Close</button>
@@ -830,6 +887,11 @@ const TranscriptEditor = ({
             approximate={approximate}
             speakerNames={speakerNames}
             highlight={findOpen ? find : ''}
+            activeHit={
+              findOpen && matches[matchAt] && matches[matchAt].line === i
+                ? matches[matchAt].occ
+                : -1
+            }
             onSeek={seek}
             onEdit={setEditingIndex}
             onCommit={commit}
