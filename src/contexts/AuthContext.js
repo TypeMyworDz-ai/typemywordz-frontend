@@ -1,8 +1,9 @@
 // src/contexts/AuthContext.js
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { auth, googleProvider, microsoftProvider } from '../firebase'; // Removed db import
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { createUserProfile, getUserProfile } from '../userService';
+import Toaster, { durationForType } from '../components/Toaster';
 
 const AuthContext = createContext();
 
@@ -19,30 +20,38 @@ export const AuthProvider = ({ children }) => {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
-  const [message, setMessage] = useState(null);
-  const [messageType, setMessageType] = useState('info');
+  // Notifications are a list, so two messages arriving together stack
+  // instead of one silently replacing the other. Each toast owns its own
+  // timer (see components/Toaster.js), which is why one can no longer be
+  // stranded on screen by a lost timer id.
+  const [toasts, setToasts] = useState([]);
+  const toastSeq = useRef(0);
 
-  const showMessage = useCallback((text, type = 'info', duration = 3000) => {
-    setMessage({ text, type });
-    setMessageType(type);
-    if (duration > 0) {
-      const currentTimeoutId = window.highlightMessageTimeout;
-      if (currentTimeoutId) {
-        clearTimeout(currentTimeoutId);
-      }
-      window.highlightMessageTimeout = setTimeout(() => {
-        setMessage(null);
-        window.highlightMessageTimeout = null;
-      }, duration);
-    }
+  const dismissToast = useCallback((id) => {
+    setToasts((list) => list.filter((t) => t.id !== id));
+  }, []);
+
+  // Signature is unchanged so every existing call site keeps working.
+  // Passing duration 0 means "stay until the client dismisses it".
+  const showMessage = useCallback((text, type = 'info', duration) => {
+    if (text == null || text === '') return;
+    const safeType = ['success', 'error', 'warning', 'info'].includes(type) ? type : 'info';
+    toastSeq.current += 1;
+    const id = toastSeq.current;
+    const ms = duration === undefined ? durationForType(safeType) : duration;
+    setToasts((list) => {
+      // Never show the same message twice at once (repeated effects used to
+      // re-trigger the same warning and keep it alive indefinitely).
+      const duplicate = list.some((t) => t.text === String(text) && t.type === safeType);
+      if (duplicate) return list;
+      // Keep at most four on screen.
+      const next = [...list, { id, text: String(text), type: safeType, duration: ms }];
+      return next.slice(-4);
+    });
   }, []);
 
   const clearMessage = useCallback(() => {
-    setMessage(null);
-    if (window.highlightMessageTimeout) {
-      clearTimeout(window.highlightMessageTimeout);
-      window.highlightMessageTimeout = null;
-    }
+    setToasts([]);
   }, []);
   
   const refreshUserProfile = useCallback(async () => {
@@ -156,74 +165,14 @@ export const AuthProvider = ({ children }) => {
     refreshUserProfile,
     showMessage,
     clearMessage,
-    message,
-    messageType,
+    toasts,
   };
 
   return (
     <AuthContext.Provider value={value}>
       {children}
-      {message && <ToastNotification message={message} type={messageType} clearMessage={clearMessage} />}
+      <Toaster toasts={toasts} onDismiss={dismissToast} />
     </AuthContext.Provider>
   );
 };
 
-// ToastNotification component (placed here as it's tightly coupled with AuthContext's message state)
-export const ToastNotification = ({ message, type, clearMessage }) => { // ADDED export here
-  if (!message) return null;
-
-  let backgroundColor = '#333';
-  let textColor = 'white';
-
-  switch (type) {
-    case 'success':
-      backgroundColor = '#4CAF50';
-      break;
-    case 'error':
-      backgroundColor = '#f44336';
-      break;
-    case 'warning':
-      backgroundColor = '#ff9800';
-      break;
-    case 'info':
-    default:
-      backgroundColor = '#2196F3';
-      break;
-  }
-
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: '20px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        backgroundColor: backgroundColor,
-        color: textColor,
-        padding: '12px 20px',
-        borderRadius: '8px',
-        boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
-        zIndex: 2000,
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        cursor: 'pointer',
-      }}
-      onClick={clearMessage}
-    >
-      <span dangerouslySetInnerHTML={{ __html: message.text }} />
-      <button
-        onClick={clearMessage}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: 'white',
-          fontSize: '1.2em',
-          cursor: 'pointer',
-        }}
-      >
-        &times;
-      </button>
-    </div>
-  );
-};
