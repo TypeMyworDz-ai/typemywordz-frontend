@@ -51,7 +51,12 @@ export const LEADING_TIME = /^\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d{1,3})?\s+/;
 // ----- time formatting ---------------------------------------------------
 
 export const formatTime = (seconds) => {
-  const s = Math.max(0, Math.floor(Number(seconds) || 0));
+  // A browser recording often reports its length as Infinity until the file
+  // has been fully read. Without this guard that turned into the clock
+  // reading "Infinity:NaN:NaN" on screen.
+  const n = Number(seconds);
+  if (!Number.isFinite(n) || n < 0) return '0:00';
+  const s = Math.max(0, Math.floor(n));
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
