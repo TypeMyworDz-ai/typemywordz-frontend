@@ -7,6 +7,9 @@ import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getD
 // abusing with throwaway accounts.
 export const FREE_TRIAL_MINUTES = 5;
 
+// Where the backend lives. Same source of truth as App.js.
+const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
+
 const USERS_COLLECTION = 'users';
 const TRANSCRIPTIONS_COLLECTION = 'transcriptions'; // Top-level collection for all transcriptions
 const FEEDBACK_COLLECTION = 'feedback'; // NEW: New collection for feedback
@@ -37,6 +40,19 @@ export const createUserProfile = async (uid, email, name = '') => {
       subscriptionStartDate: null,
     });
     console.log("User profile created for:", email, "with plan:", userPlan);
+
+    // Brand new account, so send the one-off welcome email. This is
+    // deliberately fire-and-forget: if the email provider is slow or down the
+    // client still gets straight into the app, and nothing here can throw.
+    try {
+      fetch(`${RAILWAY_BACKEND_URL}/api/send-welcome-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name }),
+      }).catch(() => {});
+    } catch (e) {
+      // Never let a welcome email get in the way of signing up.
+    }
   } else {
     const existingData = docSnap.data();
     const updates = {
