@@ -1122,6 +1122,9 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     // Until the profile has arrived we do not know which plan this is, and
     // guessing "Free plan" told paying clients the wrong thing for a moment.
     if (!userProfile) return { text: 'Checking your plan', isFree: false, pending: true };
+    // Admin accounts are not on a plan at all. Showing them "Free plan" also
+    // showed them Upgrade and See plans, which they must never be asked to do.
+    if (isAdmin) return { text: 'Admin', isFree: false };
     const p = userProfile?.plan;
     const until = userProfile?.expiresAt
       ? ' \u00b7 until ' + new Date(userProfile.expiresAt).toLocaleDateString()
@@ -2372,7 +2375,7 @@ return (
                   </div>
                 </div>
               )}
-              {userProfile && userProfile.plan === 'free' && (
+              {!isAdmin && userProfile && userProfile.plan === 'free' && (
                 <div style={{
                   backgroundColor: 'rgba(255, 255, 255, 0.95)', 
                   color: '#856404',
