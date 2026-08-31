@@ -175,9 +175,10 @@ const Dashboard = ({ setCurrentView, standalone = false }) => {
   console.log('DEBUG: After sorting, sortedTranscriptions.length:', sortedTranscriptions.length); // NEW LOG
 
   const formatDuration = (seconds) => {
-    if (!seconds) return 'N/A';
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
+    const n = Number(seconds);
+    if (!Number.isFinite(n) || n <= 0) return 'Length unknown';
+    const minutes = Math.floor(n / 60);
+    const remainingSeconds = Math.floor(n % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 

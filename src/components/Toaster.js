@@ -26,7 +26,7 @@ export const durationForType = (type) =>
   TOAST_DURATIONS[type] != null ? TOAST_DURATIONS[type] : TOAST_DURATIONS.info;
 
 const Toast = ({ toast, onDismiss }) => {
-  const { id, text, type, duration, icon } = toast;
+  const { id, text, type, duration } = toast;
   const [leaving, setLeaving] = useState(false);
   const timerRef = useRef(null);
   const remainingRef = useRef(duration);
@@ -75,9 +75,6 @@ const Toast = ({ toast, onDismiss }) => {
       onFocus={pause}
       onBlur={resume}
     >
-      {icon === 'brand' && (
-        <img className="tm-toast-logo" src="/favicon-32x32.png" alt="" width="16" height="16" />
-      )}
       <span className="tm-toast-text">{text}</span>
       <button
         type="button"
@@ -94,12 +91,30 @@ const Toast = ({ toast, onDismiss }) => {
   );
 };
 
+// A flash is not a notification card. It is a few words that appear over the
+// middle of the page, lift slightly and fade out. Nothing to read, nothing to
+// close: it is there to confirm something finished, and then it is gone.
+const Flash = ({ toast, onDismiss }) => {
+  const { id, text } = toast;
+  useEffect(() => {
+    const t = window.setTimeout(() => onDismiss(id), 1600);
+    return () => clearTimeout(t);
+  }, [id, onDismiss]);
+  return (
+    <div className="tm-flash" role="status" aria-live="polite">
+      <span className="tm-flash-text">{text}</span>
+    </div>
+  );
+};
+
 const Toaster = ({ toasts, onDismiss }) => {
-  // Escape dismisses the most recent toast.
+  // Escape dismisses the most recent notification card.
   useEffect(() => {
     if (!toasts.length) return undefined;
     const onKey = (e) => {
-      if (e.key === 'Escape') onDismiss(toasts[toasts.length - 1].id);
+      if (e.key !== 'Escape') return;
+      const cards = toasts.filter((t) => t.variant !== 'flash');
+      if (cards.length) onDismiss(cards[cards.length - 1].id);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -107,12 +122,22 @@ const Toaster = ({ toasts, onDismiss }) => {
 
   if (!toasts.length) return null;
 
+  const flashes = toasts.filter((t) => t.variant === 'flash');
+  const cards = toasts.filter((t) => t.variant !== 'flash');
+
   return (
-    <div className="tm-toaster" aria-live="polite" aria-atomic="false">
-      {toasts.map((t) => (
-        <Toast key={t.id} toast={t} onDismiss={onDismiss} />
+    <>
+      {flashes.map((t) => (
+        <Flash key={t.id} toast={t} onDismiss={onDismiss} />
       ))}
-    </div>
+      {cards.length > 0 && (
+        <div className="tm-toaster" aria-live="polite" aria-atomic="false">
+          {cards.map((t) => (
+            <Toast key={t.id} toast={t} onDismiss={onDismiss} />
+          ))}
+        </div>
+      )}
+    </>
   );
 };
 
