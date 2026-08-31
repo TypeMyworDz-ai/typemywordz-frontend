@@ -33,7 +33,7 @@ export const AuthProvider = ({ children }) => {
 
   // Signature is unchanged so every existing call site keeps working.
   // Passing duration 0 means "stay until the client dismisses it".
-  // The fourth argument is for presentation only, e.g. { icon: 'brand' }.
+  // The fourth argument is for presentation only, e.g. { variant: 'flash' }.
   // Message text is always rendered as text, never as HTML, so a message
   // can never inject markup into the page.
   const showMessage = useCallback((text, type = 'info', duration, options) => {
@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }) => {
         text: String(text),
         type: safeType,
         duration: ms,
-        icon: options && options.icon ? options.icon : null,
+        variant: options && options.variant ? options.variant : 'card',
       }];
       return next.slice(-4);
     });

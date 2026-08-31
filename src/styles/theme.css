@@ -1984,7 +1984,6 @@ body {
 .tm-toast-info{ border-left-color: var(--tm-muted); background: #fff; }
 
 .tm-toast-text{ flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.tm-toast-logo{ flex: none; margin-top: 3px; }
 
 .tm-toast-x{
   flex: none;
@@ -2104,3 +2103,47 @@ body {
 .tm-blocked-go:hover{ background: var(--tm-green-dark); border-color: var(--tm-green-dark); }
 .tm-blocked-x{ background: transparent; border: 1px solid #e0cf9f; color: var(--tm-body); }
 .tm-blocked-x:hover{ background: rgba(154,100,0,.07); color: var(--tm-ink); }
+
+/* ---- Flash: a few words over the middle of the page, then gone ---- */
+
+.tm-flash{
+  position: fixed;
+  left: 50%;
+  top: 45%;
+  transform: translate(-50%, -50%);
+  z-index: 3200;
+  pointer-events: none;
+  animation: tm-flash-go 1600ms ease-out forwards;
+}
+.tm-flash-text{
+  font-size: clamp(22px, 3.4vw, 34px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--tm-green);
+  white-space: nowrap;
+  text-shadow: 0 1px 0 #fff, 0 0 14px #fff, 0 0 26px #fff;
+}
+
+@keyframes tm-flash-go{
+  0%   { opacity: 0; transform: translate(-50%, -42%) scale(.96); }
+  18%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  62%  { opacity: 1; transform: translate(-50%, -54%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -68%) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .tm-flash{ animation: tm-flash-fade 1600ms ease-out forwards; }
+  @keyframes tm-flash-fade{
+    0%{ opacity: 0 } 18%{ opacity: 1 } 70%{ opacity: 1 } 100%{ opacity: 0 }
+  }
+}
+
+/* Told once, plainly: the transcript is kept, the recording is not. */
+.tm-keepnote{
+  margin: 12px auto 0;
+  max-width: 60ch;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--tm-body);
+  font-weight: 400;
+}
