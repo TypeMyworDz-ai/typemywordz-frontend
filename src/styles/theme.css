@@ -1984,6 +1984,7 @@ body {
 .tm-toast-info{ border-left-color: var(--tm-muted); background: #fff; }
 
 .tm-toast-text{ flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.tm-toast-logo{ flex: none; margin-top: 3px; }
 
 .tm-toast-x{
   flex: none;
@@ -2069,6 +2070,8 @@ body {
 
 .tm-dialog-cancel:disabled,
 .tm-dialog-go:disabled{ opacity: .6; cursor: default; }
+.tm-dialog-cancel:focus,
+.tm-dialog-go:focus,
 .tm-dialog-cancel:focus-visible,
 .tm-dialog-go:focus-visible{ outline: 2px solid var(--tm-ink); outline-offset: 2px; }
 
