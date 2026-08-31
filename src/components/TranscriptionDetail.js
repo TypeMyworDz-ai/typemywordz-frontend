@@ -3,6 +3,7 @@ import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { updateTranscription, deleteTranscription, fetchUserTranscriptions } from '../userService';
 import TranscriptEditor from './TranscriptEditor';
+import ConfirmDialog from './ConfirmDialog';
 
 // ---------------------------------------------------------------------------
 // One saved transcript, opened from My files.
@@ -45,6 +46,9 @@ const TranscriptionDetail = () => {
   const [transcription, setTranscription] = useState(state?.transcription || null);
   const [loading, setLoading] = useState(!state?.transcription);
   const [notFound, setNotFound] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   // Arriving straight at the address, or after a refresh, there is no
   // navigation state to read. Look the transcript up instead of showing a
@@ -76,14 +80,21 @@ const TranscriptionDetail = () => {
     await updateTranscription(currentUser.uid, transcription.id, { transcriptionText: html });
   }, [currentUser?.uid, transcription?.id]);
 
-  const handleDelete = useCallback(async () => {
-    if (!window.confirm('Delete this transcript? This cannot be undone.')) return;
+  const handleDelete = useCallback(() => {
+    setConfirmingDelete(true);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    setDeleting(true);
     try {
       await deleteTranscription(currentUser.uid, transcription.id);
       navigate('/dashboard');
     } catch (error) {
       console.error('Error deleting transcription:', error);
-      window.alert('We could not delete it just now. Please try again.');
+      setConfirmingDelete(false);
+      setDeleteError('We could not delete it just now. Please try again.');
+    } finally {
+      setDeleting(false);
     }
   }, [currentUser?.uid, transcription, navigate]);
 
@@ -133,6 +144,20 @@ const TranscriptionDetail = () => {
           Delete this transcript
         </button>
       </div>
+
+      {deleteError && <p className="tm-detail-msg" role="alert">{deleteError}</p>}
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Delete this transcript?"
+        body="The transcript and its wording will be removed from your files. This cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Keep it"
+        tone="danger"
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmingDelete(false)}
+      />
     </div>
   );
 };

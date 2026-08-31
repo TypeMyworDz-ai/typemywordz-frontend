@@ -2,6 +2,11 @@ import { db } from './firebase';
 import { isAdminEmail } from './adminEmails';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc, addDoc, runTransaction } from 'firebase/firestore'; // Keep serverTimestamp just in case for other uses, but we'll manually set for this fix
 
+// Length of the free trial, in minutes. Kept small deliberately: it is
+// enough for a new client to judge the quality, and not enough to be worth
+// abusing with throwaway accounts.
+export const FREE_TRIAL_MINUTES = 5;
+
 const USERS_COLLECTION = 'users';
 const TRANSCRIPTIONS_COLLECTION = 'transcriptions'; // Top-level collection for all transcriptions
 const FEEDBACK_COLLECTION = 'feedback'; // NEW: New collection for feedback
@@ -25,7 +30,7 @@ export const createUserProfile = async (uid, email, name = '') => {
       name,
       plan: userPlan,
       totalMinutesUsed: 0,
-      hasReceivedInitialFreeMinutes: false, // New users start with 30 free minutes available
+      hasReceivedInitialFreeMinutes: false, // New users start with the free trial available
       createdAt: currentTime, // Use concrete Date object
       lastAccessed: currentTime, // Use concrete Date object
       expiresAt: null, 
@@ -124,9 +129,9 @@ export const getUserProfile = async (uid) => {
       profileData = { ...profileData, plan: 'free', expiresAt: null, subscriptionStartDate: null, hasReceivedInitialFreeMinutes: true, totalMinutesUsed: 0 };
     }
     
-    // Calculate remaining free minutes - KEY CHANGE: only 30 minutes if user hasn't received them yet
+    // Calculate remaining free minutes - only granted if the user has not used the trial yet
     if (profileData.plan === 'free' && !profileData.hasReceivedInitialFreeMinutes) {
-      profileData.freeMinutesRemaining = Math.max(0, 30 - profileData.totalMinutesUsed);
+      profileData.freeMinutesRemaining = Math.max(0, FREE_TRIAL_MINUTES - profileData.totalMinutesUsed);
     } else {
       profileData.freeMinutesRemaining = 0; // No free minutes for users who already got their trial or paid users
     }
@@ -234,7 +239,7 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds, userEmail
 
       // Check if user has already used their free trial
       if (userProfile.hasReceivedInitialFreeMinutes) {
-        console.log(`Free plan user - already used their 30-minute trial. Blocking transcription.`);
+        console.log(`Free plan user - already used their ${FREE_TRIAL_MINUTES}-minute trial. Blocking transcription.`);
         return { canTranscribe: false, reason: 'free_trial_exhausted', redirectToPricing: true };
       }
 
@@ -288,11 +293,11 @@ export const updateUserUsage = async (uid, durationSeconds) => {
 
     await updateDoc(userRef, {
       totalMinutesUsed: newTotalMinutesUsed,
-      // Mark as received if they've used 30+ minutes or if the new total reaches 30
-      hasReceivedInitialFreeMinutes: newTotalMinutesUsed >= 30, 
+      // Mark the trial as spent once the client reaches the free allowance
+      hasReceivedInitialFreeMinutes: newTotalMinutesUsed >= FREE_TRIAL_MINUTES, 
       lastAccessed: currentTime, // Use concrete Date object
     });
-    console.log(`User ${uid} (free plan): Updated totalMinutesUsed by ${durationMinutes} mins to ${newTotalMinutesUsed} mins. Remaining: ${Math.max(0, 30 - newTotalMinutesUsed)} mins.`);
+    console.log(`User ${uid} (free plan): Updated totalMinutesUsed by ${durationMinutes} mins to ${newTotalMinutesUsed} mins. Remaining: ${Math.max(0, FREE_TRIAL_MINUTES - newTotalMinutesUsed)} mins.`);
   } else if (userProfile.plan !== 'free') { // For paid plans, just update lastAccessed
     await updateDoc(userRef, {
       lastAccessed: currentTime, // Use concrete Date object
