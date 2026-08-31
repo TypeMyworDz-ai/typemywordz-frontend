@@ -1124,7 +1124,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     if (!userProfile) return { text: 'Checking your plan', isFree: false, pending: true };
     // Admin accounts are not on a plan at all. Showing them "Free plan" also
     // showed them Upgrade and See plans, which they must never be asked to do.
-    if (isAdmin) return { text: 'Admin', isFree: false };
+    if (isAdmin) return { text: 'Admin', isFree: false, isAdmin: true };
     const p = userProfile?.plan;
     const until = userProfile?.expiresAt
       ? ' \u00b7 until ' + new Date(userProfile.expiresAt).toLocaleDateString()
@@ -1572,7 +1572,9 @@ return (
                   See plans
                 </button>
               ) : (
-                <div className="tm-plancard-sub">Thanks for subscribing</div>
+                <div className="tm-plancard-sub">
+                  {planLabel.isAdmin ? 'Full access' : 'Thanks for subscribing'}
+                </div>
               )}
             </div>
 
