@@ -1,7 +1,16 @@
 // src/contexts/AuthContext.js
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { auth, googleProvider, microsoftProvider } from '../firebase'; // Removed db import
-import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
+import {
+  onAuthStateChanged,
+  signInWithPopup,
+  signOut,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  updateProfile,
+} from 'firebase/auth';
 import { createUserProfile, getUserProfile } from '../userService';
 import Toaster, { durationForType } from '../components/Toaster';
 
@@ -128,6 +137,39 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const signUpWithEmail = async (email, password, name) => {
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+
+    if (name && name.trim()) {
+      try {
+        await updateProfile(result.user, { displayName: name.trim() });
+      } catch (error) {
+        // A missing display name is not worth failing a signup over.
+        console.error('Could not set display name:', error);
+      }
+    }
+
+    try {
+      await sendEmailVerification(result.user);
+    } catch (error) {
+      // The account exists and works and the email can be sent again later, so
+      // this must not look to the client like a failed signup.
+      console.error('Could not send the verification email:', error);
+    }
+
+    return result;
+  };
+
+  const signInWithEmail = async (email, password) =>
+    signInWithEmailAndPassword(auth, email, password);
+
+  const sendPasswordReset = async (email) => sendPasswordResetEmail(auth, email);
+
+  const resendVerificationEmail = async () => {
+    if (!auth.currentUser) throw new Error('Nobody is signed in.');
+    return sendEmailVerification(auth.currentUser);
+  };
+
   const logout = async () => {
     try {
       await signOut(auth);
@@ -170,6 +212,10 @@ export const AuthProvider = ({ children }) => {
     profileLoading,
     signInWithGoogle,
     signInWithMicrosoft,
+    signUpWithEmail,
+    signInWithEmail,
+    sendPasswordReset,
+    resendVerificationEmail,
     logout,
     refreshUserProfile,
     showMessage,

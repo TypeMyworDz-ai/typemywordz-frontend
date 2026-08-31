@@ -11,7 +11,6 @@ import RichTextEditor from './components/RichTextEditor';
 import TranscriptEditor from './components/TranscriptEditor';
 import EditorDemo from './components/EditorDemo';
 import TranscribeProgress from './components/TranscribeProgress';
-import Signup from './components/Signup';
 import FeedbackModal from './components/FeedbackModal';
 import { canUserTranscribe, updateUserUsage, saveTranscription, updateTranscription, updateUserPlan, saveFeedback } from './userService'; // Removed createUserProfile
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
@@ -1344,7 +1343,6 @@ return (
   <Routes>
     <Route path="/transcription/:id" element={<TranscriptionDetail />} />
     <Route path="/transcription-editor" element={<RichTextEditor />} />
-    <Route path="/signup" element={<Signup />} />
     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
     <Route path="/terms" element={<TermsOfService />} />
     <Route path="/dashboard" element={
