@@ -2826,3 +2826,12 @@ body {
   outline: 2px solid var(--tm-ink);
   outline-offset: 2px;
 }
+
+/* What a plan actually includes, said plainly under the price. */
+.tm-plan-included{
+  display: block;
+  margin-top: 8px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--tm-green);
+}

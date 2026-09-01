@@ -7,6 +7,66 @@ import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getD
 // abusing with throwaway accounts.
 export const FREE_TRIAL_MINUTES = 5;
 
+// How much transcription each paid plan includes, in minutes.
+//
+// Until now every paid plan was unlimited, which meant a single heavy user
+// could cost more than they paid. These allowances are set well above what a
+// normal client uses in the life of the plan, so ordinary use is unaffected;
+// they only stop the rare case that loses money.
+export const PLAN_ALLOWANCE_MINUTES = {
+  'One-Day Plan': 4 * 60,
+  'Three-Day Plan': 8 * 60,
+  'One-Week Plan': 15 * 60,
+  'Monthly Plan': 25 * 60,
+  'Yearly Plan': 25 * 60, // per month, rolled over below
+};
+
+// The yearly plan's allowance is monthly, but its expiry is a year away, so
+// the counter has to be rolled forward every 30 days. Rather than run a
+// scheduled job, we work it out whenever we look at the profile: if the
+// current period started more than 30 days ago, the used counter is treated
+// as zero and reset the next time usage is written.
+const ALLOWANCE_PERIOD_DAYS = 30;
+const PERIOD_PLANS = ['Yearly Plan'];
+
+const toDate = (v) => (v && typeof v.toDate === 'function' ? v.toDate() : v ? new Date(v) : null);
+
+// Has the yearly plan's 30-day window rolled over since we last counted?
+export const allowancePeriodElapsed = (profile, now = new Date()) => {
+  if (!profile || !PERIOD_PLANS.includes(profile.plan)) return false;
+  const start = toDate(profile.allowancePeriodStart) || toDate(profile.subscriptionStartDate);
+  if (!start) return false;
+  const days = (now.getTime() - start.getTime()) / 86400000;
+  return days >= ALLOWANCE_PERIOD_DAYS;
+};
+
+// Minutes included with this profile's plan. A minutesAllowance field on the
+// profile wins if present, which is how a top-up purchase adds minutes
+// without needing any change to the plan itself. Returns null for a plan with
+// no cap at all.
+export const allowanceForProfile = (profile) => {
+  if (!profile) return null;
+  if (typeof profile.minutesAllowance === 'number' && profile.minutesAllowance > 0) {
+    return profile.minutesAllowance;
+  }
+  const base = PLAN_ALLOWANCE_MINUTES[profile.plan];
+  return typeof base === 'number' ? base : null;
+};
+
+// Minutes already used against the current allowance.
+export const usedMinutesForProfile = (profile, now = new Date()) => {
+  if (!profile) return 0;
+  if (allowancePeriodElapsed(profile, now)) return 0;
+  return profile.totalMinutesUsed || 0;
+};
+
+// Minutes still available. Returns null when the plan has no cap.
+export const remainingMinutesForProfile = (profile, now = new Date()) => {
+  const allowance = allowanceForProfile(profile);
+  if (allowance === null) return null;
+  return Math.max(0, allowance - usedMinutesForProfile(profile, now));
+};
+
 // Where the backend lives. Same source of truth as App.js.
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 
@@ -195,11 +255,38 @@ export const updateUserPlan = async (uid, newPlan, referenceId = null) => {
   
   // Mark hasReceivedInitialFreeMinutes as true upon any paid plan purchase
   updates.hasReceivedInitialFreeMinutes = true;
-  // Reset totalMinutesUsed for paid plans, as they get unlimited
-  updates.totalMinutesUsed = 0; 
+  // A new purchase starts the included minutes again from zero, and begins a
+  // new 30-day window for the yearly plan. Any top-up minutes bought against
+  // the previous plan are cleared with it.
+  updates.totalMinutesUsed = 0;
+  updates.allowancePeriodStart = new Date();
+  updates.minutesAllowance = null; 
 
   await updateDoc(userRef, updates);
   console.log(`User ${uid} plan updated to: ${newPlan}`);
+};
+
+// Add extra minutes to a client whose plan allowance has run out, so that
+// reaching the cap is something they can buy their way past rather than a
+// wall. The extra minutes sit on top of whatever the plan already included
+// and are cleared when a new plan is bought.
+export const addTopUpMinutes = async (uid, extraMinutes) => {
+  const minutes = Number(extraMinutes);
+  if (!uid || !Number.isFinite(minutes) || minutes <= 0) {
+    throw new Error('addTopUpMinutes needs a positive number of minutes.');
+  }
+  const userRef = getUserProfileRef(uid);
+  const userProfile = await getUserProfile(uid);
+  if (!userProfile) throw new Error('Profile not found.');
+
+  const current = allowanceForProfile(userProfile);
+  if (current === null) return; // no cap to top up
+
+  await updateDoc(userRef, {
+    minutesAllowance: current + minutes,
+    lastAccessed: new Date(),
+  });
+  console.log(`User ${uid}: topped up by ${minutes} min, allowance now ${current + minutes} min.`);
 };
 
 // Check recording permissions (no changes needed)
@@ -239,8 +326,30 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds, userEmail
     
     if (allPaidPlans.includes(userProfile.plan)) {
         if (userProfile.expiresAt && userProfile.expiresAt > new Date()) {
-            console.log(` ${userProfile.plan} plan user - plan active. Allowing transcription.`);
-            return { canTranscribe: true, reason: 'paid_plan_active' };
+            // The plan is live. Check what is left of the included minutes.
+            const remaining = remainingMinutesForProfile(userProfile);
+            const estimatedDurationMinutes = Math.ceil(estimatedDurationSeconds / 60);
+
+            if (remaining !== null && estimatedDurationMinutes > remaining) {
+              console.log(` ${userProfile.plan} plan user - ${estimatedDurationMinutes} min needed, ${remaining} min left of the plan allowance. Blocking.`);
+              return {
+                canTranscribe: false,
+                reason: 'plan_allowance_exhausted',
+                remainingMinutes: remaining,
+                requiredMinutes: estimatedDurationMinutes,
+                allowanceMinutes: allowanceForProfile(userProfile),
+                canTopUp: true,
+                redirectToPricing: true,
+              };
+            }
+
+            console.log(` ${userProfile.plan} plan user - plan active, ${remaining === null ? 'no cap' : remaining + ' min left'}. Allowing transcription.`);
+            return {
+              canTranscribe: true,
+              reason: 'paid_plan_active',
+              remainingMinutes: remaining,
+              requiredMinutes: estimatedDurationMinutes,
+            };
         } else {
             console.log(` ${userProfile.plan} plan user - plan expired. Blocking transcription.`);
             // Automatically downgrade happens in getUserProfile, so this is just a final check
@@ -314,11 +423,23 @@ export const updateUserUsage = async (uid, durationSeconds) => {
       lastAccessed: currentTime, // Use concrete Date object
     });
     console.log(`User ${uid} (free plan): Updated totalMinutesUsed by ${durationMinutes} mins to ${newTotalMinutesUsed} mins. Remaining: ${Math.max(0, FREE_TRIAL_MINUTES - newTotalMinutesUsed)} mins.`);
-  } else if (userProfile.plan !== 'free') { // For paid plans, just update lastAccessed
-    await updateDoc(userRef, {
-      lastAccessed: currentTime, // Use concrete Date object
-    });
-    console.log(`User ${uid} (${userProfile.plan} plan): Usage not tracked for this plan type. Updating lastAccessed.`);
+  } else if (userProfile.plan !== 'free') {
+    // Paid plans are no longer unlimited, so their minutes have to be counted
+    // as well. If the yearly plan's 30-day window has rolled over, the counter
+    // starts again from this job and the window is moved forward.
+    const durationMinutes = Math.ceil(durationSeconds / 60);
+    const rolled = allowancePeriodElapsed(userProfile, currentTime);
+    const base = rolled ? 0 : (userProfile.totalMinutesUsed || 0);
+    const newTotalMinutesUsed = base + durationMinutes;
+
+    const updates = {
+      totalMinutesUsed: newTotalMinutesUsed,
+      lastAccessed: currentTime,
+    };
+    if (rolled) updates.allowancePeriodStart = currentTime;
+
+    await updateDoc(userRef, updates);
+    console.log(`User ${uid} (${userProfile.plan} plan): +${durationMinutes} min, now ${newTotalMinutesUsed} min used${rolled ? ' (new 30-day period)' : ''}.`);
   }
 };
 

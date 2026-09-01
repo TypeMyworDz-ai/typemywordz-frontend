@@ -7,7 +7,8 @@ export const STRIPE_CONFIG = {
       name: 'Pro Plan',
       interval: 'month',
       features: [
-        'Unlimited transcription access',
+        '25 hours of transcription a month',
+        'Add more hours any time if you need them',
         'High accuracy AI transcription', 
         'Priority processing',
         'Copy to clipboard feature',

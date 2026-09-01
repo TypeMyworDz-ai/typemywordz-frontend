@@ -941,6 +941,11 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           userMessage = `You have used your ${FREE_TRIAL_MINUTES} free minutes.`;
         } else if (transcribeCheck.reason === 'plan_expired') {
           userMessage = 'Your plan has expired.';
+        } else if (transcribeCheck.reason === 'plan_allowance_exhausted') {
+          const hrs = Math.round((transcribeCheck.allowanceMinutes || 0) / 6) / 10;
+          userMessage = transcribeCheck.remainingMinutes > 0
+            ? `This audio is about ${transcribeCheck.requiredMinutes} minutes and you have ${transcribeCheck.remainingMinutes} minutes left on your plan. You can add more minutes without changing plan.`
+            : `You have used all ${hrs} hours included with your plan. You can add more minutes without changing plan.`;
         }
 
         setPlanBlock(userMessage);
@@ -1747,6 +1752,9 @@ return (
                             }}>
                               for 3 days
                             </span>
+                            <span className="tm-plan-included">
+                              Includes 8 hours of transcription
+                            </span>
                           </div>
                         </div>
                         
@@ -1828,6 +1836,9 @@ return (
                             }}>
                               for 7 days
                             </span>
+                            <span className="tm-plan-included">
+                              Includes 15 hours of transcription
+                            </span>
                           </div>
                         </div>
                         
@@ -1896,6 +1907,9 @@ return (
                               display: 'block'
                             }}>
                               for 1 month
+                            </span>
+                            <span className="tm-plan-included">
+                              Includes 25 hours of transcription
                             </span>
                           </div>
                         </div>
@@ -1995,12 +2009,13 @@ return (
                             fontSize: '0.9rem' 
                           }}>
                             <li className="tm-tick">Everything in Free Plan</li>
-                            <li className="tm-tick">Unlimited transcription access</li>
+                            <li className="tm-tick">25 hours of transcription a month</li>
+                            <li className="tm-tick">Add more hours any time if you need them</li>
                             <li className="tm-tick">High accuracy AI transcription</li>
                             <li className="tm-tick">Priority processing</li>
                             <li className="tm-tick">Copy to clipboard feature</li>
                             <li className="tm-tick">MS Word &amp; TXT downloads</li>
-                            <li> 30-day file storage</li>
+                            <li className="tm-tick">30-day file storage</li>
                             <li className="tm-tick">Email support</li>
                           </ul>
                           <button 
@@ -2084,12 +2099,13 @@ return (
                             fontSize: '0.9rem' 
                           }}>
                             <li className="tm-tick">Everything in Free Plan</li>
-                            <li className="tm-tick">Unlimited transcription access</li>
+                            <li className="tm-tick">25 hours of transcription every month</li>
+                            <li className="tm-tick">Add more hours any time if you need them</li>
                             <li className="tm-tick">High accuracy AI transcription</li>
                             <li className="tm-tick">Priority processing</li>
                             <li className="tm-tick">Copy to clipboard feature</li>
                             <li className="tm-tick">MS Word &amp; TXT downloads</li>
-                            <li> 365-day file storage</li>
+                            <li className="tm-tick">365-day file storage</li>
                             <li className="tm-tick">Email support (yearly)</li>
                           </ul>
                           <button 
@@ -2403,7 +2419,7 @@ return (
                           fontWeight: 'bold'
                         }}
                       >
-                        Upgrade for unlimited
+                        See plans and pricing
                       </button>
                     </>
                   ) : (
