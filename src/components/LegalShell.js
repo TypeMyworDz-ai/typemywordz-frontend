@@ -39,6 +39,13 @@ const LegalShell = ({ title, updated, children }) => {
             >
               Terms of Service
             </Link>
+            <Link
+              to="/faq"
+              className="tm-legal-tab"
+              aria-current={pathname === '/faq' ? 'page' : undefined}
+            >
+              Help and FAQ
+            </Link>
           </nav>
         </div>
       </div>
@@ -55,6 +62,8 @@ const LegalShell = ({ title, updated, children }) => {
             <Link to="/privacy-policy">Privacy &amp; Security</Link>
             {'  '}&middot;{'  '}
             <Link to="/terms">Terms of Service</Link>
+            {'  '}&middot;{'  '}
+            <Link to="/faq">Help and FAQ</Link>
             {'  '}&middot;{'  '}
             <Link to="/">Back to the app</Link>
           </span>
