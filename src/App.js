@@ -1167,6 +1167,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           formData.append('formatting_instructions', userPrompt); 
           formData.append('max_tokens', '4096'); 
           formData.append('user_plan', userProfile?.plan || 'free'); 
+          formData.append('user_email', currentUser?.email || userProfile?.email || '');
 
           let endpoint = '';
           let modelToUse = '';
