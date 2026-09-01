@@ -750,6 +750,20 @@ export const saveAskChat = async (uid, chatId, messages) => {
   }
 };
 
+// Rename a conversation. The client chose this name, so it is used exactly as
+// typed, only trimmed and length-limited.
+export const renameAskChat = async (chatId, title) => {
+  const clean = String(title || '').trim().slice(0, 90);
+  if (!chatId || !clean) return false;
+  try {
+    await updateDoc(doc(db, ASK_CHATS_COLLECTION, chatId), { title: clean });
+    return true;
+  } catch (error) {
+    console.error('renameAskChat failed:', error);
+    return false;
+  }
+};
+
 export const deleteAskChat = async (chatId) => {
   if (!chatId) return false;
   try {
