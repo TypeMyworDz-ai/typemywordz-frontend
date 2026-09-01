@@ -3210,3 +3210,59 @@ body {
 @media (max-width: 700px){
   .tm-askpage{ padding:0 14px; }
 }
+
+/* ---------------------------------------------------------------------------
+   Frequently asked questions.
+   Accordion rather than a wall of text: nine long answers open at once is
+   daunting, and a visitor deciding whether to sign up wants to scan the
+   questions first and open only the one that worries them.
+--------------------------------------------------------------------------- */
+.tm-faq{
+  margin: 22px 0 8px;
+  border-top: 1px solid var(--tm-line);
+}
+.tm-faq-item{
+  border-bottom: 1px solid var(--tm-line);
+}
+.tm-faq-q{
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 2px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--tm-font);
+  font-size: 15.5px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--tm-ink);
+}
+.tm-faq-q:hover{ color: var(--tm-purple); }
+.tm-faq-q:focus,
+.tm-faq-q:focus-visible{ outline: 2px solid var(--tm-ink); outline-offset: 2px; }
+.tm-faq-chev{
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  margin-top: 3px;
+  color: var(--tm-muted);
+  transition: transform .16s ease;
+}
+.tm-faq-open .tm-faq-chev{ transform: rotate(180deg); color: var(--tm-purple); }
+.tm-faq-a{ padding: 0 34px 18px 2px; }
+.tm-faq-a p{
+  margin: 0 0 10px;
+  font-size: 15px;
+  line-height: 1.62;
+  color: var(--tm-body);
+}
+.tm-faq-a p:last-child{ margin-bottom: 0; }
+
+@media (max-width: 700px){
+  .tm-faq-q{ font-size: 15px; }
+  .tm-faq-a{ padding-right: 8px; }
+}
