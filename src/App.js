@@ -26,7 +26,7 @@ import AskPanel from './components/AskPanel';
 import { isPaidAIUser } from './aiAccess';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { isAdminEmail } from './adminEmails';
+import { isAdminEmail, hasFreeAccess } from './adminEmails';
 
 
 // UPDATED Configuration - RE-ADDED Render Whisper URL
@@ -160,6 +160,10 @@ function AppContent() {
 
   // Admin list lives in src/adminEmails.js so it cannot drift from the backend.
   const isAdmin = isAdminEmail(currentUser?.email);
+  // Free access covers the admin and the complimentary accounts. Anything that
+  // asks a client to pay must check this, not isAdmin, or a complimentary
+  // account starts seeing Upgrade and See plans.
+  const hasComplimentaryAccess = hasFreeAccess(currentUser?.email);
 
   // NEW: State to prevent duplicate payment verification
   const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
@@ -1120,7 +1124,9 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     if (!userProfile) return { text: 'Checking your plan', isFree: false, pending: true };
     // Admin accounts are not on a plan at all. Showing them "Free plan" also
     // showed them Upgrade and See plans, which they must never be asked to do.
-    if (isAdmin) return { text: 'Admin', isFree: false, isAdmin: true };
+    if (isAdmin) return { text: 'Admin', isFree: false, isAdmin: true, note: 'Full access' };
+    // Not an admin, but still never asked to pay.
+    if (hasComplimentaryAccess) return { text: 'Full access', isFree: false, isAdmin: false, note: 'Complimentary account' };
     const p = userProfile?.plan;
     const until = userProfile?.expiresAt
       ? ' \u00b7 until ' + new Date(userProfile.expiresAt).toLocaleDateString()
@@ -1513,7 +1519,7 @@ return (
                 </button>
               ) : (
                 <div className="tm-plancard-sub">
-                  {planLabel.isAdmin ? 'Full access' : 'Thanks for subscribing'}
+                  {planLabel.note || 'Thanks for subscribing'}
                 </div>
               )}
             </div>
@@ -2155,7 +2161,7 @@ return (
                   </div>
                 </div>
               )}
-              {!isAdmin && userProfile && userProfile.plan === 'free' && (
+              {!hasComplimentaryAccess && userProfile && userProfile.plan === 'free' && (
                 <div style={{
                   backgroundColor: 'rgba(255, 255, 255, 0.95)', 
                   color: '#856404',

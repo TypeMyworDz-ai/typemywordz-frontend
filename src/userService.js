@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { isAdminEmail } from './adminEmails';
+import { isAdminEmail, isCompAccessEmail } from './adminEmails';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc, addDoc, runTransaction } from 'firebase/firestore'; // Keep serverTimestamp just in case for other uses, but we'll manually set for this fix
 
 // Length of the free trial, in minutes. Kept small deliberately: it is
@@ -307,10 +307,16 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds, userEmail
   try {
     console.log("canUserTranscribe called with:", { uid, estimatedDurationSeconds, userEmail });
 
-    // Admin accounts are never limited by plan or free-trial rules.
+    // The admin account is never limited by plan or free-trial rules.
     if (isAdminEmail(userEmail)) {
       console.log("canUserTranscribe: admin account, bypassing plan checks.");
       return { canTranscribe: true, reason: 'admin' };
+    }
+    // Complimentary accounts also transcribe without paying. They are not
+    // admins, so they are checked separately and get their own reason code.
+    if (isCompAccessEmail(userEmail)) {
+      console.log("canUserTranscribe: complimentary account, bypassing plan checks.");
+      return { canTranscribe: true, reason: 'complimentary' };
     }
     
     const userProfile = await getUserProfile(uid);

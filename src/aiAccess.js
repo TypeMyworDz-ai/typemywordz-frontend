@@ -1,4 +1,4 @@
-import { isAdminEmail } from './adminEmails';
+import { hasFreeAccess } from './adminEmails';
 
 // Who may use Ask TypeMyworDz.
 //
@@ -19,9 +19,10 @@ export const PAID_PLANS_FOR_AI = [
 ];
 
 export const isPaidAIUser = (userProfile, email) => {
-  // Admins always have it. The plan check alone used to lock the team out of
-  // their own assistant, the same way it locked them out of transcribing.
-  if (isAdminEmail(email) || isAdminEmail(userProfile && userProfile.email)) return true;
+  // The admin and any complimentary account always have it. The plan check
+  // alone used to lock the team out of their own assistant, the same way it
+  // locked them out of transcribing.
+  if (hasFreeAccess(email) || hasFreeAccess(userProfile && userProfile.email)) return true;
   if (!userProfile || !userProfile.plan) return false;
   return PAID_PLANS_FOR_AI.includes(userProfile.plan);
 };
