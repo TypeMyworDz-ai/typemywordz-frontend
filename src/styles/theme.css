@@ -2841,68 +2841,88 @@ body {
    conversation and the Send button use it. Green stays for actions the client
    takes elsewhere in the app. */
 
-.tm-askpage{ display:flex; gap:18px; align-items:stretch; min-height:calc(100vh - 190px); }
-.tm-askpage-side{
-  width:250px; flex:0 0 250px; display:flex; flex-direction:column; gap:10px;
-  border-right:1px solid var(--tm-line); padding-right:16px;
-}
-.tm-askpage-main{ flex:1; min-width:0; display:flex; }
+.tm-askpage{ display:flex; flex-direction:column; min-height:calc(100vh - 210px); }
 
-.tm-ask-new{
-  width:100%; padding:9px 12px; border-radius:var(--tm-radius);
-  border:1px solid var(--tm-purple); background:var(--tm-purple); color:#fff;
-  font:inherit; font-weight:600; font-size:.92rem; cursor:pointer;
+/* ---- saved chats, in the sidebar under the Ask TypeMyworDz button ---- */
+.tm-asklist{
+  margin:2px 0 4px 10px; padding-left:10px;
+  border-left:2px solid var(--tm-purple-line);
+  display:flex; flex-direction:column; gap:2px;
 }
-.tm-ask-new:hover{ background:var(--tm-purple-light); border-color:var(--tm-purple-light); }
-.tm-ask-new:focus, .tm-ask-new:focus-visible{ outline:2px solid var(--tm-ink); }
+.tm-asklist-new{
+  display:flex; align-items:center; gap:7px;
+  padding:6px 8px; margin-bottom:2px; border-radius:var(--tm-radius);
+  border:1px dashed var(--tm-purple-line); background:none; color:var(--tm-purple);
+  font:inherit; font-size:.82rem; font-weight:600; cursor:pointer; text-align:left;
+}
+.tm-asklist-new svg{ width:14px; height:14px; flex:0 0 14px; }
+.tm-asklist-new:hover{ background:var(--tm-purple-soft); border-style:solid; }
+.tm-asklist-new:focus, .tm-asklist-new:focus-visible{ outline:2px solid var(--tm-ink); }
 
-.tm-ask-histlabel{
-  font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;
-  color:var(--tm-muted); font-weight:600; margin-top:6px;
+.tm-asklist-note{ font-size:.78rem; color:var(--tm-faint); line-height:1.5; padding:4px 8px 6px; }
+.tm-asklist-items{ list-style:none; margin:0; padding:0; max-height:280px; overflow-y:auto; }
+.tm-asklist-item{
+  position:relative; display:flex; align-items:center;
+  border-radius:var(--tm-radius);
 }
-.tm-ask-histnote{ font-size:.85rem; color:var(--tm-muted); line-height:1.5; }
-.tm-ask-hist{ list-style:none; margin:0; padding:0; overflow-y:auto; }
-.tm-ask-histitem{
-  display:flex; align-items:center; gap:4px; border-radius:var(--tm-radius);
-}
-.tm-ask-histitem:hover{ background:var(--tm-surface); }
-.tm-ask-histon{ background:var(--tm-purple-soft); }
-.tm-ask-histopen{
+.tm-asklist-item:hover{ background:var(--tm-surface); }
+.tm-asklist-on{ background:var(--tm-purple-soft); }
+.tm-asklist-on:hover{ background:var(--tm-purple-soft); }
+.tm-asklist-open{
   flex:1; min-width:0; text-align:left; background:none; border:0; cursor:pointer;
-  padding:8px 8px; font:inherit; color:var(--tm-ink);
+  padding:6px 4px 6px 8px; font:inherit; color:var(--tm-ink);
 }
-.tm-ask-histtitle{
-  display:block; font-size:.87rem; white-space:nowrap; overflow:hidden;
-  text-overflow:ellipsis;
+.tm-asklist-title{
+  display:block; font-size:.83rem; line-height:1.35;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
-.tm-ask-histwhen{ display:block; font-size:.74rem; color:var(--tm-muted); margin-top:2px; }
-.tm-ask-histdel, .tm-ask-confirm-yes, .tm-ask-confirm-no{
-  background:none; border:0; cursor:pointer; font:inherit; font-size:.74rem;
-  color:var(--tm-muted); padding:6px 6px;
-}
-.tm-ask-histdel{ opacity:0; }
-.tm-ask-histitem:hover .tm-ask-histdel, .tm-ask-histdel:focus{ opacity:1; }
-.tm-ask-histdel:hover{ color:var(--tm-danger); }
-.tm-ask-confirm{ display:flex; gap:2px; padding-right:4px; }
-.tm-ask-confirm-yes{ color:var(--tm-danger); font-weight:600; }
-.tm-ask-confirm-no{ color:var(--tm-body); }
+.tm-asklist-when{ display:block; font-size:.71rem; color:var(--tm-muted); margin-top:1px; }
+.tm-asklist-open:focus, .tm-asklist-open:focus-visible{ outline:2px solid var(--tm-ink); }
 
-.tm-ask-pref{ margin-top:auto; padding-top:12px; border-top:1px solid var(--tm-line); }
-.tm-ask-preflabel{
-  font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;
-  color:var(--tm-muted); font-weight:600; margin-bottom:6px;
+.tm-asklist-dots{
+  flex:0 0 24px; width:24px; height:26px; margin-right:3px;
+  background:none; border:0; cursor:pointer; padding:0; border-radius:5px;
+  color:var(--tm-muted); opacity:0;
 }
-.tm-ask-prefopt{
-  display:flex; align-items:center; gap:7px; font-size:.86rem;
-  color:var(--tm-body); cursor:pointer; padding:3px 0;
+.tm-asklist-dots svg{ width:15px; height:15px; }
+.tm-asklist-item:hover .tm-asklist-dots,
+.tm-asklist-menuopen .tm-asklist-dots,
+.tm-asklist-dots:focus{ opacity:1; }
+.tm-asklist-dots:hover{ background:var(--tm-white); color:var(--tm-ink); }
+.tm-asklist-dots:focus, .tm-asklist-dots:focus-visible{ outline:2px solid var(--tm-ink); }
+
+.tm-asklist-menu{
+  position:absolute; top:calc(100% - 2px); right:2px; z-index:40; min-width:150px;
+  background:var(--tm-white); border:1px solid var(--tm-line);
+  border-radius:var(--tm-radius); padding:4px;
+  box-shadow:0 6px 20px rgba(16,18,22,0.12);
 }
+.tm-asklist-ask{
+  font-size:.78rem; color:var(--tm-body); padding:6px 8px 4px; line-height:1.4;
+}
+.tm-asklist-mi{
+  display:block; width:100%; text-align:left; background:none; border:0;
+  cursor:pointer; font:inherit; font-size:.83rem; color:var(--tm-body);
+  padding:7px 9px; border-radius:5px;
+}
+.tm-asklist-mi:hover{ background:var(--tm-surface); color:var(--tm-ink); }
+.tm-asklist-mi-danger{ color:var(--tm-danger); }
+.tm-asklist-mi-danger:hover{ background:var(--tm-danger-soft); color:var(--tm-danger); }
+.tm-asklist-mi:focus, .tm-asklist-mi:focus-visible{ outline:2px solid var(--tm-ink); }
+
+.tm-asklist-rename{
+  flex:1; min-width:0; margin:3px 4px; padding:5px 7px; font:inherit; font-size:.83rem;
+  color:var(--tm-ink); background:var(--tm-white);
+  border:1px solid var(--tm-purple-line); border-radius:5px;
+}
+.tm-asklist-rename:focus, .tm-asklist-rename:focus-visible{ outline:2px solid var(--tm-ink); }
 
 /* ---- the conversation ---- */
 .tm-ask{ display:flex; flex-direction:column; flex:1; min-width:0; }
 .tm-ask-thread{ flex:1; overflow-y:auto; padding:4px 4px 16px; }
 .tm-ask-compact .tm-ask-thread{ max-height:420px; }
 
-.tm-ask-empty{ padding:40px 8px; text-align:center; }
+.tm-ask-empty{ padding:56px 8px; text-align:center; }
 .tm-ask-empty-title{
   font-size:1.15rem; font-weight:650; color:var(--tm-ink); margin-bottom:6px;
 }
@@ -2910,10 +2930,11 @@ body {
   color:var(--tm-muted); font-size:.9rem; max-width:44ch; margin:0 auto; line-height:1.6;
 }
 
-.tm-ask-turn{ margin:0 0 18px; }
+.tm-ask-turn{ margin:0 0 20px; }
+/* The brand name is written the way it is written everywhere else. No caps. */
 .tm-ask-who{
-  font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;
-  font-weight:600; margin-bottom:4px; color:var(--tm-muted);
+  font-size:.78rem; letter-spacing:0; text-transform:none;
+  font-weight:650; margin-bottom:5px; color:var(--tm-muted);
 }
 .tm-ask-assistant .tm-ask-who{ color:var(--tm-purple); }
 .tm-ask-body{ font-size:.95rem; line-height:1.68; color:var(--tm-body); }
@@ -2923,7 +2944,28 @@ body {
 }
 .tm-ask-p{ margin:0 0 10px; }
 .tm-ask-p:last-child{ margin-bottom:0; }
-.tm-ask-thinking{ color:var(--tm-muted); }
+.tm-ask-h{ margin:14px 0 6px; font-weight:650; color:var(--tm-ink); }
+.tm-ask-h:first-child{ margin-top:0; }
+.tm-ask-ul, .tm-ask-ol{ margin:0 0 10px; padding-left:22px; }
+.tm-ask-ul li, .tm-ask-ol li{ margin:0 0 5px; }
+.tm-ask-ul li:last-child, .tm-ask-ol li:last-child{ margin-bottom:0; }
+.tm-ask-code{
+  font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size:.88em; background:var(--tm-surface); border:1px solid var(--tm-line);
+  border-radius:4px; padding:1px 5px;
+}
+
+/* While an answer is on its way, the logo turns. No words, no bouncing dots. */
+.tm-ask-working{ display:flex; align-items:center; min-height:30px; }
+.tm-ask-spin{
+  display:block; border-radius:50%;
+  animation:tm-ask-turning 1.15s linear infinite;
+}
+@keyframes tm-ask-turning{ to{ transform:rotate(360deg); } }
+@media (prefers-reduced-motion: reduce){
+  .tm-ask-spin{ animation-duration:3.5s; }
+}
+
 .tm-ask-problems{
   margin:10px 0 0; padding:8px 12px 8px 26px; font-size:.85rem;
   color:var(--tm-warn); background:var(--tm-warn-soft); border-radius:var(--tm-radius);
@@ -2952,14 +2994,16 @@ body {
 .tm-ask-row{ display:flex; align-items:flex-end; gap:8px; }
 .tm-ask-fileinput{ display:none; }
 .tm-ask-attach, .tm-ask-send{
-  flex:0 0 auto; padding:9px 14px; border-radius:var(--tm-radius);
-  font:inherit; font-size:.88rem; font-weight:600; cursor:pointer;
+  flex:0 0 auto; width:40px; height:40px; padding:0; border-radius:var(--tm-radius);
+  display:flex; align-items:center; justify-content:center;
+  font:inherit; cursor:pointer;
 }
+.tm-ask-attach svg, .tm-ask-send svg{ width:18px; height:18px; }
 .tm-ask-attach{ background:var(--tm-white); border:1px solid var(--tm-line); color:var(--tm-body); }
-.tm-ask-attach:hover:not(:disabled){ border-color:var(--tm-purple-line); color:var(--tm-ink); }
+.tm-ask-attach:hover:not(:disabled){ border-color:var(--tm-purple-line); color:var(--tm-purple); }
 .tm-ask-send{ background:var(--tm-purple); border:1px solid var(--tm-purple); color:#fff; }
 .tm-ask-send:hover:not(:disabled){ background:var(--tm-purple-light); border-color:var(--tm-purple-light); }
-.tm-ask-attach:disabled, .tm-ask-send:disabled{ opacity:.5; cursor:not-allowed; }
+.tm-ask-attach:disabled, .tm-ask-send:disabled{ opacity:.45; cursor:not-allowed; }
 .tm-ask-attach:focus, .tm-ask-attach:focus-visible,
 .tm-ask-send:focus, .tm-ask-send:focus-visible{ outline:2px solid var(--tm-ink); }
 
@@ -2987,16 +3031,48 @@ body {
   padding:14px 16px; background:var(--tm-white); display:flex; flex-direction:column;
 }
 .tm-ask-panel-head{
-  font-size:.78rem; text-transform:uppercase; letter-spacing:.06em;
-  font-weight:600; color:var(--tm-purple); margin-bottom:10px;
+  font-size:.82rem; letter-spacing:0; text-transform:none;
+  font-weight:650; color:var(--tm-purple); margin-bottom:10px;
 }
 
+/* ---- settings ---- */
+.tm-set{ max-width:660px; }
+.tm-set-title{ font-size:1.35rem; color:var(--tm-ink); margin:0 0 4px; font-weight:650; }
+.tm-set-section{ margin-top:26px; }
+.tm-set-h{ font-size:1rem; color:var(--tm-ink); margin:0 0 4px; font-weight:650; }
+.tm-set-sub{ font-size:.88rem; color:var(--tm-muted); margin:0 0 16px; line-height:1.6; max-width:56ch; }
+.tm-set-note{ font-size:.88rem; color:var(--tm-muted); }
+.tm-set-locked{ font-size:.9rem; color:var(--tm-body); }
+
+.tm-set-group{ margin-bottom:22px; }
+.tm-set-grouphead{ display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; margin-bottom:9px; }
+.tm-set-grouptitle{ font-size:.82rem; font-weight:650; color:var(--tm-ink); }
+.tm-set-groupnote{ font-size:.78rem; color:var(--tm-muted); }
+.tm-set-models{ display:flex; flex-direction:column; gap:8px; }
+.tm-set-model{
+  display:flex; align-items:flex-start; gap:11px; cursor:pointer;
+  border:1px solid var(--tm-line); border-radius:var(--tm-radius-lg);
+  padding:12px 14px; background:var(--tm-white);
+}
+.tm-set-model:hover{ border-color:var(--tm-purple-line); }
+.tm-set-model-on{ border-color:var(--tm-purple); background:var(--tm-purple-soft); }
+.tm-set-model input{ margin-top:3px; flex:0 0 auto; accent-color:var(--tm-purple); }
+.tm-set-modelbody{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+.tm-set-modelname{ font-size:.92rem; font-weight:600; color:var(--tm-ink); }
+.tm-set-modelblurb{ font-size:.83rem; color:var(--tm-muted); line-height:1.5; }
+
+.tm-set-upsell{ font-size:.86rem; color:var(--tm-body); line-height:1.6; max-width:56ch; }
+.tm-set-link{
+  background:none; border:0; padding:0; font:inherit; font-size:inherit;
+  color:var(--tm-purple); font-weight:600; cursor:pointer; text-decoration:underline;
+}
+.tm-set-saved{
+  font-size:.82rem; color:var(--tm-green); font-weight:600; min-height:1.2em;
+  opacity:0; transition:opacity .18s ease;
+}
+.tm-set-saved-on{ opacity:1; }
+
 @media (max-width: 900px){
-  .tm-askpage{ flex-direction:column; }
-  .tm-askpage-side{
-    width:auto; flex:none; border-right:0; padding-right:0;
-    border-bottom:1px solid var(--tm-line); padding-bottom:14px;
-  }
-  .tm-ask-hist{ max-height:190px; }
-  .tm-ask-histdel{ opacity:1; }
+  .tm-asklist-items{ max-height:200px; }
+  .tm-asklist-dots{ opacity:1; }
 }
