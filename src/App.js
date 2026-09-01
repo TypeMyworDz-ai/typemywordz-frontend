@@ -18,6 +18,7 @@ import PrivacyPolicy from './components/PrivacyPolicy';
 import TermsOfService from './components/TermsOfService';
 import Landing from './components/Landing';
 import AnimatedBroadcastBoard from './components/AnimatedBroadcastBoard';
+import AskTypeMyworDz from './components/AskTypeMyworDz';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { isAdminEmail } from './adminEmails';
@@ -150,12 +151,6 @@ function AppContent() {
   const [selectedRegion, setSelectedRegion] = useState('KE'); // Default to Kenya
   // Removed convertedAmounts and setConvertedAmounts as they were unused
   
-  // AI Assistant states
-  const [userPrompt, setUserPrompt] = useState(''); 
-  const [aiResponse, setAIResponse] = useState('');
-  const [aiLoading, setAILoading] = useState(false);
-  // NEW: State to select between AI providers (claude or gemini) for user side
-  const [selectedAIProvider, setSelectedAIProvider] = useState('claude'); // 'claude' or 'gemini'
   
   // Refs
   const mediaRecorderRef = useRef(null);
@@ -1144,76 +1139,6 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     return { text: 'Free plan', isFree: true };
   })();
 
-  // handleAIQuery for User AI Assistant with FormData - UPDATED for Gemini option and fallback
-  const handleAIQuery = useCallback(async () => {
-      if (!userProfile) { 
-          showMessage('Loading user profile... Please wait.', 'info');
-          return;
-      }
-      // Check if user is eligible for AI features
-      if (!isPaidAIUser(userProfile, currentUser?.email)) {
-          showMessage('TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.','error');
-          return;
-      }
-
-      // userPrompt now holds the guidelines
-      if (!latestTranscription || !userPrompt) {
-          showMessage('Please provide both a transcript and formatting guidelines for the AI Assistant.', 'warning');
-          return;
-      }
-
-      setAILoading(true);
-      setAIResponse(''); // Clear previous AI response
-
-      try {
-          const formData = new FormData();
-          formData.append('transcript', latestTranscription);
-          // MODIFIED: Send userPrompt as formatting_instructions
-          formData.append('formatting_instructions', userPrompt); 
-          formData.append('max_tokens', '4096'); 
-          formData.append('user_plan', userProfile?.plan || 'free'); 
-          formData.append('user_email', currentUser?.email || userProfile?.email || '');
-
-          let endpoint = '';
-          let modelToUse = '';
-
-          if (selectedAIProvider === 'claude') {
-            // MODIFIED: Use admin formatting endpoint for user AI
-            endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format`; 
-            modelToUse = 'claude-3-haiku-20240307'; 
-          } else if (selectedAIProvider === 'gemini') {
-            // MODIFIED: Use admin formatting endpoint for user AI
-            endpoint = `${RAILWAY_BACKEND_URL}/ai/admin-format-gemini`;
-            modelToUse = 'models/gemini-pro-latest'; 
-          } else {
-            showMessage('Invalid AI provider selected.', 'error');
-            setAILoading(false);
-            return;
-          }
-          formData.append('model', modelToUse); 
-
-          const response = await fetch(endpoint, {
-              method: 'POST',
-              body: formData, 
-          });
-
-          if (!response.ok) {
-              const errorData = await response.json();
-              throw new Error(errorData.detail || `Backend error: ${response.status} ${response.statusText}`);
-          }
-
-          const data = await response.json();
-          // The admin formatting endpoints return 'formatted_transcript'
-          setAIResponse(data.formatted_transcript); 
-          showMessage('AI response generated successfully!','success');
-
-      } catch (error) {
-          console.error('AI Assistant Error:', error);
-          showMessage('AI Assistant failed: ' + error.message + '. If using Gemini, try Claude for sensitive content.', 'error');
-      } finally {
-          setAILoading(false);
-      }
-  }, [latestTranscription, userPrompt, userProfile, currentUser?.email, showMessage, selectedAIProvider]);
   
   // Cleanup effect to ensure cancellation works
   useEffect(() => {
@@ -1546,7 +1471,7 @@ return (
               className={"tm-nav tm-nav-ai" + (currentView === 'ai_assistant' ? " tm-nav-on" : "")}
               onClick={() => {
                 if (!isPaidAIUser(userProfile, currentUser?.email)) {
-                  showMessage('The AI Assistant is available on the Three-Day, One-Week, Monthly and Yearly plans. Upgrade to switch it on.', 'error');
+                  showMessage('Ask TypeMyworDz is available on the Three-Day, One-Week, Monthly and Yearly plans. Upgrade to switch it on.', 'error');
                   return;
                 }
                 setCurrentView('ai_assistant');
@@ -1554,7 +1479,7 @@ return (
               disabled={!isPaidAIUser(userProfile, currentUser?.email)}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>
-              Ask AI
+              Ask TypeMyworDz
               {!isPaidAIUser(userProfile, currentUser?.email) && <span className="tm-nav-lock">Upgrade</span>}
             </button>
 
@@ -2165,192 +2090,14 @@ return (
         ) : currentView === 'admin' ? (
           <AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} />
         ) : currentView === 'ai_assistant' ? (
-            <div style={{
-              flex: 1,
-              padding: '20px',
-              maxWidth: '900px',
-              margin: '0 auto',
-              backgroundColor: '#f8f9fa',
-              borderRadius: '15px',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
-              marginTop: '20px'
-            }}>
-                <h2 style={{ color: '#6c5ce7', textAlign: 'center', marginBottom: '30px' }}>TypeMyworDz Assistant</h2>
-                {!isPaidAIUser(userProfile, currentUser?.email) && (
-                  <p style={{ textAlign: 'center', color: '#dc3545', marginBottom: '30px', fontWeight: 'bold' }}>
-                     TypeMyworDz AI Assistant features are only available for paid AI users (Three-Day, One-Week, Monthly Plan, Yearly Plan plans). Please upgrade your plan.
-                  </p>
-                )}
-                <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
-                    Paste your transcript below and provide guidelines for the AI to format and polish it.
-                </p>
-
-                <div style={{ marginBottom: '30px', textAlign: 'center' }}>
-                  <label style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
-                    Select AI Provider:
-                  </label>
-                  <div style={{ display: 'inline-flex', gap: '20px' }}>
-                    <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                      <input
-                        type="radio"
-                        name="aiProviderUser"
-                        value="claude"
-                        checked={selectedAIProvider === 'claude'}
-                        onChange={(e) => setSelectedAIProvider(e.target.value)}
-                        disabled={!isPaidAIUser(userProfile, currentUser?.email)}
-                        style={{ marginRight: '8px' }}
-                      />
-                      Anthropic Claude
-                    </label>
-                    <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                      <input
-                        type="radio"
-                        name="aiProviderUser"
-                        value="gemini"
-                        checked={selectedAIProvider === 'gemini'}
-                        onChange={(e) => setSelectedAIProvider(e.target.value)}
-                        disabled={!isPaidAIUser(userProfile, currentUser?.email)}
-                        style={{ marginRight: '8px' }}
-                      />
-                      Google Gemini
-                    </label>
-                  </div>
-                </div>
-                <div style={{ marginBottom: '20px' }}>
-                    <label htmlFor="transcriptInput" style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
-                        Transcript to Format:
-                    </label>
-                    <textarea
-                        id="transcriptInput"
-                        value={latestTranscription}
-                        onChange={(e) => setLatestTranscription(e.target.value)}
-                        placeholder="Paste your transcription here..."
-                        rows="10"
-                        style={{
-                            width: '100%',
-                            padding: '15px',
-                            borderRadius: '10px',
-                            border: '1px solid #ddd',
-                            fontSize: '1rem',
-                            resize: 'vertical',
-                            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
-                        }}
-                        disabled={!isPaidAIUser(userProfile, currentUser?.email)}
-                    ></textarea>
-                </div>
-
-                <div style={{ marginBottom: '30px' }}>
-                    <label htmlFor="userPromptInput" style={{ display: 'block', color: '#6c5ce7', fontWeight: 'bold', marginBottom: '10px' }}>
-                        Your Guidelines:
-                    </label>
-                    <textarea
-                        id="userPromptInput"
-                        value={userPrompt}
-                        onChange={(e) => setUserPrompt(e.target.value)}
-                        placeholder="Type or paste your guidelines here... TypeMyworDz Assistant can even intelligently try to distinguish/diarize your transcript's text into its responsible speaker; try typing something like, 'Put speaker tags on the transcript.' Or just tell it to do whatever with your transcript. You can even translate your transcripts. You paid for it, go crazy with it!
-                        Note: AI makes mistakes, always proofread your work. For large amounts of text, remember to divide your work into manageable chunks due to character limit."
-                        rows="8"
-                        style={{
-                            width: '100%',
-                            padding: '15px',
-                            borderRadius: '10px',
-                            border: '1px solid #ddd',
-                            fontSize: '1rem',
-                            resize: 'vertical',
-                            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
-                        }}
-                        disabled={!isPaidAIUser(userProfile, currentUser?.email)}
-                    ></textarea>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '30px', flexWrap: 'wrap' }}>
-                    <button
-                        onClick={handleAIQuery}
-                        disabled={!isPaidAIUser(userProfile) || !latestTranscription || !userPrompt || aiLoading}
-                        style={{
-                            padding: '12px 25px',
-                            backgroundColor: (!isPaidAIUser(userProfile) || !latestTranscription || !userPrompt || aiLoading) ? '#a0a0a0' : '#6c5ce7',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '25px',
-                            cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
-                            fontSize: '1rem',
-                            fontWeight: 'bold',
-                            boxShadow: 'none',
-                            transition: 'all 0.3s ease'
-                        }}
-                    >
-                        {aiLoading ?'Processing...':`Format with ${selectedAIProvider ==='claude'?'Claude':'Gemini'}`}
-                    </button>
-                    <button
-                        onClick={() => { setLatestTranscription(''); setUserPrompt(''); setAIResponse(''); }}
-                        disabled={!isPaidAIUser(userProfile, currentUser?.email)}
-                        style={{
-                            padding: '12px 25px',
-                            backgroundColor: (!isPaidAIUser(userProfile)) ? '#a0a0a0' : '#dc3545',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '25px',
-                            cursor: (!isPaidAIUser(userProfile)) ? 'not-allowed' : 'pointer',
-                            fontSize: '1rem',
-                            fontWeight: 'bold',
-                            boxShadow: 'none',
-                            transition: 'all 0.3s ease'
-                        }}
-                    >
-                        Clear All
-                    </button>
-                </div>
-
-                {aiLoading && (
-                    <div className="tm-thinking">
-                        <div className="tm-thinking-track"><div className="tm-thinking-slide" /></div>
-                        <span>Applying AI formatting…</span>
-                    </div>
-                )}
-
-                {aiResponse && (
-                    <div style={{ marginTop: '30px' }}>
-                        <h3 style={{ color: '#6c5ce7', textAlign: 'center', marginBottom: '20px' }}>AI Response:</h3>
-                        <div style={{
-                            backgroundColor: 'white',
-                            padding: '20px',
-                            borderRadius: '10px',
-                            border: '1px solid #dee2e6',
-                            textAlign: 'left',
-                            lineHeight: '1.6',
-                            whiteSpace: 'pre-wrap',
-                            boxShadow: '0 5px 15px rgba(0,0,0,0.1)'
-                        }}>
-                            {aiResponse}
-                        </div>
-                        <div style={{ textAlign: 'center', marginTop: '15px' }}>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(aiResponse);
-                              setCopiedMessageVisible(true);
-                              setTimeout(() => setCopiedMessageVisible(false), 2000);
-                            }}
-                            style={{
-                              padding: '10px 20px',
-                              backgroundColor: '#27ae60',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '8px',
-                              cursor: 'pointer',
-                              fontSize: '14px',
-                              fontWeight: 'bold',
-                              marginRight: '10px',
-                              transition: 'background-color 0.3s ease'
-                            }}
-                            onMouseEnter={(e) => e.target.style.backgroundColor = '#218838'}
-                            onMouseLeave={(e) => e.target.style.backgroundColor = '#27ae60'}
-                          >
-                             Copy AI Response
-                          </button>
-                        </div>
-                    </div>
-                )}
-            </div>
+          <AskTypeMyworDz
+            uid={currentUser?.uid}
+            userPlan={userProfile?.plan || 'free'}
+            userEmail={currentUser?.email || ''}
+            canUse={isPaidAIUser(userProfile, currentUser?.email)}
+            onUpgrade={() => setCurrentView('pricing')}
+            allowModelChoice={isAdmin}
+          />
           ) : currentView === 'dashboard' ? (
           <Dashboard setCurrentView={setCurrentView} />
         ) : (

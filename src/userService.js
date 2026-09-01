@@ -651,3 +651,112 @@ export const fetchAllUsers = async () => {
   });
   return usersData;
 };
+
+// ===================== Ask TypeMyworDz: saved conversations ================
+// Chats are kept so a client can come back to them, the way Claude does.
+// Each chat is one document with its messages inside it, which keeps reading a
+// conversation to a single fetch.
+
+const ASK_CHATS_COLLECTION = 'askChats';
+
+const chatTitleFrom = (text) => {
+  const t = (text || '').replace(/\s+/g, ' ').trim();
+  if (!t) return 'New chat';
+  return t.length > 60 ? t.slice(0, 60).trimEnd() + '\u2026' : t;
+};
+
+// The list shown down the side of the Ask page. Titles and dates only.
+export const listAskChats = async (uid) => {
+  if (!uid) return [];
+  try {
+    const q = query(
+      collection(db, ASK_CHATS_COLLECTION),
+      where('userId', '==', uid),
+      orderBy('updatedAt', 'desc')
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => {
+      const v = d.data();
+      return {
+        id: d.id,
+        title: v.title || 'New chat',
+        updatedAt: v.updatedAt?.toDate ? v.updatedAt.toDate() : v.updatedAt || null,
+        messageCount: Array.isArray(v.messages) ? v.messages.length : 0,
+      };
+    });
+  } catch (error) {
+    // An index may still be building. Falling back to an unordered read is far
+    // better than showing the client an empty history that is not really empty.
+    console.warn('listAskChats: ordered read failed, falling back.', error);
+    try {
+      const q2 = query(collection(db, ASK_CHATS_COLLECTION), where('userId', '==', uid));
+      const snap2 = await getDocs(q2);
+      return snap2.docs
+        .map((d) => {
+          const v = d.data();
+          return {
+            id: d.id,
+            title: v.title || 'New chat',
+            updatedAt: v.updatedAt?.toDate ? v.updatedAt.toDate() : v.updatedAt || null,
+            messageCount: Array.isArray(v.messages) ? v.messages.length : 0,
+          };
+        })
+        .sort((a, b) => (b.updatedAt?.getTime?.() || 0) - (a.updatedAt?.getTime?.() || 0));
+    } catch (e2) {
+      console.error('listAskChats failed:', e2);
+      return [];
+    }
+  }
+};
+
+export const getAskChat = async (chatId) => {
+  if (!chatId) return null;
+  try {
+    const snap = await getDoc(doc(db, ASK_CHATS_COLLECTION, chatId));
+    if (!snap.exists()) return null;
+    const v = snap.data();
+    return { id: snap.id, title: v.title || 'New chat', messages: Array.isArray(v.messages) ? v.messages : [] };
+  } catch (error) {
+    console.error('getAskChat failed:', error);
+    return null;
+  }
+};
+
+// Create on the first exchange, update on every one after. Returns the id so
+// the page can keep writing to the same conversation.
+export const saveAskChat = async (uid, chatId, messages) => {
+  if (!uid || !Array.isArray(messages) || !messages.length) return chatId || null;
+  const firstFromClient = messages.find((m) => m.role === 'user');
+  const now = new Date();
+  const payload = {
+    userId: uid,
+    messages: messages.map((m) => ({ role: m.role, content: m.content })),
+    updatedAt: now,
+  };
+  try {
+    if (chatId) {
+      await updateDoc(doc(db, ASK_CHATS_COLLECTION, chatId), payload);
+      return chatId;
+    }
+    const created = await addDoc(collection(db, ASK_CHATS_COLLECTION), {
+      ...payload,
+      title: chatTitleFrom(firstFromClient?.content),
+      createdAt: now,
+    });
+    return created.id;
+  } catch (error) {
+    console.error('saveAskChat failed:', error);
+    return chatId || null;
+  }
+};
+
+export const deleteAskChat = async (chatId) => {
+  if (!chatId) return false;
+  try {
+    await deleteDoc(doc(db, ASK_CHATS_COLLECTION, chatId));
+    return true;
+  } catch (error) {
+    console.error('deleteAskChat failed:', error);
+    return false;
+  }
+};
