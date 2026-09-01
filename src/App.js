@@ -19,6 +19,9 @@ import TermsOfService from './components/TermsOfService';
 import Landing from './components/Landing';
 import AnimatedBroadcastBoard from './components/AnimatedBroadcastBoard';
 import AskTypeMyworDz from './components/AskTypeMyworDz';
+import { AskProvider } from './components/AskContext';
+import AskChatList from './components/AskChatList';
+import Settings from './components/Settings';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { isAdminEmail } from './adminEmails';
@@ -1416,6 +1419,9 @@ return (
                     </button>
                   )}
                 </div>
+                <button className="tm-account-item" onClick={() => { setAccountMenuOpen(false); setCurrentView('settings'); }}>
+                  Settings
+                </button>
                 <button className="tm-account-item" onClick={() => { setAccountMenuOpen(false); handleOpenFeedback(); }}>
                   Send feedback
                 </button>
@@ -1429,6 +1435,7 @@ return (
         </div>
 
         {/* ---- Workspace: sidebar on the left, everything else on the right ---- */}
+        <AskProvider uid={currentUser?.uid}>
         <div className="tm-shell">
 
           <aside className="tm-side">
@@ -1482,6 +1489,12 @@ return (
               Ask TypeMyworDz
               {!isPaidAIUser(userProfile, currentUser?.email) && <span className="tm-nav-lock">Upgrade</span>}
             </button>
+
+            {/* The client's saved chats, right under the button that opens them. */}
+            <AskChatList
+              open={currentView === 'ai_assistant' && isPaidAIUser(userProfile, currentUser?.email)}
+              onOpenChat={() => setCurrentView('ai_assistant')}
+            />
 
             {isAdmin && (
               <>
@@ -2091,12 +2104,17 @@ return (
           <AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} />
         ) : currentView === 'ai_assistant' ? (
           <AskTypeMyworDz
-            uid={currentUser?.uid}
             userPlan={userProfile?.plan || 'free'}
             userEmail={currentUser?.email || ''}
             canUse={isPaidAIUser(userProfile, currentUser?.email)}
             onUpgrade={() => setCurrentView('pricing')}
-            allowModelChoice={isAdmin}
+          />
+        ) : currentView === 'settings' ? (
+          <Settings
+            userPlan={userProfile?.plan || 'free'}
+            userEmail={currentUser?.email || ''}
+            canUseAI={isPaidAIUser(userProfile, currentUser?.email)}
+            onUpgrade={() => setCurrentView('pricing')}
           />
           ) : currentView === 'dashboard' ? (
           <Dashboard setCurrentView={setCurrentView} />
@@ -2502,6 +2520,7 @@ return (
 
           </main>
         </div>
+        </AskProvider>
 
         <FeedbackModal
           show={showFeedbackModal}
