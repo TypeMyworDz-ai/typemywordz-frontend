@@ -2093,30 +2093,78 @@ body {
 .tm-flash{
   position: fixed;
   left: 50%;
-  top: 45%;
-  transform: translate(-50%, -50%);
+  bottom: 34px;
+  transform: translateX(-50%);
   z-index: 3200;
   pointer-events: none;
-  animation: tm-flash-go 1600ms ease-out forwards;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 .tm-flash-text{
-  font-size: clamp(22px, 3.4vw, 34px);
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  position: relative;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.005em;
   color: var(--tm-green);
   white-space: nowrap;
-  text-shadow: 0 1px 0 #fff, 0 0 14px #fff, 0 0 26px #fff;
+  /* A thin white halo so the words stay readable over any page content.
+     Not a glow: no colour, no spread. */
+  text-shadow: 0 1px 2px rgba(255,255,255,.95);
+  animation: tm-flash-rise 1600ms cubic-bezier(.16,1,.3,1) forwards;
 }
 
-@keyframes tm-flash-go{
-  0%   { opacity: 0; transform: translate(-50%, -42%) scale(.96); }
-  18%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  62%  { opacity: 1; transform: translate(-50%, -54%) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -68%) scale(1); }
+/* Rises from below the edge of the screen, gives one small hop, then goes. */
+@keyframes tm-flash-rise{
+  0%   { opacity: 0; transform: translateY(26px) scale(.94); }
+  22%  { opacity: 1; transform: translateY(0) scale(1); }
+  32%  { opacity: 1; transform: translateY(-3px) scale(1.03); }
+  44%  { opacity: 1; transform: translateY(0) scale(1); }
+  78%  { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-8px) scale(1); }
+}
+
+/* A small burst of confetti above the words. Eight little pieces, one short
+   throw, gone in under a second. Kept deliberately small and quiet. */
+.tm-flash-pop{
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: 0;
+  height: 0;
+  margin-bottom: 3px;
+}
+.tm-flash-bit{
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+  background: var(--tm-green);
+  opacity: 0;
+  animation: tm-flash-bit 820ms cubic-bezier(.2,.7,.3,1) forwards;
+  animation-delay: 170ms;
+}
+/* Deliberately irregular: an even arc reads as a loading spinner, not as
+   confetti. Sizes, distances and timings are all slightly different. */
+.tm-flash-bit:nth-child(1){ --tm-dx:-52px; --tm-dy:-14px; --tm-rot:130deg; width:4px; height:6px; animation-delay:190ms; }
+.tm-flash-bit:nth-child(2){ --tm-dx:-27px; --tm-dy:-41px; --tm-rot:-95deg; background: var(--tm-green-dark); animation-delay:160ms; }
+.tm-flash-bit:nth-child(3){ --tm-dx:-13px; --tm-dy:-25px; --tm-rot:55deg;  width:3px; height:3px; animation-delay:215ms; }
+.tm-flash-bit:nth-child(4){ --tm-dx:4px;   --tm-dy:-47px; --tm-rot:-150deg; background: var(--tm-green-dark); width:5px; height:7px; animation-delay:150ms; }
+.tm-flash-bit:nth-child(5){ --tm-dx:23px;  --tm-dy:-22px; --tm-rot:100deg; width:3px; height:3px; animation-delay:205ms; }
+.tm-flash-bit:nth-child(6){ --tm-dx:44px;  --tm-dy:-33px; --tm-rot:-65deg; background: var(--tm-green-dark); animation-delay:172ms; }
+.tm-flash-bit:nth-child(7){ --tm-dx:-36px; --tm-dy:-3px;  --tm-rot:40deg;  width:4px; height:4px; animation-delay:230ms; }
+.tm-flash-bit:nth-child(8){ --tm-dx:33px;  --tm-dy:-6px;  --tm-rot:-40deg; width:3px; height:5px; animation-delay:198ms; }
+
+@keyframes tm-flash-bit{
+  0%   { opacity: 0; transform: translate(0,0) scale(.5) rotate(0deg); }
+  20%  { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--tm-dx), var(--tm-dy)) scale(1) rotate(var(--tm-rot)); }
 }
 
 @media (prefers-reduced-motion: reduce){
-  .tm-flash{ animation: tm-flash-fade 1600ms ease-out forwards; }
+  .tm-flash-text{ animation: tm-flash-fade 1600ms ease-out forwards; }
+  .tm-flash-pop{ display: none; }
   @keyframes tm-flash-fade{
     0%{ opacity: 0 } 18%{ opacity: 1 } 70%{ opacity: 1 } 100%{ opacity: 0 }
   }

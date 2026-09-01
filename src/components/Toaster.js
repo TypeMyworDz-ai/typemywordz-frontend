@@ -91,9 +91,10 @@ const Toast = ({ toast, onDismiss }) => {
   );
 };
 
-// A flash is not a notification card. It is a few words that appear over the
-// middle of the page, lift slightly and fade out. Nothing to read, nothing to
-// close: it is there to confirm something finished, and then it is gone.
+// A flash is not a notification card. It is a few words that rise from the
+// bottom edge of the screen, give one small hop with a short burst of
+// confetti, and fade out. Nothing to read, nothing to close: it is there to
+// confirm something finished, and then it is gone.
 const Flash = ({ toast, onDismiss }) => {
   const { id, text } = toast;
   useEffect(() => {
@@ -102,7 +103,19 @@ const Flash = ({ toast, onDismiss }) => {
   }, [id, onDismiss]);
   return (
     <div className="tm-flash" role="status" aria-live="polite">
-      <span className="tm-flash-text">{text}</span>
+      <span className="tm-flash-text">
+        <span className="tm-flash-pop" aria-hidden="true">
+          <i className="tm-flash-bit" />
+          <i className="tm-flash-bit" />
+          <i className="tm-flash-bit" />
+          <i className="tm-flash-bit" />
+          <i className="tm-flash-bit" />
+          <i className="tm-flash-bit" />
+          <i className="tm-flash-bit" />
+          <i className="tm-flash-bit" />
+        </span>
+        {text}
+      </span>
     </div>
   );
 };
