@@ -2835,3 +2835,168 @@ body {
   font-weight: 600;
   color: var(--tm-green);
 }
+
+/* ============================ Ask TypeMyworDz ============================ */
+/* Purple is the AI colour throughout, so the assistant's side of a
+   conversation and the Send button use it. Green stays for actions the client
+   takes elsewhere in the app. */
+
+.tm-askpage{ display:flex; gap:18px; align-items:stretch; min-height:calc(100vh - 190px); }
+.tm-askpage-side{
+  width:250px; flex:0 0 250px; display:flex; flex-direction:column; gap:10px;
+  border-right:1px solid var(--tm-line); padding-right:16px;
+}
+.tm-askpage-main{ flex:1; min-width:0; display:flex; }
+
+.tm-ask-new{
+  width:100%; padding:9px 12px; border-radius:var(--tm-radius);
+  border:1px solid var(--tm-purple); background:var(--tm-purple); color:#fff;
+  font:inherit; font-weight:600; font-size:.92rem; cursor:pointer;
+}
+.tm-ask-new:hover{ background:var(--tm-purple-light); border-color:var(--tm-purple-light); }
+.tm-ask-new:focus, .tm-ask-new:focus-visible{ outline:2px solid var(--tm-ink); }
+
+.tm-ask-histlabel{
+  font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--tm-muted); font-weight:600; margin-top:6px;
+}
+.tm-ask-histnote{ font-size:.85rem; color:var(--tm-muted); line-height:1.5; }
+.tm-ask-hist{ list-style:none; margin:0; padding:0; overflow-y:auto; }
+.tm-ask-histitem{
+  display:flex; align-items:center; gap:4px; border-radius:var(--tm-radius);
+}
+.tm-ask-histitem:hover{ background:var(--tm-surface); }
+.tm-ask-histon{ background:var(--tm-purple-soft); }
+.tm-ask-histopen{
+  flex:1; min-width:0; text-align:left; background:none; border:0; cursor:pointer;
+  padding:8px 8px; font:inherit; color:var(--tm-ink);
+}
+.tm-ask-histtitle{
+  display:block; font-size:.87rem; white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis;
+}
+.tm-ask-histwhen{ display:block; font-size:.74rem; color:var(--tm-muted); margin-top:2px; }
+.tm-ask-histdel, .tm-ask-confirm-yes, .tm-ask-confirm-no{
+  background:none; border:0; cursor:pointer; font:inherit; font-size:.74rem;
+  color:var(--tm-muted); padding:6px 6px;
+}
+.tm-ask-histdel{ opacity:0; }
+.tm-ask-histitem:hover .tm-ask-histdel, .tm-ask-histdel:focus{ opacity:1; }
+.tm-ask-histdel:hover{ color:var(--tm-danger); }
+.tm-ask-confirm{ display:flex; gap:2px; padding-right:4px; }
+.tm-ask-confirm-yes{ color:var(--tm-danger); font-weight:600; }
+.tm-ask-confirm-no{ color:var(--tm-body); }
+
+.tm-ask-pref{ margin-top:auto; padding-top:12px; border-top:1px solid var(--tm-line); }
+.tm-ask-preflabel{
+  font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--tm-muted); font-weight:600; margin-bottom:6px;
+}
+.tm-ask-prefopt{
+  display:flex; align-items:center; gap:7px; font-size:.86rem;
+  color:var(--tm-body); cursor:pointer; padding:3px 0;
+}
+
+/* ---- the conversation ---- */
+.tm-ask{ display:flex; flex-direction:column; flex:1; min-width:0; }
+.tm-ask-thread{ flex:1; overflow-y:auto; padding:4px 4px 16px; }
+.tm-ask-compact .tm-ask-thread{ max-height:420px; }
+
+.tm-ask-empty{ padding:40px 8px; text-align:center; }
+.tm-ask-empty-title{
+  font-size:1.15rem; font-weight:650; color:var(--tm-ink); margin-bottom:6px;
+}
+.tm-ask-empty-hint{
+  color:var(--tm-muted); font-size:.9rem; max-width:44ch; margin:0 auto; line-height:1.6;
+}
+
+.tm-ask-turn{ margin:0 0 18px; }
+.tm-ask-who{
+  font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;
+  font-weight:600; margin-bottom:4px; color:var(--tm-muted);
+}
+.tm-ask-assistant .tm-ask-who{ color:var(--tm-purple); }
+.tm-ask-body{ font-size:.95rem; line-height:1.68; color:var(--tm-body); }
+.tm-ask-user .tm-ask-body{
+  background:var(--tm-surface); border:1px solid var(--tm-line);
+  border-radius:var(--tm-radius-lg); padding:10px 13px; white-space:pre-wrap;
+}
+.tm-ask-p{ margin:0 0 10px; }
+.tm-ask-p:last-child{ margin-bottom:0; }
+.tm-ask-thinking{ color:var(--tm-muted); }
+.tm-ask-problems{
+  margin:10px 0 0; padding:8px 12px 8px 26px; font-size:.85rem;
+  color:var(--tm-warn); background:var(--tm-warn-soft); border-radius:var(--tm-radius);
+}
+
+/* ---- the composer ---- */
+.tm-ask-composer{ border-top:1px solid var(--tm-line); padding-top:12px; }
+.tm-ask-error{
+  font-size:.86rem; color:var(--tm-danger); background:var(--tm-danger-soft);
+  border-radius:var(--tm-radius); padding:8px 11px; margin-bottom:9px;
+}
+.tm-ask-files{ list-style:none; margin:0 0 9px; padding:0; display:flex; flex-wrap:wrap; gap:6px; }
+.tm-ask-file{
+  display:flex; align-items:center; gap:8px; font-size:.8rem;
+  background:var(--tm-surface); border:1px solid var(--tm-line);
+  border-radius:var(--tm-radius); padding:5px 9px; max-width:100%;
+}
+.tm-ask-file-name{ max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tm-ask-file-size{ color:var(--tm-muted); }
+.tm-ask-file-x{
+  background:none; border:0; cursor:pointer; font:inherit; font-size:.76rem;
+  color:var(--tm-muted); padding:0;
+}
+.tm-ask-file-x:hover{ color:var(--tm-danger); }
+
+.tm-ask-row{ display:flex; align-items:flex-end; gap:8px; }
+.tm-ask-fileinput{ display:none; }
+.tm-ask-attach, .tm-ask-send{
+  flex:0 0 auto; padding:9px 14px; border-radius:var(--tm-radius);
+  font:inherit; font-size:.88rem; font-weight:600; cursor:pointer;
+}
+.tm-ask-attach{ background:var(--tm-white); border:1px solid var(--tm-line); color:var(--tm-body); }
+.tm-ask-attach:hover:not(:disabled){ border-color:var(--tm-purple-line); color:var(--tm-ink); }
+.tm-ask-send{ background:var(--tm-purple); border:1px solid var(--tm-purple); color:#fff; }
+.tm-ask-send:hover:not(:disabled){ background:var(--tm-purple-light); border-color:var(--tm-purple-light); }
+.tm-ask-attach:disabled, .tm-ask-send:disabled{ opacity:.5; cursor:not-allowed; }
+.tm-ask-attach:focus, .tm-ask-attach:focus-visible,
+.tm-ask-send:focus, .tm-ask-send:focus-visible{ outline:2px solid var(--tm-ink); }
+
+.tm-ask-input{
+  flex:1; min-width:0; resize:none; font:inherit; font-size:.95rem;
+  line-height:1.55; padding:10px 12px; color:var(--tm-ink);
+  border:1px solid var(--tm-line); border-radius:var(--tm-radius); background:var(--tm-white);
+}
+.tm-ask-input:focus, .tm-ask-input:focus-visible{ outline:2px solid var(--tm-ink); border-color:var(--tm-line); }
+.tm-ask-hint{ font-size:.75rem; color:var(--tm-faint); margin-top:7px; }
+
+/* ---- locked state ---- */
+.tm-askpage-locked{ max-width:52ch; margin:60px auto; text-align:center; color:var(--tm-body); }
+.tm-askpage-title{ font-size:1.3rem; color:var(--tm-ink); margin:0 0 10px; }
+.tm-btn-go{
+  margin-top:14px; padding:9px 18px; border-radius:var(--tm-radius);
+  border:1px solid var(--tm-green); background:var(--tm-green); color:#fff;
+  font:inherit; font-weight:600; cursor:pointer;
+}
+.tm-btn-go:hover{ background:var(--tm-green-dark); border-color:var(--tm-green-dark); }
+
+/* ---- the panel beside a transcript ---- */
+.tm-ask-panel{
+  border:1px solid var(--tm-line); border-radius:var(--tm-radius-lg);
+  padding:14px 16px; background:var(--tm-white); display:flex; flex-direction:column;
+}
+.tm-ask-panel-head{
+  font-size:.78rem; text-transform:uppercase; letter-spacing:.06em;
+  font-weight:600; color:var(--tm-purple); margin-bottom:10px;
+}
+
+@media (max-width: 900px){
+  .tm-askpage{ flex-direction:column; }
+  .tm-askpage-side{
+    width:auto; flex:none; border-right:0; padding-right:0;
+    border-bottom:1px solid var(--tm-line); padding-bottom:14px;
+  }
+  .tm-ask-hist{ max-height:190px; }
+  .tm-ask-histdel{ opacity:1; }
+}
