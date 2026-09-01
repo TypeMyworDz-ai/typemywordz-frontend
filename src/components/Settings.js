@@ -15,6 +15,7 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
   const [models, setModels] = useState([]);
   const [state, setState] = useState('loading');
   const [saved, setSaved] = useState(false);
+  const [serverDefault, setServerDefault] = useState('');
 
   useEffect(() => {
     let alive = true;
@@ -34,6 +35,7 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
         const rows = Array.isArray(data.models) ? data.models : [];
         setModels(rows);
         setState(rows.length ? 'ready' : 'locked');
+        if (data.default) setServerDefault(data.default);
         // If nothing is chosen yet, show the server's default as chosen.
         if (!model && data.default) setModel(data.default);
       } catch (e) {
@@ -74,7 +76,16 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
                 onChange={() => choose(m.id)}
               />
               <span className="tm-set-modelbody">
-                <span className="tm-set-modelname">{m.label}</span>
+                <span className="tm-set-modelname">
+                  {m.label}
+                  {model === m.id && <span className="tm-set-badge tm-set-badge-on">Your default</span>}
+                  {model !== m.id && m.id === serverDefault && (
+                    <span className="tm-set-badge">Recommended</span>
+                  )}
+                  {m.transcript_only && (
+                    <span className="tm-set-badge tm-set-badge-quiet">Transcripts only</span>
+                  )}
+                </span>
                 <span className="tm-set-modelblurb">{m.blurb}</span>
               </span>
             </label>
@@ -90,8 +101,9 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
       <section className="tm-set-section">
         <h3 className="tm-set-h">Assistant model</h3>
         <p className="tm-set-sub">
-          This is the model Ask TypeMyworDz uses when you ask it something. If you are not sure,
-          leave it as it is.
+          Pick the model Ask TypeMyworDz uses when you ask it something. Whatever you choose here
+          becomes your default everywhere the assistant appears, on this page and beside your
+          transcripts. If you are not sure, leave it as it is.
         </p>
 
         {state === 'loading' && <div className="tm-set-note">Loading the models on your plan</div>}

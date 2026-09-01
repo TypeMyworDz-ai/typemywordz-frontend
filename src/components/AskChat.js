@@ -168,6 +168,148 @@ const Answer = ({ text }) => (
   </>
 );
 
+// What kind of file is this? Used to show the right badge on an attachment so
+// a client can see at a glance what they have attached.
+const fileKind = (name) => {
+  const ext = String(name || '').toLowerCase().split('.').pop();
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'heic'].includes(ext)) return 'image';
+  if (ext === 'pdf') return 'pdf';
+  if (['doc', 'docx', 'rtf', 'odt'].includes(ext)) return 'word';
+  if (['csv', 'xls', 'xlsx'].includes(ext)) return 'sheet';
+  return 'text';
+};
+
+const KIND_LABEL = {
+  image: 'IMG',
+  pdf: 'PDF',
+  word: 'DOC',
+  sheet: 'CSV',
+  text: 'TXT',
+};
+
+// A small coloured badge showing the file type, next to the file name.
+const FileIcon = ({ name }) => {
+  const kind = fileKind(name);
+  return (
+    <span className={'tm-ask-fileicon tm-ask-fileicon-' + kind} aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
+           strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2.5H7a1.5 1.5 0 0 0-1.5 1.5v16A1.5 1.5 0 0 0 7 21.5h10a1.5 1.5 0 0 0 1.5-1.5V7z" />
+        <path d="M14 2.5V7h4.5" />
+      </svg>
+      <span className="tm-ask-filekind">{KIND_LABEL[kind]}</span>
+    </span>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Copying an answer.
+//
+// Clients paste answers straight into Word, so the copy has to carry real
+// formatting: headings, bold, and properly indented bullet and numbered lists.
+// We put HTML on the clipboard alongside the plain text, which is what Word
+// reads. Anywhere that cannot take HTML still gets clean readable text.
+// ---------------------------------------------------------------------------
+
+const esc = (t) =>
+  String(t)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+const runsToHtml = (text) =>
+  parseInline(text)
+    .map((r) => {
+      const t = esc(r.text);
+      if (r.bold) return '<strong>' + t + '</strong>';
+      if (r.italic) return '<em>' + t + '</em>';
+      if (r.code) return '<code>' + t + '</code>';
+      return t;
+    })
+    .join('');
+
+export const answerToHtml = (text) => {
+  const parts = parseAnswer(text).map((b) => {
+    if (b.type === 'h') return '<h3>' + runsToHtml(b.text) + '</h3>';
+    if (b.type === 'ul') return '<ul>' + b.items.map((i) => '<li>' + runsToHtml(i) + '</li>').join('') + '</ul>';
+    if (b.type === 'ol') return '<ol>' + b.items.map((i) => '<li>' + runsToHtml(i) + '</li>').join('') + '</ol>';
+    return '<p>' + b.lines.map(runsToHtml).join('<br />') + '</p>';
+  });
+  return (
+    '<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:1.5">' +
+    parts.join('') +
+    '</div>'
+  );
+};
+
+export const answerToText = (text) => {
+  const strip = (t) => parseInline(t).map((r) => r.text).join('');
+  return parseAnswer(text)
+    .map((b) => {
+      if (b.type === 'h') return strip(b.text);
+      if (b.type === 'ul') return b.items.map((i) => '\u2022 ' + strip(i)).join('\n');
+      if (b.type === 'ol') return b.items.map((i, n) => n + 1 + '. ' + strip(i)).join('\n');
+      return b.lines.map(strip).join('\n');
+    })
+    .join('\n\n');
+};
+
+// Copy the answer, keeping its formatting for Word.
+const CopyAnswer = ({ text }) => {
+  const [done, setDone] = useState(false);
+  const copy = async () => {
+    const html = answerToHtml(text);
+    const plain = answerToText(text);
+    try {
+      if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+        await navigator.clipboard.write([
+          new window.ClipboardItem({
+            'text/html': new Blob([html], { type: 'text/html' }),
+            'text/plain': new Blob([plain], { type: 'text/plain' }),
+          }),
+        ]);
+      } else {
+        await navigator.clipboard.writeText(plain);
+      }
+      setDone(true);
+      window.setTimeout(() => setDone(false), 1600);
+    } catch (e) {
+      try {
+        await navigator.clipboard.writeText(plain);
+        setDone(true);
+        window.setTimeout(() => setDone(false), 1600);
+      } catch (e2) {
+        /* nothing else we can do; the button simply does not confirm */
+      }
+    }
+  };
+  return (
+    <button
+      type="button"
+      className={'tm-ask-copy' + (done ? ' tm-ask-copy-done' : '')}
+      onClick={copy}
+      title="Copy this answer, keeping its formatting"
+    >
+      {done ? (
+        <>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
+               strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+          Copied
+        </>
+      ) : (
+        <>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+               strokeLinecap="round" strokeLinejoin="round">
+            <rect x="9" y="9" width="11" height="11" rx="1.8" />
+            <path d="M5.5 15H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v.5" />
+          </svg>
+          Copy
+        </>
+      )}
+    </button>
+  );
+};
+
 // The assistant signs its answers with the logo rather than its name in
 // writing. Clients recognise the mark, and it stops the same word appearing
 // twice on every screen.
@@ -322,7 +464,12 @@ const AskChat = ({
             </div>
             <div className="tm-ask-body">
               {m.role === 'assistant' ? (
-                <Answer text={m.content} />
+                <>
+                  <Answer text={m.content} />
+                  <div className="tm-ask-acts">
+                    <CopyAnswer text={m.content} />
+                  </div>
+                </>
               ) : (
                 <p className="tm-ask-p">{m.content}</p>
               )}
@@ -355,6 +502,7 @@ const AskChat = ({
           <ul className="tm-ask-files">
             {files.map((f, i) => (
               <li key={i} className="tm-ask-file">
+                <FileIcon name={f.name} />
                 <span className="tm-ask-file-name">{f.name}</span>
                 <span className="tm-ask-file-size">{fileLabel(f)}</span>
                 <button
@@ -390,8 +538,8 @@ const AskChat = ({
             title="Attach an image, PDF or Word document"
             aria-label="Attach a file"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7-7l8.5-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.3l7.9-7.9" />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5.5v13M5.5 12h13" />
             </svg>
           </button>
 
@@ -417,9 +565,12 @@ const AskChat = ({
               <path d="M4 12h15M13 6l6 6-6 6" />
             </svg>
           </button>
+
+          <Mark className="tm-ask-rowmark" size={20} />
         </div>
         <div className="tm-ask-hint">
-          Enter sends, Shift and Enter starts a new line. Images, PDFs and Word documents can be attached.
+          Enter sends, Shift and Enter starts a new line. Use the plus to attach an image, PDF or
+          Word document. You can choose which model answers you in Settings.
         </div>
       </div>
     </div>

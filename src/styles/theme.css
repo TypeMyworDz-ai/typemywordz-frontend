@@ -3153,3 +3153,54 @@ body {
 @media (max-width: 900px){
   .tm-lp-ask{ flex-direction:column; gap:26px; }
 }
+
+/* ---------------------------------------------------------------------------
+   Ask: attachment badges, the copy button, and the mark in the box.
+   --------------------------------------------------------------------------- */
+
+.tm-ask-fileicon{
+  position:relative; display:inline-flex; align-items:center; justify-content:center;
+  width:26px; height:26px; flex:0 0 26px; color:var(--tm-muted);
+}
+.tm-ask-fileicon svg{ width:22px; height:22px; }
+.tm-ask-filekind{
+  position:absolute; left:0; right:0; bottom:3px; text-align:center;
+  font-size:.44rem; font-weight:700; letter-spacing:.03em; line-height:1;
+}
+.tm-ask-fileicon-pdf{ color:var(--tm-danger); }
+.tm-ask-fileicon-word{ color:#2a5699; }
+.tm-ask-fileicon-sheet{ color:#1c7a33; }
+.tm-ask-fileicon-image{ color:var(--tm-purple); }
+.tm-ask-fileicon-text{ color:var(--tm-muted); }
+
+.tm-ask-acts{ margin-top:8px; }
+.tm-ask-copy{
+  display:inline-flex; align-items:center; gap:5px;
+  background:var(--tm-white); border:1px solid var(--tm-line);
+  border-radius:var(--tm-radius); color:var(--tm-muted);
+  font:inherit; font-size:.74rem; padding:3px 9px; cursor:pointer;
+}
+.tm-ask-copy svg{ width:13px; height:13px; }
+.tm-ask-copy:hover{ border-color:var(--tm-green-line); color:var(--tm-green-dark); }
+.tm-ask-copy:focus, .tm-ask-copy:focus-visible{ outline:2px solid var(--tm-ink); }
+.tm-ask-copy-done{
+  border-color:var(--tm-green-line); background:var(--tm-green-soft); color:var(--tm-green-dark);
+}
+
+/* The mark sits at the right-hand end of the box, facing the plus button. */
+.tm-ask-rowmark{
+  flex:0 0 auto; margin-bottom:9px; opacity:.32; pointer-events:none; user-select:none;
+}
+.tm-ask-compact .tm-ask-rowmark{ display:none; }
+
+/* Settings: which model is yours, and which we suggest. */
+.tm-set-badge{
+  display:inline-block; margin-left:8px; padding:1px 7px; border-radius:999px;
+  font-size:.63rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase;
+  vertical-align:middle;
+  background:var(--tm-surface); border:1px solid var(--tm-line); color:var(--tm-muted);
+}
+.tm-set-badge-on{
+  background:var(--tm-green-soft); border-color:var(--tm-green-line); color:var(--tm-green-dark);
+}
+.tm-set-badge-quiet{ text-transform:none; letter-spacing:0; font-weight:500; }
