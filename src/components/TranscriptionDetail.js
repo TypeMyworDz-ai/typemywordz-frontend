@@ -4,6 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { updateTranscription, deleteTranscription, fetchUserTranscriptions } from '../userService';
 import TranscriptEditor from './TranscriptEditor';
 import ConfirmDialog from './ConfirmDialog';
+import AskPanel from './AskPanel';
+import { isPaidAIUser } from '../aiAccess';
 
 // ---------------------------------------------------------------------------
 // One saved transcript, opened from My files.
@@ -41,7 +43,7 @@ const TranscriptionDetail = () => {
   const { id } = useParams();
   const { state } = useLocation();
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
 
   const [transcription, setTranscription] = useState(state?.transcription || null);
   const [loading, setLoading] = useState(!state?.transcription);
@@ -136,6 +138,14 @@ const TranscriptionDetail = () => {
         onSave={handleSave}
         showBack
         onBack={() => navigate('/dashboard')}
+      />
+
+      <AskPanel
+        transcript={text}
+        userPlan={userProfile?.plan || 'free'}
+        userEmail={currentUser?.email || ''}
+        canUse={isPaidAIUser(userProfile, currentUser?.email)}
+        onUpgrade={() => navigate('/pricing')}
       />
 
       <div className="tm-detail-foot">

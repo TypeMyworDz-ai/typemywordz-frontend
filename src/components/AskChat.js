@@ -168,10 +168,24 @@ const Answer = ({ text }) => (
   </>
 );
 
-// While the answer is on its way, the logo turns. No words, no bouncing dots.
+// The assistant signs its answers with the logo rather than its name in
+// writing. Clients recognise the mark, and it stops the same word appearing
+// twice on every screen.
+const Mark = ({ className = '', size = 22, alt = '' }) => (
+  <img
+    src="/android-chrome-192x192.png"
+    alt={alt}
+    className={'tm-ask-mark ' + className}
+    width={size}
+    height={size}
+  />
+);
+
+// While the answer is on its way the mark breathes quietly, then stays put
+// once the answer lands.
 const Working = () => (
   <div className="tm-ask-working" role="status" aria-label="Working on your answer">
-    <img src="/android-chrome-192x192.png" alt="" className="tm-ask-spin" width="30" height="30" />
+    <Mark className="tm-ask-blink" size={26} />
   </div>
 );
 
@@ -303,7 +317,9 @@ const AskChat = ({
 
         {messages.map((m, i) => (
           <div key={i} className={'tm-ask-turn tm-ask-' + m.role}>
-            <div className="tm-ask-who">{m.role === 'user' ? 'You' : 'TypeMyworDz'}</div>
+            <div className="tm-ask-who">
+              {m.role === 'user' ? 'You' : <Mark alt="TypeMyworDz" />}
+            </div>
             <div className="tm-ask-body">
               {m.role === 'assistant' ? (
                 <Answer text={m.content} />
@@ -323,7 +339,7 @@ const AskChat = ({
 
         {busy && (
           <div className="tm-ask-turn tm-ask-assistant">
-            <div className="tm-ask-who">TypeMyworDz</div>
+            <div className="tm-ask-who tm-ask-who-quiet" />
             <div className="tm-ask-body">
               <Working />
             </div>

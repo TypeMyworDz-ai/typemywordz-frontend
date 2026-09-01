@@ -86,6 +86,9 @@ const Landing = () => {
           <div className="menu-item" onClick={go('what')}>
             <span className="menu-text">What we transcribe</span>
           </div>
+          <div className="menu-item" onClick={go('assistant')}>
+            <span className="menu-text">Ask TypeMyworDz</span>
+          </div>
           <div className="menu-item" onClick={go('how')}>
             <span className="menu-text">How it works</span>
           </div>
@@ -114,6 +117,7 @@ const Landing = () => {
             <li>Speaker labels, so you know who said what</li>
             <li>A proper editor for correcting as you listen</li>
             <li>Export to Word or plain text, or copy in one click</li>
+            <li>An assistant that answers questions about your transcript</li>
             <li>Your recordings are never used to train AI</li>
           </ul>
         </div>
@@ -142,6 +146,56 @@ const Landing = () => {
                 <p>{w.text}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ---- Ask TypeMyworDz. A second reason to be here, not just a feature. ---- */}
+      <section className="tm-lp-band tm-lp-band-plain" id="assistant">
+        <div className="tm-lp-inner">
+          <div className="tm-lp-ask">
+            <div className="tm-lp-ask-copy">
+              <div className="tm-lp-ask-badge">
+                <img src="/android-chrome-192x192.png" alt="" width="22" height="22" />
+                <span>Included with every paid plan</span>
+              </div>
+              <h2>Ask TypeMyworDz</h2>
+              <p className="tm-lp-sub">
+                An assistant built into your account. Ask it about a transcript you have just
+                had done, or about anything else you are working on, and stop paying for a
+                second subscription somewhere else.
+              </p>
+              <ul className="tm-lp-ticks">
+                <li>Ask questions about any transcript without pasting it anywhere</li>
+                <li>Summaries, action points, and tidied-up wording in seconds</li>
+                <li>Attach images, PDFs and Word documents and ask about those too</li>
+                <li>No limit on how long your question can be</li>
+                <li>Your chats are saved, and only you can read them</li>
+                <li>Choose the model you prefer in your settings</li>
+              </ul>
+            </div>
+
+            <div className="tm-lp-ask-demo" aria-hidden="true">
+              <div className="tm-lp-ask-turn">
+                <div className="tm-lp-ask-who">You</div>
+                <div className="tm-lp-ask-said">
+                  Summarise this interview and list what I promised to send.
+                </div>
+              </div>
+              <div className="tm-lp-ask-turn">
+                <div className="tm-lp-ask-who tm-lp-ask-who-ai">
+                  <img src="/android-chrome-192x192.png" alt="" width="18" height="18" />
+                </div>
+                <div className="tm-lp-ask-answer">
+                  <p>A forty minute call about the Wright placement. Three things were agreed.</p>
+                  <ul>
+                    <li>Confirm the school start date on Tuesday</li>
+                    <li>Send the special needs funding form</li>
+                    <li>Arrange transport, he will be a bus rider</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

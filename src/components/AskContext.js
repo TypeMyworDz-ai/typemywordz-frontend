@@ -16,6 +16,16 @@ const AskContext = createContext(null);
 
 export const MODEL_PREF_KEY = 'tmwd.askModel';
 
+// Readable from anywhere, including screens that sit outside the provider,
+// such as a transcript opened straight from a link.
+export const readModelPref = () => {
+  try {
+    return window.localStorage.getItem(MODEL_PREF_KEY) || '';
+  } catch (e) {
+    return '';
+  }
+};
+
 const readPref = () => {
   try {
     return window.localStorage.getItem(MODEL_PREF_KEY) || '';
