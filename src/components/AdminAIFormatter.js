@@ -134,6 +134,7 @@ const AdminAIFormatter = React.memo(({ showMessage, latestTranscription }) => { 
       formData.append('formatting_instructions', formattingInstructions);
       formData.append('max_tokens', '8000'); // Increased to 8000
       formData.append('user_plan', userProfile?.plan || 'free');
+      formData.append('user_email', userProfile?.email || '');
 
       let endpoint = '';
       let defaultModel = '';
