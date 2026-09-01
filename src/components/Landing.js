@@ -212,15 +212,15 @@ const Landing = () => {
           <table className="tm-lp-plans">
             <tbody>
               <tr><td>Free trial</td><td>5 minutes, once, no card</td></tr>
-              <tr><td>One-Day Plan</td><td>1 day</td></tr>
-              <tr><td>Three-Day Plan</td><td>3 days</td></tr>
-              <tr><td>One-Week Plan</td><td>7 days</td></tr>
-              <tr><td>Monthly Plan</td><td>30 days</td></tr>
-              <tr><td>Yearly Plan</td><td>365 days, and transcripts kept a full year</td></tr>
+              <tr><td>One-Day Plan</td><td>1 day, 4 hours of transcription included</td></tr>
+              <tr><td>Three-Day Plan</td><td>3 days, 8 hours of transcription included</td></tr>
+              <tr><td>One-Week Plan</td><td>7 days, 15 hours of transcription included</td></tr>
+              <tr><td>Monthly Plan</td><td>30 days, 25 hours of transcription included</td></tr>
+              <tr><td>Yearly Plan</td><td>365 days, 25 hours of transcription each month, transcripts kept a full year</td></tr>
             </tbody>
           </table>
           <p className="tm-lp-readmore">
-            Prices depend on where you are, so that you pay in a currency and by a method that
+            If you need more than your plan includes, you can add extra hours without changing plan. Prices depend on where you are, so that you pay in a currency and by a method that
             works locally. Sign in to see the prices for your region.
           </p>
         </div>
