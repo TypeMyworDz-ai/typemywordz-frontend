@@ -2841,7 +2841,7 @@ body {
    conversation and the Send button use it. Green stays for actions the client
    takes elsewhere in the app. */
 
-.tm-askpage{ display:flex; flex-direction:column; min-height:calc(100vh - 210px); }
+.tm-askpage{ display:flex; flex-direction:column; min-height:calc(100vh - 210px); padding:0 26px; }
 
 /* ---- saved chats, in the sidebar under the Ask TypeMyworDz button ---- */
 .tm-asklist{
@@ -3204,3 +3204,9 @@ body {
   background:var(--tm-green-soft); border-color:var(--tm-green-line); color:var(--tm-green-dark);
 }
 .tm-set-badge-quiet{ text-transform:none; letter-spacing:0; font-weight:500; }
+
+/* The standalone Ask page ran flush to the window edge, which clipped the mark
+   at the right-hand end of the chat box. Give it breathing room on both sides. */
+@media (max-width: 700px){
+  .tm-askpage{ padding:0 14px; }
+}
