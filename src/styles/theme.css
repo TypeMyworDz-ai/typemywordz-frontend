@@ -3241,7 +3241,7 @@ body {
   line-height: 1.45;
   color: var(--tm-ink);
 }
-.tm-faq-q:hover{ color: var(--tm-purple); }
+.tm-faq-q:hover{ color: var(--tm-green-dark); }
 .tm-faq-q:focus,
 .tm-faq-q:focus-visible{ outline: 2px solid var(--tm-ink); outline-offset: 2px; }
 .tm-faq-chev{
@@ -3252,7 +3252,7 @@ body {
   color: var(--tm-muted);
   transition: transform .16s ease;
 }
-.tm-faq-open .tm-faq-chev{ transform: rotate(180deg); color: var(--tm-purple); }
+.tm-faq-open .tm-faq-chev{ transform: rotate(180deg); color: var(--tm-green-dark); }
 .tm-faq-a{ padding: 0 34px 18px 2px; }
 .tm-faq-a p{
   margin: 0 0 10px;
