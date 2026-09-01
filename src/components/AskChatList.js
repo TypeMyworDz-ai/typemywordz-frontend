@@ -24,6 +24,7 @@ const AskChatList = ({ open, onOpenChat }) => {
   const [editing, setEditing] = useState(null);
   const [draft, setDraft] = useState('');
   const [confirming, setConfirming] = useState(null);
+  const [search, setSearch] = useState('');
   const wrapRef = useRef(null);
   const editRef = useRef(null);
 
@@ -73,6 +74,13 @@ const AskChatList = ({ open, onOpenChat }) => {
     if (value) await rename(id, value);
   };
 
+  // Match on the title, ignoring case and stray spaces. Simple is right here:
+  // clients look for a word they remember typing, not a fuzzy match.
+  const needle = search.trim().toLowerCase();
+  const shown = needle
+    ? chats.filter((c) => String(c.title || '').toLowerCase().includes(needle))
+    : chats;
+
   const pick = async (id) => {
     await openChat(id);
     if (onOpenChat) onOpenChat();
@@ -87,13 +95,31 @@ const AskChatList = ({ open, onOpenChat }) => {
         New chat
       </button>
 
+      {chats.length > 5 && (
+        <div className="tm-asklist-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="6.5" />
+            <path d="M16 16l4 4" />
+          </svg>
+          <input
+            type="search"
+            value={search}
+            placeholder="Search your chats"
+            aria-label="Search your chats"
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      )}
+
       {loadingList ? (
         <div className="tm-asklist-note">Loading your chats</div>
       ) : chats.length === 0 ? (
         <div className="tm-asklist-note">Your chats will be saved here.</div>
+      ) : shown.length === 0 ? (
+        <div className="tm-asklist-note">No chat matches that.</div>
       ) : (
         <ul className="tm-asklist-items">
-          {chats.map((c) => (
+          {shown.map((c) => (
             <li
               key={c.id}
               className={

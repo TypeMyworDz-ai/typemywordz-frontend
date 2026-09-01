@@ -22,6 +22,8 @@ import AskTypeMyworDz from './components/AskTypeMyworDz';
 import { AskProvider } from './components/AskContext';
 import AskChatList from './components/AskChatList';
 import Settings from './components/Settings';
+import AskPanel from './components/AskPanel';
+import { isPaidAIUser } from './aiAccess';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { isAdminEmail } from './adminEmails';
@@ -41,15 +43,6 @@ const initialsOf = (nameOrEmail) => {
   if (words.length === 0) return '?';
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return (words[0][0] + words[words.length - 1][0]).toUpperCase();
-};
-
-const isPaidAIUser = (userProfile, email) => {
-  // Admins always have it. The plan check alone used to lock the team out of
-  // their own assistant, the same way it locked them out of transcribing.
-  if (isAdminEmail(email) || isAdminEmail(userProfile && userProfile.email)) return true;
-  if (!userProfile || !userProfile.plan) return false;
-  const paidPlansForAI = ['Three-Day Plan', 'One-Week Plan', 'Monthly Plan', 'Yearly Plan'];
-  return paidPlansForAI.includes(userProfile.plan);
 };
 
 // Copied Notification Component - Remains here as it's a UI element not tied to auth context messages
@@ -1344,6 +1337,9 @@ return (
                         <div className="submenu-item" onClick={() => window.showSpeechToText()}>
                             <span className="menu-text">Speech-to-Text</span>
                         </div>
+                        <div className="submenu-item" onClick={() => setCurrentView('ai_assistant')}>
+                            <span className="menu-text">Ask TypeMyworDz</span>
+                        </div>
                         <div className="submenu-item" onClick={() => window.showComingSoon('TypeMyNote')}>
                             <span className="menu-text">TypeMyNote</span>
                         </div>
@@ -2496,6 +2492,17 @@ return (
                   onSave={handleSaveFreshTranscript}
                   onAskAI={isPaidAIUser(userProfile) ? () => setCurrentView('ai_assistant') : null}
                   canUseAI={isPaidAIUser(userProfile)}
+                />
+              )}
+
+              {transcription && (
+                <AskPanel
+                  transcript={transcription}
+                  userPlan={userProfile?.plan || 'free'}
+                  userEmail={currentUser?.email || ''}
+                  canUse={isPaidAIUser(userProfile, currentUser?.email)}
+                  onUpgrade={() => setCurrentView('pricing')}
+                  defaultOpen
                 />
               )}
 
