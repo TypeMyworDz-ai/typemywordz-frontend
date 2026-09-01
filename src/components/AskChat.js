@@ -16,34 +16,170 @@ const fileLabel = (f) => {
   return kb < 1024 ? `${Math.round(kb)} KB` : `${(kb / 1024).toFixed(1)} MB`;
 };
 
-// The reply comes back as plain text with the occasional markdown flourish.
-// We render it as text, never as HTML, and only turn **bold** into bold and
-// blank lines into paragraphs. Anything else is shown exactly as written.
-const renderAnswer = (text) => {
-  const blocks = String(text || '').split(/\n{2,}/);
-  return blocks.map((block, bi) => (
-    <p key={bi} className="tm-ask-p">
-      {block.split('\n').map((line, li) => (
-        <React.Fragment key={li}>
-          {li > 0 && <br />}
-          {line.split(/(\*\*[^*]+\*\*)/g).map((part, pi) =>
-            part.startsWith('**') && part.endsWith('**') && part.length > 4 ? (
-              <strong key={pi}>{part.slice(2, -2)}</strong>
-            ) : (
-              <React.Fragment key={pi}>{part}</React.Fragment>
-            )
-          )}
-        </React.Fragment>
-      ))}
-    </p>
-  ));
+// ---------------------------------------------------------------------------
+// Turning the answer into something readable.
+//
+// The reply arrives as plain text with light markdown. It is rendered as TEXT,
+// never as HTML, so nothing in an answer can inject markup into the page. We
+// understand bold, italic, bullet lists and numbered lists, and we quietly
+// drop stray asterisks, which otherwise leak into the answer and look broken.
+// ---------------------------------------------------------------------------
+
+export const parseInline = (s) => {
+  const out = [];
+  const re = /(\*\*[^*\n]+\*\*|\*[^*\n]+\*|`[^`\n]+`)/g;
+  let last = 0;
+  let m;
+  const plain = (t) => t.replace(/\*\*/g, '');
+  while ((m = re.exec(s))) {
+    if (m.index > last) out.push({ text: plain(s.slice(last, m.index)) });
+    const t = m[0];
+    if (t.startsWith('**')) out.push({ text: t.slice(2, -2), bold: true });
+    else if (t.startsWith('`')) out.push({ text: t.slice(1, -1), code: true });
+    else out.push({ text: t.slice(1, -1), italic: true });
+    last = m.index + t.length;
+  }
+  if (last < s.length) out.push({ text: plain(s.slice(last)) });
+  return out.filter((r) => r.text !== '');
 };
+
+export const parseAnswer = (text) => {
+  const lines = String(text || '')
+    .replace(/\r\n/g, '\n')
+    .trim()
+    .split('\n');
+  const blocks = [];
+  let para = [];
+  let list = null;
+  const flushP = () => {
+    if (para.length) {
+      blocks.push({ type: 'p', lines: para });
+      para = [];
+    }
+  };
+  const flushL = () => {
+    if (list) {
+      blocks.push(list);
+      list = null;
+    }
+  };
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (!line.trim()) {
+      flushP();
+      flushL();
+      continue;
+    }
+    // A line of nothing but punctuation is leftover markdown, not content.
+    if (/^[*\s_-]+$/.test(line) && !/[A-Za-z0-9]/.test(line)) {
+      flushP();
+      flushL();
+      continue;
+    }
+    const h = line.match(/^#{1,6}\s+(.*)$/);
+    const ul = line.match(/^\s*[-*\u2022]\s+(.*)$/);
+    const ol = line.match(/^\s*(\d+)[.)]\s+(.*)$/);
+    if (h) {
+      flushP();
+      flushL();
+      blocks.push({ type: 'h', text: h[1] });
+      continue;
+    }
+    if (ul) {
+      flushP();
+      if (!list || list.type !== 'ul') {
+        flushL();
+        list = { type: 'ul', items: [] };
+      }
+      list.items.push(ul[1]);
+      continue;
+    }
+    if (ol) {
+      flushP();
+      if (!list || list.type !== 'ol') {
+        flushL();
+        list = { type: 'ol', items: [] };
+      }
+      list.items.push(ol[2]);
+      continue;
+    }
+    flushL();
+    para.push(line);
+  }
+  flushP();
+  flushL();
+  return blocks;
+};
+
+const Runs = ({ text }) => (
+  <>
+    {parseInline(text).map((r, i) => {
+      if (r.bold) return <strong key={i}>{r.text}</strong>;
+      if (r.italic) return <em key={i}>{r.text}</em>;
+      if (r.code) return <code key={i} className="tm-ask-code">{r.text}</code>;
+      return <React.Fragment key={i}>{r.text}</React.Fragment>;
+    })}
+  </>
+);
+
+const Answer = ({ text }) => (
+  <>
+    {parseAnswer(text).map((b, i) => {
+      if (b.type === 'h') {
+        return (
+          <p key={i} className="tm-ask-h">
+            <Runs text={b.text} />
+          </p>
+        );
+      }
+      if (b.type === 'ul') {
+        return (
+          <ul key={i} className="tm-ask-ul">
+            {b.items.map((it, j) => (
+              <li key={j}>
+                <Runs text={it} />
+              </li>
+            ))}
+          </ul>
+        );
+      }
+      if (b.type === 'ol') {
+        return (
+          <ol key={i} className="tm-ask-ol">
+            {b.items.map((it, j) => (
+              <li key={j}>
+                <Runs text={it} />
+              </li>
+            ))}
+          </ol>
+        );
+      }
+      return (
+        <p key={i} className="tm-ask-p">
+          {b.lines.map((ln, j) => (
+            <React.Fragment key={j}>
+              {j > 0 && <br />}
+              <Runs text={ln} />
+            </React.Fragment>
+          ))}
+        </p>
+      );
+    })}
+  </>
+);
+
+// While the answer is on its way, the logo turns. No words, no bouncing dots.
+const Working = () => (
+  <div className="tm-ask-working" role="status" aria-label="Working on your answer">
+    <img src="/android-chrome-192x192.png" alt="" className="tm-ask-spin" width="30" height="30" />
+  </div>
+);
 
 const AskChat = ({
   messages,
   onMessagesChange,
   transcript = '',
-  provider = 'claude',
+  model = '',
   userPlan = 'free',
   userEmail = '',
   placeholder = 'Ask anything, or attach a file',
@@ -59,7 +195,6 @@ const AskChat = ({
   const fileRef = useRef(null);
   const boxRef = useRef(null);
 
-  // Keep the newest message in view as the conversation grows.
   useEffect(() => {
     if (endRef.current) endRef.current.scrollIntoView({ block: 'end' });
   }, [messages, busy]);
@@ -112,7 +247,7 @@ const AskChat = ({
       const body = new FormData();
       body.append('user_prompt', question || 'Please look at what I have attached.');
       body.append('history', JSON.stringify(history));
-      body.append('provider', provider);
+      body.append('model', model || '');
       body.append('user_plan', userPlan || 'free');
       body.append('user_email', userEmail || '');
       if (transcript) body.append('transcript', transcript);
@@ -146,10 +281,10 @@ const AskChat = ({
     } finally {
       setBusy(false);
     }
-  }, [draft, files, busy, messages, onMessagesChange, provider, transcript, userPlan, userEmail]);
+  }, [draft, files, busy, messages, onMessagesChange, model, transcript, userPlan, userEmail]);
 
   const onKeyDown = (e) => {
-    // Enter sends, Shift+Enter starts a new line. Standard for a chat box.
+    // Enter sends, Shift and Enter starts a new line. Standard for a chat box.
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       send();
@@ -159,7 +294,7 @@ const AskChat = ({
   return (
     <div className={'tm-ask' + (compact ? ' tm-ask-compact' : '')}>
       <div className="tm-ask-thread">
-        {messages.length === 0 && (
+        {messages.length === 0 && !busy && (
           <div className="tm-ask-empty">
             <div className="tm-ask-empty-title">{emptyTitle}</div>
             <p className="tm-ask-empty-hint">{emptyHint}</p>
@@ -170,7 +305,11 @@ const AskChat = ({
           <div key={i} className={'tm-ask-turn tm-ask-' + m.role}>
             <div className="tm-ask-who">{m.role === 'user' ? 'You' : 'TypeMyworDz'}</div>
             <div className="tm-ask-body">
-              {m.role === 'assistant' ? renderAnswer(m.content) : <p className="tm-ask-p">{m.content}</p>}
+              {m.role === 'assistant' ? (
+                <Answer text={m.content} />
+              ) : (
+                <p className="tm-ask-p">{m.content}</p>
+              )}
               {Array.isArray(m.problems) && m.problems.length > 0 && (
                 <ul className="tm-ask-problems">
                   {m.problems.map((p, pi) => (
@@ -186,7 +325,7 @@ const AskChat = ({
           <div className="tm-ask-turn tm-ask-assistant">
             <div className="tm-ask-who">TypeMyworDz</div>
             <div className="tm-ask-body">
-              <p className="tm-ask-p tm-ask-thinking">Thinking{'\u2026'}</p>
+              <Working />
             </div>
           </div>
         )}
@@ -233,8 +372,11 @@ const AskChat = ({
             onClick={() => fileRef.current && fileRef.current.click()}
             disabled={busy}
             title="Attach an image, PDF or Word document"
+            aria-label="Attach a file"
           >
-            Attach
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7-7l8.5-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.3l7.9-7.9" />
+            </svg>
           </button>
 
           <textarea
@@ -253,8 +395,11 @@ const AskChat = ({
             className="tm-ask-send"
             onClick={send}
             disabled={busy || (!draft.trim() && !files.length)}
+            aria-label="Send"
           >
-            {busy ? 'Sending' : 'Send'}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 12h15M13 6l6 6-6 6" />
+            </svg>
           </button>
         </div>
         <div className="tm-ask-hint">

@@ -1,0 +1,145 @@
+import React, { useState, useEffect } from 'react';
+import { useAsk } from './AskContext';
+
+// The client's own settings. Right now this is where the assistant model is
+// chosen, which used to sit awkwardly beside the chat. The list is fetched
+// from the server so that what a client can pick always matches what the
+// server will actually accept.
+
+const RAILWAY_BACKEND_URL =
+  process.env.REACT_APP_RAILWAY_BACKEND_URL ||
+  'https://backendforrailway-production-7128.up.railway.app';
+
+const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgrade }) => {
+  const { model, setModel } = useAsk();
+  const [models, setModels] = useState([]);
+  const [state, setState] = useState('loading');
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    if (!canUseAI) {
+      setState('locked');
+      return undefined;
+    }
+    const load = async () => {
+      try {
+        const url =
+          `${RAILWAY_BACKEND_URL}/ai/models` +
+          `?user_plan=${encodeURIComponent(userPlan || 'free')}` +
+          `&user_email=${encodeURIComponent(userEmail || '')}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!alive) return;
+        const rows = Array.isArray(data.models) ? data.models : [];
+        setModels(rows);
+        setState(rows.length ? 'ready' : 'locked');
+        // If nothing is chosen yet, show the server's default as chosen.
+        if (!model && data.default) setModel(data.default);
+      } catch (e) {
+        if (alive) setState('error');
+      }
+    };
+    load();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canUseAI, userPlan, userEmail]);
+
+  const choose = (id) => {
+    setModel(id);
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 1800);
+  };
+
+  const standard = models.filter((m) => m.tier === 'standard');
+  const premium = models.filter((m) => m.tier === 'premium');
+
+  const Group = ({ title, note, rows }) =>
+    rows.length === 0 ? null : (
+      <div className="tm-set-group">
+        <div className="tm-set-grouphead">
+          <span className="tm-set-grouptitle">{title}</span>
+          {note && <span className="tm-set-groupnote">{note}</span>}
+        </div>
+        <div className="tm-set-models">
+          {rows.map((m) => (
+            <label key={m.id} className={'tm-set-model' + (model === m.id ? ' tm-set-model-on' : '')}>
+              <input
+                type="radio"
+                name="askModel"
+                value={m.id}
+                checked={model === m.id}
+                onChange={() => choose(m.id)}
+              />
+              <span className="tm-set-modelbody">
+                <span className="tm-set-modelname">{m.label}</span>
+                <span className="tm-set-modelblurb">{m.blurb}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+    );
+
+  return (
+    <div className="tm-set">
+      <h2 className="tm-set-title">Settings</h2>
+
+      <section className="tm-set-section">
+        <h3 className="tm-set-h">Assistant model</h3>
+        <p className="tm-set-sub">
+          This is the model Ask TypeMyworDz uses when you ask it something. If you are not sure,
+          leave it as it is.
+        </p>
+
+        {state === 'loading' && <div className="tm-set-note">Loading the models on your plan</div>}
+
+        {state === 'error' && (
+          <div className="tm-set-note">
+            Could not load the list just now. Your assistant still works on its usual model.
+          </div>
+        )}
+
+        {state === 'locked' && (
+          <div className="tm-set-locked">
+            <p>Choosing a model is part of Ask TypeMyworDz, which comes with any paid plan.</p>
+            {onUpgrade && (
+              <button type="button" className="tm-btn-go" onClick={onUpgrade}>
+                See plans
+              </button>
+            )}
+          </div>
+        )}
+
+        {state === 'ready' && (
+          <>
+            <Group title="Included with your plan" rows={standard} />
+            <Group
+              title="Advanced models"
+              note="Included with the Monthly and Yearly plans"
+              rows={premium}
+            />
+            {premium.length === 0 && (
+              <p className="tm-set-upsell">
+                The Monthly and Yearly plans add the advanced models, which handle long or
+                complicated work better.{' '}
+                {onUpgrade && (
+                  <button type="button" className="tm-set-link" onClick={onUpgrade}>
+                    See plans
+                  </button>
+                )}
+              </p>
+            )}
+            <div className={'tm-set-saved' + (saved ? ' tm-set-saved-on' : '')} aria-live="polite">
+              {saved ? 'Saved' : ''}
+            </div>
+          </>
+        )}
+      </section>
+    </div>
+  );
+};
+
+export default Settings;
