@@ -338,6 +338,7 @@ const AskChat = ({
   model = '',
   userPlan = 'free',
   userEmail = '',
+  userId = '',
   placeholder = 'Ask anything, or attach a file',
   compact = false,
   emptyTitle = 'Ask TypeMyworDz',
@@ -406,6 +407,9 @@ const AskChat = ({
       body.append('model', model || '');
       body.append('user_plan', userPlan || 'free');
       body.append('user_email', userEmail || '');
+      // Without this the question is charged to nobody, because a
+      // transcription job is tracked by email but the ledger by id.
+      body.append('user_id', userId || '');
       if (transcript) body.append('transcript', transcript);
       sending.forEach((f) => body.append('files', f, f.name));
 
@@ -437,7 +441,7 @@ const AskChat = ({
     } finally {
       setBusy(false);
     }
-  }, [draft, files, busy, messages, onMessagesChange, model, transcript, userPlan, userEmail]);
+  }, [draft, files, busy, messages, onMessagesChange, model, transcript, userPlan, userEmail, userId]);
 
   const onKeyDown = (e) => {
     // Enter sends, Shift and Enter starts a new line. Standard for a chat box.

@@ -6,7 +6,7 @@ import { useAsk } from './AskContext';
 // of past chats lives in the left sidebar under the Ask TypeMyworDz button,
 // so the screen has one panel rather than two competing ones.
 
-const AskTypeMyworDz = ({ userPlan, userEmail, canUse, onUpgrade }) => {
+const AskTypeMyworDz = ({ userPlan, userEmail, userId, canUse, onUpgrade }) => {
   const { messages, handleMessages, model } = useAsk();
 
   if (!canUse) {
@@ -32,6 +32,7 @@ const AskTypeMyworDz = ({ userPlan, userEmail, canUse, onUpgrade }) => {
         model={model}
         userPlan={userPlan}
         userEmail={userEmail}
+        userId={userId}
         emptyTitle="Ask TypeMyworDz"
         emptyHint="Ask a question, paste something in, or attach an image, PDF or Word document. Your chats are saved in the sidebar."
       />
