@@ -144,6 +144,7 @@ const TranscriptionDetail = () => {
         transcript={text}
         userPlan={userProfile?.plan || 'free'}
         userEmail={currentUser?.email || ''}
+        userId={currentUser?.uid || ''}
         canUse={isPaidAIUser(userProfile, currentUser?.email)}
         onUpgrade={() => navigate('/pricing')}
       />

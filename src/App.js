@@ -13,6 +13,17 @@ import EditorDemo from './components/EditorDemo';
 import TranscribeProgress from './components/TranscribeProgress';
 import FeedbackModal from './components/FeedbackModal';
 import { canUserTranscribe, updateUserUsage, saveTranscription, updateTranscription, updateUserPlan, saveFeedback } from './userService'; // Removed createUserProfile
+import {
+  runCreditBackfill,
+  fetchCreditBalance,
+  fetchCreditQuote,
+  describeCredits,
+  spendableCredits,
+  frozenCredits,
+  creditsAreFrozen,
+  creditsRunningLow,
+  creditsExhausted,
+} from './creditsService';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import Faq from './components/Faq';
@@ -165,6 +176,33 @@ function AppContent() {
   // asks a client to pay must check this, not isAdmin, or a complimentary
   // account starts seeing Upgrade and See plans.
   const hasComplimentaryAccess = hasFreeAccess(currentUser?.email);
+
+  // The credit balance, as the server reports it. The browser never works
+  // this out for itself; it asks and shows the answer.
+  const [creditBalance, setCreditBalance] = useState(null);
+
+  const refreshCredits = useCallback(async () => {
+    if (!currentUser) { setCreditBalance(null); return null; }
+    const bal = await fetchCreditBalance(currentUser.uid, currentUser.email);
+    setCreditBalance(bal);
+    return bal;
+  }, [currentUser]);
+
+  // On sign-in, move the account off the old hours system and onto credits,
+  // then read the balance. The conversion does its work once and ignores
+  // every call after, so running it on every sign-in is safe and means no
+  // client is ever left on the old system.
+  useEffect(() => {
+    let cancelled = false;
+    if (!currentUser) { setCreditBalance(null); return undefined; }
+    (async () => {
+      await runCreditBackfill(currentUser.uid, currentUser.email);
+      if (cancelled) return;
+      const bal = await fetchCreditBalance(currentUser.uid, currentUser.email);
+      if (!cancelled) setCreditBalance(bal);
+    })();
+    return () => { cancelled = true; };
+  }, [currentUser]);
 
   // NEW: State to prevent duplicate payment verification
   const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
@@ -925,6 +963,27 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     const transcribeCheck = await canUserTranscribe(currentUser.uid, estimatedDuration, currentUser.email);
     console.log('DEBUG: canUserTranscribe check result:', transcribeCheck);
     
+    // The server has the final say on what this account can spend. Asking
+    // before the upload starts means nobody waits for a transcript they were
+    // never going to be given.
+    if (transcribeCheck.canTranscribe && transcribeCheck.reason !== 'admin' && transcribeCheck.reason !== 'complimentary') {
+      const quote = await fetchCreditQuote(currentUser.uid, currentUser.email, estimatedDuration);
+      if (quote && !quote.exempt && !quote.affordable) {
+        const need = quote.cost;
+        const message = quote.planActive === false && quote.frozen > 0
+          ? `You have ${describeCredits(quote.frozen)} waiting, but they only work while a plan is running. Pick a plan and they are yours to use straight away.`
+          : quote.planActive === false
+            ? `This recording needs ${describeCredits(need)}. Pick a plan to get started.`
+            : `This recording needs ${describeCredits(need)} and you have ${describeCredits(quote.spendable)} left. You can add more without changing plan.`;
+        setPlanBlock(message);
+        uploadInFlightRef.current = false;
+        setIsUploading(false);
+        setStatus('idle');
+        await refreshCredits();
+        return;
+      }
+    }
+
     if (!transcribeCheck.canTranscribe) {
       if (transcribeCheck.redirectToPricing) {
         // The client stays exactly where they are and keeps the file they chose.
@@ -1053,7 +1112,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       setIsUploading(false);
       showMessage('Transcription service is currently unavailable. Please try again later.','error');
     }
-  }, [selectedFile, audioDuration, currentUser?.uid, currentUser?.email, showMessage, resetTranscriptionProcessUI, userProfile, selectedLanguage, speakerLabelsEnabled, checkJobStatus]); // Removed RAILWAY_BACKEND_URL from dependencies
+  }, [selectedFile, audioDuration, currentUser?.uid, currentUser?.email, showMessage, resetTranscriptionProcessUI, userProfile, selectedLanguage, speakerLabelsEnabled, checkJobStatus, refreshCredits]); // Removed RAILWAY_BACKEND_URL from dependencies
 
   // Copy to clipboard (now triggers CopiedNotification)
   // The old Copy / Word / TXT buttons lived here. The proofreading editor
@@ -1523,6 +1582,32 @@ return (
               ) : (
                 <div className="tm-plancard-sub">
                   {planLabel.note || 'Thanks for subscribing'}
+                </div>
+              )}
+
+              {/* The credit balance, straight from the server. One credit is a
+                  minute of transcription or an ordinary question, so it is the
+                  one number a client needs to plan their work. */}
+              {creditBalance && !creditBalance.exempt && (
+                <div className={"tm-credits" + (creditsExhausted(creditBalance) ? " tm-credits-out" : creditsRunningLow(creditBalance) ? " tm-credits-low" : "")}>
+                  <div className="tm-credits-n">{describeCredits(spendableCredits(creditBalance))}</div>
+                  <div className="tm-credits-cap">1 credit is a minute of audio, or one question</div>
+
+                  {creditsAreFrozen(creditBalance) ? (
+                    <div className="tm-credits-note">
+                      {describeCredits(frozenCredits(creditBalance))} waiting. They come back the moment you pick a plan.
+                    </div>
+                  ) : creditsExhausted(creditBalance) ? (
+                    <div className="tm-credits-note">You have used everything for now.</div>
+                  ) : creditsRunningLow(creditBalance) ? (
+                    <div className="tm-credits-note">Running low.</div>
+                  ) : null}
+
+                  {(creditsExhausted(creditBalance) || creditsAreFrozen(creditBalance) || creditsRunningLow(creditBalance)) && (
+                    <button className="tm-credits-cta" onClick={handleOpenPricing}>
+                      {creditsAreFrozen(creditBalance) ? 'Pick a plan' : 'Add credits'}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -2111,6 +2196,7 @@ return (
           <AskTypeMyworDz
             userPlan={userProfile?.plan || 'free'}
             userEmail={currentUser?.email || ''}
+            userId={currentUser?.uid || ''}
             canUse={isPaidAIUser(userProfile, currentUser?.email)}
             onUpgrade={() => setCurrentView('pricing')}
           />
@@ -2509,6 +2595,7 @@ return (
                   transcript={transcription}
                   userPlan={userProfile?.plan || 'free'}
                   userEmail={currentUser?.email || ''}
+                  userId={currentUser?.uid || ''}
                   canUse={isPaidAIUser(userProfile, currentUser?.email)}
                   onUpgrade={() => setCurrentView('pricing')}
                   defaultOpen

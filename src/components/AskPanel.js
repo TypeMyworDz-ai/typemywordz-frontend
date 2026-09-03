@@ -38,6 +38,7 @@ const AskPanel = ({
   transcript = '',
   userPlan = 'free',
   userEmail = '',
+  userId = '',
   canUse = false,
   onUpgrade,
   defaultOpen = false,
@@ -105,6 +106,7 @@ const AskPanel = ({
             model={model}
             userPlan={userPlan}
             userEmail={userEmail}
+            userId={userId}
             compact
             placeholder="Ask about this transcript, or attach a file"
             emptyTitle="Ask about this transcript"
