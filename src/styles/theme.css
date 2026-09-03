@@ -3266,3 +3266,35 @@ body {
   .tm-faq-q{ font-size: 15px; }
   .tm-faq-a{ padding-right: 8px; }
 }
+
+
+/* --- Credit balance in the sidebar --------------------------------------
+   One number the client can plan around. Quiet by default; it only raises
+   its voice when the balance is genuinely low, gone, or frozen. */
+.tm-credits{
+  margin-top:12px; padding-top:12px; border-top:1px solid var(--tm-line);
+  text-align:left;
+}
+.tm-credits-n{
+  font-size:15px; font-weight:700; color:var(--tm-ink); line-height:1.2;
+}
+.tm-credits-cap{
+  font-size:11px; color:var(--tm-faint); margin-top:3px; line-height:1.35;
+}
+.tm-credits-note{
+  font-size:12px; color:var(--tm-body); margin-top:7px; line-height:1.45;
+}
+.tm-credits-low .tm-credits-n{ color:var(--tm-warn); }
+.tm-credits-low .tm-credits-note{ color:var(--tm-warn); }
+.tm-credits-out .tm-credits-n{ color:var(--tm-danger); }
+.tm-credits-out .tm-credits-note{ color:var(--tm-danger); }
+.tm-credits-cta{
+  margin-top:9px; width:100%;
+  background:var(--tm-green); color:var(--tm-white);
+  border:1px solid var(--tm-green); border-radius:var(--tm-radius);
+  padding:7px 10px; font-size:12.5px; font-weight:600; cursor:pointer;
+  font-family:var(--tm-font);
+}
+.tm-credits-cta:hover{ background:var(--tm-green-dark); border-color:var(--tm-green-dark); }
+.tm-credits-cta:focus,
+.tm-credits-cta:focus-visible{ outline:2px solid var(--tm-ink); outline-offset:2px; }
