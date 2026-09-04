@@ -27,7 +27,8 @@
       work correctly both with client-side routing and a non-root public URL.
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
-    <title>TypeMyworDz — AI Transcription Service</title>
+    <title>TypeMyworDz AI</title>
+    <meta name="description" content="TypeMyworDz AI turns recordings into accurate written transcripts and answers your questions about them." />
     <script src="https://js.paystack.co/v1/inline.js"></script>
     <!-- menu.css will still be linked for general menu item styling, but positioning will be inline in App.js -->
     <link rel="stylesheet" href="menu.css"> 
@@ -52,33 +53,23 @@
       <!--
         This block is replaced by the application the instant it starts.
 
-        It exists for two reasons. First, it matches the app's own loading screen,
-        so a returning client sees the wordmark rather than a blank white page while
-        the app downloads. Second, anything that does not run JavaScript - Google's
-        OAuth reviewer, link previews, search crawlers - can still read the app name,
-        what the app does, and reach the privacy policy and terms.
+        It is deliberately identical to the app's own opening screen, so a
+        returning client sees one screen, not two. The name and purpose are
+        also readable by anything that does not run JavaScript.
       -->
       <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#ffffff;font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
-        <div style="text-align:center;padding:24px;max-width:560px">
-          <h1 style="font-size:27px;font-weight:700;letter-spacing:-0.02em;margin:0">
-            <span style="color:#5b44cf">Type</span><span style="color:#28a745">My</span><span style="color:#5b44cf">worDz</span>
-          </h1>
-          <p style="font-size:10.5px;letter-spacing:0.16em;text-transform:uppercase;color:#858a95;margin:6px 0 0">You Talk, We Type</p>
-          <p style="color:#858a95;font-size:13px;line-height:1.7;margin:26px 0 0">
-            TypeMyworDz is a transcription service. It turns audio and video recordings into
-            accurate, speaker-separated written transcripts that you can correct in the browser
-            and export to Word or plain text. It is used for legal, medical, research and
-            academic, media and interview, business and general transcription work.
-            New accounts get five minutes free.
-          </p>
-          <p style="margin:20px 0 0;font-size:12px">
-            <a href="/privacy-policy" style="color:#858a95">Privacy and Security</a>
+        <div style="text-align:center;padding:24px">
+          <img src="%PUBLIC_URL%/brand-mark.png" alt="TypeMyworDz AI" width="96" height="96" style="display:block;margin:0 auto;width:96px;height:96px" />
+          <p style="font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#858a95;margin:18px 0 0">Your everyday AI companion</p>
+          <h1 style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">TypeMyworDz AI</h1>
+          <p style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">TypeMyworDz AI turns audio and video recordings into accurate, speaker-separated transcripts you can correct in the browser and export to Word or plain text, and includes an assistant that answers questions about them.</p>
+          <p style="margin:26px 0 0;font-size:12px">
+            <a href="/privacy-policy" style="color:#a8acb5;text-decoration:none">Privacy and Security</a>
             <span style="color:#e5e6ea">&nbsp;&middot;&nbsp;</span>
-            <a href="/terms" style="color:#858a95">Terms of Service</a>
+            <a href="/terms" style="color:#a8acb5;text-decoration:none">Terms of Service</a>
           </p>
         </div>
       </div>
-    </div>
     </div>
 
     <!-- The menu.js script is still needed for menu functionality (toast, donate, etc.) -->
