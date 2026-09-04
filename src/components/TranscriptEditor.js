@@ -35,6 +35,7 @@ const REWIND_ON_PAUSE_KEY = 'tmwd.rewindOnPause';
 const COPY_MODE_KEY = 'tmwd.copyMode';
 const COPY_REMEMBER_KEY = 'tmwd.copyRemember';
 const SPEED_KEY = 'tmwd.playbackRate';
+const VOLUME_KEY = 'tmwd.playbackVolume';
 
 const readLS = (key, fallback) => {
   try {
@@ -380,6 +381,20 @@ const TranscriptEditor = ({
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty, onSave]);
+
+  // ---- volume ----
+  // Transcriptionists work with the audio all day and every recording comes
+  // in at a different level, so the control has to be on the bar itself, not
+  // buried in the operating system. The position is remembered between
+  // sessions, which is the part people actually ask for.
+  const [volume, setVolume] = useState(() => {
+    const stored = Number(readLS(VOLUME_KEY, '1'));
+    return Number.isFinite(stored) && stored >= 0 && stored <= 1 ? stored : 1;
+  });
+
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume;
+  }, [volume, audioUrl]);
 
   // ---- copy ----
   const [copyMode, setCopyMode] = useState(() => {
@@ -769,6 +784,38 @@ const TranscriptEditor = ({
             ))}
           </select>
 
+          <div className="tm-play-vol">
+            <button type="button" className="tm-play-mute"
+                    onClick={() => { const v = volume > 0 ? 0 : 1; setVolume(v); writeLS(VOLUME_KEY, v); }}
+                    title={volume > 0 ? 'Mute' : 'Unmute'}
+                    aria-label={volume > 0 ? 'Mute' : 'Unmute'}>
+              {volume > 0 ? (
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                     strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 9v6h4l5 4V5L8 9z"/>
+                  <path d="M16.5 8.5a5 5 0 0 1 0 7"/>
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                     strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 9v6h4l5 4V5L8 9z"/>
+                  <path d="M17 10l4 4M21 10l-4 4"/>
+                </svg>
+              )}
+            </button>
+            <input
+              type="range"
+              className="tm-play-volbar"
+              min="0"
+              max="1"
+              step="0.05"
+              value={volume}
+              onChange={(e) => { const v = Number(e.target.value); setVolume(v); writeLS(VOLUME_KEY, v); }}
+              aria-label="Volume"
+              title={'Volume ' + Math.round(volume * 100) + '%'}
+            />
+          </div>
+
           <label className="tm-play-rewind" title="When you pause, step back 2 seconds so you catch the run-up">
             <input type="checkbox" checked={rewindOnPause}
                    onChange={(e) => { setRewindOnPause(e.target.checked); writeLS(REWIND_ON_PAUSE_KEY, e.target.checked); }} />
@@ -898,6 +945,27 @@ const TranscriptEditor = ({
             onEditKeyDown={onEditKeyDown}
           />
         ))}
+      </div>
+
+      {/* A second Copy, below the transcript. Most clients copy far more often
+          than they export, and after reading to the bottom of a long transcript
+          the only control was back at the top. Same modes, same last-used
+          choice as the one above. */}
+      <div className="tm-ed-copybelow">
+        <button type="button" className="tm-split-main tm-copybelow-btn"
+                onClick={() => doCopy(copyMode)}
+                title="Copy to clipboard (Ctrl+Shift+C)">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <rect x="9" y="9" width="11" height="11" rx="2"/>
+            <path d="M15 6.5A1.5 1.5 0 0 0 13.5 5h-7A1.5 1.5 0 0 0 5 6.5v7A1.5 1.5 0 0 0 6.5 15"/>
+          </svg>
+          {copied ? 'Copied' : 'Copy transcript'}
+        </button>
+        <span className="tm-ed-copybelow-note">
+          {COPY_MODES.find((m) => m.id === copyMode)
+            ? COPY_MODES.find((m) => m.id === copyMode).label
+            : 'With speakers and timestamps'}
+        </span>
       </div>
 
       <div className="tm-ed-foot">
