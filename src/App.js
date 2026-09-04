@@ -3,7 +3,6 @@ import './App.css';
 import './styles/theme.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ConfirmDialog from './components/ConfirmDialog';
-import { FREE_TRIAL_MINUTES } from './userService';
 import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import TranscriptionDetail from './components/TranscriptionDetail';
@@ -23,6 +22,7 @@ import {
   creditsAreFrozen,
   creditsRunningLow,
   creditsExhausted,
+  usableTopUpCredits,
 } from './creditsService';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
 import PrivacyPolicy from './components/PrivacyPolicy';
@@ -1039,11 +1039,11 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       const quote = await fetchCreditQuote(currentUser.uid, currentUser.email, estimatedDuration);
       if (quote && !quote.exempt && !quote.affordable) {
         const need = quote.cost;
-        const message = quote.planActive === false && quote.frozen > 0
-          ? `You have ${describeCredits(quote.frozen)} waiting, but they only work while a plan is running. Pick a plan and they are yours to use straight away.`
-          : quote.planActive === false
-            ? `This recording needs ${describeCredits(need)}. Pick a plan to get started.`
-            : `This recording needs ${describeCredits(need)} and you have ${describeCredits(quote.spendable)} left. You can add more without changing plan.`;
+        // Nothing is ever frozen now, so that branch is gone. Either they
+        // have enough to spend or they do not, and both roads out are offered.
+        const message = quote.spendable > 0
+          ? `This recording needs ${describeCredits(need)} and you have ${describeCredits(quote.spendable)} left. You can top up without changing plan.`
+          : `This recording needs ${describeCredits(need)}. Choose a plan, or buy credits on their own.`;
         setPlanBlock(message);
         uploadInFlightRef.current = false;
         setIsUploading(false);
@@ -1062,7 +1062,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         if (transcribeCheck.reason === 'exceeds_free_limit') {
           userMessage = `This audio is about ${transcribeCheck.requiredMinutes} minutes, and you have ${transcribeCheck.remainingMinutes} free minutes left.`;
         } else if (transcribeCheck.reason === 'free_trial_exhausted') {
-          userMessage = `You have used your ${FREE_TRIAL_MINUTES} free minutes.`;
+          userMessage = 'You have used the free credits that came with your account.';
         } else if (transcribeCheck.reason === 'plan_expired') {
           userMessage = 'Your plan has expired.';
         } else if (transcribeCheck.reason === 'plan_allowance_exhausted') {
@@ -1296,7 +1296,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     if (p === 'One-Week Plan')  return { text: 'One week' + until, isFree: false };
     if (p === 'Three-Day Plan') return { text: 'Three days' + until, isFree: false };
     if (p === 'free' && !userProfile?.hasReceivedInitialFreeMinutes) {
-      return { text: 'Free trial \u00b7 ' + Math.max(0, FREE_TRIAL_MINUTES - (userProfile?.totalMinutesUsed || 0)) + ' min left', isFree: true };
+      return { text: 'Free trial', isFree: true };
     }
     return { text: 'Free plan', isFree: true };
   })();
@@ -1711,8 +1711,8 @@ return (
                   ) : null}
 
                   {(creditsExhausted(creditBalance) || creditsAreFrozen(creditBalance) || creditsRunningLow(creditBalance)) && (
-                    <button className="tm-credits-cta" onClick={handleOpenPricing}>
-                      {creditsAreFrozen(creditBalance) ? 'Pick a plan' : 'Add credits'}
+                    <button className="tm-credits-cta" onClick={() => setCurrentView('credits')}>
+                      Add credits
                     </button>
                   )}
                 </div>
@@ -1754,9 +1754,19 @@ return (
         {/* Conditional Rendering for different views */}
         {currentView === 'pricing' ? (
           <Pricing
+            mode="plans"
             isSignedIn={!!currentUser?.email}
             currentPlan={userProfile?.plan || 'free'}
             onBuy={(itemId, countryCode) => initializePaystackPayment(itemId, countryCode)}
+            onGoTo={setCurrentView}
+          />
+        ) : currentView === 'credits' ? (
+          <Pricing
+            mode="credits"
+            isSignedIn={!!currentUser?.email}
+            currentPlan={userProfile?.plan || 'free'}
+            onBuy={(itemId, countryCode) => initializePaystackPayment(itemId, countryCode)}
+            onGoTo={setCurrentView}
           />
         ) : currentView === 'admin' ? (
           <AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} />
@@ -1872,58 +1882,31 @@ return (
                     <button type="button" className="tm-blocked-go" onClick={() => setCurrentView('pricing')}>
                       See plans
                     </button>
+                    <button type="button" className="tm-blocked-go" onClick={() => setCurrentView('credits')}>
+                      Top up credits
+                    </button>
                     <button type="button" className="tm-blocked-x" onClick={() => setPlanBlock(null)}>
                       Not now
                     </button>
                   </div>
                 </div>
               )}
-              {!hasComplimentaryAccess && userProfile && userProfile.plan === 'free' && (
-                <div style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                  color: '#856404',
-                  padding: '15px',
-                  borderRadius: '10px',
-                  marginBottom: '30px',
-                  textAlign: 'center',
-                  backdropFilter: 'blur(10px)',
-                  border: '1px solid #ffecb3' 
-                }}>
-                  {userProfile.totalMinutesUsed < FREE_TRIAL_MINUTES && !userProfile.hasReceivedInitialFreeMinutes ? (
-                    <>
-                      <strong>Free trial:</strong> {Math.max(0, FREE_TRIAL_MINUTES - (userProfile.totalMinutesUsed || 0))} minutes remaining.{' '}
-                      <button 
-                        onClick={() => setCurrentView('pricing')}
-                        style={{
-                          backgroundColor: 'transparent',
-                          color: '#007bff',
-                          border: 'none',
-                          textDecoration: 'underline',
-                          cursor: 'pointer',
-                          fontWeight: 'bold'
-                        }}
-                      >
-                        See plans and pricing
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                       Your free trial has ended. Please{''}
-                      <button 
-                        onClick={() => setCurrentView('pricing')}
-                        style={{
-                          backgroundColor: 'transparent',
-                          color: '#007bff',
-                          border: 'none',
-                          textDecoration: 'underline',
-                          cursor: 'pointer',
-                          fontWeight: 'bold'
-                        }}
-                      >
-                        View Plans
-                      </button>
-                    </>
-                  )}
+              {!hasComplimentaryAccess && userProfile && userProfile.plan === 'free'
+                && usableTopUpCredits(userProfile) <= 0 && (
+                <div className="tm-need" role="status">
+                  <div className="tm-need-text">
+                    <strong>You have no credits left.</strong>
+                    A plan gives you credits every period, or you can buy credits on
+                    their own. Either one unlocks everything.
+                  </div>
+                  <div className="tm-need-acts">
+                    <button type="button" className="tm-need-go" onClick={() => setCurrentView('pricing')}>
+                      See plans
+                    </button>
+                    <button type="button" className="tm-need-alt" onClick={() => setCurrentView('credits')}>
+                      Top up credits
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -2205,9 +2188,23 @@ return (
                     {status ==='completed'?'Transcription Completed!':`Status: ${status}`}
                   </h3>
                   {status === 'failed' && (
-                    <p style={{ margin: '10px 0 0 0', color: '#666' }}>
-                      Transcription failed: 1. Ensure Your Internet is Good and Connected; 2. Refresh the Page.
-                    </p>
+                    <>
+                      <p style={{ margin: '10px 0 0 0', color: '#666' }}>
+                        That job did not finish. This is most often a dropped
+                        connection. Your file is still selected, so you can simply
+                        try again.
+                      </p>
+                      {selectedFile && (
+                        <button
+                          type="button"
+                          className="tm-retry"
+                          disabled={isUploading}
+                          onClick={() => { setStatus('idle'); handleUpload(); }}
+                        >
+                          {isUploading ? 'Working\u2026' : 'Try again'}
+                        </button>
+                      )}
+                    </>
                   )}
                   {status === 'completed' && (
                     <p className="tm-keepnote">
