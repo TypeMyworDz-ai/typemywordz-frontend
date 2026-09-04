@@ -27,27 +27,11 @@ export const paymentCountryCode = () => {
 };
 
 const PLAN_COPY = {
-  'One-Day Plan': {
-    name: 'Day Pass',
-    blurb: 'One busy day, nothing ongoing.',
-  },
-  'Three-Day Plan': {
-    name: 'Three Days',
-    blurb: 'A short project or a long weekend.',
-  },
-  'One-Week Plan': {
-    name: 'One Week',
-    blurb: 'A full week of steady work.',
-  },
-  'Monthly Plan': {
-    name: 'Monthly',
-    blurb: 'Our most popular. Everything unlocked.',
-    featured: true,
-  },
-  'Yearly Plan': {
-    name: 'Yearly',
-    blurb: 'The same as Monthly, at a lower rate.',
-  },
+  'One-Day Plan': { name: 'Day Pass', blurb: 'One busy day, nothing ongoing.' },
+  'Three-Day Plan': { name: 'Three Days', blurb: 'A short project or a long weekend.' },
+  'One-Week Plan': { name: 'One Week', blurb: 'A full week of steady work.' },
+  'Monthly Plan': { name: 'Monthly', blurb: 'Our most popular. Everything unlocked.', featured: true },
+  'Yearly Plan': { name: 'Yearly', blurb: 'The same as Monthly, at a lower rate.' },
 };
 
 const money = (n) => {
@@ -59,8 +43,7 @@ const money = (n) => {
 // per-minute rate is quoted in cents.
 const perMinute = (price, credits) => {
   if (!credits) return '';
-  const cents = (price / credits) * 100;
-  return `${cents.toFixed(1)} cents a minute`;
+  return `${((price / credits) * 100).toFixed(1)} cents a minute`;
 };
 
 const Tick = () => (
@@ -82,26 +65,38 @@ const Line = ({ has, children }) => (
   </li>
 );
 
-const Pricing = ({ isSignedIn, currentPlan, onBuy }) => {
+const useCatalogue = (country) => {
   const [catalogue, setCatalogue] = useState(null);
   const [failed, setFailed] = useState(false);
-  const [busy, setBusy] = useState('');
-  const country = paymentCountryCode();
-
   useEffect(() => {
     let alive = true;
     fetch(`${BACKEND_URL}/pricing?country_code=${encodeURIComponent(country)}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('unavailable'))))
-      .then((data) => {
-        if (alive) setCatalogue(data);
-      })
-      .catch(() => {
-        if (alive) setFailed(true);
-      });
+      .then((d) => alive && setCatalogue(d))
+      .catch(() => alive && setFailed(true));
     return () => {
       alive = false;
     };
   }, [country]);
+  return { catalogue, failed };
+};
+
+const Shell = ({ title, children }) => (
+  <div className="tm-pr">
+    <h1 className="tm-pr-title">{title}</h1>
+    {children}
+  </div>
+);
+
+// Plans and credits are two separate pages.
+//
+// They used to share one long page, with the credit bundles hidden below the
+// fold. A client told us they never knew credits existed until they were told
+// to scroll. Each is now its own page, and each points clearly at the other.
+const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => {
+  const country = paymentCountryCode();
+  const { catalogue, failed } = useCatalogue(country);
+  const [busy, setBusy] = useState('');
 
   const buy = useCallback(
     (itemId) => {
@@ -111,71 +106,153 @@ const Pricing = ({ isSignedIn, currentPlan, onBuy }) => {
     [onBuy, country]
   );
 
+  const heading = mode === 'credits' ? 'Buy or top up credits' : 'Simple plans, priced by the minute';
+
   if (failed) {
     return (
-      <div className="tm-pr">
-        <h1 className="tm-pr-title">Plans</h1>
+      <Shell title={heading}>
         <p className="tm-pr-lede">
           Our prices could not be loaded just now. Please refresh the page in a
           moment, or write to info@typemywordz.ai and we will sort it out.
         </p>
-      </div>
+      </Shell>
     );
   }
 
   if (!catalogue) {
     return (
-      <div className="tm-pr">
-        <h1 className="tm-pr-title">Plans</h1>
+      <Shell title={heading}>
         <p className="tm-pr-lede">Loading the current prices{'\u2026'}</p>
-      </div>
+      </Shell>
     );
   }
 
   const { plans, topups, topup_valid_days: topupDays, free_trial_credits: freeCredits } = catalogue;
 
+  const buyLabel = (id, fallback) =>
+    !isSignedIn ? 'Sign in to buy' : busy === id ? 'Opening checkout\u2026' : fallback;
+
+  // ----- The credits page -------------------------------------------------
+  if (mode === 'credits') {
+    return (
+      <Shell title={heading}>
+        <p className="tm-pr-lede">
+          Credits work everywhere in the app. One credit is one minute of
+          transcription, or one question to the assistant. They last{' '}
+          {Math.round(topupDays / 30)} months, they stack on top of anything you
+          already have, and they stay yours even if a plan runs out. Having
+          credits gives you the same features a plan does.
+        </p>
+
+        <div className="tm-pr-bundles">
+          {topups.map((t) => (
+            <div key={t.id} className="tm-pr-bundle">
+              <div className="tm-pr-bundle-cr">{t.credits.toLocaleString()}</div>
+              <div className="tm-pr-bundle-lbl">credits</div>
+              <div className="tm-pr-bundle-price">{money(t.price)}</div>
+              <div className="tm-pr-bundle-rate">{perMinute(t.price, t.credits)}</div>
+              <button
+                type="button"
+                className="tm-pr-buy"
+                disabled={!isSignedIn || busy === t.id}
+                onClick={() => buy(t.id)}
+              >
+                {buyLabel(t.id, 'Buy these credits')}
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <p className="tm-pr-switch">
+          Using the app regularly?{' '}
+          <button type="button" className="tm-pr-switch-link" onClick={() => onGoTo('pricing')}>
+            A plan works out cheaper
+          </button>
+        </p>
+
+        <p className="tm-pr-foot">
+          Prices are in US dollars. You can pay by card, and by mobile money
+          where it is available to you. We never see or store your card details.
+          Credits are added to your account as soon as the payment clears.
+        </p>
+      </Shell>
+    );
+  }
+
+  // ----- The plans page ---------------------------------------------------
   return (
-    <div className="tm-pr">
-      <h1 className="tm-pr-title">Simple plans, priced by the minute</h1>
+    <Shell title={heading}>
       <p className="tm-pr-lede">
         One credit is one minute of transcription, or one question to the
-        assistant. Every plan below includes both. New accounts get{' '}
-        {freeCredits} credits free to try it.
+        assistant. Every plan includes both.
       </p>
 
-      <div className="tm-pr-grid">
+      <p className="tm-pr-switch tm-pr-switch-top">
+        Not ready for a plan?{' '}
+        <button type="button" className="tm-pr-switch-link" onClick={() => onGoTo('credits')}>
+          Buy or top up credits instead
+        </button>
+      </p>
+
+      <div className="tm-pr-grid tm-pr-grid-six">
+        {/* The free card. A price list with no zero on it looks like it is
+            hiding something, and new visitors want to know what they get
+            before handing anything over. */}
+        <div className="tm-pr-card">
+          <h2 className="tm-pr-name">Free</h2>
+          <div className="tm-pr-price">$0</div>
+          <div className="tm-pr-rate">once, on sign up</div>
+          <p className="tm-pr-blurb">Try it properly before you pay anything.</p>
+          <ul className="tm-pr-lines">
+            <Line has>
+              <strong>{freeCredits} credits</strong> to use whenever you like
+            </Line>
+            <Line has>
+              {freeCredits} minutes of transcription, or the same number of questions
+            </Line>
+            <Line has>Speaker labels, timestamps and the proofreading editor</Line>
+            <Line has>Word and plain text export, and one-click copy</Line>
+            <Line has>Transcripts kept for 30 days</Line>
+            <Line has={false}>Advanced assistant models</Line>
+          </ul>
+          <button type="button" className="tm-pr-buy" disabled>
+            {isSignedIn ? 'Included with your account' : 'No card needed'}
+          </button>
+        </div>
+
         {plans.map((plan) => {
           const copy = PLAN_COPY[plan.id] || { name: plan.id, blurb: '' };
           const yearly = plan.monthly_refill;
           const owned = currentPlan === plan.id;
           return (
-            <div
-              key={plan.id}
-              className={copy.featured ? 'tm-pr-card tm-pr-card-lead' : 'tm-pr-card'}
-            >
+            <div key={plan.id} className={copy.featured ? 'tm-pr-card tm-pr-card-lead' : 'tm-pr-card'}>
               {copy.featured && <div className="tm-pr-flag">Most popular</div>}
               <h2 className="tm-pr-name">{copy.name}</h2>
               <div className="tm-pr-price">
                 {money(plan.price)}
                 {yearly && <span className="tm-pr-per"> a year</span>}
               </div>
-              <div className="tm-pr-rate">{perMinute(plan.price, yearly ? plan.credits * 12 : plan.credits)}</div>
+              <div className="tm-pr-rate">
+                {perMinute(plan.price, yearly ? plan.credits * 12 : plan.credits)}
+              </div>
               <p className="tm-pr-blurb">{copy.blurb}</p>
 
               <ul className="tm-pr-lines">
                 <Line has>
                   <strong>{plan.credits.toLocaleString()} credits</strong>
-                  {yearly ? ' every month, for a year' : plan.days === 1 ? ' for 24 hours' : ` for ${plan.days} days`}
+                  {yearly
+                    ? ' every month, for a year'
+                    : plan.days === 1
+                    ? ' for 24 hours'
+                    : ` for ${plan.days} days`}
                 </Line>
                 <Line has>
-                  {plan.credits.toLocaleString()} minutes of transcription, or the
-                  same number of questions
+                  {plan.credits.toLocaleString()} minutes of transcription, or the same
+                  number of questions
                 </Line>
                 <Line has>Speaker labels, timestamps and the proofreading editor</Line>
                 <Line has>Word and plain text export, and one-click copy</Line>
-                <Line has>
-                  {yearly ? 'Transcripts kept for a year' : 'Transcripts kept for 30 days'}
-                </Line>
+                <Line has>{yearly ? 'Transcripts kept for a year' : 'Transcripts kept for 30 days'}</Line>
                 <Line has={plan.premium_ai}>
                   {plan.premium_ai
                     ? 'The advanced assistant models as well as the standard ones'
@@ -202,43 +279,12 @@ const Pricing = ({ isSignedIn, currentPlan, onBuy }) => {
         })}
       </div>
 
-      <div className="tm-pr-topups">
-        <h2 className="tm-pr-h2">Need more credits?</h2>
-        <p className="tm-pr-lede tm-pr-lede-tight">
-          Buy credits on their own, whenever you like. They last{' '}
-          {Math.round(topupDays / 30)} months, they stack on top of whatever your
-          plan gives you, and they stay yours even if your plan runs out.
-        </p>
-        <div className="tm-pr-bundles">
-          {topups.map((t) => (
-            <div key={t.id} className="tm-pr-bundle">
-              <div className="tm-pr-bundle-cr">{t.credits.toLocaleString()}</div>
-              <div className="tm-pr-bundle-lbl">credits</div>
-              <div className="tm-pr-bundle-price">{money(t.price)}</div>
-              <div className="tm-pr-bundle-rate">{perMinute(t.price, t.credits)}</div>
-              <button
-                type="button"
-                className="tm-pr-buy tm-pr-buy-quiet"
-                disabled={!isSignedIn || busy === t.id}
-                onClick={() => buy(t.id)}
-              >
-                {!isSignedIn
-                  ? 'Sign in to buy'
-                  : busy === t.id
-                  ? 'Opening checkout\u2026'
-                  : 'Buy these credits'}
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
       <p className="tm-pr-foot">
         Prices are in US dollars. You can pay by card, and by mobile money where
         it is available to you. We never see or store your card details. Cancel
         any time; a plan simply stops at the end of the period you paid for.
       </p>
-    </div>
+    </Shell>
   );
 };
 

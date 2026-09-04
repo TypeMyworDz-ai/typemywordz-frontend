@@ -128,7 +128,7 @@ const Landing = () => {
         <div className="tm-lp-hero-card">
           <Login />
           <p className="tm-lp-freenote">
-            <strong>5 minutes free</strong> when you sign up. No card, no trial that quietly
+            <strong>30 credits free</strong> when you sign up. No card, no trial that quietly
             becomes a bill.
           </p>
         </div>
@@ -268,7 +268,7 @@ const Landing = () => {
           </p>
           <table className="tm-lp-plans">
             <tbody>
-              <tr><td>Free trial</td><td>5 minutes, once, no card</td></tr>
+              <tr><td>Free trial</td><td>30 credits, once, no card</td></tr>
               <tr><td>One-Day Plan</td><td>1 day, 4 hours of transcription included</td></tr>
               <tr><td>Three-Day Plan</td><td>3 days, 8 hours of transcription included</td></tr>
               <tr><td>One-Week Plan</td><td>7 days, 15 hours of transcription included</td></tr>
