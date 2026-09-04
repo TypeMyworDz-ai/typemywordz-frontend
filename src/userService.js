@@ -1,5 +1,6 @@
 import { db } from './firebase';
 import { isAdminEmail, isCompAccessEmail } from './adminEmails';
+import { usableTopUpCredits } from './creditsService';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc, addDoc, runTransaction } from 'firebase/firestore'; // Keep serverTimestamp just in case for other uses, but we'll manually set for this fix
 
 // Length of the free trial, in minutes. Kept small deliberately: it is
@@ -337,6 +338,17 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds, userEmail
             const estimatedDurationMinutes = Math.ceil(estimatedDurationSeconds / 60);
 
             if (remaining !== null && estimatedDurationMinutes > remaining) {
+              // Bought credits top the plan up, so spend those rather than blocking.
+              const boughtSpare = usableTopUpCredits(userProfile);
+              if (boughtSpare >= estimatedDurationMinutes) {
+                console.log(` plan allowance short but ${boughtSpare} bought credits cover ${estimatedDurationMinutes}. Allowing.`);
+                return {
+                  canTranscribe: true,
+                  reason: 'topup_credits',
+                  remainingMinutes: boughtSpare,
+                  requiredMinutes: estimatedDurationMinutes,
+                };
+              }
               console.log(` ${userProfile.plan} plan user - ${estimatedDurationMinutes} min needed, ${remaining} min left of the plan allowance. Blocking.`);
               return {
                 canTranscribe: false,
@@ -357,6 +369,19 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds, userEmail
               requiredMinutes: estimatedDurationMinutes,
             };
         } else {
+            // The plan has run out, but bought credits outlive a plan, so
+            // check those before turning anyone away.
+            const boughtAfterExpiry = usableTopUpCredits(userProfile);
+            const neededAfterExpiry = Math.ceil(estimatedDurationSeconds / 60);
+            if (boughtAfterExpiry >= neededAfterExpiry) {
+              console.log(` plan expired but ${boughtAfterExpiry} bought credits cover ${neededAfterExpiry}. Allowing.`);
+              return {
+                canTranscribe: true,
+                reason: 'topup_credits',
+                remainingMinutes: boughtAfterExpiry,
+                requiredMinutes: neededAfterExpiry,
+              };
+            }
             console.log(` ${userProfile.plan} plan user - plan expired. Blocking transcription.`);
             // Automatically downgrade happens in getUserProfile, so this is just a final check
             return { canTranscribe: false, reason: 'plan_expired', redirectToPricing: true };
@@ -367,6 +392,20 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds, userEmail
     if (userProfile.plan === 'free') {
       const remainingFreeMinutes = userProfile.freeMinutesRemaining || 0;
       const estimatedDurationMinutes = Math.ceil(estimatedDurationSeconds / 60);
+
+      // Someone with no plan may still have bought credits, and those are
+      // theirs to spend. This is checked BEFORE the free-trial rules, because
+      // a client who has paid must never be told their free trial is over.
+      const boughtFree = usableTopUpCredits(userProfile);
+      if (boughtFree >= estimatedDurationMinutes) {
+        console.log(`No plan, but ${boughtFree} bought credits cover ${estimatedDurationMinutes}. Allowing.`);
+        return {
+          canTranscribe: true,
+          reason: 'topup_credits',
+          remainingMinutes: boughtFree,
+          requiredMinutes: estimatedDurationMinutes,
+        };
+      }
 
       // Check if user has already used their free trial
       if (userProfile.hasReceivedInitialFreeMinutes) {
@@ -396,6 +435,17 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds, userEmail
       };
     }
     
+    // Last chance: an unusual plan value, but bought credits are still valid.
+    const boughtLast = usableTopUpCredits(userProfile);
+    const neededLast = Math.ceil(estimatedDurationSeconds / 60);
+    if (boughtLast >= neededLast) {
+      return {
+        canTranscribe: true,
+        reason: 'topup_credits',
+        remainingMinutes: boughtLast,
+        requiredMinutes: neededLast,
+      };
+    }
     console.log("canUserTranscribe: User plan not eligible for transcription. Current plan:", userProfile.plan);
     return { canTranscribe: false, reason: 'plan_not_eligible', redirectToPricing: true };
     
