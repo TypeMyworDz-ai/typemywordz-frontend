@@ -84,7 +84,7 @@ const Landing = () => {
         <div className="tm-spacer"></div>
         <div className="tm-menu">
           <div className="menu-item" onClick={go('what')}>
-            <span className="menu-text">What we transcribe</span>
+            <span className="menu-text">What we do</span>
           </div>
           <div className="menu-item" onClick={go('assistant')}>
             <span className="menu-text">Ask TypeMyworDz</span>
@@ -108,20 +108,21 @@ const Landing = () => {
       <section className="tm-lp-hero" id="top">
         <div className="tm-lp-hero-copy">
           <h1>
-            Turn recordings into<br />text you can actually use.
+            Two AI tools that do<br />the work you were dreading.
           </h1>
           <p className="tm-lp-lede">
-            TypeMyworDz is a transcription service for people whose work depends on getting
-            the words right. Upload a recording or record in your browser, and get back a
-            clean, speaker-separated transcript you can edit and export in minutes.
+            TypeMyworDz turns recordings into clean, speaker-separated text, and answers
+            whatever you ask it, on your transcripts or on anything else. Use one, use both.
+            The same credits cover the lot, so you are never paying for a product you did
+            not come for.
           </p>
 
           <ul className="tm-lp-ticks">
-            <li>Speaker labels, so you know who said what</li>
-            <li>A proper editor for correcting as you listen</li>
+            <li><strong>Transcription</strong> with speaker labels, timestamps and a proper editor</li>
+            <li><strong>Ask TypeMyworDz</strong> for research, drafting and questions of any kind</li>
             <li>Export to Word or plain text, or copy in one click</li>
-            <li>An assistant that answers questions about your transcript</li>
-            <li>Your recordings are never used to train AI</li>
+            <li>The leading AI models, without a separate subscription for each</li>
+            <li>Your recordings and your questions are never used to train AI</li>
           </ul>
         </div>
 
@@ -138,6 +139,7 @@ const Landing = () => {
       <section className="tm-lp-band" id="what">
         <div className="tm-lp-inner">
           <h2>What we transcribe</h2>
+          <p className="tm-lp-eyebrow">Product one</p>
           <p className="tm-lp-sub">
             The work below is what our clients bring us most. If yours is not on the list, it
             almost certainly still fits.
@@ -160,8 +162,9 @@ const Landing = () => {
             <div className="tm-lp-ask-copy">
               <div className="tm-lp-ask-badge">
                 <img src="/android-chrome-192x192.png" alt="" width="22" height="22" />
-                <span>Included with every paid plan</span>
+                <span>Included with credits or any plan</span>
               </div>
+              <p className="tm-lp-eyebrow">Product two</p>
               <h2>Ask TypeMyworDz</h2>
               <p className="tm-lp-sub">
                 An assistant built into your account. Ask it about a transcript you have just

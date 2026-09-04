@@ -75,6 +75,7 @@ const Toast = ({ toast, onDismiss }) => {
       onFocus={pause}
       onBlur={resume}
     >
+      <span className="tm-toast-dot" aria-hidden="true" />
       <span className="tm-toast-text">{text}</span>
       <button
         type="button"
