@@ -3432,3 +3432,224 @@ body {
   font-size:.83rem; line-height:1.45; max-width:52ch;
 }
 .tm-rec-actions{ flex-wrap:wrap; }
+
+/* ---------------------------------------------------------------------------
+   Pricing page.
+
+   One set of prices, side by side, so a client can compare them at a glance.
+   Green is the action, as everywhere else; purple only marks the assistant.
+   Nothing here says which price list is being shown, and nothing names who
+   handles the payment until the client has actually chosen to pay.
+   ------------------------------------------------------------------------ */
+.tm-pr{
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 44px 20px 72px;
+}
+.tm-pr-title{
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--tm-ink);
+  margin: 0 0 10px;
+  text-align: center;
+}
+.tm-pr-lede{
+  max-width: 620px;
+  margin: 0 auto 34px;
+  text-align: center;
+  color: var(--tm-body);
+  font-size: 15px;
+  line-height: 1.65;
+}
+.tm-pr-lede-tight{ margin-bottom: 24px; }
+
+.tm-pr-grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(212px, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+.tm-pr-card{
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--tm-white);
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius-lg);
+  padding: 24px 20px 20px;
+}
+.tm-pr-card-lead{
+  border-color: var(--tm-green-line);
+  box-shadow: 0 0 0 1px var(--tm-green-line);
+}
+.tm-pr-flag{
+  position: absolute;
+  top: -10px;
+  left: 20px;
+  background: var(--tm-green-soft);
+  color: var(--tm-green-dark);
+  border: 1px solid var(--tm-green-line);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+}
+.tm-pr-name{
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--tm-ink);
+  margin: 0 0 8px;
+}
+.tm-pr-price{
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--tm-ink);
+  line-height: 1.05;
+}
+.tm-pr-per{
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--tm-muted);
+  letter-spacing: 0;
+}
+.tm-pr-rate{
+  font-size: 12px;
+  color: var(--tm-muted);
+  margin-top: 4px;
+}
+.tm-pr-blurb{
+  font-size: 13px;
+  color: var(--tm-body);
+  line-height: 1.55;
+  margin: 12px 0 16px;
+  min-height: 40px;
+}
+.tm-pr-lines{
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  flex: 1 1 auto;
+}
+.tm-pr-line{
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--tm-body);
+  padding: 5px 0;
+}
+.tm-pr-line strong{ font-weight: 700; color: var(--tm-ink); }
+.tm-pr-line-off{ color: var(--tm-faint); }
+.tm-pr-line-off strong{ color: var(--tm-faint); }
+.tm-pr-icon{
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  margin-top: 3px;
+  color: var(--tm-green);
+}
+.tm-pr-line-off .tm-pr-icon{ color: var(--tm-faint); }
+
+.tm-pr-buy{
+  display: block;
+  width: 100%;
+  background: var(--tm-green);
+  color: var(--tm-white);
+  border: 1px solid var(--tm-green);
+  border-radius: var(--tm-radius);
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tm-pr-buy:hover:not(:disabled){ background: var(--tm-green-dark); border-color: var(--tm-green-dark); }
+.tm-pr-buy:focus,
+.tm-pr-buy:focus-visible{ outline: 2px solid var(--tm-ink); outline-offset: 2px; }
+.tm-pr-buy:disabled{
+  background: var(--tm-surface);
+  border-color: var(--tm-line);
+  color: var(--tm-muted);
+  cursor: default;
+}
+.tm-pr-buy-quiet{
+  background: var(--tm-white);
+  color: var(--tm-green-dark);
+  border-color: var(--tm-green-line);
+}
+.tm-pr-buy-quiet:hover:not(:disabled){
+  background: var(--tm-green-soft);
+  border-color: var(--tm-green);
+  color: var(--tm-green-dark);
+}
+
+.tm-pr-topups{
+  margin-top: 56px;
+  padding-top: 40px;
+  border-top: 1px solid var(--tm-line);
+}
+.tm-pr-h2{
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--tm-ink);
+  margin: 0 0 10px;
+  text-align: center;
+}
+.tm-pr-bundles{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(212px, 1fr));
+  gap: 16px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+.tm-pr-bundle{
+  background: var(--tm-white);
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius-lg);
+  padding: 22px 20px 20px;
+  text-align: center;
+}
+.tm-pr-bundle-cr{
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--tm-ink);
+  line-height: 1.05;
+}
+.tm-pr-bundle-lbl{
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tm-muted);
+  margin-bottom: 14px;
+}
+.tm-pr-bundle-price{
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--tm-ink);
+}
+.tm-pr-bundle-rate{
+  font-size: 12px;
+  color: var(--tm-muted);
+  margin: 2px 0 16px;
+}
+
+.tm-pr-foot{
+  max-width: 620px;
+  margin: 40px auto 0;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--tm-muted);
+}
+
+@media (max-width: 760px){
+  .tm-pr{ padding: 28px 14px 56px; }
+  .tm-pr-title{ font-size: 24px; }
+  .tm-pr-blurb{ min-height: 0; }
+}
