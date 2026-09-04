@@ -3298,3 +3298,89 @@ body {
 .tm-credits-cta:hover{ background:var(--tm-green-dark); border-color:var(--tm-green-dark); }
 .tm-credits-cta:focus,
 .tm-credits-cta:focus-visible{ outline:2px solid var(--tm-ink); outline-offset:2px; }
+
+/* ---------------------------------------------------------------------------
+   Clickable brand, volume control, and the second Copy button
+   --------------------------------------------------------------------------- */
+
+/* The wordmark is now a button that takes you back to the workspace. It has to
+   look exactly as it did before, so everything the button element adds is
+   stripped back out. */
+.tm-brand-btn {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--tm-radius);
+}
+.tm-brand-btn:hover .tm-wordmark { opacity: 0.82; }
+.tm-brand-btn:focus,
+.tm-brand-btn:focus-visible { outline: 2px solid var(--tm-ink); outline-offset: 3px; }
+
+/* Volume. Sits with the other transport controls, so it is a client action
+   and therefore green. */
+.tm-play-vol {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tm-play-mute {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 2px;
+  color: var(--tm-body);
+  cursor: pointer;
+  display: inline-flex;
+  border-radius: var(--tm-radius);
+}
+.tm-play-mute:hover { color: var(--tm-green-dark); }
+.tm-play-mute:focus,
+.tm-play-mute:focus-visible { outline: 2px solid var(--tm-ink); outline-offset: 2px; }
+
+.tm-play-volbar {
+  appearance: none;
+  width: 72px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--tm-line);
+  cursor: pointer;
+}
+.tm-play-volbar::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--tm-green);
+  border: 0;
+  cursor: pointer;
+}
+.tm-play-volbar::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--tm-green);
+  border: 0;
+  cursor: pointer;
+}
+.tm-play-volbar:focus,
+.tm-play-volbar:focus-visible { outline: 2px solid var(--tm-ink); outline-offset: 3px; }
+
+/* The second Copy, below the transcript. */
+.tm-ed-copybelow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0 2px;
+  border-top: 1px solid var(--tm-line);
+  margin-top: 14px;
+}
+.tm-copybelow-btn { border-radius: var(--tm-radius); }
+.tm-ed-copybelow-note {
+  font-size: 12px;
+  color: var(--tm-muted);
+}
