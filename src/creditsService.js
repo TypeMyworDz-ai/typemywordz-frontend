@@ -101,6 +101,28 @@ export const describeCredits = (total) => {
   return `${n.toLocaleString()} credits`;
 };
 
+// Bought top-up credits still usable, read straight off the account record.
+//
+// This exists because the browser sometimes has to decide whether to even
+// offer to start a job, before the server is asked. It is a courtesy check
+// only: the server still has the final say on every spend, so a wrong answer
+// here can delay work but can never give anything away.
+const asDate = (v) =>
+  v && typeof v.toDate === 'function' ? v.toDate() : v ? new Date(v) : null;
+
+export const usableTopUpCredits = (profile) => {
+  if (!profile) return 0;
+  const n = Number(profile.topUpCredits) || 0;
+  if (n <= 0) return 0;
+  const expires = asDate(profile.topUpCreditsExpireAt);
+  if (expires && expires.getTime() <= Date.now()) return 0;
+  return n;
+};
+
+// True when someone has paid for credits and can work on them alone, with no
+// plan running. Clients in this position used to be turned away.
+export const hasUsableTopUp = (profile) => usableTopUpCredits(profile) > 0;
+
 // What the account can actually spend today, which is not always what it owns.
 export const spendableCredits = (balance) => {
   if (!balance || balance.exempt || balance.unlimited) return null;
