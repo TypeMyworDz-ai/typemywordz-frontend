@@ -3103,8 +3103,11 @@ body {
 .tm-set-upsell{ font-size:.86rem; color:var(--tm-body); line-height:1.6; max-width:56ch; }
 .tm-set-link{
   background:none; border:0; padding:0; font:inherit; font-size:inherit;
-  color:var(--tm-purple); font-weight:600; cursor:pointer; text-decoration:underline;
+  color:var(--tm-green); font-weight:600; cursor:pointer; text-decoration:underline;
 }
+.tm-set-link:hover{ color:var(--tm-green-dark); }
+.tm-set-link:focus,
+.tm-set-link:focus-visible{ outline:2px solid var(--tm-ink); outline-offset:2px; border-radius:3px; }
 .tm-set-saved{
   font-size:.82rem; color:var(--tm-green); font-weight:600; min-height:1.2em;
   opacity:0; transition:opacity .18s ease;
@@ -3383,4 +3386,23 @@ body {
 .tm-ed-copybelow-note {
   font-size: 12px;
   color: var(--tm-muted);
+}
+
+/* ---- Models a plan is holding back -------------------------------------
+   Shown greyed out rather than hidden, so a client can see what a better
+   plan would give them. These are not controls: no pointer cursor, no hover
+   colour, nothing to click. The only clickable thing is the link to plans
+   underneath, which stays green because choosing a plan is the client's
+   action. The padlock is drawn, not a character, so it renders everywhere. */
+.tm-set-model-locked{
+  cursor:default;
+  background:var(--tm-surface);
+  border-color:var(--tm-line);
+}
+.tm-set-model-locked:hover{ border-color:var(--tm-line); }
+.tm-set-model-locked .tm-set-modelname{ color:var(--tm-body); font-weight:600; }
+.tm-set-model-locked .tm-set-modelblurb{ color:var(--tm-muted); }
+.tm-set-lock{
+  flex:0 0 auto; margin-top:2px; color:var(--tm-faint);
+  display:inline-flex; align-items:center; justify-content:center;
 }
