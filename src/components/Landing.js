@@ -95,6 +95,9 @@ const Landing = () => {
           <div className="menu-item" onClick={go('plans')}>
             <span className="menu-text">Pricing</span>
           </div>
+          <Link className="menu-item" to="/faq">
+            <span className="menu-text">Help and FAQ</span>
+          </Link>
           <Link className="menu-item" to="/privacy-policy">
             <span className="menu-text">Legal</span>
           </Link>
@@ -297,6 +300,7 @@ const Landing = () => {
       <footer className="tm-sitefoot">
         <span>&copy; {new Date().getFullYear()} TypeMyworDz</span>
         <span className="tm-sitefoot-links">
+          <Link to="/faq">Help and FAQ</Link>
           <Link to="/privacy-policy">Privacy &amp; Security</Link>
           <Link to="/terms">Terms of Service</Link>
         </span>

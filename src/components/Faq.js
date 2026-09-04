@@ -43,14 +43,16 @@ const QUESTIONS = [
   {
     q: 'What do I actually get for my money, and what happens if I run out?',
     a: [
-      "Each plan includes a set amount of transcription: 8 hours on the Three-Day plan, 15 on the One-Week, and 25 hours a month on the Monthly and Yearly plans. That is far more than most people use.",
-      'If you do run out, you can add more without changing plan, so you are never stuck in the middle of a job.',
+      'Everything runs on credits. One credit transcribes one minute of audio, or asks the assistant one question, so you always know exactly what you are spending.',
+      'Plans come with a bundle of credits: 150 on the Day Pass, 320 on the Three-Day, 600 on the One-Week, and 1,400 a month on the Monthly and Yearly plans. That is far more than most people use.',
+      'If you do run out, you can top up without changing plan, so you are never stuck in the middle of a job. Top-up credits last a full year, and they stay yours to spend even after a plan has ended.',
     ],
   },
   {
     q: 'Do plans renew automatically? Will I be charged again without noticing?',
     a: [
       'No. Plans are one-off purchases that last a fixed period and then stop. There is no subscription running quietly in the background and nothing to cancel.',
+      'When a plan ends, any credits that came with it end with it. Credits you bought separately as a top-up are different: those are yours for a year, whether or not a plan is running.',
     ],
   },
   {
