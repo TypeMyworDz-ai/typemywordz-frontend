@@ -45,7 +45,7 @@ const TermsOfService = () => (
 
     <h2>3. The free trial</h2>
     <p>
-      New accounts get <strong>5 minutes</strong> of free transcription so you can judge the
+      New accounts get <strong>30 free credits</strong> so you can judge the
       quality for yourself before paying anything. It is once per account, no card required, and
       it does not turn into a paid plan. When it is used up, the app will tell you and you can
       decide whether to buy a plan.
