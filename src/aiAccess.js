@@ -18,11 +18,20 @@ export const PAID_PLANS_FOR_AI = [
   'Yearly Plan',
 ];
 
-export const isPaidAIUser = (userProfile, email) => {
+export const isPaidAIUser = (userProfile, email, creditBalance) => {
   // The admin and any complimentary account always have it. The plan check
   // alone used to lock the team out of their own assistant, the same way it
   // locked them out of transcribing.
   if (hasFreeAccess(email) || hasFreeAccess(userProfile && userProfile.email)) return true;
+
+  // Credits are a plan. Someone who has bought credits has paid us, and the
+  // server already answers their questions; refusing them here only put a
+  // locked door in front of a client who was entitled to walk through it.
+  if (creditBalance && !creditBalance.exempt) {
+    const spendable = Number(creditBalance.spendable);
+    if (Number.isFinite(spendable) && spendable > 0) return true;
+  }
+
   if (!userProfile || !userProfile.plan) return false;
   return PAID_PLANS_FOR_AI.includes(userProfile.plan);
 };
