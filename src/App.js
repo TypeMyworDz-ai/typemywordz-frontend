@@ -1060,7 +1060,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         // warning they may not have finished reading, is not a good experience.
         let userMessage = 'You need a plan to transcribe this.';
         if (transcribeCheck.reason === 'exceeds_free_limit') {
-          userMessage = `This audio is about ${transcribeCheck.requiredMinutes} minutes, and you have ${transcribeCheck.remainingMinutes} free minutes left.`;
+          userMessage = `This recording is about ${transcribeCheck.requiredMinutes} minutes long, which is more than you have left.`;
         } else if (transcribeCheck.reason === 'free_trial_exhausted') {
           userMessage = 'You have used the free credits that came with your account.';
         } else if (transcribeCheck.reason === 'plan_expired') {
@@ -1648,22 +1648,22 @@ return (
             <button
               className={"tm-nav tm-nav-ai" + (currentView === 'ai_assistant' ? " tm-nav-on" : "")}
               onClick={() => {
-                if (!isPaidAIUser(userProfile, currentUser?.email)) {
+                if (!isPaidAIUser(userProfile, currentUser?.email, creditBalance)) {
                   showMessage('Ask TypeMyworDz is available on the Three-Day, One-Week, Monthly and Yearly plans. Upgrade to switch it on.', 'error');
                   return;
                 }
                 setCurrentView('ai_assistant');
               }}
-              disabled={!isPaidAIUser(userProfile, currentUser?.email)}
+              disabled={!isPaidAIUser(userProfile, currentUser?.email, creditBalance)}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>
               Ask TypeMyworDz
-              {!isPaidAIUser(userProfile, currentUser?.email) && <span className="tm-nav-lock">Upgrade</span>}
+              {!isPaidAIUser(userProfile, currentUser?.email, creditBalance) && <span className="tm-nav-lock">Upgrade</span>}
             </button>
 
             {/* The client's saved chats, right under the button that opens them. */}
             <AskChatList
-              open={currentView === 'ai_assistant' && isPaidAIUser(userProfile, currentUser?.email)}
+              open={currentView === 'ai_assistant' && isPaidAIUser(userProfile, currentUser?.email, creditBalance)}
               onOpenChat={() => setCurrentView('ai_assistant')}
             />
 
@@ -1775,14 +1775,14 @@ return (
             userPlan={userProfile?.plan || 'free'}
             userEmail={currentUser?.email || ''}
             userId={currentUser?.uid || ''}
-            canUse={isPaidAIUser(userProfile, currentUser?.email)}
+            canUse={isPaidAIUser(userProfile, currentUser?.email, creditBalance)}
             onUpgrade={() => setCurrentView('pricing')}
           />
         ) : currentView === 'settings' ? (
           <Settings
             userPlan={userProfile?.plan || 'free'}
             userEmail={currentUser?.email || ''}
-            canUseAI={isPaidAIUser(userProfile, currentUser?.email)}
+            canUseAI={isPaidAIUser(userProfile, currentUser?.email, creditBalance)}
             onUpgrade={() => setCurrentView('pricing')}
           />
           ) : currentView === 'dashboard' ? (
@@ -2226,8 +2226,8 @@ return (
                   durationSeconds={audioDuration || 0}
                   audioFile={selectedFile}
                   onSave={handleSaveFreshTranscript}
-                  onAskAI={isPaidAIUser(userProfile) ? () => setCurrentView('ai_assistant') : null}
-                  canUseAI={isPaidAIUser(userProfile)}
+                  onAskAI={isPaidAIUser(userProfile, currentUser?.email, creditBalance) ? () => setCurrentView('ai_assistant') : null}
+                  canUseAI={isPaidAIUser(userProfile, currentUser?.email, creditBalance)}
                 />
               )}
 
@@ -2237,7 +2237,7 @@ return (
                   userPlan={userProfile?.plan || 'free'}
                   userEmail={currentUser?.email || ''}
                   userId={currentUser?.uid || ''}
-                  canUse={isPaidAIUser(userProfile, currentUser?.email)}
+                  canUse={isPaidAIUser(userProfile, currentUser?.email, creditBalance)}
                   onUpgrade={() => setCurrentView('pricing')}
                   defaultOpen
                 />
