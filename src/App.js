@@ -34,6 +34,7 @@ import AskTypeMyworDz from './components/AskTypeMyworDz';
 import { AskProvider } from './components/AskContext';
 import AskChatList from './components/AskChatList';
 import Settings from './components/Settings';
+import Pricing from './components/Pricing';
 import AskPanel from './components/AskPanel';
 import { isPaidAIUser } from './aiAccess';
 import { db } from './firebase';
@@ -169,8 +170,6 @@ function AppContent() {
   const [latestTranscription, setLatestTranscription] = useState(''); 
 
   // Payment states
-  const [pricingView, setPricingView] = useState('credits'); // 'credits' for one-time, 'subscription' for recurring (now also one-time)
-  const [selectedRegion, setSelectedRegion] = useState('KE'); // Default to Kenya
   // Removed convertedAmounts and setConvertedAmounts as they were unused
   
   
@@ -241,12 +240,16 @@ function AppContent() {
   }, [setCurrentView]);
 
   // Paystack payment functions
-  const initializePaystackPayment = useCallback(async (email, amount, planName, countryCode) => {
+  const initializePaystackPayment = useCallback(async (planName, countryCode) => {
+    const email = currentUser?.email;
+    if (!email) {
+      showMessage('Please sign in first.', 'info');
+      return;
+    }
     try {
-      console.log('Initializing Paystack payment:', { email, amount, planName, countryCode });
-
-      let actualCountryCode = countryCode; // Now this will correctly be 'KE' if selected
-      let actualAmount = amount;
+      // No amount is sent. The server holds the price list and looks the price
+      // up itself, so a price cannot be edited on its way out of the browser.
+      let actualCountryCode = countryCode;
 
       // REMOVED: The problematic if (planName === 'Monthly Plan' || planName === 'Yearly Plan') { actualCountryCode = 'OTHER_AFRICA'; } block
       // The backend is now smart enough to handle USD for Yearly Plans, and local currencies for Monthly/Weekly/Three-Day.
@@ -258,7 +261,7 @@ function AppContent() {
         },
         body: JSON.stringify({
           email: email,
-          amount: actualAmount,
+          amount: 0,
           plan_name: planName,
           user_id: currentUser.uid,
           country_code: actualCountryCode, // This will now pass the actual selectedRegion
@@ -311,10 +314,22 @@ function AppContent() {
           console.log('Payment verification result: ', data);
           
           if (response.ok && data.status === 'success') {
-            await updateUserPlan(currentUser.uid, data.data.plan, reference); 
+            const bought = data.data.plan || '';
+            const isTopUp = bought.startsWith('topup-');
+
+            // A credit purchase must not touch the plan. The server has
+            // already added the credits, so all that is left is to reread
+            // the account.
+            if (!isTopUp) {
+              await updateUserPlan(currentUser.uid, bought, reference);
+            }
             await refreshUserProfile();
-            
-            showMessage(`Payment successful! ${data.data.plan} activated.`,'success');
+
+            showMessage(
+              isTopUp ? 'Payment successful. Your credits have been added.'
+                      : `Payment successful! ${bought} activated.`,
+              'success'
+            );
             setCurrentView('transcribe');
             
             // Crucial: Clear URL parameters AFTER successful processing
@@ -1738,550 +1753,11 @@ return (
         )}
         {/* Conditional Rendering for different views */}
         {currentView === 'pricing' ? (
-          <>
-            <div style={{ 
-              padding: '40px 20px', 
-              textAlign: 'center', 
-              maxWidth: '1200px', 
-              margin: '0 auto',
-              backgroundColor: '#f8f9fa',
-              minHeight: '70vh'
-            }}>
-              <h1 style={{ 
-                color: '#6c5ce7', 
-                marginBottom: '20px',
-                fontSize: '2.5rem'
-              }}>
-                Choose Your Plan
-              </h1>
-              <p style={{
-                color: '#666',
-                fontSize: '1.2rem',
-                marginBottom: '40px'
-              }}>
-                Flexible options for different regions and needs (We do not have access to your credit card details, all payments are secured by Paystack; a Stripe company)
-              </p>
-
-              <div style={{ marginBottom: '40px' }}>
-                {/* Updated Button for Economy Plans */}
-                <button
-                  onClick={() => setPricingView('credits')}
-                  style={{
-                    padding: '12px 30px',
-                    margin: '0 10px',
-                    backgroundColor: pricingView === 'credits' ? '#007bff' : '#6c757d',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '25px',
-                    cursor: 'pointer',
-                    fontSize: '16px'
-                  }}
-                >
-                   Economy Plans
-                </button>
-                {/* Updated Button for Premium Plans */}
-                <button
-                  onClick={() => setPricingView('subscription')} 
-                  style={{
-                    padding: '12px 30px',
-                    margin: '0 10px',
-                    backgroundColor: pricingView === 'subscription' ? '#28a745' : '#6c757d',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '25px',
-                    cursor: 'pointer',
-                    fontSize: '16px'
-                  }}
-                >
-                   Premium Plans
-                </button>
-              </div>
-              {pricingView === 'credits' ? (
-                <>
-                  <div style={{ marginTop: '20px' }}>
-                    <h2 style={{ color: '#007bff', marginBottom: '30px' }}>
-                       Economy Plans
-                    </h2>
-                    <p style={{ color: '#666', marginBottom: '30px', fontSize: '14px', textAlign: 'center' }}>
-                      For our African Market
-                    </p>
-                    
-                    {/* Region Selection for Economy Plans */}
-                    <div style={{ marginBottom: '40px' }}>
-                      <label htmlFor="paymentRegion" style={{ color: '#6c5ce7', fontWeight: 'bold', marginRight: '10px' }}>
-                        Select Your Region:
-                      </label>
-                      <select
-                        id="paymentRegion"
-                        value={selectedRegion}
-                        onChange={(e) => setSelectedRegion(e.target.value)}
-                        style={{
-                          padding: '8px 15px',
-                          borderRadius: '8px',
-                          border: '1px solid #6c5ce7',
-                          fontSize: '16px',
-                          minWidth: '200px'
-                        }}
-                      >
-                        <option value="KE">Kenya (M-Pesa, Card)</option>
-                        {/* Removed NG, GH, ZA */}
-                        <option value="OTHER_AFRICA">Other African Countries (Card USD)</option>
-                      </select>
-                    </div>
-
-                    {/* HORIZONTAL LAYOUT FOR ECONOMY PLANS (UPDATED ORDER AND VALUES) */}
-                    <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                      {/* Three-Day Plan */}
-                      <div style={{
-                        backgroundColor: 'white',
-                        padding: '30px 25px',
-                        borderRadius: '15px',
-                        boxShadow: '0 8px 25px rgba(0,0,0,0.1)',
-                        minWidth: '280px',
-                        maxWidth: '320px',
-                        border: '2px solid #e9ecef',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between'
-                      }}>
-                        <div>
-                          {/* No BEST VALUE tag */}
-                          <h3 style={{ 
-                            color: '#007bff',
-                            fontSize: '1.5rem',
-                            margin: '0 0 10px 0',
-                            textAlign: 'center'
-                          }}>
-                            Three-Day Plan
-                          </h3>
-                          <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px', textAlign: 'center' }}>
-                            Full access to Pro features for 3 days
-                          </p>
-                          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-                            <span style={{ 
-                              fontSize: '2.5rem',
-                              fontWeight: 'bold',
-                              color: '#6c5ce7'
-                            }}>
-                              USD 2
-                            </span>
-                            <span style={{ 
-                              color: '#666',
-                              fontSize: '1rem',
-                              display: 'block'
-                            }}>
-                              for 3 days
-                            </span>
-                            <span className="tm-plan-included">
-                              Includes 8 hours of transcription
-                            </span>
-                          </div>
-                        </div>
-                        
-                        <button
-                          onClick={() => {
-                            if (!currentUser?.email) {
-                              showMessage('Please log in first to purchase credits.', 'warning');
-                              return;
-                            }
-                            initializePaystackPayment(currentUser.email, 2, 'Three-Day Plan', selectedRegion);
-                          }}
-                          disabled={!currentUser?.email}
-                          style={{
-                            width: '100%',
-                            padding: '15px',
-                            backgroundColor: !currentUser?.email ? '#6c757d' : '#007bff',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '10px',
-                            cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
-                            fontSize: '16px',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 2`}
-                        </button>
-                      </div>
-
-                      {/* One-Week Plan (now BEST VALUE) */}
-                      <div style={{
-                        backgroundColor: 'white',
-                        padding: '30px 25px',
-                        borderRadius: '15px',
-                        boxShadow: 'none',
-                        minWidth: '280px',
-                        maxWidth: '320px',
-                        border: '3px solid #28a745',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        transform: 'scale(1.02)'
-                      }}>
-                        <div>
-                          <div style={{
-                            backgroundColor: '#28a745',
-                            color: 'white',
-                            padding: '8px 20px',
-                            borderRadius: '20px',
-                            fontSize: '14px',
-                            fontWeight: 'bold',
-                            marginBottom: '15px',
-                            display: 'inline-block'
-                          }}>
-                            BEST VALUE
-                          </div>
-                          <h3 style={{ 
-                            color: '#28a745',
-                            fontSize: '1.5rem',
-                            margin: '0 0 10px 0',
-                            textAlign: 'center'
-                          }}>
-                            One-Week Plan
-                          </h3>
-                          <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px', textAlign: 'center' }}>
-                            Full access to Pro features for 7 days
-                          </p>
-                          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-                            <span style={{ 
-                              fontSize: '2.5rem',
-                              fontWeight: 'bold',
-                              color: '#6c5ce7'
-                            }}>
-                              USD 4
-                            </span>
-                            <span style={{ 
-                              color: '#666',
-                              fontSize: '1rem',
-                              display: 'block'
-                            }}>
-                              for 7 days
-                            </span>
-                            <span className="tm-plan-included">
-                              Includes 15 hours of transcription
-                            </span>
-                          </div>
-                        </div>
-                        
-                        <button
-                          onClick={() => {
-                            if (!currentUser?.email) {
-                              showMessage('Please log in first to purchase credits.','warning');
-                              return;
-                            }
-                            initializePaystackPayment(currentUser.email, 4, 'One-Week Plan', selectedRegion);
-                          }}
-                          disabled={!currentUser?.email}
-                          style={{
-                            width: '100%',
-                            padding: '15px',
-                            backgroundColor: !currentUser?.email ? '#6c757d' : '#28a745',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '10px',
-                            cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
-                            fontSize: '16px',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 4`}
-                        </button>
-                      </div>
-
-                                            {/* Monthly Plan (formerly Economy Monthly Plan) */}
-                      <div style={{
-                        backgroundColor: 'white',
-                        padding: '30px 25px',
-                        borderRadius: '15px',
-                        boxShadow: '0 8px 25px rgba(0,0,0,0.1)',
-                        minWidth: '280px',
-                        maxWidth: '320px',
-                        border: '2px solid #e9ecef',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between'
-                      }}>
-                        <div>
-                          {/* No BEST VALUE tag */}
-                          <h3 style={{ 
-                            color: '#007bff',
-                            fontSize: '1.5rem',
-                            margin: '0 0 10px 0',
-                            textAlign: 'center'
-                          }}>
-                            Monthly Plan
-                          </h3>
-                          <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px', textAlign: 'center' }}>
-                            Full access to Pro features for 1 month
-                          </p>
-                          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-                            <span style={{ 
-                              fontSize: '2.5rem',
-                              fontWeight: 'bold',
-                              color: '#6c5ce7'
-                            }}>
-                              USD 8
-                            </span>
-                            <span style={{ 
-                              color: '#666',
-                              fontSize: '1rem',
-                              display: 'block'
-                            }}>
-                              for 1 month
-                            </span>
-                            <span className="tm-plan-included">
-                              Includes 25 hours of transcription
-                            </span>
-                          </div>
-                        </div>
-                        
-                        <button
-                          onClick={() => {
-                            if (!currentUser?.email) {
-                              showMessage('Please log in first to purchase credits.', 'warning');
-                              return;
-                            }
-                            initializePaystackPayment(currentUser.email, 8, 'Monthly Plan', selectedRegion); // This already passes selectedRegion correctly.
-                          }}
-                          disabled={!currentUser?.email}
-                          style={{
-                            width: '100%',
-                            padding: '15px',
-                            backgroundColor: !currentUser?.email ? '#6c757d' : '#007bff',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '10px',
-                            cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
-                            fontSize: '16px',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          {!currentUser?.email ? 'Login Required' : `Pay with Paystack - USD 8`}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div style={{ marginTop: '20px' }}>
-                    <h2 style={{ color: '#28a745', marginBottom: '30px' }}>
-                       Premium Plans
-                    </h2>
-                    <p style={{ color: '#666', marginBottom: '30px' }}>
-                      Monthly and Yearly premium access plans, paid once.
-                    </p>
-                    
-                    {/* HORIZONTAL LAYOUT FOR PREMIUM PLANS */}
-                    <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap' }}> 
-                      {/* Monthly Plan */}
-                      <div style={{
-                        backgroundColor: 'white',
-                        padding: '20px 15px', 
-                        borderRadius: '15px', 
-                        boxShadow: 'none', 
-                        minWidth: '250px', 
-                        maxWidth: '280px', 
-                        border: '3px solid #28a745',
-                        transform: 'scale(1.02)' 
-                      }}>
-                        <div>
-                          <div style={{
-                            backgroundColor: '#28a745',
-                            color: 'white',
-                            padding: '6px 15px', 
-                            borderRadius: '15px', 
-                            fontSize: '13px', 
-                            fontWeight: 'bold',
-                            marginBottom: '15px', 
-                            display: 'inline-block'
-                          }}>
-                            MOST POPULAR
-                          </div>
-                          <h3 style={{ 
-                            color: '#28a745',
-                            fontSize: '1.4rem', 
-                            margin: '0 0 8px 0' 
-                          }}>
-                            Monthly Plan
-                          </h3>
-                          <div style={{ marginBottom: '20px' }}> 
-                            <span style={{ 
-                              fontSize: '2.2rem', 
-                              fontWeight: 'bold',
-                              color: '#6c5ce7'
-                            }}>
-                              USD 9.99
-                            </span>
-                            <span style={{ 
-                              color: '#666',
-                              fontSize: '1rem' 
-                            }}>
-                              /month
-                            </span>
-                          </div>
-                          <ul style={{ 
-                            textAlign: 'left', 
-                            color: '#666', 
-                            lineHeight: '1.8', 
-                            listStyle: 'none',
-                            padding: '0',
-                            marginBottom: '20px', 
-                            fontSize: '0.9rem' 
-                          }}>
-                            <li className="tm-tick">Everything in Free Plan</li>
-                            <li className="tm-tick">25 hours of transcription a month</li>
-                            <li className="tm-tick">Add more hours any time if you need them</li>
-                            <li className="tm-tick">High accuracy AI transcription</li>
-                            <li className="tm-tick">Priority processing</li>
-                            <li className="tm-tick">Copy to clipboard feature</li>
-                            <li className="tm-tick">MS Word &amp; TXT downloads</li>
-                            <li className="tm-tick">30-day file storage</li>
-                            <li className="tm-tick">Email support</li>
-                          </ul>
-                          <button 
-                            onClick={() => {
-                              if (!currentUser?.email) {
-                                showMessage('Please log in first to purchase.', 'warning');
-                                return;
-                              }
-                              initializePaystackPayment(currentUser.email, 9.99, 'Monthly Plan', selectedRegion);
-                            }}
-                            disabled={!currentUser?.email}
-                            style={{
-                              width: '100%',
-                              padding: '12px', 
-                              backgroundColor: !currentUser?.email ? '#6c757d' : '#28a745',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '8px', 
-                              cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
-                              fontSize: '15px', 
-                              fontWeight: 'bold'
-                            }}
-                          >
-                            {!currentUser?.email ? 'Login Required' : 'Purchase Monthly'}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Yearly Plan */}
-                      <div style={{
-                        backgroundColor: 'white',
-                        padding: '20px 15px', 
-                        borderRadius: '15px', 
-                        boxShadow: '0 10px 30px rgba(0,0,0,0.1)', 
-                        minWidth: '250px', 
-                        maxWidth: '280px', 
-                        border: '3px solid #e9ecef'
-                      }}>
-                        <div>
-                          <div style={{
-                            backgroundColor: '#007bff',
-                            color: 'white',
-                            padding: '6px 15px', 
-                            borderRadius: '15px', 
-                            fontSize: '13px', 
-                            fontWeight: 'bold',
-                            marginBottom: '15px', 
-                            display: 'inline-block'
-                          }}>
-                            SAVE 15%
-                          </div>
-                          <h3 style={{ 
-                            color: '#007bff',
-                            fontSize: '1.4rem', 
-                            margin: '0 0 8px 0' 
-                          }}>
-                            Yearly Plan
-                          </h3>
-                          <div style={{ marginBottom: '20px' }}> 
-                            <span style={{ 
-                              fontSize: '2.2rem', 
-                              fontWeight: 'bold',
-                              color: '#6c5ce7'
-                            }}>
-                              USD 99.99
-                            </span>
-                            <span style={{ 
-                              color: '#666',
-                              fontSize: '1rem' 
-                            }}>
-                              /year
-                            </span>
-                          </div>
-                          <ul style={{ 
-                            textAlign: 'left', 
-                            color: '#666', 
-                            lineHeight: '1.8', 
-                            listStyle: 'none',
-                            padding: '0',
-                            marginBottom: '20px', 
-                            fontSize: '0.9rem' 
-                          }}>
-                            <li className="tm-tick">Everything in Free Plan</li>
-                            <li className="tm-tick">25 hours of transcription every month</li>
-                            <li className="tm-tick">Add more hours any time if you need them</li>
-                            <li className="tm-tick">High accuracy AI transcription</li>
-                            <li className="tm-tick">Priority processing</li>
-                            <li className="tm-tick">Copy to clipboard feature</li>
-                            <li className="tm-tick">MS Word &amp; TXT downloads</li>
-                            <li className="tm-tick">365-day file storage</li>
-                            <li className="tm-tick">Email support (yearly)</li>
-                          </ul>
-                          <button 
-                            onClick={() => {
-                              if (!currentUser?.email) {
-                                showMessage('Please log in first to purchase.', 'warning');
-                                return;
-                              }
-                              initializePaystackPayment(currentUser.email, 99.99, 'Yearly Plan', 'OTHER_AFRICA');
-                            }}
-                            disabled={!currentUser?.email}
-                            style={{
-                              width: '100%',
-                              padding: '12px', 
-                              backgroundColor: !currentUser?.email ? '#6c757d' : '#007bff',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '8px', 
-                              cursor: !currentUser?.email ? 'not-allowed' : 'pointer',
-                              fontSize: '15px', 
-                              fontWeight: 'bold'
-                            }}
-                          >
-                            {!currentUser?.email ? 'Login Required' : 'Purchase Yearly'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              <div style={{
-                marginTop: '60px',
-                padding: '30px',
-                backgroundColor: 'white',
-                borderRadius: '15px',
-                boxShadow: '0 5px 15px rgba(0,0,0,0.1)'
-              }}>
-                <h3 style={{ color: '#6c5ce7', marginBottom: '20px' }}>
-                   All plans include:
-                </h3>
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-                  gap: '20px',
-                  textAlign: 'left',
-                  color: '#666'
-                }}>
-                  <div className="tm-tick">Transcript management under History</div>
-                  <div className="tm-tick">Easy-to-use interface</div>
-                  <div className="tm-tick">Client Support</div>
-                </div>
-              </div>
-            </div>
-          </>
+          <Pricing
+            isSignedIn={!!currentUser?.email}
+            currentPlan={userProfile?.plan || 'free'}
+            onBuy={(itemId, countryCode) => initializePaystackPayment(itemId, countryCode)}
+          />
         ) : currentView === 'admin' ? (
           <AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} />
         ) : currentView === 'ai_assistant' ? (
