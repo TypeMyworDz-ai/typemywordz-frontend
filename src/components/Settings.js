@@ -13,6 +13,7 @@ const RAILWAY_BACKEND_URL =
 const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgrade }) => {
   const { model, setModel } = useAsk();
   const [models, setModels] = useState([]);
+  const [lockedModels, setLockedModels] = useState([]);
   const [state, setState] = useState('loading');
   const [saved, setSaved] = useState(false);
   const [serverDefault, setServerDefault] = useState('');
@@ -34,6 +35,9 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
         if (!alive) return;
         const rows = Array.isArray(data.models) ? data.models : [];
         setModels(rows);
+        // Models the plan is holding back. We show these greyed out rather than
+        // hiding them, so a client can see what a better plan would give them.
+        setLockedModels(Array.isArray(data.locked) ? data.locked : []);
         setState(rows.length ? 'ready' : 'locked');
         if (data.default) setServerDefault(data.default);
         // If nothing is chosen yet, show the server's default as chosen.
@@ -94,6 +98,41 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
       </div>
     );
 
+  // A model the client cannot pick yet. Deliberately not a radio and not a
+  // label: there is nothing to choose here, so it must not behave like a
+  // control. The only thing that is clickable is the link to the plans.
+  const LockedGroup = ({ rows }) =>
+    rows.length === 0 ? null : (
+      <div className="tm-set-group">
+        <div className="tm-set-grouphead">
+          <span className="tm-set-grouptitle">Advanced models</span>
+          <span className="tm-set-groupnote">Included with the Monthly and Yearly plans</span>
+        </div>
+        <div className="tm-set-models">
+          {rows.map((m) => (
+            <div key={m.id} className="tm-set-model tm-set-model-locked" aria-disabled="true">
+              <span className="tm-set-lock" aria-hidden="true">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="4" y="10" width="16" height="10" rx="2" />
+                  <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                </svg>
+              </span>
+              <span className="tm-set-modelbody">
+                <span className="tm-set-modelname">
+                  {m.label}
+                  <span className="tm-set-badge tm-set-badge-quiet">Not on your plan</span>
+                  {m.transcript_only && (
+                    <span className="tm-set-badge tm-set-badge-quiet">Transcripts only</span>
+                  )}
+                </span>
+                <span className="tm-set-modelblurb">{m.blurb}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+
   return (
     <div className="tm-set">
       <h2 className="tm-set-title">Settings</h2>
@@ -133,9 +172,10 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
               note="Included with the Monthly and Yearly plans"
               rows={premium}
             />
-            {premium.length === 0 && (
+            <LockedGroup rows={lockedModels} />
+            {premium.length === 0 && lockedModels.length > 0 && (
               <p className="tm-set-upsell">
-                The Monthly and Yearly plans add the advanced models, which handle long or
+                The Monthly and Yearly plans unlock the models above, which handle long or
                 complicated work better.{' '}
                 {onUpgrade && (
                   <button type="button" className="tm-set-link" onClick={onUpgrade}>
