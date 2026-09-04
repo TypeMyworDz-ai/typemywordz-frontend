@@ -131,6 +131,14 @@ function AppContent() {
   const [confirmingNew, setConfirmingNew] = useState(false);
   const [audioDuration, setAudioDuration] = useState(0);
   const [isRecording, setIsRecording] = useState(false); // Corrected to boolean
+  // What to do with a take once recording stops: the client is asked rather
+  // than the app deciding for them.
+  const [recordingChoice, setRecordingChoice] = useState(false);
+  // Whether the take currently in hand has been saved to the client's machine.
+  // Used to warn before it would be lost.
+  const [takeSaved, setTakeSaved] = useState(false);
+  const [savingTake, setSavingTake] = useState(false);
+  const [confirmReRecord, setConfirmReRecord] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [downloadFormat, setDownloadFormat] = useState('mp3');
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
@@ -509,8 +517,8 @@ function AppContent() {
   }, []);
 
   // Enhanced recording function with proper job cancellation
-  const startRecording = useCallback(async () => {
-    console.log('DEBUG: startRecording called.'); // NEW LOG
+  const beginRecording = useCallback(async () => {
+    console.log('DEBUG: beginRecording called.');
     // Always reset UI when starting a new recording, effectively deselecting options
     // This also stops any ongoing transcription.
     resetTranscriptionProcessUI(); 
@@ -614,6 +622,10 @@ function AppContent() {
           setAudioDuration(measured.duration);
         }
         setSelectedFile(file);
+        setTakeSaved(false);
+        // Ask what to do with the take rather than silently leaving it sitting
+        // there. Clients were clicking Stop and then hunting for Transcribe.
+        setRecordingChoice(true);
         console.log('DEBUG: Recording ready.', file.name, originalBlob.size, 'bytes,', measured.duration, 'seconds');
       };
 
@@ -631,6 +643,25 @@ function AppContent() {
     }
   }, [resetTranscriptionProcessUI, showMessage, measureAudio]);
 
+  // Point K. Starting a new recording throws away the last one, and clients
+  // were losing work that way. If there is a take in hand that has not been
+  // saved or transcribed, ask first.
+  const startRecording = useCallback(() => {
+    if (recordedAudioBlobRef.current && !takeSaved) {
+      setConfirmReRecord(true);
+      return;
+    }
+    beginRecording();
+  }, [beginRecording, takeSaved]);
+
+  // Keyboard shortcuts, so nobody has to scroll the page to start, stop or
+  // pick a file. Deliberately Ctrl+Shift so they cannot collide with the
+  // browser's own shortcuts or with typing in the editor.
+  const chooseFile = useCallback(() => {
+    const input = document.querySelector('input.tm-file');
+    if (input) input.click();
+  }, []);
+
   const stopRecording = useCallback(() => {
     console.log('DEBUG: stopRecording called.'); // NEW LOG
     if (mediaRecorderRef.current && isRecording) {
@@ -641,6 +672,23 @@ function AppContent() {
     }
   }, [isRecording]);
   // Improved cancel function with page refresh
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!e.ctrlKey || !e.shiftKey || e.altKey) return;
+      const k = (e.key || '').toLowerCase();
+      if (k === 'r') {
+        e.preventDefault();
+        if (isRecording) stopRecording();
+        else startRecording();
+      } else if (k === 'o') {
+        e.preventDefault();
+        chooseFile();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isRecording, startRecording, stopRecording, chooseFile]);
+
   const handleCancelUpload = useCallback(async () => {
     console.log('DEBUG: FORCE CANCEL - Stopping everything immediately');
     
@@ -1137,40 +1185,71 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   // TXT download - available for all users
 
   // Download recorded audio (Note: This is for recorded audio, not transcription results)
-  const downloadRecordedAudio = useCallback(async () => { 
-    if (recordedAudioBlobRef.current) {
-      try {
-        let downloadBlob = recordedAudioBlobRef.current;
-        let filename = `recording-${Date.now()}.${downloadFormat}`;
-        
-        if (downloadFormat === 'mp3' && !recordedAudioBlobRef.current.type.includes('mp3')) {
-          showMessage('Compressing to MP3...', 'info');
-          // This part of the frontend is not actually performing the compression,
-          // it's just showing a message. The backend's /compress-download endpoint would handle it.
-          // For now, we'll keep the message, but actual compression would involve a backend call here.
-          showMessage('MP3 compression complete! ', 'success');
-        }
-        
-        const url = URL.createObjectURL(downloadBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-      } catch (error) {
-        console.error('Error compressing for download: ', error);
-        showMessage('Download compression failed, downloading original format.', 'error');
-        const url = URL.createObjectURL(recordedAudioBlobRef.current);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `recording-${Date.now()}.wav`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-    } else {
-      showMessage('No recorded audio available to download.', 'warning');
+  // Save the recording to the client's own machine.
+  //
+  // This used to announce "MP3 compression complete" and then hand over the
+  // untouched browser recording with an .mp3 name on it. Browsers cannot
+  // record MP3, so that file was really Opus audio in a WebM container, which
+  // is why playback software like ExpressScribe refused to open it. The
+  // conversion now genuinely happens, on the server, and what lands in the
+  // client's downloads folder is a real MP3.
+  const saveBlobAs = (blob, filename) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadRecordedAudio = useCallback(async () => {
+    const blob = recordedAudioBlobRef.current;
+    if (!blob) {
+      showMessage('There is no recording to save just yet.', 'warning');
+      return;
     }
-  }, [showMessage, downloadFormat, recordedAudioBlobRef]); // Removed unnecessary dependency
+    const stamp = Date.now();
+    const rawExt = recordingExtensionRef.current || 'webm';
+
+    if (downloadFormat !== 'mp3') {
+      // "Original" means exactly that, with its true extension, so the file
+      // is never mislabelled.
+      saveBlobAs(blob, `recording-${stamp}.${rawExt}`);
+      setTakeSaved(true);
+      showMessage('Saved to your downloads, in the format your browser recorded.', 'success');
+      return;
+    }
+
+    setSavingTake(true);
+    showMessage('Converting your recording to MP3, one moment.', 'info');
+    try {
+      const form = new FormData();
+      form.append('file', new File([blob], `recording-${stamp}.${rawExt}`, { type: blob.type || 'audio/webm' }));
+      const res = await fetch(`${RAILWAY_BACKEND_URL}/compress-download?quality=high`, {
+        method: 'POST',
+        body: form,
+      });
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const mp3 = await res.blob();
+      if (!mp3 || mp3.size < 1024) throw new Error('Converted file came back empty');
+      saveBlobAs(mp3, `recording-${stamp}.mp3`);
+      setTakeSaved(true);
+      showMessage('Saved as an MP3. It will open in ExpressScribe and other playback software.', 'success');
+    } catch (error) {
+      console.error('MP3 conversion failed:', error);
+      // Never pretend. Hand over the real file, correctly named, and say so.
+      saveBlobAs(blob, `recording-${stamp}.${rawExt}`);
+      setTakeSaved(true);
+      showMessage(
+        'The MP3 conversion did not go through, so your recording has been saved in its ' +
+        'original format instead. Your audio is safe. Playback software may not open it, ' +
+        'so try saving again in a moment if you need an MP3.',
+        'warning'
+      );
+    } finally {
+      setSavingTake(false);
+    }
+  }, [showMessage, downloadFormat]);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -2248,6 +2327,57 @@ return (
                 onConfirm={() => { setConfirmingNew(false); resetTranscriptionProcessUI(); setCurrentView('transcribe'); }}
                 onCancel={() => setConfirmingNew(false)}
               />
+              {recordingChoice && (
+                <div
+                  className="tm-dialog-back"
+                  onMouseDown={(e) => { if (e.target === e.currentTarget && !savingTake) setRecordingChoice(false); }}
+                >
+                  <div className="tm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="tm-rec-title">
+                    <h3 className="tm-dialog-title" id="tm-rec-title">Your recording is ready</h3>
+                    <p className="tm-dialog-body">
+                      {'You can send it straight for transcription, or save a copy to your ' +
+                       'computer first. Saving a copy is worth doing on anything important: ' +
+                       'if a transcription ever fails, you still have the audio.'}
+                    </p>
+                    <div className="tm-dialog-actions tm-rec-actions">
+                      <button
+                        type="button"
+                        className="tm-dialog-cancel"
+                        disabled={savingTake}
+                        onClick={() => { setRecordingChoice(false); resetTranscriptionProcessUI(); setSelectedFile(null); recordedAudioBlobRef.current = null; setTakeSaved(false); }}
+                      >
+                        Discard it
+                      </button>
+                      <button
+                        type="button"
+                        className="tm-dialog-cancel"
+                        disabled={savingTake}
+                        onClick={downloadRecordedAudio}
+                      >
+                        {savingTake ? 'Saving' : 'Save a copy'}
+                      </button>
+                      <button
+                        type="button"
+                        className="tm-dialog-go"
+                        disabled={savingTake}
+                        onClick={() => { setRecordingChoice(false); handleUpload(); }}
+                      >
+                        Transcribe it
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <ConfirmDialog
+                open={confirmReRecord}
+                title="Record over the one you have?"
+                body="The recording you just made has not been saved or transcribed yet, and starting a new one will replace it for good. Save a copy first if you might still want it."
+                confirmLabel="Record a new one"
+                cancelLabel="Keep what I have"
+                tone="danger"
+                onConfirm={() => { setConfirmReRecord(false); beginRecording(); }}
+                onCancel={() => setConfirmReRecord(false)}
+              />
               <ConfirmDialog
                 open={confirmingCancel}
                 title="Stop this transcription?"
@@ -2392,6 +2522,20 @@ return (
                     {isRecording ? 'Stop recording' : 'Start recording'}
                   </button>
 
+                  <div className="tm-rec-hint">
+                    {isRecording
+                      ? 'Press Ctrl and Shift and R to stop.'
+                      : 'Press Ctrl and Shift and R to start recording, or Ctrl and Shift and O to choose a file.'}
+                  </div>
+
+                  {recordedAudioBlobRef.current && !isRecording && !takeSaved && (
+                    <div className="tm-rec-warn" role="status">
+                      This recording only exists here until you transcribe it or save it. Save a
+                      copy to your computer if it matters, so a failed transcription cannot cost
+                      you the audio.
+                    </div>
+                  )}
+
                   {recordedAudioBlobRef.current && !isRecording && (
                     <div style={{ marginTop: '15px' }}>
                       <div style={{ 
@@ -2417,12 +2561,13 @@ return (
                             background: '#fff'
                           }}
                         >
-                          <option value="mp3">MP3 (Compressed)</option>
-                          <option value="wav">WAV (Original)</option>
+                          <option value="mp3">MP3, plays anywhere</option>
+                          <option value="original">Original, exactly as recorded</option>
                         </select>
                       </div>
                       <button
                         onClick={downloadRecordedAudio}
+                        disabled={savingTake}
                         style={{
                           padding: '8px 14px',
                           backgroundColor: '#fff',
@@ -2434,7 +2579,7 @@ return (
                           fontSize: '14px'
                         }}
                       >
-                        Download recording ({downloadFormat.toUpperCase()})
+                        {savingTake ? 'Saving' : (downloadFormat === 'mp3' ? 'Save recording as MP3' : 'Save recording as recorded')}
                       </button>
                     </div>
                   )}

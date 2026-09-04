@@ -3406,3 +3406,19 @@ body {
   flex:0 0 auto; margin-top:2px; color:var(--tm-faint);
   display:inline-flex; align-items:center; justify-content:center;
 }
+
+/* ---- Recording: shortcut hint, safety warning, three-way choice ----------
+   The warning is amber because it is about uncertainty, not danger: nothing
+   has gone wrong yet, but audio could still be lost. The three-way dialog
+   keeps Transcribe green, since that is the action being encouraged, and
+   leaves Save and Discard neutral so the client reads all three. */
+.tm-rec-hint{
+  margin-top:9px; font-size:.78rem; color:var(--tm-muted);
+}
+.tm-rec-warn{
+  margin-top:12px; padding:10px 12px;
+  background:var(--tm-warn-soft); color:var(--tm-warn);
+  border:1px solid #e8d4a8; border-radius:var(--tm-radius);
+  font-size:.83rem; line-height:1.45; max-width:52ch;
+}
+.tm-rec-actions{ flex-wrap:wrap; }
