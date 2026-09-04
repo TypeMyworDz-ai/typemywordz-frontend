@@ -1237,12 +1237,23 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
     setSavingTake(true);
     showMessage('Converting your recording to MP3, one moment.', 'info');
+
+    // A conversion that never comes back used to leave the button reading
+    // "Saving" for ever, with no way out but reloading the page and losing
+    // the take. It now gives up after two minutes and hands over the
+    // original file, which is always better than a button that lies.
+    const cancel = new AbortController();
+    const giveUp = setTimeout(() => cancel.abort(), 120000);
     try {
       const form = new FormData();
       form.append('file', new File([blob], `recording-${stamp}.${rawExt}`, { type: blob.type || 'audio/webm' }));
-      const res = await fetch(`${RAILWAY_BACKEND_URL}/compress-download?quality=high`, {
+      // "voice" encodes at 48 kbps in mono. The recording was captured in
+      // mono to begin with, so the old stereo setting was making the file
+      // several times larger for nothing.
+      const res = await fetch(`${RAILWAY_BACKEND_URL}/compress-download?quality=voice`, {
         method: 'POST',
         body: form,
+        signal: cancel.signal,
       });
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
       const mp3 = await res.blob();
@@ -1256,12 +1267,17 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       saveBlobAs(blob, `recording-${stamp}.${rawExt}`);
       setTakeSaved(true);
       showMessage(
-        'The MP3 conversion did not go through, so your recording has been saved in its ' +
-        'original format instead. Your audio is safe. Playback software may not open it, ' +
-        'so try saving again in a moment if you need an MP3.',
+        error && error.name === 'AbortError'
+          ? 'The MP3 conversion was taking too long, so we stopped waiting and saved your ' +
+            'recording in its original format instead. Your audio is safe. Try saving again ' +
+            'in a moment if you need an MP3.'
+          : 'The MP3 conversion did not go through, so your recording has been saved in its ' +
+            'original format instead. Your audio is safe. Playback software may not open it, ' +
+            'so try saving again in a moment if you need an MP3.',
         'warning'
       );
     } finally {
+      clearTimeout(giveUp);
       setSavingTake(false);
     }
   }, [showMessage, downloadFormat]);
@@ -1838,7 +1854,7 @@ return (
                         disabled={savingTake}
                         onClick={downloadRecordedAudio}
                       >
-                        {savingTake ? 'Saving' : 'Save a copy'}
+                        {savingTake ? 'Preparing your file\u2026' : 'Save a copy'}
                       </button>
                       <button
                         type="button"
@@ -2036,7 +2052,7 @@ return (
                           fontSize: '14px'
                         }}
                       >
-                        {savingTake ? 'Saving' : (downloadFormat === 'mp3' ? 'Save recording as MP3' : 'Save recording as recorded')}
+                        {savingTake ? 'Preparing your file\u2026' : (downloadFormat === 'mp3' ? 'Save recording as MP3' : 'Save recording as recorded')}
                       </button>
                     </div>
                   )}
