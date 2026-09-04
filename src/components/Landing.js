@@ -78,7 +78,7 @@ const Landing = () => {
               <span className="tm-w-green">My</span>
               <span className="tm-w-purple">worDz</span>
             </div>
-            <div className="tm-slogan">You Talk, We Type</div>
+            <div className="tm-slogan">Your everyday AI companion</div>
           </div>
         </div>
         <div className="tm-spacer"></div>
