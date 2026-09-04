@@ -20,10 +20,6 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
 
   useEffect(() => {
     let alive = true;
-    if (!canUseAI) {
-      setState('locked');
-      return undefined;
-    }
     const load = async () => {
       try {
         const url =
@@ -37,8 +33,11 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
         setModels(rows);
         // Models the plan is holding back. We show these greyed out rather than
         // hiding them, so a client can see what a better plan would give them.
-        setLockedModels(Array.isArray(data.locked) ? data.locked : []);
-        setState(rows.length ? 'ready' : 'locked');
+        const held = Array.isArray(data.locked) ? data.locked : [];
+        setLockedModels(held);
+        // There is something worth showing if the client can pick a model OR
+        // if a plan would give them one.
+        setState(rows.length || held.length ? 'ready' : 'locked');
         if (data.default) setServerDefault(data.default);
         // If nothing is chosen yet, show the server's default as chosen.
         if (!model && data.default) setModel(data.default);
@@ -166,6 +165,12 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
 
         {state === 'ready' && (
           <>
+            {standard.length === 0 && lockedModels.length > 0 && (
+              <p className="tm-set-upsell">
+                Ask TypeMyworDz comes with any paid plan. Here is what you would be
+                able to choose from.
+              </p>
+            )}
             <Group title="Included with your plan" rows={standard} />
             <Group
               title="Advanced models"
