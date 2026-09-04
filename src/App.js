@@ -123,6 +123,12 @@ function AppContent() {
   // Removed uploadProgress state and its setter
   // Removed transcriptionProgress state and its setter
   const [currentView, setCurrentView] = useState('transcribe');
+  // Clicking "New transcription" while a finished transcript is still on
+  // screen used to do nothing visible, so clients clicked it repeatedly and
+  // then lost the screen anyway. Now it genuinely clears the workspace, and
+  // asks first, because the wording is what stops the panic: the transcript
+  // is already saved in My files.
+  const [confirmingNew, setConfirmingNew] = useState(false);
   const [audioDuration, setAudioDuration] = useState(0);
   const [isRecording, setIsRecording] = useState(false); // Corrected to boolean
   const [recordingTime, setRecordingTime] = useState(0);
@@ -1372,11 +1378,17 @@ return (
         {/* ---- Application top bar ---- */}
         <div className="tm-topbar">
 
-          <div className="tm-brand">
+          <button
+            type="button"
+            className="tm-brand tm-brand-btn"
+            onClick={() => setCurrentView('transcribe')}
+            title="Back to your workspace"
+            aria-label="TypeMyworDz, back to your workspace"
+          >
             <img
               className="tm-brand-logo"
               src="/android-chrome-192x192.png"
-              alt="TypeMyworDz"
+              alt=""
             />
             <div className="tm-brand-text">
               <div className="tm-wordmark">
@@ -1384,7 +1396,7 @@ return (
               </div>
               <div className="tm-slogan">You Talk, We Type</div>
             </div>
-          </div>
+          </button>
 
           <div className="tm-spacer"></div>
 
@@ -1506,7 +1518,10 @@ return (
 
             <button
               className="tm-newbtn"
-              onClick={() => setCurrentView('transcribe')}
+              onClick={() => {
+                if (transcription) { setConfirmingNew(true); return; }
+                setCurrentView('transcribe');
+              }}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
               New transcription
@@ -2225,6 +2240,15 @@ return (
               padding: '0',
             }}>
               <ConfirmDialog
+                open={confirmingNew}
+                title="Start a new transcription?"
+                body="This clears the workspace so you can upload the next file. Your current transcript is already saved in My files, so nothing is lost, and you can reopen it there whenever you like."
+                confirmLabel="Start a new one"
+                cancelLabel="Stay here"
+                onConfirm={() => { setConfirmingNew(false); resetTranscriptionProcessUI(); setCurrentView('transcribe'); }}
+                onCancel={() => setConfirmingNew(false)}
+              />
+              <ConfirmDialog
                 open={confirmingCancel}
                 title="Stop this transcription?"
                 body="The work done so far will be lost and you will need to start again. Your file stays selected."
@@ -2568,8 +2592,9 @@ return (
                   )}
                   {status === 'completed' && (
                     <p className="tm-keepnote">
-                      Your transcript is saved and waiting in My files. We do not keep
-                      your recording, so when you come back to proofread, open the
+                      Your transcript is saved and waiting in My files, so you can move
+                      around the app freely and come back to it whenever you like. We do
+                      not keep your recording, so when you return to proofread, open the
                       transcript and pick the audio file from your own computer to play
                       it alongside.
                     </p>
