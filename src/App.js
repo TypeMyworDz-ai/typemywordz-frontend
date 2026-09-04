@@ -1405,10 +1405,8 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       <div className="tm-boot">
         {bootVisible && (
           <div className="tm-boot-mark">
-            <span className="tm-boot-word">
-              <span className="tm-boot-p">Type</span><span className="tm-boot-g">My</span><span className="tm-boot-p">worDz</span>
-            </span>
-            <span className="tm-boot-sub">You Talk, We Type</span>
+            <img className="tm-boot-logo" src="/brand-mark.png" alt="TypeMyworDz AI" width="96" height="96" />
+            <span className="tm-boot-sub">Your everyday AI companion</span>
           </div>
         )}
       </div>
@@ -1473,7 +1471,7 @@ return (
               <div className="tm-wordmark">
                 <span className="tm-w-purple">Type</span><span className="tm-w-green">My</span><span className="tm-w-purple">worDz</span>
               </div>
-              <div className="tm-slogan">You Talk, We Type</div>
+              <div className="tm-slogan">Your everyday AI companion</div>
             </div>
           </button>
 
