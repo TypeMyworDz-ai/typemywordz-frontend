@@ -6,6 +6,7 @@ import TranscriptEditor from './TranscriptEditor';
 import ConfirmDialog from './ConfirmDialog';
 import AskPanel from './AskPanel';
 import { isPaidAIUser } from '../aiAccess';
+import { fetchCreditBalance } from '../creditsService';
 
 // ---------------------------------------------------------------------------
 // One saved transcript, opened from My files.
@@ -39,7 +40,7 @@ const formatDate = (value) => {
   return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
-const TranscriptionDetail = () => {
+const TranscriptionDetail = ({ setCurrentView }) => {
   const { id } = useParams();
   const { state } = useLocation();
   const navigate = useNavigate();
@@ -51,6 +52,35 @@ const TranscriptionDetail = () => {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+
+  // What this account can actually spend.
+  //
+  // This page is reached by its own address, so it sits outside the part of
+  // the app that already holds the credit balance. Without asking for it
+  // here, the check below saw no credits and put a locked door in front of a
+  // client who had paid us 251 credits. The server is the authority; we ask.
+  const [creditBalance, setCreditBalance] = useState(null);
+
+  // 'See plans' used to call navigate('/pricing'), and there is no such
+  // address in this app, so the router matched nothing and the client got a
+  // blank white page. Pricing is a view on the main screen.
+  const handleSeePlans = useCallback(() => {
+    if (typeof setCurrentView === 'function') setCurrentView('pricing');
+    navigate('/');
+  }, [setCurrentView, navigate]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!currentUser?.uid && !currentUser?.email) return undefined;
+    fetchCreditBalance(currentUser?.uid, currentUser?.email)
+      .then((balance) => {
+        if (!cancelled) setCreditBalance(balance);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.uid, currentUser?.email]);
 
   // Arriving straight at the address, or after a refresh, there is no
   // navigation state to read. Look the transcript up instead of showing a
@@ -145,8 +175,8 @@ const TranscriptionDetail = () => {
         userPlan={userProfile?.plan || 'free'}
         userEmail={currentUser?.email || ''}
         userId={currentUser?.uid || ''}
-        canUse={isPaidAIUser(userProfile, currentUser?.email)}
-        onUpgrade={() => navigate('/pricing')}
+        canUse={isPaidAIUser(userProfile, currentUser?.email, creditBalance)}
+        onUpgrade={handleSeePlans}
       />
 
       <div className="tm-detail-foot">
