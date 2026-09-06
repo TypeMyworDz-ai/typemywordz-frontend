@@ -1521,7 +1521,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
 return (
   <Routes>
-    <Route path="/transcription/:id" element={<TranscriptionDetail />} />
+    <Route path="/transcription/:id" element={<TranscriptionDetail setCurrentView={setCurrentView} />} />
     <Route path="/transcription-editor" element={<RichTextEditor />} />
     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
     <Route path="/terms" element={<TermsOfService />} />
