@@ -121,6 +121,37 @@ export const usableTopUpCredits = (profile) => {
 
 // True when someone has paid for credits and can work on them alone, with no
 // plan running. Clients in this position used to be turned away.
+// The one place that answers "how much can this account spend right now?".
+//
+// This exists because of a real bug. usableTopUpCredits below reads the number
+// off the client's Firestore user document, but bought credits are held in the
+// ledger on the server, and the server never writes them back into that
+// document. So a client with 278 credits on the server looked like a client
+// with zero, and the browser refused to transcribe and told them their free
+// trial was over. The server had been willing all along.
+//
+// So: always prefer the balance the server reported. Only fall back to the
+// document when we genuinely have no answer from the server, and treat
+// exempt/unlimited accounts as never short.
+export const spendableFor = (creditBalance, profile) => {
+  if (creditBalance && (creditBalance.exempt || creditBalance.unlimited)) {
+    return Number.POSITIVE_INFINITY;
+  }
+  if (creditBalance) {
+    const n = Number(creditBalance.spendable);
+    if (Number.isFinite(n)) return n;
+  }
+  return usableTopUpCredits(profile);
+};
+
+// True when the account is running on bought credits rather than a plan.
+// Used to stop calling these clients "Free plan", which they are not.
+export const isOnCreditsOnly = (creditBalance, profile) => {
+  if (creditBalance && (creditBalance.exempt || creditBalance.unlimited)) return false;
+  if (creditBalance && creditBalance.planActive) return false;
+  return spendableFor(creditBalance, profile) > 0;
+};
+
 export const hasUsableTopUp = (profile) => usableTopUpCredits(profile) > 0;
 
 // What the account can actually spend today, which is not always what it owns.

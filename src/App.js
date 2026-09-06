@@ -22,7 +22,8 @@ import {
   creditsAreFrozen,
   creditsRunningLow,
   creditsExhausted,
-  usableTopUpCredits,
+  spendableFor,
+  isOnCreditsOnly,
 } from './creditsService';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
 import PrivacyPolicy from './components/PrivacyPolicy';
@@ -914,11 +915,19 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
           // The service returns terse internal text. Translate the common case
           // into something the person sitting in front of the screen can act on.
           const raw = String(result.error || '');
-          const friendly = /multiple attempts|no speech|empty|too short|could not/i.test(raw)
+          // Only blame the audio when the audio is actually what failed. This
+          // used to match "multiple attempts" too, which is the generic message
+          // the server gives when something broke on our side. The result was
+          // that a routing fault of ours told the client their recording was
+          // silent or damaged, and sent them off checking a file that was
+          // perfectly fine. Never claim a cause we have not established.
+          const friendly = /no speech|silent|too short|inaudible/i.test(raw)
             ? 'We could not get any speech out of that audio. This usually means the recording ' +
               'is silent, extremely quiet, or the file is damaged. Try playing it back first, ' +
               'then upload it again.'
-            : 'That transcription did not complete: ' + raw;
+            : 'That transcription did not finish, and it was not your file. Something ' +
+              'went wrong on our side. Please try again, and if it keeps happening write ' +
+              'to info@typemywordz.ai and we will look into it.';
           showMessage(friendly, 'error');
           clearInterval(transcriptionInterval); 
           // Removed setTranscriptionProgress as it was unused
@@ -1029,7 +1038,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     console.log('DEBUG: Estimated duration for upload:', estimatedDuration);
 
     setPlanBlock(null);
-    const transcribeCheck = await canUserTranscribe(currentUser.uid, estimatedDuration, currentUser.email);
+    const transcribeCheck = await canUserTranscribe(currentUser.uid, estimatedDuration, currentUser.email, creditBalance);
     console.log('DEBUG: canUserTranscribe check result:', transcribeCheck);
     
     // The server has the final say on what this account can spend. Asking
@@ -1181,7 +1190,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       setIsUploading(false);
       showMessage('Transcription service is currently unavailable. Please try again later.','error');
     }
-  }, [selectedFile, audioDuration, currentUser?.uid, currentUser?.email, showMessage, resetTranscriptionProcessUI, userProfile, selectedLanguage, speakerLabelsEnabled, checkJobStatus, refreshCredits]); // Removed RAILWAY_BACKEND_URL from dependencies
+  }, [selectedFile, audioDuration, currentUser?.uid, currentUser?.email, showMessage, resetTranscriptionProcessUI, userProfile, creditBalance, selectedLanguage, speakerLabelsEnabled, checkJobStatus, refreshCredits]); // Removed RAILWAY_BACKEND_URL from dependencies
 
   // Copy to clipboard (now triggers CopiedNotification)
   // The old Copy / Word / TXT buttons lived here. The proofreading editor
@@ -1311,6 +1320,12 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     if (p === 'Monthly Plan')   return { text: 'Monthly' + until, isFree: false };
     if (p === 'One-Week Plan')  return { text: 'One week' + until, isFree: false };
     if (p === 'Three-Day Plan') return { text: 'Three days' + until, isFree: false };
+    // A client with no plan but bought credits is a paying client. Calling
+    // them "Free plan" and showing them "See plans" was both wrong and
+    // insulting, so credits are checked before any free-plan wording.
+    if (isOnCreditsOnly(creditBalance, userProfile)) {
+      return { text: 'Pay as you go', isFree: false, note: 'Running on credits' };
+    }
     if (p === 'free' && !userProfile?.hasReceivedInitialFreeMinutes) {
       return { text: 'Free trial', isFree: true };
     }
@@ -1908,7 +1923,7 @@ return (
                 </div>
               )}
               {!hasComplimentaryAccess && userProfile && userProfile.plan === 'free'
-                && usableTopUpCredits(userProfile) <= 0 && (
+                && spendableFor(creditBalance, userProfile) <= 0 && (
                 <div className="tm-need" role="status">
                   <div className="tm-need-text">
                     <strong>You have no credits left.</strong>
