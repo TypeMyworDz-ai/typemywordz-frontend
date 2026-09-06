@@ -1,6 +1,6 @@
 import { db } from './firebase';
 import { isAdminEmail, isCompAccessEmail } from './adminEmails';
-import { usableTopUpCredits } from './creditsService';
+import { usableTopUpCredits, spendableFor, fetchCreditBalance } from './creditsService';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc, addDoc, runTransaction } from 'firebase/firestore'; // Keep serverTimestamp just in case for other uses, but we'll manually set for this fix
 
 // Length of the free trial, in minutes. Kept small deliberately: it is
@@ -304,9 +304,21 @@ export const canUserRecord = async (uid) => {
 };
 
 // UPDATED: Check if user can transcribe with proper validation and automatic pricing redirect
-export const canUserTranscribe = async (uid, estimatedDurationSeconds, userEmail = null) => {
+export const canUserTranscribe = async (uid, estimatedDurationSeconds, userEmail = null, creditBalance = null) => {
   try {
     console.log("canUserTranscribe called with:", { uid, estimatedDurationSeconds, userEmail });
+
+    // Ask the server what this account can spend. The browser used to work
+    // this out from the user document, which does not hold bought credits, so
+    // paying clients were blocked. If the caller already has a fresh balance
+    // it passes it in; otherwise we fetch one here rather than guess. A
+    // network failure leaves this null and the old document-based figure is
+    // used as a last resort, so a hiccup cannot lock anyone out entirely.
+    let balance = creditBalance;
+    if (!balance) {
+      balance = await fetchCreditBalance(uid, userEmail);
+    }
+    const spendable = spendableFor(balance, null);
 
     // The admin account is never limited by plan or free-trial rules.
     if (isAdminEmail(userEmail)) {
@@ -339,7 +351,7 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds, userEmail
 
             if (remaining !== null && estimatedDurationMinutes > remaining) {
               // Bought credits top the plan up, so spend those rather than blocking.
-              const boughtSpare = usableTopUpCredits(userProfile);
+              const boughtSpare = (balance ? spendable : usableTopUpCredits(userProfile));
               if (boughtSpare >= estimatedDurationMinutes) {
                 console.log(` plan allowance short but ${boughtSpare} bought credits cover ${estimatedDurationMinutes}. Allowing.`);
                 return {
@@ -371,7 +383,7 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds, userEmail
         } else {
             // The plan has run out, but bought credits outlive a plan, so
             // check those before turning anyone away.
-            const boughtAfterExpiry = usableTopUpCredits(userProfile);
+            const boughtAfterExpiry = (balance ? spendable : usableTopUpCredits(userProfile));
             const neededAfterExpiry = Math.ceil(estimatedDurationSeconds / 60);
             if (boughtAfterExpiry >= neededAfterExpiry) {
               console.log(` plan expired but ${boughtAfterExpiry} bought credits cover ${neededAfterExpiry}. Allowing.`);
@@ -396,7 +408,7 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds, userEmail
       // Someone with no plan may still have bought credits, and those are
       // theirs to spend. This is checked BEFORE the free-trial rules, because
       // a client who has paid must never be told their free trial is over.
-      const boughtFree = usableTopUpCredits(userProfile);
+      const boughtFree = (balance ? spendable : usableTopUpCredits(userProfile));
       if (boughtFree >= estimatedDurationMinutes) {
         console.log(`No plan, but ${boughtFree} bought credits cover ${estimatedDurationMinutes}. Allowing.`);
         return {
@@ -436,7 +448,7 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds, userEmail
     }
     
     // Last chance: an unusual plan value, but bought credits are still valid.
-    const boughtLast = usableTopUpCredits(userProfile);
+    const boughtLast = (balance ? spendable : usableTopUpCredits(userProfile));
     const neededLast = Math.ceil(estimatedDurationSeconds / 60);
     if (boughtLast >= neededLast) {
       return {
