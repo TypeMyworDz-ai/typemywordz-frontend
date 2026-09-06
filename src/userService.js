@@ -306,6 +306,15 @@ export const canUserRecord = async (uid) => {
 // UPDATED: Check if user can transcribe with proper validation and automatic pricing redirect
 export const canUserTranscribe = async (uid, estimatedDurationSeconds, userEmail = null, creditBalance = null) => {
   try {
+    // A length we cannot trust must never be the reason someone is refused.
+    // Infinity used to arrive here from uploaded browser recordings and made
+    // every "do you have enough credits" comparison false. Treating it as one
+    // minute is safe: the server meters the real duration and charges that.
+    if (!Number.isFinite(estimatedDurationSeconds) || estimatedDurationSeconds <= 0) {
+      console.warn('canUserTranscribe: unusable duration', estimatedDurationSeconds,
+                   '- treating as one minute and letting the server meter it.');
+      estimatedDurationSeconds = 60;
+    }
     console.log("canUserTranscribe called with:", { uid, estimatedDurationSeconds, userEmail });
 
     // Ask the server what this account can spend. The browser used to work

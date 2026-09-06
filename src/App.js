@@ -447,7 +447,16 @@ function AppContent() {
       const audio = new Audio(); 
       audio.preload = 'metadata';
       audio.onloadedmetadata = async () => {
-        setAudioDuration(audio.duration);
+        // Only trust a real number. Files recorded in a browser carry no
+        // length in their header, so the browser reports Infinity for them.
+        // Storing that made the estimate Infinity, and since no balance is
+        // ever greater than Infinity, every credit check failed and the app
+        // told clients holding hundreds of credits that their free trial was
+        // over. Zero here means "unknown", and the size-based estimate below
+        // takes over.
+        setAudioDuration(
+          Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
+        );
         URL.revokeObjectURL(audio.src);
         console.log(`DEBUG: Audio metadata loaded. Duration: ${audio.duration} seconds.`);
         
@@ -689,20 +698,48 @@ function AppContent() {
   }, [isRecording]);
   // Improved cancel function with page refresh
   useEffect(() => {
+    // Recording is now Ctrl + Space + the right arrow. Three keys cannot
+    // arrive in one keypress, so we remember that Ctrl+Space is being held
+    // and fire when the right arrow is pressed on top of it. Space only
+    // counts while Ctrl is down, so ordinary typing can never arm this.
+    let spaceHeld = false;
+    const inTextField = (el) =>
+      !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+
     const onKey = (e) => {
-      if (!e.ctrlKey || !e.shiftKey || e.altKey) return;
-      const k = (e.key || '').toLowerCase();
-      if (k === 'r') {
+      if (e.altKey) return;
+      if (inTextField(e.target)) return;
+
+      if (e.code === 'Space' && e.ctrlKey) {
+        spaceHeld = true;
+        e.preventDefault();
+        return;
+      }
+
+      if (e.ctrlKey && spaceHeld && e.key === 'ArrowRight') {
         e.preventDefault();
         if (isRecording) stopRecording();
         else startRecording();
-      } else if (k === 'o') {
+        return;
+      }
+
+      if (e.ctrlKey && e.shiftKey && (e.key || '').toLowerCase() === 'o') {
         e.preventDefault();
         chooseFile();
       }
     };
+    // Let go of Space, or leave the window, and the combination disarms.
+    const onKeyUp = (e) => { if (e.code === 'Space' || !e.ctrlKey) spaceHeld = false; };
+    const onBlur = () => { spaceHeld = false; };
+
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
+    };
   }, [isRecording, startRecording, stopRecording, chooseFile]);
 
   const handleCancelUpload = useCallback(async () => {
@@ -773,7 +810,8 @@ function AppContent() {
 const handleTranscriptionComplete = useCallback(async (transcriptionText, completedJobId, segments = null) => {
   try {
     // FIX: Ensure selectedFile is not null before accessing its properties
-    const estimatedDuration = audioDuration || (selectedFile ? Math.max(60, selectedFile.size / 100000) : 0);
+    const knownDuration = Number.isFinite(audioDuration) && audioDuration > 0 ? audioDuration : 0;
+    const estimatedDuration = knownDuration || (selectedFile ? Math.max(60, selectedFile.size / 100000) : 0);
     
     console.log('DIAGNOSTIC: Before updateUserUsage - userProfile.totalMinutesUsed:', userProfile?.totalMinutesUsed);
     console.log('DIAGNOSTIC: Estimated duration for this transcription: ', estimatedDuration);
@@ -1034,7 +1072,11 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       return;
     }
 
-    const estimatedDuration = audioDuration || Math.max(60, selectedFile.size / 100000);
+    // Never let a non-finite length through. It used to reach the credit
+    // check as Infinity and block the job.
+    const knownUploadDuration =
+      Number.isFinite(audioDuration) && audioDuration > 0 ? audioDuration : 0;
+    const estimatedDuration = knownUploadDuration || Math.max(60, selectedFile.size / 100000);
     console.log('DEBUG: Estimated duration for upload:', estimatedDuration);
 
     setPlanBlock(null);
@@ -2012,8 +2054,8 @@ return (
 
                   <div className="tm-rec-hint">
                     {isRecording
-                      ? 'Press Ctrl and Shift and R to stop.'
-                      : 'Press Ctrl and Shift and R to start recording, or Ctrl and Shift and O to choose a file.'}
+                      ? 'Press Ctrl and Space and the right arrow to stop.'
+                      : 'Press Ctrl and Space and the right arrow to start recording, or Ctrl and Shift and O to choose a file.'}
                   </div>
 
                   {recordedAudioBlobRef.current && !isRecording && !takeSaved && (
