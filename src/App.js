@@ -132,6 +132,10 @@ function AppContent() {
   // asks first, because the wording is what stops the panic: the transcript
   // is already saved in My files.
   const [confirmingNew, setConfirmingNew] = useState(false);
+  // True when a transcript is sitting in the workspace but the client is
+  // looking at some other page. Used to point them back to it rather than
+  // letting them start again by mistake.
+  const workInProgress = !!transcription && currentView !== 'transcribe';
   const [audioDuration, setAudioDuration] = useState(0);
   const [isRecording, setIsRecording] = useState(false); // Corrected to boolean
   // What to do with a take once recording stops: the client is asked rather
@@ -1703,6 +1707,7 @@ return (
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M18.5 11.5v.5a6.5 6.5 0 0 1-13 0v-.5M12 18.5V22"/></svg>
               Transcribe
+              {workInProgress && <span className="tm-nav-open" title="A transcript is still open here">Open</span>}
             </button>
 
             <button
@@ -1798,6 +1803,26 @@ return (
           </aside>
 
           <main className="tm-main">
+
+        {/* A client who walks away from a finished transcript and then comes
+            back has no way of knowing it is still sitting under Transcribe.
+            Several of them clicked New transcription instead, which starts a
+            fresh job and looks like their work vanished. This says plainly
+            where the work is and offers one click back to it. */}
+        {workInProgress && (
+          <div className="tm-resume">
+            <span className="tm-resume-text">
+              Your transcript is still open. Nothing has been lost.
+            </span>
+            <button
+              type="button"
+              className="tm-resume-btn"
+              onClick={() => setCurrentView('transcribe')}
+            >
+              Go back to it
+            </button>
+          </div>
+        )}
 
         {/* UPDATED: AnimatedBroadcastBoard - moved to occupy the space where "Logged in as..." was, made larger and more beautiful */}
         {currentView === 'transcribe' && (
