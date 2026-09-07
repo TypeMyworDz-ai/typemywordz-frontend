@@ -3660,8 +3660,11 @@ body {
 
 /* Six plan cards across, filling the page, as asked. They only stack when
    there is genuinely not enough room. */
+/* The column count comes from the page, because the number of plan cards
+   depends on which price list the visitor is shown. Six is only the
+   fallback if nothing sets it. */
 .tm-pr-grid-six{
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--tm-pr-cols, 6), minmax(0, 1fr));
   gap: 12px;
 }
 .tm-pr-grid-six .tm-pr-card{ padding: 22px 15px 18px; }
