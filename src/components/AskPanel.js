@@ -34,6 +34,49 @@ const htmlToText = (html) => {
     .trim();
 };
 
+const TRANSCRIPT_SUGGESTIONS = [
+  {
+    label: 'Sort out the speakers',
+    prompt:
+      'Work out who is speaking where in this transcript and label the speakers correctly. '
+      + 'If you are not sure about a turn, say so rather than guessing.',
+  },
+  {
+    label: 'Take out the filler words',
+    prompt:
+      'Remove filler words and false starts such as uh, um, you know and I mean, without '
+      + 'changing anyone\'s meaning or wording otherwise.',
+  },
+  {
+    label: 'List the names and check the spellings',
+    prompt:
+      'List every proper noun in this transcript: people, places, organisations and products. '
+      + 'Give the correct spelling for each one, and mark any you are unsure about.',
+  },
+  {
+    label: 'Format it to my guidelines',
+    prompt:
+      'Format this transcript to the following guidelines, and follow them exactly:\n\n'
+      + '(replace this line with your guidelines)',
+  },
+  {
+    label: 'Summarise it',
+    prompt: 'Summarise this transcript in a short paragraph, then in five bullet points.',
+  },
+  {
+    label: 'Pull out the action points',
+    prompt:
+      'List the action points from this transcript. For each one, say who is responsible '
+      + 'and any deadline mentioned. If nobody was named, say so.',
+  },
+  {
+    label: 'Write it up as a report',
+    prompt:
+      'Turn this transcript into a written report with headings, in plain professional '
+      + 'English. Do not invent anything that was not said.',
+  },
+];
+
 const AskPanel = ({
   transcript = '',
   userPlan = 'free',
@@ -110,7 +153,8 @@ const AskPanel = ({
             compact
             placeholder="Ask about this transcript, or attach a file"
             emptyTitle="Ask about this transcript"
-            emptyHint="Try: summarise this, list the action points, who said what about the school, or tidy up the wording."
+            emptyHint="Ask anything about the words in front of you, or start with one of these."
+            suggestions={TRANSCRIPT_SUGGESTIONS}
           />
         </div>
       )}

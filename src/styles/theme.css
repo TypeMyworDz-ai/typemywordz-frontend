@@ -3223,6 +3223,84 @@ body {
   border-color:var(--tm-green-line); background:var(--tm-green-soft); color:var(--tm-green-dark);
 }
 
+/* The row of things you can do with a finished answer. */
+.tm-ask-acts{ display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+
+/* ---- Code in an answer ----------------------------------------------------
+   Coders paste these straight into an editor, so the block is monospaced,
+   never reflowed, and horizontally scrollable rather than wrapped, because a
+   wrapped line of code reads as two lines and hides real line breaks.        */
+.tm-ask-codeblock{
+  margin:12px 0; border:1px solid var(--tm-line); border-radius:var(--tm-radius);
+  overflow:hidden; background:var(--tm-surface);
+}
+.tm-ask-codebar{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:5px 8px 5px 11px; border-bottom:1px solid var(--tm-line); background:var(--tm-white);
+}
+.tm-ask-codelang{
+  font-size:.7rem; letter-spacing:.04em; text-transform:uppercase; color:var(--tm-faint);
+}
+.tm-ask-codecopy{
+  background:var(--tm-white); border:1px solid var(--tm-line); border-radius:var(--tm-radius);
+  color:var(--tm-muted); font:inherit; font-size:.72rem; padding:2px 8px; cursor:pointer;
+}
+.tm-ask-codecopy:hover{ border-color:var(--tm-green-line); color:var(--tm-green-dark); }
+.tm-ask-codecopy:focus, .tm-ask-codecopy:focus-visible{ outline:2px solid var(--tm-ink); }
+.tm-ask-pre{
+  margin:0; padding:11px 12px; overflow-x:auto;
+  font-family:Consolas,'SF Mono',Menlo,'Courier New',monospace;
+  font-size:.82rem; line-height:1.55; color:var(--tm-ink);
+  white-space:pre; tab-size:4;
+}
+.tm-ask-pre code{ font:inherit; background:none; padding:0; }
+
+/* ---- Suggested things to ask ----------------------------------------------
+   A blank box is the hardest question to answer. These are real jobs, not
+   decoration, so they read as buttons and drop into the box when clicked.    */
+.tm-ask-sugs{
+  list-style:none; margin:14px 0 0; padding:0;
+  display:flex; flex-wrap:wrap; gap:7px; justify-content:center;
+}
+.tm-ask-sug{
+  background:var(--tm-green-soft); border:1px solid var(--tm-green-line);
+  border-radius:999px; color:var(--tm-green-dark);
+  font:inherit; font-size:.8rem; padding:6px 13px; cursor:pointer; text-align:left;
+}
+.tm-ask-sug:hover{ background:var(--tm-green); color:var(--tm-white); border-color:var(--tm-green); }
+.tm-ask-sug:focus, .tm-ask-sug:focus-visible{ outline:2px solid var(--tm-ink); outline-offset:2px; }
+
+/* ---- One answer, in a wider panel ---------------------------------------- */
+.tm-ans-wrap{ position:fixed; inset:0; z-index:70; display:flex; justify-content:flex-end; }
+.tm-ans-scrim{
+  position:absolute; inset:0; border:0; padding:0; cursor:pointer;
+  background:rgba(20,22,26,.34);
+}
+.tm-ans{
+  position:relative; display:flex; flex-direction:column;
+  width:min(680px,100%); height:100%; background:var(--tm-white);
+  border-left:1px solid var(--tm-line); box-shadow:-8px 0 26px rgba(20,22,26,.13);
+}
+.tm-ans-head{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 16px; border-bottom:1px solid var(--tm-line); flex:0 0 auto;
+}
+.tm-ans-title{ font-weight:600; color:var(--tm-ink); }
+.tm-ans-close{
+  background:none; border:0; padding:5px; cursor:pointer; color:var(--tm-muted); line-height:0;
+}
+.tm-ans-close svg{ width:17px; height:17px; }
+.tm-ans-close:hover{ color:var(--tm-ink); }
+.tm-ans-close:focus, .tm-ans-close:focus-visible{ outline:2px solid var(--tm-ink); }
+.tm-ans-body{ flex:1 1 auto; overflow-y:auto; padding:18px 20px; line-height:1.65; }
+.tm-ans-foot{
+  flex:0 0 auto; padding:11px 16px; border-top:1px solid var(--tm-line); background:var(--tm-surface);
+}
+.tm-ans-foot .tm-ask-acts{ margin-top:0; }
+@media (max-width:700px){
+  .tm-ans{ width:100%; border-left:0; }
+}
+
 /* The mark sits at the right-hand end of the box, facing the plus button. */
 .tm-ask-rowmark{
   flex:0 0 auto; margin-bottom:9px; opacity:.32; pointer-events:none; user-select:none;
