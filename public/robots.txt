@@ -1,3 +1,15 @@
-# https://www.robotstxt.org/robotstxt.html
+# typemywordz.ai
+#
+# Everything a visitor can read without an account is open to crawlers.
+# The paths below are ruled out only because they need a sign-in and would
+# return the same empty shell to every crawler.
+
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /transcription/
+Disallow: /transcription-editor
+Disallow: /editor-demo
+
+Sitemap: https://typemywordz.ai/sitemap.xml
