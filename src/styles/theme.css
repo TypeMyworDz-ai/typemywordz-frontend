@@ -2588,6 +2588,26 @@ body {
 .tm-lp-readmore{ margin: 30px 0 0; color: var(--tm-muted); font-size: 0.92rem; line-height: 1.65; }
 .tm-lp-readmore a{ color: var(--tm-ink); text-decoration: underline; text-underline-offset: 2px; }
 
+/* Cost calculator call-out on the landing page. Green: it is an action the
+   visitor takes. Sits under the plans table where the price question arises. */
+.tm-lp-calc{ margin: 18px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.tm-lp-calc-link{
+  align-self: flex-start;
+  display: inline-block;
+  padding: 10px 16px;
+  border: 1px solid var(--tm-green-line);
+  border-radius: var(--tm-radius);
+  background: var(--tm-green-soft);
+  color: var(--tm-green-dark);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+}
+.tm-lp-calc-link:hover{ background: var(--tm-green); color: var(--tm-white); border-color: var(--tm-green); }
+.tm-lp-calc-link:focus,
+.tm-lp-calc-link:focus-visible{ outline: 2px solid var(--tm-ink); outline-offset: 2px; }
+.tm-lp-calc-note{ color: var(--tm-muted); font-size: 0.88rem; line-height: 1.6; }
+
 /* ---- Plans ---- */
 .tm-lp-plans{ width: 100%; border-collapse: collapse; font-size: 0.95rem; }
 .tm-lp-plans td{

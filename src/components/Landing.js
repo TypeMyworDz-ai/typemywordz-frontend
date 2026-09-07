@@ -280,8 +280,18 @@ const Landing = () => {
             </tbody>
           </table>
           <p className="tm-lp-readmore">
-            If you need more than your plan includes, you can add extra hours without changing plan. Prices depend on where you are, so that you pay in a currency and by a method that
-            works locally. Sign in to see the prices for your region.
+            If you need more than your plan includes, you can add extra hours without
+            changing plan. Prices, and which plans are offered, depend on where you are, so
+            that you pay in a currency and by a method that works locally.
+          </p>
+          <p className="tm-lp-calc">
+            <a className="tm-lp-calc-link" href="/cost-calculator.html">
+              Work out what your recording would cost
+            </a>
+            <span className="tm-lp-calc-note">
+              Enter the length of your audio and see the price for your region. No account
+              needed.
+            </span>
           </p>
         </div>
       </section>
@@ -304,6 +314,7 @@ const Landing = () => {
         <span>&copy; {new Date().getFullYear()} TypeMyworDz</span>
         <span className="tm-sitefoot-links">
           <Link to="/faq">Help and FAQ</Link>
+          <a href="/cost-calculator.html">What it costs</a>
           <Link to="/privacy-policy">Privacy &amp; Security</Link>
           <Link to="/terms">Terms of Service</Link>
           <Link to="/refund-policy">Refund Policy</Link>
