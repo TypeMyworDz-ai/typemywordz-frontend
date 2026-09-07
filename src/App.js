@@ -29,6 +29,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, Link } f
 import PrivacyPolicy from './components/PrivacyPolicy';
 import Faq from './components/Faq';
 import TermsOfService from './components/TermsOfService';
+import RefundPolicy from './components/RefundPolicy';
 import Landing from './components/Landing';
 import AnimatedBroadcastBoard from './components/AnimatedBroadcastBoard';
 import AskTypeMyworDz from './components/AskTypeMyworDz';
@@ -1513,6 +1514,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       <Routes>
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/refund-policy" element={<RefundPolicy />} />
         <Route path="/faq" element={<Faq />} />
         <Route path="*" element={<Landing />} />
       </Routes>
@@ -1525,6 +1527,7 @@ return (
     <Route path="/transcription-editor" element={<RichTextEditor />} />
     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
     <Route path="/terms" element={<TermsOfService />} />
+    <Route path="/refund-policy" element={<RefundPolicy />} />
     <Route path="/faq" element={<Faq />} />
     <Route path="/dashboard" element={
       <Dashboard setCurrentView={setCurrentView} standalone />

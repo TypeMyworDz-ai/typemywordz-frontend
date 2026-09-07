@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import LegalShell from './LegalShell';
 
 const SUPPORT_EMAIL = 'info@typemywordz.ai';
@@ -26,7 +27,8 @@ const TermsOfService = () => (
 
     <h2>1. Who we are</h2>
     <p>
-      TypeMyworDz is a speech-to-text service operated from Nairobi, Kenya. It converts audio and
+      TypeMyworDz is a speech-to-text service operated by <strong>James Gituku Njoki</strong>, a
+      sole proprietor based in Nairobi, Kenya. It converts audio and
       video into written transcripts, provides an editor for correcting them, and provides an AI
       assistant that can answer questions about them. You can reach us at{' '}
       <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
@@ -96,6 +98,10 @@ const TermsOfService = () => (
       or a transcript you are unhappy with purely on accuracy where the recording itself was very
       poor. That said, we would rather keep a client than win an argument, so if you think you have
       been treated unfairly, tell us and a person will look at it.
+    </p>
+    <p>
+      The full details, including how long a refund takes and how to cancel a renewing plan, are
+      on our <Link to="/refund-policy">Refund Policy</Link> page.
     </p>
 
     <h2>6. Your content, and what you promise us</h2>
