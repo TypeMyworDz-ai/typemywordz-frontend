@@ -175,6 +175,94 @@ export const buildSegments = (rawText, segments, duration) => {
   return { timing: canEstimate ? 'estimated' : 'none', segments: built };
 };
 
+// ----- editing: paragraphs and speaker tags ------------------------------
+
+// A fresh id for a line we are about to create. Ids only have to be unique
+// within the list, because that is all React needs to keep the rows apart.
+const freshId = (segments) => {
+  let max = -1;
+  segments.forEach((s) => {
+    const n = typeof s.id === 'number'
+      ? s.id
+      : parseInt(String(s.id).replace(/[^0-9]/g, ''), 10);
+    if (Number.isFinite(n) && n > max) max = n;
+  });
+  return max + 1;
+};
+
+// Split one line in two at the cursor, so a paragraph can be started exactly
+// where the speech moves on. The times are shared out by how much of the text
+// lands on each side, which keeps the running order sensible. Returns null
+// when there is nothing to split, so the caller can fall back to its normal
+// behaviour rather than creating an empty line.
+export const splitSegmentAt = (segments, index, caret, value) => {
+  const seg = segments[index];
+  if (!seg) return null;
+  const whole = String(value === undefined || value === null ? seg.text : value);
+  const at = Math.max(0, Math.min(Number(caret) || 0, whole.length));
+  const head = whole.slice(0, at).replace(/\s+/g, ' ').trim();
+  const tail = whole.slice(at).replace(/\s+/g, ' ').trim();
+  if (!head || !tail) return null;
+  const start = Number(seg.start) || 0;
+  const end = Number(seg.end) || 0;
+  const span = end > start ? end - start : 0;
+  const mid = span > 0
+    ? Math.round((start + span * (head.length / (head.length + tail.length))) * 100) / 100
+    : start;
+  const next = segments.slice();
+  next.splice(index, 1,
+    { ...seg, text: head, end: mid },
+    { ...seg, id: freshId(segments), text: tail, start: mid, confidence: null }
+  );
+  return next;
+};
+
+// Which label a line should take when it becomes a new speaker turn. On a
+// transcript that already names its speakers we rotate through those names,
+// because a conversation almost always goes back and forth. Only when the
+// rotation would land back on the same person do we invent a new name.
+export const nextSpeakerLabel = (segments, index) => {
+  const order = [];
+  segments.forEach((s) => {
+    if (s.speaker && order.indexOf(s.speaker) === -1) order.push(s.speaker);
+  });
+  const prev = (segments[index] || {}).speaker || null;
+  if (order.length === 0) return 'Speaker 2';
+  if (!prev) return order[0];
+  const candidate = order[(order.indexOf(prev) + 1) % order.length];
+  if (candidate && candidate !== prev) return candidate;
+  let max = 0;
+  order.forEach((l) => {
+    const n = parseInt(String(l).replace(/[^0-9]/g, ''), 10);
+    if (Number.isFinite(n) && n > max) max = n;
+  });
+  return 'Speaker ' + (max + 1);
+};
+
+// Turn a line into the start of a new speaker turn. A speaker tag starts a
+// run, so the new name carries on down the transcript until the first line
+// that already belonged to somebody else. On a transcript with no names at
+// all, everything above becomes Speaker 1, so the result still reads as a
+// proper conversation rather than one tagged line in a sea of untagged ones.
+export const startSpeakerTurn = (segments, index, label) => {
+  const seg = segments[index];
+  if (!seg) return segments;
+  const speaker = label || nextSpeakerLabel(segments, index);
+  const was = seg.speaker || null;
+  if (speaker === was) return segments;
+  const hadNone = segments.every((s) => !s.speaker);
+  const next = segments.slice();
+  if (hadNone) {
+    for (let i = 0; i < index; i += 1) next[i] = { ...next[i], speaker: 'Speaker 1' };
+  }
+  next[index] = { ...next[index], speaker };
+  for (let i = index + 1; i < next.length; i += 1) {
+    if ((next[i].speaker || null) !== was) break;
+    next[i] = { ...next[i], speaker };
+  }
+  return next;
+};
+
 // ----- segments -> text --------------------------------------------------
 
 // Rebuild the stored HTML from the segments, so edits round-trip back into
