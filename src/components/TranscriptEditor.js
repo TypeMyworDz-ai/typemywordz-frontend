@@ -344,29 +344,32 @@ const TranscriptEditor = ({
       const value = e.target.value;
       const caret = e.target.selectionStart;
 
+      // Work the new list out here and now rather than inside a state
+      // updater. React is free to run an updater later, during the next
+      // render, so anything decided in there is not reliably known yet.
+      // Getting that wrong made this whole gesture fall through to the
+      // old behaviour on the first live test.
+
       // Enter again, straight away, on a line that was only just split off:
       // that is the client saying this is somebody else talking.
       if (freshSplit === index && caret === 0) {
-        setSegments((prev) => {
-          const next = startSpeakerTurn(prev, index);
-          if (next === prev) return prev;
+        const turned = startSpeakerTurn(segments, index);
+        if (turned !== segments) {
+          setSegments(turned);
           setDirty(true);
-          return next;
-        });
+        }
         setFreshSplit(-1);
         return;
       }
 
       // Enter in the middle of a line starts a new paragraph right there.
-      let didSplit = false;
-      setSegments((prev) => {
-        const next = splitSegmentAt(prev, index, caret, value);
-        if (!next) return prev;
-        didSplit = true;
+      const split = splitSegmentAt(segments, index, caret, value);
+      if (split) {
+        // This box is about to lose focus, and its own blur handler would
+        // otherwise write the whole uncut line back over the first half.
+        e.target.value = split[index].text;
+        setSegments(split);
         setDirty(true);
-        return next;
-      });
-      if (didSplit) {
         setEditingIndex(index + 1);
         setFreshSplit(index + 1);
         return;
@@ -375,10 +378,7 @@ const TranscriptEditor = ({
       // Otherwise it behaves the way it always has: move on to the next line.
       setFreshSplit(-1);
       commit(index, value);
-      setSegments((prev) => {
-        if (index + 1 < prev.length) setEditingIndex(index + 1);
-        return prev;
-      });
+      if (index + 1 < segments.length) setEditingIndex(index + 1);
       return;
     }
     if (e.key === 'Tab') {
@@ -388,7 +388,7 @@ const TranscriptEditor = ({
       const next = e.shiftKey ? index - 1 : index + 1;
       if (next >= 0 && next < segments.length) setEditingIndex(next);
     }
-  }, [commit, segments.length, freshSplit]);
+  }, [commit, segments, freshSplit]);
 
   // Same job as the double Enter, for anyone who would rather use a button.
   const newSpeakerHere = useCallback(() => {
