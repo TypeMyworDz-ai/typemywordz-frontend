@@ -306,6 +306,7 @@ const Landing = () => {
           <Link to="/faq">Help and FAQ</Link>
           <Link to="/privacy-policy">Privacy &amp; Security</Link>
           <Link to="/terms">Terms of Service</Link>
+          <Link to="/refund-policy">Refund Policy</Link>
         </span>
       </footer>
     </div>

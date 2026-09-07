@@ -40,6 +40,13 @@ const LegalShell = ({ title, updated, children }) => {
               Terms of Service
             </Link>
             <Link
+              to="/refund-policy"
+              className="tm-legal-tab"
+              aria-current={pathname === '/refund-policy' ? 'page' : undefined}
+            >
+              Refund Policy
+            </Link>
+            <Link
               to="/faq"
               className="tm-legal-tab"
               aria-current={pathname === '/faq' ? 'page' : undefined}
@@ -62,6 +69,8 @@ const LegalShell = ({ title, updated, children }) => {
             <Link to="/privacy-policy">Privacy &amp; Security</Link>
             {'  '}&middot;{'  '}
             <Link to="/terms">Terms of Service</Link>
+            {'  '}&middot;{'  '}
+            <Link to="/refund-policy">Refund Policy</Link>
             {'  '}&middot;{'  '}
             <Link to="/faq">Help and FAQ</Link>
             {'  '}&middot;{'  '}
