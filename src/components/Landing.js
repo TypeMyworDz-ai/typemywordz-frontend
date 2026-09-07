@@ -124,6 +124,18 @@ const Landing = () => {
             <li>The leading AI models, without a separate subscription for each</li>
             <li>Your recordings and your questions are never used to train AI</li>
           </ul>
+
+          {/* Above the fold on purpose: a visitor can price their own
+              recording before they scroll, and without an account. */}
+          <p className="tm-lp-calc">
+            <a className="tm-lp-calc-link" href="/cost-calculator.html">
+              Work out what your recording would cost
+            </a>
+            <span className="tm-lp-calc-note">
+              Enter the length of your audio and see the price for your region.
+              No account needed.
+            </span>
+          </p>
         </div>
 
         <div className="tm-lp-hero-card">
