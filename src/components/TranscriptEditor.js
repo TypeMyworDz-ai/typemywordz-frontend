@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import {
   buildSegments, segmentsToHtml, copyFromSegments, COPY_MODES,
-  formatTime, speakersIn, countWords, isUncertain, toSrt, toVtt
+  formatTime, speakersIn, countWords, isUncertain, toSrt, toVtt,
+  splitSegmentAt, startSpeakerTurn
 } from '../lib/transcript';
 
 // ---------------------------------------------------------------------------
@@ -53,7 +54,7 @@ const writeLS = (key, value) => {
 
 const Segment = memo(function Segment({
   seg, index, isActive, isEditing, showTimes, approximate, speakerNames,
-  onSeek, onEdit, onCommit, onEditKeyDown, highlight, activeHit
+  onSeek, onEdit, onCommit, onEditKeyDown, highlight, activeHit, caretAtStart
 }) {
   const areaRef = useRef(null);
 
@@ -63,9 +64,10 @@ const Segment = memo(function Segment({
       el.focus();
       el.style.height = 'auto';
       el.style.height = el.scrollHeight + 'px';
-      el.setSelectionRange(el.value.length, el.value.length);
+      if (caretAtStart) el.setSelectionRange(0, 0);
+      else el.setSelectionRange(el.value.length, el.value.length);
     }
-  }, [isEditing]);
+  }, [isEditing, caretAtStart]);
 
   const uncertain = isUncertain(seg);
   const name = seg.speaker ? (speakerNames[seg.speaker] || seg.speaker) : null;
@@ -205,6 +207,9 @@ const TranscriptEditor = ({
   const [timing, setTiming] = useState(initial.timing);
   const [speakerNames, setSpeakerNames] = useState({});
   const [editingIndex, setEditingIndex] = useState(null);
+  // The line that was just split off, so a second Enter can turn it into a
+  // new speaker turn instead of jumping on to the line below.
+  const [freshSplit, setFreshSplit] = useState(-1);
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState('idle'); // idle | saving | saved | error
 
@@ -334,11 +339,42 @@ const TranscriptEditor = ({
       setEditingIndex(null);
       return;
     }
-    // Enter moves on to the next line, the way a data grid behaves.
-    // Shift+Enter puts in a genuine line break.
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      commit(index, e.target.value);
+      const value = e.target.value;
+      const caret = e.target.selectionStart;
+
+      // Enter again, straight away, on a line that was only just split off:
+      // that is the client saying this is somebody else talking.
+      if (freshSplit === index && caret === 0) {
+        setSegments((prev) => {
+          const next = startSpeakerTurn(prev, index);
+          if (next === prev) return prev;
+          setDirty(true);
+          return next;
+        });
+        setFreshSplit(-1);
+        return;
+      }
+
+      // Enter in the middle of a line starts a new paragraph right there.
+      let didSplit = false;
+      setSegments((prev) => {
+        const next = splitSegmentAt(prev, index, caret, value);
+        if (!next) return prev;
+        didSplit = true;
+        setDirty(true);
+        return next;
+      });
+      if (didSplit) {
+        setEditingIndex(index + 1);
+        setFreshSplit(index + 1);
+        return;
+      }
+
+      // Otherwise it behaves the way it always has: move on to the next line.
+      setFreshSplit(-1);
+      commit(index, value);
       setSegments((prev) => {
         if (index + 1 < prev.length) setEditingIndex(index + 1);
         return prev;
@@ -347,11 +383,25 @@ const TranscriptEditor = ({
     }
     if (e.key === 'Tab') {
       e.preventDefault();
+      setFreshSplit(-1);
       commit(index, e.target.value);
       const next = e.shiftKey ? index - 1 : index + 1;
       if (next >= 0 && next < segments.length) setEditingIndex(next);
     }
-  }, [commit, segments.length]);
+  }, [commit, segments.length, freshSplit]);
+
+  // Same job as the double Enter, for anyone who would rather use a button.
+  const newSpeakerHere = useCallback(() => {
+    const at = editingIndex !== null ? editingIndex : activeIndex;
+    if (at === null || at < 0) return;
+    setSegments((prev) => {
+      const next = startSpeakerTurn(prev, at);
+      if (next === prev) return prev;
+      setDirty(true);
+      return next;
+    });
+    setFreshSplit(-1);
+  }, [editingIndex, activeIndex]);
 
   // ---- saving ----
   const save = useCallback(async () => {
@@ -876,6 +926,16 @@ const TranscriptEditor = ({
           </button>
         )}
 
+        <button type="button" className="tm-ed-tool"
+                disabled={editingIndex === null && activeIndex < 0}
+                title={
+                  'Mark the line you are on as somebody new talking. ' +
+                  'You can also press Enter twice while correcting a line.'
+                }
+                onClick={newSpeakerHere}>
+          New speaker here
+        </button>
+
         <button type="button" className="tm-ed-tool" onClick={() => {
           setFindOpen((o) => !o);
           setTimeout(() => findRef.current && findRef.current.focus(), 30);
@@ -943,6 +1003,7 @@ const TranscriptEditor = ({
             onEdit={setEditingIndex}
             onCommit={commit}
             onEditKeyDown={onEditKeyDown}
+            caretAtStart={freshSplit === i}
           />
         ))}
       </div>
@@ -969,7 +1030,12 @@ const TranscriptEditor = ({
       </div>
 
       <div className="tm-ed-foot">
-        <span>Click any line to correct it. Enter moves to the next line.</span>
+        <span>
+          Click any line to correct it. Enter at the end of a line moves on to
+          the next one. Enter in the middle of a line starts a new paragraph
+          there, and pressing Enter again straight away marks it as a new
+          speaker. Shift and Enter puts in a plain line break.
+        </span>
         {audioUrl && (
           <span>
             <b>Ctrl+Space</b> play or pause &nbsp;·&nbsp;
