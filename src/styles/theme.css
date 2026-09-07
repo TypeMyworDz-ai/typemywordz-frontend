@@ -3780,3 +3780,54 @@ body {
   color: var(--tm-purple);
   margin: 0 0 6px;
 }
+
+
+/* ---- "your transcript is still open" -------------------------------------
+   Shown on every page except the workspace itself, so a client who navigated
+   away can get back to unfinished work in one click instead of starting a new
+   job and thinking the old one disappeared. */
+.tm-resume {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 14px 20px 0;
+  padding: 11px 14px;
+  background: var(--tm-green-soft);
+  border: 1px solid var(--tm-green-line);
+  border-radius: var(--tm-radius);
+}
+.tm-resume-text {
+  flex: 1 1 auto;
+  font-size: 14px;
+  color: var(--tm-ink);
+}
+.tm-resume-btn {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tm-white);
+  background: var(--tm-green);
+  border: 0;
+  border-radius: var(--tm-radius);
+  padding: 7px 14px;
+  cursor: pointer;
+}
+.tm-resume-btn:hover { background: var(--tm-green-dark); }
+.tm-resume-btn:focus,
+.tm-resume-btn:focus-visible { outline: 2px solid var(--tm-ink); outline-offset: 1px; }
+
+/* The same signal in the sidebar, so the marker and the page agree. */
+.tm-nav-open {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--tm-green);
+  background: var(--tm-green-soft);
+  border: 1px solid var(--tm-green-line);
+  border-radius: 20px;
+  padding: 1px 7px;
+}
