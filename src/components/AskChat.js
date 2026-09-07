@@ -51,6 +51,8 @@ export const parseAnswer = (text) => {
   const blocks = [];
   let para = [];
   let list = null;
+  // Inside a fenced block every line is taken literally.
+  let fence = null;
   const flushP = () => {
     if (para.length) {
       blocks.push({ type: 'p', lines: para });
@@ -65,6 +67,27 @@ export const parseAnswer = (text) => {
   };
   for (const raw of lines) {
     const line = raw.trimEnd();
+
+    // A fence opens with ``` and optionally names the language. Everything up
+    // to the closing fence is kept byte for byte, including blank lines and
+    // indentation, because code that has been reflowed is code that is broken.
+    const fenceMark = line.match(/^\s*```+\s*([A-Za-z0-9+#._-]*)\s*$/);
+    if (fence) {
+      if (fenceMark) {
+        blocks.push({ type: 'code', lang: fence.lang, code: fence.lines.join('\n') });
+        fence = null;
+      } else {
+        fence.lines.push(raw);
+      }
+      continue;
+    }
+    if (fenceMark) {
+      flushP();
+      flushL();
+      fence = { lang: fenceMark[1] || '', lines: [] };
+      continue;
+    }
+
     if (!line.trim()) {
       flushP();
       flushL();
@@ -108,6 +131,9 @@ export const parseAnswer = (text) => {
   }
   flushP();
   flushL();
+  // The model sometimes stops before closing a fence. Keep what we have
+  // rather than silently dropping the end of the answer.
+  if (fence) blocks.push({ type: 'code', lang: fence.lang, code: fence.lines.join('\n') });
   return blocks;
 };
 
@@ -122,9 +148,44 @@ const Runs = ({ text }) => (
   </>
 );
 
+// A block of code. Copying it puts the raw text on the clipboard and nothing
+// else: code pasted as rich text arrives in an editor with the wrong quotes
+// and the wrong spacing, which is worse than useless.
+const CodeBlock = ({ lang, code }) => {
+  const [done, setDone] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setDone(true);
+      window.setTimeout(() => setDone(false), 1600);
+    } catch (e) {
+      /* the button simply does not confirm */
+    }
+  };
+  return (
+    <div className="tm-ask-codeblock">
+      <div className="tm-ask-codebar">
+        <span className="tm-ask-codelang">{lang || 'code'}</span>
+        <button
+          type="button"
+          className={'tm-ask-codecopy' + (done ? ' tm-ask-copy-done' : '')}
+          onClick={copy}
+          title="Copy this code exactly as it is"
+        >
+          {done ? 'Copied' : 'Copy code'}
+        </button>
+      </div>
+      <pre className="tm-ask-pre"><code>{code}</code></pre>
+    </div>
+  );
+};
+
 const Answer = ({ text }) => (
   <>
     {parseAnswer(text).map((b, i) => {
+      if (b.type === 'code') {
+        return <CodeBlock key={i} lang={b.lang} code={b.code} />;
+      }
       if (b.type === 'h') {
         return (
           <p key={i} className="tm-ask-h">
@@ -230,6 +291,14 @@ const runsToHtml = (text) =>
 
 export const answerToHtml = (text) => {
   const parts = parseAnswer(text).map((b) => {
+    if (b.type === 'code') {
+      return (
+        '<pre style="font-family:Consolas,\'Courier New\',monospace;font-size:10pt;' +
+        'background:#f6f6f7;border:1px solid #e5e6ea;padding:10px;white-space:pre-wrap">' +
+        esc(b.code) +
+        '</pre>'
+      );
+    }
     if (b.type === 'h') return '<h3>' + runsToHtml(b.text) + '</h3>';
     if (b.type === 'ul') return '<ul>' + b.items.map((i) => '<li>' + runsToHtml(i) + '</li>').join('') + '</ul>';
     if (b.type === 'ol') return '<ol>' + b.items.map((i) => '<li>' + runsToHtml(i) + '</li>').join('') + '</ol>';
@@ -246,12 +315,54 @@ export const answerToText = (text) => {
   const strip = (t) => parseInline(t).map((r) => r.text).join('');
   return parseAnswer(text)
     .map((b) => {
+      if (b.type === 'code') return b.code;
       if (b.type === 'h') return strip(b.text);
       if (b.type === 'ul') return b.items.map((i) => '\u2022 ' + strip(i)).join('\n');
       if (b.type === 'ol') return b.items.map((i, n) => n + 1 + '. ' + strip(i)).join('\n');
       return b.lines.map(strip).join('\n');
     })
     .join('\n\n');
+};
+
+// A Word document holding just this answer. This is the same wrapper the
+// transcript export uses, so an answer and a transcript open the same way.
+export const answerToDoc = (text, title) => {
+  const heading = title ? '<h2>' + esc(title) + '</h2>' : '';
+  return (
+    '<html xmlns:o="urn:schemas-microsoft-com:office:office" ' +
+    'xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
+    '<head><meta charset="utf-8"><title>' + esc(title || 'Answer') + '</title></head><body>' +
+    heading + answerToHtml(text) + '</body></html>'
+  );
+};
+
+// A sensible file name: the first few words of the answer, so a folder full of
+// saved answers is still readable a week later.
+const answerFileName = (text) => {
+  const first = answerToText(text)
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => l.length > 0) || 'answer';
+  const clean = first
+    .replace(/[^A-Za-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .slice(0, 8)
+    .join(' ');
+  return (clean || 'answer').slice(0, 60);
+};
+
+const saveFile = (content, extension, type, name) => {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name + '.' + extension;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 };
 
 // Copy the answer, keeping its formatting for Word.
@@ -310,6 +421,77 @@ const CopyAnswer = ({ text }) => {
   );
 };
 
+// Everything you can do with a finished answer: copy it with its formatting,
+// save it as a Word document or as plain text, or open it in a wider panel to
+// read properly. Green, because each one is an action the client takes.
+const AnswerActions = ({ text, onOpen }) => {
+  const name = answerFileName(text);
+  return (
+    <div className="tm-ask-acts">
+      <CopyAnswer text={text} />
+      <button
+        type="button"
+        className="tm-ask-copy"
+        onClick={() => saveFile(answerToDoc(text, null), 'doc', 'application/msword', name)}
+        title="Save this answer as a Word document"
+      >
+        Word
+      </button>
+      <button
+        type="button"
+        className="tm-ask-copy"
+        onClick={() => saveFile(answerToText(text), 'txt', 'text/plain;charset=utf-8', name)}
+        title="Save this answer as a plain text file"
+      >
+        Text
+      </button>
+      {onOpen && (
+        <button
+          type="button"
+          className="tm-ask-copy"
+          onClick={onOpen}
+          title="Open this answer in a wider panel"
+        >
+          Open
+        </button>
+      )}
+    </div>
+  );
+};
+
+// A wider panel for one answer, for when the reply is long enough that reading
+// it in a narrow column beside a transcript is a chore. The same copy and save
+// buttons are here, so a client never has to go back to find them.
+const AnswerPanel = ({ text, onClose }) => {
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div className="tm-ans-wrap" role="dialog" aria-label="Answer">
+      <button type="button" className="tm-ans-scrim" aria-label="Close" onClick={onClose} />
+      <aside className="tm-ans">
+        <div className="tm-ans-head">
+          <span className="tm-ans-title">Answer</span>
+          <button type="button" className="tm-ans-close" onClick={onClose} aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                 strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </div>
+        <div className="tm-ans-body">
+          <Answer text={text} />
+        </div>
+        <div className="tm-ans-foot">
+          <AnswerActions text={text} />
+        </div>
+      </aside>
+    </div>
+  );
+};
+
 // The assistant signs its answers with the logo rather than its name in
 // writing. Clients recognise the mark, and it stops the same word appearing
 // twice on every screen.
@@ -343,8 +525,10 @@ const AskChat = ({
   compact = false,
   emptyTitle = 'Ask TypeMyworDz',
   emptyHint = 'Ask a question, paste something in, or attach an image, PDF or Word document.',
+  suggestions = [],
 }) => {
   const [draft, setDraft] = useState('');
+  const [openAnswer, setOpenAnswer] = useState(null);
   const [files, setFiles] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -453,11 +637,30 @@ const AskChat = ({
 
   return (
     <div className={'tm-ask' + (compact ? ' tm-ask-compact' : '')}>
+      {openAnswer !== null && (
+        <AnswerPanel text={openAnswer} onClose={() => setOpenAnswer(null)} />
+      )}
       <div className="tm-ask-thread">
         {messages.length === 0 && !busy && (
           <div className="tm-ask-empty">
             <div className="tm-ask-empty-title">{emptyTitle}</div>
             <p className="tm-ask-empty-hint">{emptyHint}</p>
+            {suggestions.length > 0 && (
+              <ol className="tm-ask-sugs">
+                {suggestions.map((sg, si) => (
+                  <li key={si}>
+                    <button
+                      type="button"
+                      className="tm-ask-sug"
+                      onClick={() => setDraft(sg.prompt)}
+                      title="Put this in the box, then change it however you like"
+                    >
+                      {sg.label}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            )}
           </div>
         )}
 
@@ -470,9 +673,7 @@ const AskChat = ({
               {m.role === 'assistant' ? (
                 <>
                   <Answer text={m.content} />
-                  <div className="tm-ask-acts">
-                    <CopyAnswer text={m.content} />
-                  </div>
+                  <AnswerActions text={m.content} onOpen={() => setOpenAnswer(m.content)} />
                 </>
               ) : (
                 <p className="tm-ask-p">{m.content}</p>
