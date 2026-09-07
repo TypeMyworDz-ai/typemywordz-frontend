@@ -180,6 +180,13 @@ const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => 
   }
 
   // ----- The plans page ---------------------------------------------------
+  //
+  // How many columns the grid needs is not a constant. There is one free
+  // card plus one card per plan this visitor is actually offered, and that
+  // differs by region, so hard-coding six left an empty column and a row of
+  // cards shoved to one side for anyone outside Africa.
+  const cardCount = 1 + (Array.isArray(plans) ? plans.length : 0);
+
   return (
     <Shell title={heading}>
       <p className="tm-pr-lede">
@@ -194,7 +201,7 @@ const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => 
         </button>
       </p>
 
-      <div className="tm-pr-grid tm-pr-grid-six">
+      <div className="tm-pr-grid tm-pr-grid-six" style={{ '--tm-pr-cols': cardCount }}>
         {/* The free card. A price list with no zero on it looks like it is
             hiding something, and new visitors want to know what they get
             before handing anything over. */}
