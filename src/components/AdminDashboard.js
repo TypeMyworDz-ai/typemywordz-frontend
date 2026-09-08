@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import {
+  fetchAllUsers,
   getMonthlyRevenue,
   markFeedbackRead,
 } from '../userService';
@@ -110,46 +111,29 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
     if (!currentUser?.email || !isAdminEmail(currentUser.email)) return;
     setRefreshing(true);
     try {
-      // Read each collection once. The previous implementation called
-      // fetchAllUsers(), which fetched every transcription, and then fetched
-      // every transcription again for the dashboard totals.
-      const [rawUsers, transcriptions, feedbackRows, trafficRows, revenue] = await Promise.all([
-        readCollection('users'),
-        readCollection('transcriptions'),
+      // Use the established user loader for the account list and its already
+      // aggregated transcription totals. A raw top-level history read can
+      // remain pending on some Firebase sessions, which used to strand the
+      // whole dashboard in Refreshing.
+      const [rawUsers, feedbackRows, trafficRows, revenue] = await Promise.all([
+        fetchAllUsers(),
         readCollection('feedback'),
         readCollection('trafficEvents'),
         getMonthlyRevenue(),
       ]);
 
-      const transcriptionStats = transcriptions.reduce((byUser, item) => {
-        const key = item.userId;
-        if (!key) return byUser;
-        if (!byUser[key]) byUser[key] = { totalMinutesTranscribed: 0, totalTranscripts: 0 };
-        const seconds = Number(item.duration);
-        if (Number.isFinite(seconds) && seconds > 0) {
-          byUser[key].totalMinutesTranscribed += Math.ceil(seconds / 60);
-        }
-        byUser[key].totalTranscripts += 1;
-        return byUser;
-      }, {});
-
       const enrichedUsers = await Promise.all(rawUsers.map(async (user) => {
-        const totals = transcriptionStats[user.uid || user.id] || { totalMinutesTranscribed: 0, totalTranscripts: 0 };
         const balance = await readBalanceSafely(user.uid || user.id, user.email);
-        return {
-          ...user,
-          balance,
-          totalMinutesTranscribedByUser: totals.totalMinutesTranscribed,
-          totalTranscriptsByUser: totals.totalTranscripts,
-        };
+        return { ...user, balance };
       }));
 
       const now = new Date();
       const oneWeekAgo = new Date(now.getTime() - 7 * 86400000);
-      const totalMinutes = transcriptions.reduce((total, item) => {
-        const seconds = Number(item.duration);
-        return Number.isFinite(seconds) && seconds > 0 ? total + Math.ceil(seconds / 60) : total;
+      const totalMinutes = enrichedUsers.reduce((total, user) => {
+        const minutes = Number(user.totalMinutesTranscribedByUser);
+        return Number.isFinite(minutes) && minutes > 0 ? total + minutes : total;
       }, 0);
+      const totalTranscriptions = enrichedUsers.reduce((total, user) => total + (Number(user.totalTranscriptsByUser) || 0), 0);
 
       setUsers(enrichedUsers);
       setFeedback(feedbackRows.sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0)));
@@ -158,7 +142,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
         totalUsers: enrichedUsers.length,
         activeUsers: enrichedUsers.filter((user) => (toDate(user.lastAccessed)?.getTime() || 0) >= oneWeekAgo.getTime()).length,
         activePaidUsers: enrichedUsers.filter((user) => user.balance?.planActive || isOnCreditsOnly(user.balance, user) || isAdminEmail(user.email) || isCompAccessEmail(user.email)).length,
-        totalTranscriptions: transcriptions.length,
+        totalTranscriptions,
         totalMinutesTranscribed: totalMinutes,
         recentRevenue: finiteNumber(revenue),
       });
