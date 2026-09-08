@@ -65,11 +65,21 @@ const readBalanceSafely = async (uid, email) => {
   return Promise.race([fetchCreditBalance(uid, email), timeout]);
 };
 
-const loadUsersSafely = async () => {
+const loadUsersSafely = async (currentUser) => {
   const timeout = (promise, fallback, ms = 12000) => Promise.race([
     promise.catch(() => fallback),
     new Promise((resolve) => setTimeout(() => resolve(fallback), ms)),
   ]);
+  const backendUsers = await timeout((async () => {
+    const token = await currentUser.getIdToken();
+    const response = await fetch(`${BACKEND_URL}/api/admin/users`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    return Array.isArray(payload.users) ? payload.users : null;
+  })(), null);
+  if (Array.isArray(backendUsers)) return backendUsers;
   const aggregated = await timeout(fetchAllUsers(), null);
   if (Array.isArray(aggregated)) return aggregated;
   return timeout(readCollection('users'), [], 12000);
@@ -121,12 +131,10 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
     if (!currentUser?.email || !isAdminEmail(currentUser.email)) return;
     setRefreshing(true);
     try {
-      // Use the established user loader for the account list and its already
-      // aggregated transcription totals. A raw top-level history read can
-      // remain pending on some Firebase sessions, which used to strand the
-      // whole dashboard in Refreshing.
+      // Use the protected backend snapshot for privileged account data. A raw
+      // top-level browser history read can remain pending on some sessions.
       const [rawUsers, feedbackRows, trafficRows, revenue] = await Promise.all([
-        loadUsersSafely(),
+        loadUsersSafely(currentUser),
         readCollection('feedback'),
         readCollection('trafficEvents'),
         getMonthlyRevenue(),
