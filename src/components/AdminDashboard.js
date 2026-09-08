@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  fetchAllUsers,
   getMonthlyRevenue,
   markFeedbackRead,
 } from '../userService';
@@ -57,6 +56,14 @@ const readCollection = async (name) => {
   }
 };
 
+// A slow credit service must not hold the entire admin page hostage. The
+// balance is helpful context, but the dashboard can still show the account
+// and its Firestore history when the service is temporarily unavailable.
+const readBalanceSafely = async (uid, email) => {
+  const timeout = new Promise((resolve) => setTimeout(() => resolve(null), 7000));
+  return Promise.race([fetchCreditBalance(uid, email), timeout]);
+};
+
 const accessLabel = (user) => {
   if (isAdminEmail(user.email)) return { text: 'Admin access', tone: 'ai' };
   if (isCompAccessEmail(user.email)) return { text: 'Complimentary', tone: 'ai' };
@@ -103,17 +110,38 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
     if (!currentUser?.email || !isAdminEmail(currentUser.email)) return;
     setRefreshing(true);
     try {
+      // Read each collection once. The previous implementation called
+      // fetchAllUsers(), which fetched every transcription, and then fetched
+      // every transcription again for the dashboard totals.
       const [rawUsers, transcriptions, feedbackRows, trafficRows, revenue] = await Promise.all([
-        fetchAllUsers(),
+        readCollection('users'),
         readCollection('transcriptions'),
         readCollection('feedback'),
         readCollection('trafficEvents'),
         getMonthlyRevenue(),
       ]);
 
+      const transcriptionStats = transcriptions.reduce((byUser, item) => {
+        const key = item.userId;
+        if (!key) return byUser;
+        if (!byUser[key]) byUser[key] = { totalMinutesTranscribed: 0, totalTranscripts: 0 };
+        const seconds = Number(item.duration);
+        if (Number.isFinite(seconds) && seconds > 0) {
+          byUser[key].totalMinutesTranscribed += Math.ceil(seconds / 60);
+        }
+        byUser[key].totalTranscripts += 1;
+        return byUser;
+      }, {});
+
       const enrichedUsers = await Promise.all(rawUsers.map(async (user) => {
-        const balance = await fetchCreditBalance(user.uid || user.id, user.email);
-        return { ...user, balance };
+        const totals = transcriptionStats[user.uid || user.id] || { totalMinutesTranscribed: 0, totalTranscripts: 0 };
+        const balance = await readBalanceSafely(user.uid || user.id, user.email);
+        return {
+          ...user,
+          balance,
+          totalMinutesTranscribedByUser: totals.totalMinutesTranscribed,
+          totalTranscriptsByUser: totals.totalTranscripts,
+        };
       }));
 
       const now = new Date();
