@@ -105,14 +105,6 @@ const Landing = () => {
           <Link className="menu-item" to="/faq">
             <span className="menu-text">Help and FAQ</span>
           </Link>
-          <a
-            className="menu-item"
-            href="https://wa.me/254739776294?text=Hello%20TypeMyworDz%2C%20I%20need%20help%20with%20the%20app."
-            target="_blank"
-            rel="noreferrer"
-          >
-            <span className="menu-text">WhatsApp</span>
-          </a>
           <Link className="menu-item" to="/privacy-policy">
             <span className="menu-text">Legal</span>
           </Link>
@@ -345,7 +337,6 @@ const Landing = () => {
           <Link to="/privacy-policy">Privacy &amp; Security</Link>
           <Link to="/terms">Terms of Service</Link>
           <Link to="/refund-policy">Refund Policy</Link>
-          <a href="https://wa.me/254739776294?text=Hello%20TypeMyworDz%2C%20I%20need%20help%20with%20the%20app." target="_blank" rel="noreferrer">Chat on WhatsApp</a>
         </span>
       </footer>
     </div>

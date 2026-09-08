@@ -153,17 +153,6 @@ const FeedbackModal = ({ show, onClose, onSend, userName, userEmail, isSending }
             {isSending ? 'Sending...' : 'Send Feedback'}
           </button>
         </form>
-        <p style={{ margin: '16px 0 0', color: '#6b7280', fontSize: '0.9rem' }}>
-          Need a quicker reply?{' '}
-          <a
-            href="https://wa.me/254739776294?text=Hello%20TypeMyworDz%2C%20I%20need%20help%20with%20the%20app."
-            target="_blank"
-            rel="noreferrer"
-            style={{ color: '#218838', fontWeight: 700, textDecoration: 'none' }}
-          >
-            Chat on WhatsApp
-          </a>
-        </p>
       </div>
     </div>
   );

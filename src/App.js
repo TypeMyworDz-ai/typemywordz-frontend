@@ -1633,15 +1633,6 @@ return (
                         <div className="submenu-item" onClick={handleOpenFeedback}>
                             <span className="submenu-text">Feedback</span>
                         </div>
-                        <a
-                          className="submenu-item"
-                          href="https://wa.me/254739776294?text=Hello%20TypeMyworDz%2C%20I%20need%20help%20with%20the%20app."
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={() => setOpenSubmenu(null)}
-                        >
-                            <span className="submenu-text">Chat on WhatsApp</span>
-                        </a>
                         {/* NEW: Share Menu Item */}
                         <div className="submenu-item" onClick={handleShare}>
                             <span className="menu-text">Share</span>
