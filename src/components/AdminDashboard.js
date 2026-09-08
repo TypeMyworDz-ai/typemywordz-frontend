@@ -1,423 +1,325 @@
-// src/components/AdminDashboard.js
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchAllUsers, getMonthlyRevenue } from '../userService'; // Removed fetchUserTranscriptions import
-import { collection, getDocs } from 'firebase/firestore'; // Removed query, orderBy, where imports
+import {
+  fetchAllUsers,
+  getMonthlyRevenue,
+  markFeedbackRead,
+} from '../userService';
 import { db } from '../firebase';
-import { ADMIN_EMAILS, isAdminEmail } from '../adminEmails';
-// ADDED: Import AdminAIFormatter
+import { ADMIN_EMAILS, isAdminEmail, isCompAccessEmail } from '../adminEmails';
+import { fetchCreditBalance, isOnCreditsOnly } from '../creditsService';
 import AdminAIFormatter from './AdminAIFormatter';
-// REMOVED: Import AdminRevenue component
+import ConfirmDialog from './ConfirmDialog';
+import './AdminDashboard.css';
 
-const AdminDashboard = ({ showMessage, latestTranscription }) => { // Removed monthlyRevenue prop
+const BACKEND_URL =
+  process.env.REACT_APP_RAILWAY_BACKEND_URL ||
+  'https://backendforrailway-production-7128.up.railway.app';
+
+const toDate = (value) => {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate();
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatDate = (value, includeTime = false) => {
+  const date = toDate(value);
+  if (!date) return 'Not recorded';
+  return date.toLocaleDateString(undefined, includeTime
+    ? { dateStyle: 'medium', timeStyle: 'short' }
+    : { dateStyle: 'medium' });
+};
+
+const finiteNumber = (value, fallback = 0) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+};
+
+const formatNumber = (value) => finiteNumber(value).toLocaleString();
+
+const countBy = (items, key) => items.reduce((counts, item) => {
+  const label = item[key] || 'Unknown';
+  counts[label] = (counts[label] || 0) + 1;
+  return counts;
+}, {});
+
+const topEntry = (counts) => Object.entries(counts).sort((a, b) => b[1] - a[1])[0] || null;
+
+const readCollection = async (name) => {
+  try {
+    const snapshot = await getDocs(collection(db, name));
+    return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+  } catch (error) {
+    console.warn(`Admin collection ${name} could not be read:`, error);
+    return [];
+  }
+};
+
+const accessLabel = (user) => {
+  if (isAdminEmail(user.email)) return { text: 'Admin access', tone: 'ai' };
+  if (isCompAccessEmail(user.email)) return { text: 'Complimentary', tone: 'ai' };
+  if (user.balance?.planActive && user.plan !== 'free') return { text: user.plan, tone: 'action' };
+  if (isOnCreditsOnly(user.balance, user)) return { text: 'Credits only', tone: 'action' };
+  if (user.plan === 'free' && !user.hasReceivedInitialFreeMinutes) return { text: 'Free trial', tone: 'warn' };
+  return { text: 'Free plan', tone: '' };
+};
+
+const creditLabel = (user) => {
+  if (user.balance?.exempt || user.balance?.unlimited || isAdminEmail(user.email) || isCompAccessEmail(user.email)) {
+    return 'No limit';
+  }
+  if (!user.balance) return 'Not available';
+  const spendable = finiteNumber(user.balance.spendable);
+  const frozen = finiteNumber(user.balance.frozen);
+  return `${formatNumber(spendable)} available${frozen ? ` · ${formatNumber(frozen)} held` : ''}`;
+};
+
+const planExpiry = (user) => user.balance?.planCreditsExpireAt || user.expiresAt;
+
+const AdminDashboard = ({ showMessage, latestTranscription }) => {
   const { currentUser } = useAuth();
+  const isAdmin = isAdminEmail(currentUser?.email);
+  const [activeTab, setActiveTab] = useState('overview');
   const [users, setUsers] = useState([]);
-  // Removed transcriptions state and its setter
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview'); 
+  const [feedback, setFeedback] = useState([]);
+  const [traffic, setTraffic] = useState([]);
   const [stats, setStats] = useState({
     totalUsers: 0,
+    activeUsers: 0,
+    activePaidUsers: 0,
     totalTranscriptions: 0,
     totalMinutesTranscribed: 0,
-    planDistribution: {},
-    recentSignups: 0,
-    totalRevenueCounter: 0, // NEW: Cumulative revenue from Firestore
-    activePaidUsers: 0 // NEW: Active paid users counter
+    recentRevenue: 0,
   });
-
-  // Removed PLAN_PRICES_USD as it was unused.
-
-  // Admin list lives in src/adminEmails.js so it cannot drift from the backend.
-  const isAdmin = isAdminEmail(currentUser?.email);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch] = useState('');
+  const [confirmingDelete, setConfirmingDelete] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const fetchAdminData = useCallback(async () => {
+    if (!currentUser?.email || !isAdminEmail(currentUser.email)) return;
+    setRefreshing(true);
     try {
-      setLoading(true);
-      
-      if (!currentUser || !currentUser.email) {
-        throw new Error("Admin user not identified.");
-      }
+      const [rawUsers, transcriptions, feedbackRows, trafficRows, revenue] = await Promise.all([
+        fetchAllUsers(),
+        readCollection('transcriptions'),
+        readCollection('feedback'),
+        readCollection('trafficEvents'),
+        getMonthlyRevenue(),
+      ]);
 
-      const usersData = await fetchAllUsers();
-      setUsers(usersData);
+      const enrichedUsers = await Promise.all(rawUsers.map(async (user) => {
+        const balance = await fetchCreditBalance(user.uid || user.id, user.email);
+        return { ...user, balance };
+      }));
 
-      const transcriptionsRef = collection(db, 'transcriptions');
-      const transcriptionsSnapshot = await getDocs(transcriptionsRef);
-      const transcriptionsData = [];
-      let totalDurationSeconds = 0;
-      transcriptionsSnapshot.forEach((doc) => {
-        const transcriptionData = doc.data();
-        transcriptionsData.push({ id: doc.id, ...transcriptionData });
-        totalDurationSeconds += transcriptionData.duration || 0;
-      });
-      // Removed setTranscriptions(transcriptionsData);
-      
-      const planDistribution = {};
-      let recentSignups = 0;
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-      let currentTotalRevenueCounter = await getMonthlyRevenue(); // NEW: Fetch cumulative revenue from Firestore
-      let currentActivePaidUsers = 0; // Initialize active paid users counter
       const now = new Date();
+      const oneWeekAgo = new Date(now.getTime() - 7 * 86400000);
+      const totalMinutes = transcriptions.reduce((total, item) => {
+        const seconds = Number(item.duration);
+        return Number.isFinite(seconds) && seconds > 0 ? total + Math.ceil(seconds / 60) : total;
+      }, 0);
 
-      usersData.forEach(user => {
-        planDistribution[user.plan] = (planDistribution[user.plan] || 0) + 1;
-        
-        if (user.createdAt && user.createdAt.toDate) {
-          const userCreatedAt = user.createdAt.toDate();
-          if (userCreatedAt > oneWeekAgo) {
-            recentSignups++;
-          }
-        } else if (user.createdAt && new Date(user.createdAt) > oneWeekAgo) {
-          recentSignups++;
-        }
-
-        // Calculate active paid users (for the card, separate from revenue)
-        if (user.plan !== 'free') {
-          // Check if the plan is currently active or considered 'unlimited' for long-term plans
-          let isActive = false;
-          if (user.expiresAt && user.expiresAt.toDate) {
-            isActive = user.expiresAt.toDate() > now;
-          } else if (user.expiresAt && new Date(user.expiresAt) > now) {
-            isActive = true;
-          } else if (user.plan === 'Monthly Plan' || user.plan === 'Yearly Plan') {
-            // For monthly/yearly plans, if expiresAt is not clearly past, consider active
-            // This is a simplification; a more robust check would involve subscription status
-            isActive = true; 
-          }
-
-          if (isActive) {
-            currentActivePaidUsers++;
-          }
-        }
-      });
-
+      setUsers(enrichedUsers);
+      setFeedback(feedbackRows.sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0)));
+      setTraffic(trafficRows);
       setStats({
-        totalUsers: usersData.length,
-        totalTranscriptions: transcriptionsData.length,
-        totalMinutesTranscribed: Math.round(totalDurationSeconds / 60),
-        planDistribution,
-        recentSignups,
-        totalRevenueCounter: currentTotalRevenueCounter, // Set cumulative revenue
-        activePaidUsers: currentActivePaidUsers // Set active paid users
+        totalUsers: enrichedUsers.length,
+        activeUsers: enrichedUsers.filter((user) => (toDate(user.lastAccessed)?.getTime() || 0) >= oneWeekAgo.getTime()).length,
+        activePaidUsers: enrichedUsers.filter((user) => user.balance?.planActive || isOnCreditsOnly(user.balance, user) || isAdminEmail(user.email) || isCompAccessEmail(user.email)).length,
+        totalTranscriptions: transcriptions.length,
+        totalMinutesTranscribed: totalMinutes,
+        recentRevenue: finiteNumber(revenue),
       });
-      
     } catch (error) {
-      console.error('Error fetching admin data:', error);
-      if (showMessage) {
-        showMessage('Error loading admin data: ' + error.message, 'error');
-      }
+      console.error('Error loading admin data:', error);
+      showMessage?.(`Admin data could not be loaded: ${error.message}`, 'error');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [currentUser, showMessage]);
 
   useEffect(() => {
-    if (isAdmin) {
-      fetchAdminData();
-    }
+    if (isAdmin) fetchAdminData();
   }, [isAdmin, fetchAdminData]);
 
-  const formatDate = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    const date = timestamp instanceof Date ? timestamp : (timestamp.toDate ? timestamp.toDate() : new Date(timestamp));
-    return date.toLocaleDateString();
-  };
+  const trafficSnapshot = useMemo(() => {
+    const cutoff = Date.now() - 30 * 86400000;
+    const recent = traffic.filter((event) => (toDate(event.createdAt)?.getTime() || 0) >= cutoff);
+    const visitors = new Set(recent.map((event) => event.visitorId).filter(Boolean));
+    const pages = countBy(recent, 'page');
+    const sources = countBy(recent, 'source');
+    const daily = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date();
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() - (6 - index));
+      const next = new Date(date.getTime() + 86400000);
+      return {
+        label: date.toLocaleDateString(undefined, { weekday: 'short' }),
+        count: recent.filter((event) => {
+          const time = toDate(event.createdAt)?.getTime() || 0;
+          return time >= date.getTime() && time < next.getTime();
+        }).length,
+      };
+    });
+    return {
+      recent,
+      visitors: visitors.size,
+      pageViews: recent.length,
+      topPage: topEntry(pages),
+      topSource: topEntry(sources),
+      daily,
+    };
+  }, [traffic]);
+
+  const planDistribution = useMemo(() => countBy(users.map((user) => ({ plan: accessLabel(user).text })), 'plan'), [users]);
+  const unreadFeedback = feedback.filter((item) => !item.readAt).length;
+  const maxDaily = Math.max(1, ...trafficSnapshot.daily.map((item) => item.count));
+
+  const filteredUsers = users.filter((user) => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return true;
+    return `${user.email} ${user.name || ''} ${accessLabel(user).text}`.toLowerCase().includes(needle);
+  });
 
   const exportUserData = () => {
-    const csvContent = [
-      ['Email', 'Plan', 'Usage (mins)', 'Expires At', 'Total Minutes Transcribed', 'Total Transcripts', 'Joined', 'Last Active'].join(','),
-      ...users.map(user => [
+    const rows = [
+      ['Email', 'Access', 'Credits available', 'Credits held', 'Plan expiry', 'Total minutes', 'Transcripts', 'Joined', 'Last active'],
+      ...users.map((user) => [
         user.email,
-        user.plan,
-        user.totalMinutesUsed || 0,
-        user.expiresAt ? formatDate(user.expiresAt) : 'N/A',
-        user.totalMinutesTranscribedByUser || 0,
+        accessLabel(user).text,
+        user.balance?.spendable ?? '',
+        user.balance?.frozen ?? '',
+        formatDate(planExpiry(user)),
+        Number.isFinite(Number(user.totalMinutesTranscribedByUser)) ? user.totalMinutesTranscribedByUser : '',
         user.totalTranscriptsByUser || 0,
         formatDate(user.createdAt),
-        formatDate(user.lastAccessed)
-      ].join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+        formatDate(user.lastAccessed),
+      ]),
+    ];
+    const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'typemywordz-users.csv';
-    a.click();
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'typemywordz-admin-users.csv';
+    anchor.click();
     URL.revokeObjectURL(url);
   };
 
+  const handleDeleteUser = async () => {
+    if (!confirmingDelete || !currentUser) return;
+    setDeleteBusy(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${BACKEND_URL}/api/admin/delete-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ email: confirmingDelete.email, uid: confirmingDelete.uid || confirmingDelete.id }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.detail || 'The account could not be deleted.');
+      showMessage?.(`${confirmingDelete.email} was removed.`, 'success');
+      setConfirmingDelete(null);
+      await fetchAdminData();
+    } catch (error) {
+      showMessage?.(`The account was not removed: ${error.message}`, 'error');
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  const handleReadFeedback = async (item) => {
+    if (item.readAt) return;
+    try {
+      await markFeedbackRead(item.id);
+      setFeedback((current) => current.map((row) => row.id === item.id ? { ...row, readAt: new Date() } : row));
+    } catch (error) {
+      showMessage?.('This feedback could not be marked as read.', 'error');
+    }
+  };
+
   if (!isAdmin) {
-    return (
-      <div style={{ 
-        padding: '50px', 
-        textAlign: 'center',
-        backgroundColor: '#f8f9fa',
-        minHeight: '100vh'
-      }}>
-        <h2 style={{ color:'#dc3545'}}> Access Denied</h2>
-        <p>You don't have permission to view the admin dashboard.</p>
-      </div> 
-    );
+    return <div className="tm-admin-denied"><h2>Admin access only</h2><p>This area is reserved for authorised TypeMyworDz administrators.</p></div>;
   }
 
   if (loading) {
-    return (
-      <div style={{ 
-        padding: '50px', 
-        textAlign: 'center',
-        backgroundColor: '#f8f9fa',
-        minHeight: '100vh'
-      }}>
-        <h2> Loading Admin Dashboard...</h2>
-      </div>
-    );
+    return <div className="tm-admin-loading"><h2>Preparing your dashboard</h2><p>Gathering users, usage, traffic and support messages.</p></div>;
   }
+
   return (
-    <div style={{ 
-      backgroundColor: '#f8f9fa',
-      minHeight: '100vh',
-      padding: '20px'
-    }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }} >
-        <header style={{ 
-          textAlign: 'center', 
-          marginBottom: '30px',
-          padding: '20px',
-          backgroundColor: 'white',
-          borderRadius: '10px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
-        }}>
-          <h1 style={{ color: '#6c5ce7', margin: '0 0 10px 0' }}>
-             TypeMyworDz Admin Dashboard
-          </h1>
-          <p style={{ color: '#666', margin: '0' }}>
-            Business Overview &amp; User Management
-          </p>
+    <div className="tm-admin-shell">
+      <div className="tm-admin-inner">
+        <header className="tm-admin-head">
+          <div>
+            <p className="tm-admin-kicker">Operations</p>
+            <h1 className="tm-admin-title">TypeMyworDz admin</h1>
+            <p className="tm-admin-sub">A clear view of the people, work and questions behind the app.</p>
+          </div>
+          <button type="button" className="tm-admin-refresh" onClick={fetchAdminData} disabled={refreshing}>{refreshing ? 'Refreshing…' : 'Refresh data'}</button>
         </header>
 
-        {/* Tab Navigation */}
-        <div style={{ marginBottom: '30px', textAlign: 'center' }}>
-          <button
-            onClick={() => setActiveTab('overview')}
-            style={{
-              padding: '10px 20px',
-              margin: '0 10px',
-              backgroundColor: activeTab === 'overview' ? '#6c5ce7' : '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '20px',
-              cursor: 'pointer',
-              fontSize: '1rem'
-            }}
-          >
-             Overview
-          </button>
-          <button
-            onClick={() => setActiveTab('users')}
-            style={{
-              padding: '10px 20px',
-              margin: '0 10px',
-              backgroundColor: activeTab === 'users' ? '#6c5ce7' : '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '20px',
-              cursor: 'pointer',
-              fontSize: '1rem'
-            }}
-          >
-             Users
-          </button>
-          <button
-            onClick={() => setActiveTab('aiFormatter')}
-            style={{
-              padding: '10px 20px',
-              margin: '0 10px',
-              backgroundColor: activeTab === 'aiFormatter' ? '#6c5ce7' : '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '20px',
-              cursor: 'pointer',
-              fontSize: '1rem'
-            }}
-          >
-             AI Formatter
-          </button>
-          {/* REMOVED: Revenue Tab button */}
+        <div className="tm-admin-tabs" role="tablist" aria-label="Admin sections">
+          {[
+            ['overview', 'Overview'],
+            ['users', 'Users'],
+            ['support', `Support${unreadFeedback ? ` · ${unreadFeedback}` : ''}`],
+            ['aiFormatter', 'AI formatter'],
+          ].map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={activeTab === id} className="tm-admin-tab" onClick={() => setActiveTab(id)}>{label}</button>
+          ))}
         </div>
 
-        {/* Overview Tab */}
         {activeTab === 'overview' && (
           <>
-            {/* Stats Cards */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-              gap: '20px',
-              marginBottom: '30px'
-            }}>
-              <div style={{ 
-                backgroundColor: 'white', 
-                padding: '20px', 
-                borderRadius: '10px',
-                boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-                textAlign: 'center'
-              }}>
-                <h3 style={{ color:'#007bff', margin:'0 0 10px 0'}}> Total Users</h3>
-                <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
-                  {stats.totalUsers}
-                </p>
-              </div>
-
-              {/* NEW: Active Paid Users Card (repurposed from New Users) */}
-              <div style={{ 
-                backgroundColor: 'white', 
-                padding: '20px', 
-                borderRadius: '10px',
-                boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-                textAlign: 'center'
-              }}>
-                <h3 style={{ color:'#ffc107', margin:'0 0 10px 0'}}> Active Paid Users</h3>
-                <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0', color: '#333' }}>
-                  {stats.activePaidUsers}
-                </p>
-              </div>
+            <div className="tm-admin-grid">
+              <div className="tm-admin-stat"><div className="tm-admin-stat-label">People with accounts</div><div className="tm-admin-stat-value">{formatNumber(stats.totalUsers)}</div><div className="tm-admin-stat-note">All roles in the AI app</div></div>
+              <div className="tm-admin-stat"><div className="tm-admin-stat-label">Active this week</div><div className="tm-admin-stat-value">{formatNumber(stats.activeUsers)}</div><div className="tm-admin-stat-note">Signed in during the last 7 days</div></div>
+              <div className="tm-admin-stat"><div className="tm-admin-stat-label">Paid or complimentary access</div><div className="tm-admin-stat-value">{formatNumber(stats.activePaidUsers)}</div><div className="tm-admin-stat-note">Plans, purchased credits or exemptions</div></div>
+              <div className="tm-admin-stat"><div className="tm-admin-stat-label">Feedback waiting</div><div className="tm-admin-stat-value">{formatNumber(unreadFeedback)}</div><div className="tm-admin-stat-note">Open the Support section to reply</div></div>
             </div>
 
-            {/* Plan Distribution */}
-            <div style={{ 
-              backgroundColor: 'white', 
-              padding: '20px', 
-              borderRadius: '10px',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-              marginBottom: '30px'
-            }}>
-              <h3 style={{ color:'#333', marginBottom:'20px'}}> Plan Distribution</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' }}>
-                {Object.entries(stats.planDistribution).map(([plan, count]) => (
-                  <div key={plan} style={{ 
-                    padding: '15px', 
-                    backgroundColor: '#f8f9fa', 
-                    borderRadius: '8px',
-                    textAlign: 'center'
-                  }}>
-                    <h4 style={{ margin: '0 0 5px 0', textTransform: 'capitalize' }}>{plan}</h4>
-                    <p style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '0' }}>{count}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <div className="tm-admin-columns">
+              <section className="tm-admin-panel">
+                <div className="tm-admin-panel-head"><div><h2 className="tm-admin-panel-title">Traffic, last 30 days</h2><p className="tm-admin-panel-note">Anonymous in-app telemetry: visitors, pages and referring sources.</p></div><a className="tm-admin-link" href="https://analytics.google.com/" target="_blank" rel="noreferrer">Open Google Analytics</a></div>
+                <div className="tm-admin-grid">
+                  <div className="tm-admin-stat"><div className="tm-admin-stat-label">Visitors</div><div className="tm-admin-stat-value">{formatNumber(trafficSnapshot.visitors)}</div></div>
+                  <div className="tm-admin-stat"><div className="tm-admin-stat-label">Page views</div><div className="tm-admin-stat-value">{formatNumber(trafficSnapshot.pageViews)}</div></div>
+                </div>
+                {trafficSnapshot.pageViews ? <>
+                  <div className="tm-admin-list"><div className="tm-admin-list-row"><div className="tm-admin-list-main"><strong>Most visited page</strong><span>{trafficSnapshot.topPage?.[0]}</span></div><div className="tm-admin-list-value">{trafficSnapshot.topPage?.[1]}</div></div><div className="tm-admin-list-row"><div className="tm-admin-list-main"><strong>Top source</strong><span>{trafficSnapshot.topSource?.[0]}</span></div><div className="tm-admin-list-value">{trafficSnapshot.topSource?.[1]}</div></div></div>
+                  <div className="tm-admin-bars" aria-label="Page views over the last seven days">{trafficSnapshot.daily.map((day) => <div className="tm-admin-bar-wrap" key={day.label}><span className="tm-admin-bar-label">{day.label}</span><div className="tm-admin-bar" style={{ height: `${Math.max(2, (day.count / maxDaily) * 100)}%` }} title={`${day.count} page views`} /></div>)}</div>
+                </> : <div className="tm-admin-empty">Traffic will appear here as visitors use the app. Google Analytics remains the detailed source for geographic reporting.</div>}
+              </section>
 
-            {/* Export Button */}
-            <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-              <button
-                onClick={exportUserData}
-                style={{
-                  padding: '12px 30px',
-                  backgroundColor: '#28a745',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
-                }}
-              >
-                 Export User Data (CSV)
-              </button>
+              <section className="tm-admin-panel">
+                <div className="tm-admin-panel-head"><div><h2 className="tm-admin-panel-title">Account mix</h2><p className="tm-admin-panel-note">Labels now reflect what the account can actually use.</p></div></div>
+                <div className="tm-admin-plan-grid">{Object.entries(planDistribution).map(([label, count]) => <div className="tm-admin-plan" key={label}><strong>{label}</strong><span>{count} account{count === 1 ? '' : 's'}</span></div>)}</div>
+                <div className="tm-admin-list" style={{ marginTop: 18 }}><div className="tm-admin-list-row"><div className="tm-admin-list-main"><strong>Transcripts completed</strong><span>Across all retained records</span></div><div className="tm-admin-list-value">{formatNumber(stats.totalTranscriptions)}</div></div><div className="tm-admin-list-row"><div className="tm-admin-list-main"><strong>Minutes measured</strong><span>Invalid Infinity durations excluded</span></div><div className="tm-admin-list-value">{formatNumber(stats.totalMinutesTranscribed)}</div></div><div className="tm-admin-list-row"><div className="tm-admin-list-main"><strong>Recorded revenue</strong><span>Payment ledger total</span></div><div className="tm-admin-list-value">${stats.recentRevenue.toFixed(2)}</div></div></div>
+              </section>
             </div>
           </>
         )}
 
-        {/* Users Tab */}
         {activeTab === 'users' && (
-          <div style={{ 
-            backgroundColor: 'white', 
-            padding: '20px', 
-            borderRadius: '10px',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-            overflowX: 'auto'
-          }}>
-            <h3 style={{ color:'#333', marginBottom:'20px'}}> All Users</h3>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f8f9fa' }}>
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Email</th>
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Plan</th>
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Usage (mins)</th>
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Expires At</th>
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Total Mins Transcribed</th>
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Total Transcripts</th>
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Joined</th>
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Last Active</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user, index) => (
-                  <tr key={user.id} style={{ 
-                    backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa'
-                  }}>
-                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
-                      {user.email}
-                      {ADMIN_EMAILS.includes(user.email) && (
-                        <span style={{ 
-                          marginLeft: '5px', 
-                          fontSize: '12px', 
-                          backgroundColor: '#ffc107', 
-                          color: 'black',
-                          padding: '2px 6px', 
-                          borderRadius: '3px' 
-                        }}>
-                          ADMIN
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
-                      <span style={{ 
-                        textTransform: 'capitalize',
-                        backgroundColor: user.plan === 'free' ? '#6c757d' : '#007bff',
-                        color: 'white',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        fontSize: '12px'
-                      }}>
-                        {user.plan}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
-                      {user.plan === 'free'
-                        ? `${user.totalMinutesUsed || 0} / 30`
-                        : 'Unlimited'
-                      }
-                    </td>
-                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
-                      {user.expiresAt ? formatDate(user.expiresAt) : 'N/A'}
-                    </td>
-                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>{user.totalMinutesTranscribedByUser || 0}</td>
-                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>{user.totalTranscriptsByUser || 0}</td>
-                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
-                      {formatDate(user.createdAt)}
-                    </td>
-                    <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
-                      {formatDate(user.lastAccessed)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div> 
+          <section className="tm-admin-panel tm-admin-table-panel">
+            <div className="tm-admin-table-toolbar"><div><h2 className="tm-admin-panel-title">Users and access</h2><p className="tm-admin-panel-note">Credits come from the server ledger; they are not guessed from the plan label.</p></div><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input className="tm-admin-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search email or access" aria-label="Search users" /><button type="button" className="tm-admin-btn" onClick={exportUserData}>Export CSV</button></div></div>
+            <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Account</th><th>Access</th><th>Credits</th><th>Plan expiry</th><th>Minutes</th><th>Transcripts</th><th>Joined</th><th>Last active</th><th>Action</th></tr></thead><tbody>{filteredUsers.map((user) => { const access = accessLabel(user); const minutes = Number(user.totalMinutesTranscribedByUser); return <tr key={user.id}><td><div className="tm-admin-email">{user.email}{ADMIN_EMAILS.includes(user.email) && <span className="tm-admin-badge ai" style={{ marginLeft: 7 }}>Admin</span>}</div>{user.name && <div className="tm-admin-name">{user.name}</div>}</td><td><span className={`tm-admin-badge ${access.tone}`}>{access.text}</span></td><td>{creditLabel(user)}</td><td>{formatDate(planExpiry(user))}</td><td>{Number.isFinite(minutes) ? formatNumber(minutes) : 'Not measured'}</td><td>{formatNumber(user.totalTranscriptsByUser || 0)}</td><td>{formatDate(user.createdAt)}</td><td>{formatDate(user.lastAccessed)}</td><td>{isAdminEmail(user.email) ? <span className="tm-admin-small">Protected</span> : <button type="button" className="tm-admin-btn tm-admin-btn-danger" onClick={() => setConfirmingDelete(user)}>Remove</button>}</td></tr>; })}</tbody></table>{!filteredUsers.length && <div className="tm-admin-empty">No accounts match that search.</div>}</div>
+          </section>
         )}
 
-        {/* AI Formatter Tab */}
-        {activeTab === 'aiFormatter' && (
-          <AdminAIFormatter showMessage={showMessage} latestTranscription={latestTranscription} /> 
+        {activeTab === 'support' && (
+          <section className="tm-admin-panel"><div className="tm-admin-panel-head"><div><h2 className="tm-admin-panel-title">Support and feedback</h2><p className="tm-admin-panel-note">Feedback is saved in Firestore and also emailed to info@typemywordz.ai.</p></div></div>{feedback.length ? <div className="tm-admin-feedback">{feedback.map((item) => <article className={`tm-admin-feedback-card ${item.readAt ? '' : 'unread'}`} key={item.id}><div className="tm-admin-feedback-meta"><div><strong>{item.name || 'Anonymous'}</strong><span>{item.email}</span></div><span>{formatDate(item.createdAt, true)}</span></div><div className="tm-admin-feedback-body">{item.feedback}</div><div className="tm-admin-feedback-actions"><a className="tm-admin-btn" href={`mailto:${item.email}?subject=${encodeURIComponent('Re: TypeMyworDz feedback')}`}>Reply by email</a>{!item.readAt && <button type="button" className="tm-admin-btn" onClick={() => handleReadFeedback(item)}>Mark as read</button>}</div></article>)}</div> : <div className="tm-admin-empty">No feedback has been submitted yet.</div>}</section>
         )}
 
-        {/* REMOVED: Revenue Tab content */}
-      </div> 
-    </div> 
+        {activeTab === 'aiFormatter' && <AdminAIFormatter showMessage={showMessage} latestTranscription={latestTranscription} />}
+      </div>
+      <ConfirmDialog open={Boolean(confirmingDelete)} title="Remove this account?" body={confirmingDelete ? `${confirmingDelete.email} will lose access, its profile will be removed, and its saved transcripts and Ask chats will be deleted. This cannot be undone.` : ''} confirmLabel="Remove account" cancelLabel="Keep account" tone="danger" busy={deleteBusy} onCancel={() => setConfirmingDelete(null)} onConfirm={handleDeleteUser} />
+    </div>
   );
 };
 
