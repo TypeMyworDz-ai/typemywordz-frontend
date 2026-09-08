@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Login from './Login';
+import FloatingWhatsApp from './FloatingWhatsApp';
+import { recordPageView } from '../analyticsService';
 
 /**
  * The signed-out home page.
@@ -59,6 +61,10 @@ const STEPS = [
 ];
 
 const Landing = () => {
+  useEffect(() => {
+    recordPageView(`${window.location.pathname}#landing`);
+  }, []);
+
   const go = (id) => (e) => {
     e.preventDefault();
     const el = document.getElementById(id);
@@ -67,6 +73,7 @@ const Landing = () => {
 
   return (
     <div className="tm-app tm-login tm-lp">
+      <FloatingWhatsApp />
 
       {/* ---- Signed-out top bar ---- */}
       <div className="tm-topbar">
