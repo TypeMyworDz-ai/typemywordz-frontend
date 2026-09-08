@@ -11,6 +11,7 @@ import TranscriptEditor from './components/TranscriptEditor';
 import EditorDemo from './components/EditorDemo';
 import TranscribeProgress from './components/TranscribeProgress';
 import FeedbackModal from './components/FeedbackModal';
+import FloatingWhatsApp from './components/FloatingWhatsApp';
 import { canUserTranscribe, updateUserUsage, saveTranscription, updateTranscription, updateUserPlan, saveFeedback, notifyFeedbackSubmitted } from './userService'; // Removed createUserProfile
 import {
   runCreditBackfill,
@@ -1533,16 +1534,14 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
 
 return (
   <Routes>
-    <Route path="/transcription/:id" element={<TranscriptionDetail setCurrentView={setCurrentView} />} />
-    <Route path="/transcription-editor" element={<RichTextEditor />} />
+    <Route path="/transcription/:id" element={<><TranscriptionDetail setCurrentView={setCurrentView} /><FloatingWhatsApp /></>} />
+    <Route path="/transcription-editor" element={<><RichTextEditor /><FloatingWhatsApp /></>} />
     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
     <Route path="/terms" element={<TermsOfService />} />
     <Route path="/refund-policy" element={<RefundPolicy />} />
     <Route path="/faq" element={<Faq />} />
-    <Route path="/dashboard" element={
-      <Dashboard setCurrentView={setCurrentView} standalone />
-    } />
-    <Route path="/admin" element={isAdmin ? <AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} /> : <Navigate to="/" />} />
+    <Route path="/dashboard" element={<><Dashboard setCurrentView={setCurrentView} standalone /><FloatingWhatsApp /></>} />
+    <Route path="/admin" element={isAdmin ? <><AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} /><FloatingWhatsApp /></> : <Navigate to="/" />} />
     
     <Route path="/" element={
       <div className="tm-app" style={{ 
@@ -1552,6 +1551,7 @@ return (
         background: '#ffffff'
       }}>
         <CopiedNotification isVisible={copiedMessageVisible} />
+        <FloatingWhatsApp />
 
         {/* ---- Application top bar ---- */}
         <div className="tm-topbar">

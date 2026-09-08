@@ -99,6 +99,21 @@ const loadUsersSafely = async (currentUser) => {
   return timeout(readCollection('users'), [], 12000);
 };
 
+const loadTrafficSafely = async (currentUser) => {
+  try {
+    const token = await currentUser.getIdToken();
+    const response = await fetch(`${BACKEND_URL}/api/admin/traffic`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return [];
+    const payload = await response.json();
+    return Array.isArray(payload.events) ? payload.events : [];
+  } catch (error) {
+    console.warn('Admin traffic could not be loaded:', error);
+    return [];
+  }
+};
+
 const accessLabel = (user) => {
   if (isAdminEmail(user.email)) return { text: 'Admin access', tone: 'ai' };
   if (isCompAccessEmail(user.email)) return { text: 'Complimentary', tone: 'ai' };
@@ -152,7 +167,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
       const [rawUsers, feedbackRows, trafficRows, revenue] = await Promise.all([
         loadUsersSafely(currentUser),
         readCollection('feedback'),
-        readCollection('trafficEvents'),
+        loadTrafficSafely(currentUser),
         getMonthlyRevenue(),
       ]);
 
