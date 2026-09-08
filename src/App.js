@@ -49,6 +49,8 @@ import { recordPageView } from './analyticsService';
 // UPDATED Configuration - RE-ADDED Render Whisper URL
 // MODIFIED: Use the new Railway Backend URL
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
+const PADDLE_CONFIG_URL = `${RAILWAY_BACKEND_URL}/paddle-config`;
+const AFRICA_PAYMENT_COUNTRIES = new Set(['KE', 'NG', 'GH', 'ZA', 'OTHER_AFRICA']);
 // REMOVED: const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com/'; // This URL is for TypeMyworDz2 (Render)
 
 // Helper function to determine if a user has access to AI features
@@ -295,6 +297,64 @@ function AppContent() {
       showMessage('Payment initialization failed: ' + error.message, 'error');
     }
   }, [currentUser, showMessage]);
+
+  const handlePaddleEvent = useCallback((eventData) => {
+    if (eventData?.name !== 'checkout.completed') return;
+    showMessage('Payment received. Your account will update shortly.', 'success');
+    window.setTimeout(() => {
+      refreshUserProfile();
+      refreshCredits();
+    }, 2500);
+  }, [showMessage, refreshUserProfile, refreshCredits]);
+
+  const initializePaddlePayment = useCallback(async (itemId, countryCode) => {
+    const email = currentUser?.email;
+    if (!email) {
+      showMessage('Please sign in first.', 'info');
+      return;
+    }
+    try {
+      const response = await fetch(PADDLE_CONFIG_URL);
+      const config = await response.json();
+      if (!response.ok) throw new Error(config.detail || 'Paddle checkout is not ready yet.');
+
+      const priceId = config.price_ids?.[itemId];
+      if (!priceId) throw new Error('This item is not available for international checkout yet.');
+      if (!window.Paddle) throw new Error('Secure checkout is still loading. Please try again in a moment.');
+
+      if (config.environment === 'sandbox' && window.Paddle.Environment?.set) {
+        window.Paddle.Environment.set('sandbox');
+      }
+      if (!window.__tmPaddleInitialized) {
+        window.Paddle.Initialize({
+          token: config.client_token,
+          eventCallback: handlePaddleEvent,
+        });
+        window.__tmPaddleInitialized = true;
+      }
+
+      showMessage('Opening secure checkout...', 'info');
+      window.Paddle.Checkout.open({
+        items: [{ priceId, quantity: 1 }],
+        customData: {
+          user_id: currentUser.uid,
+          email,
+          item_id: itemId,
+          country_code: countryCode || 'GLOBAL',
+        },
+      });
+    } catch (error) {
+      console.error('Paddle payment error:', error);
+      showMessage('Checkout could not be opened: ' + error.message, 'error');
+    }
+  }, [currentUser, handlePaddleEvent, showMessage]);
+
+  const initializePayment = useCallback((itemId, countryCode) => {
+    if (AFRICA_PAYMENT_COUNTRIES.has(countryCode)) {
+      return initializePaystackPayment(itemId, countryCode);
+    }
+    return initializePaddlePayment(itemId, countryCode);
+  }, [initializePaddlePayment, initializePaystackPayment]);
 
   // Handle payment success callback - MODIFIED to prevent infinite loop
   const handlePaystackCallback = useCallback(async () => {
@@ -1864,7 +1924,7 @@ return (
             mode="plans"
             isSignedIn={!!currentUser?.email}
             currentPlan={userProfile?.plan || 'free'}
-            onBuy={(itemId, countryCode) => initializePaystackPayment(itemId, countryCode)}
+            onBuy={(itemId, countryCode) => initializePayment(itemId, countryCode)}
             onGoTo={setCurrentView}
           />
         ) : currentView === 'credits' ? (
@@ -1872,7 +1932,7 @@ return (
             mode="credits"
             isSignedIn={!!currentUser?.email}
             currentPlan={userProfile?.plan || 'free'}
-            onBuy={(itemId, countryCode) => initializePaystackPayment(itemId, countryCode)}
+            onBuy={(itemId, countryCode) => initializePayment(itemId, countryCode)}
             onGoTo={setCurrentView}
           />
         ) : currentView === 'admin' ? (
