@@ -1,7 +1,7 @@
-import { addDoc, collection } from 'firebase/firestore';
-import { db } from './firebase';
+const BACKEND_URL =
+  process.env.REACT_APP_RAILWAY_BACKEND_URL ||
+  'https://backendforrailway-production-7128.up.railway.app';
 
-const TRAFFIC_COLLECTION = 'trafficEvents';
 const VISITOR_KEY = 'tmwd.anonymousVisitorId';
 
 const visitorId = () => {
@@ -37,14 +37,18 @@ export const recordPageView = async (page) => {
     source: sourceFrom(url),
     locale: (navigator.language || 'unknown').slice(0, 30),
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown',
-    createdAt: new Date(),
   };
 
   try {
     if (typeof window.gtag === 'function') {
       window.gtag('event', 'page_view', { page_path: pagePath, page_title: document.title });
     }
-    await addDoc(collection(db, TRAFFIC_COLLECTION), event);
+    await fetch(`${BACKEND_URL}/api/traffic-event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(event),
+      keepalive: true,
+    });
   } catch (error) {
     // Traffic telemetry must never interfere with the app.
   }
