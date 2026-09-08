@@ -65,6 +65,16 @@ const readBalanceSafely = async (uid, email) => {
   return Promise.race([fetchCreditBalance(uid, email), timeout]);
 };
 
+const loadUsersSafely = async () => {
+  const timeout = (promise, fallback, ms = 12000) => Promise.race([
+    promise.catch(() => fallback),
+    new Promise((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+  const aggregated = await timeout(fetchAllUsers(), null);
+  if (Array.isArray(aggregated)) return aggregated;
+  return timeout(readCollection('users'), [], 12000);
+};
+
 const accessLabel = (user) => {
   if (isAdminEmail(user.email)) return { text: 'Admin access', tone: 'ai' };
   if (isCompAccessEmail(user.email)) return { text: 'Complimentary', tone: 'ai' };
@@ -116,7 +126,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
       // remain pending on some Firebase sessions, which used to strand the
       // whole dashboard in Refreshing.
       const [rawUsers, feedbackRows, trafficRows, revenue] = await Promise.all([
-        fetchAllUsers(),
+        loadUsersSafely(),
         readCollection('feedback'),
         readCollection('trafficEvents'),
         getMonthlyRevenue(),
