@@ -624,7 +624,10 @@ export const fetchAllTranscriptions = async () => {
         totalTranscripts: 0
       };
     }
-    allTranscriptions[userId].totalMinutesTranscribed += Math.ceil((data.duration || 0) / 60);
+    const seconds = Number(data.duration);
+    if (Number.isFinite(seconds) && seconds > 0) {
+      allTranscriptions[userId].totalMinutesTranscribed += Math.ceil(seconds / 60);
+    }
     allTranscriptions[userId].totalTranscripts += 1;
   });
   return allTranscriptions; // Returns an object where keys are userIds and values are aggregated stats
@@ -650,13 +653,45 @@ export const deleteTranscription = async (uid, transcriptionId) => {
 // NEW: Save user feedback to Firestore
 export const saveFeedback = async (name, email, feedbackText) => {
   const feedbackCollectionRef = collection(db, FEEDBACK_COLLECTION);
-  await addDoc(feedbackCollectionRef, { // Use addDoc to auto-generate ID
-    name: name || 'Anonymous', // Name is optional
+  const created = await addDoc(feedbackCollectionRef, {
+    name: name || 'Anonymous',
     email: email,
     feedback: feedbackText,
     createdAt: new Date(),
+    readAt: null,
   });
   console.log("Feedback saved to Firestore.");
+  return created.id;
+};
+
+const ADMIN_BACKEND_URL =
+  process.env.REACT_APP_RAILWAY_BACKEND_URL ||
+  'https://backendforrailway-production-7128.up.railway.app';
+
+export const notifyFeedbackSubmitted = async (currentUser, name, email, feedbackText) => {
+  if (!currentUser || !feedbackText.trim()) return null;
+  try {
+    const token = await currentUser.getIdToken();
+    const response = await fetch(`${ADMIN_BACKEND_URL}/api/feedback-notification`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ name, email, feedback: feedbackText }),
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    console.warn('Feedback notification could not be sent:', error);
+    return null;
+  }
+};
+
+export const markFeedbackRead = async (feedbackId) => {
+  if (!feedbackId) return false;
+  await updateDoc(doc(db, FEEDBACK_COLLECTION, feedbackId), { readAt: new Date() });
+  return true;
 };
 
 // NEW: Update Monthly Revenue (called by backend webhook)

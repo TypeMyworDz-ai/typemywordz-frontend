@@ -11,7 +11,7 @@ import TranscriptEditor from './components/TranscriptEditor';
 import EditorDemo from './components/EditorDemo';
 import TranscribeProgress from './components/TranscribeProgress';
 import FeedbackModal from './components/FeedbackModal';
-import { canUserTranscribe, updateUserUsage, saveTranscription, updateTranscription, updateUserPlan, saveFeedback } from './userService'; // Removed createUserProfile
+import { canUserTranscribe, updateUserUsage, saveTranscription, updateTranscription, updateUserPlan, saveFeedback, notifyFeedbackSubmitted } from './userService'; // Removed createUserProfile
 import {
   runCreditBackfill,
   fetchCreditBalance,
@@ -42,6 +42,7 @@ import { isPaidAIUser } from './aiAccess';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { isAdminEmail, hasFreeAccess } from './adminEmails';
+import { recordPageView } from './analyticsService';
 
 
 // UPDATED Configuration - RE-ADDED Render Whisper URL
@@ -126,6 +127,10 @@ function AppContent() {
   // Removed uploadProgress state and its setter
   // Removed transcriptionProgress state and its setter
   const [currentView, setCurrentView] = useState('transcribe');
+
+  useEffect(() => {
+    recordPageView(`${window.location.pathname}#${currentView}`);
+  }, [currentView]);
   // Clicking "New transcription" while a finished transcript is still on
   // screen used to do nothing visible, so clients clicked it repeatedly and
   // then lost the screen anyway. Now it genuinely clears the workspace, and
@@ -1441,6 +1446,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     setIsSendingFeedback(true);
     try {
       await saveFeedback(name, email, feedback);
+      await notifyFeedbackSubmitted(currentUser, name, email, feedback);
       showMessage('Feedback sent successfully! Thank you.','success');
       setShowFeedbackModal(false);
     } catch (error) {
@@ -1449,7 +1455,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     } finally {
       setIsSendingFeedback(false);
     }
-  }, [showMessage]);
+  }, [currentUser, showMessage]);
 
   // NEW: Handler for Share functionality
   const handleShare = useCallback(async () => {
