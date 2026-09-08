@@ -9,7 +9,6 @@ import {
 import { db } from '../firebase';
 import { ADMIN_EMAILS, isAdminEmail, isCompAccessEmail } from '../adminEmails';
 import { fetchCreditBalance, isOnCreditsOnly } from '../creditsService';
-import AdminAIFormatter from './AdminAIFormatter';
 import ConfirmDialog from './ConfirmDialog';
 import './AdminDashboard.css';
 
@@ -27,10 +26,25 @@ const toDate = (value) => {
 const formatDate = (value, includeTime = false) => {
   const date = toDate(value);
   if (!date) return 'Not recorded';
-  return date.toLocaleDateString(undefined, includeTime
-    ? { dateStyle: 'medium', timeStyle: 'short' }
-    : { dateStyle: 'medium' });
+  return includeTime
+    ? date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+    : date.toLocaleDateString(undefined, { dateStyle: 'medium' });
 };
+
+const safeText = (value, fallback = '') => {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return fallback;
+};
+
+const normalizeFeedback = (item, index) => ({
+  ...item,
+  id: safeText(item?.id, `feedback-${index}`),
+  name: safeText(item?.name, 'Anonymous'),
+  email: safeText(item?.email, 'No email supplied'),
+  feedback: safeText(item?.feedback ?? item?.message, 'No message supplied.'),
+});
 
 const finiteNumber = (value, fallback = 0) => {
   const number = Number(value);
@@ -131,8 +145,10 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
     if (!currentUser?.email || !isAdminEmail(currentUser.email)) return;
     setRefreshing(true);
     try {
-      // Use the protected backend snapshot for privileged account data. A raw
-      // top-level browser history read can remain pending on some sessions.
+      // Use the established user loader for the account list and its already
+      // aggregated transcription totals. A raw top-level history read can
+      // remain pending on some Firebase sessions, which used to strand the
+      // whole dashboard in Refreshing.
       const [rawUsers, feedbackRows, trafficRows, revenue] = await Promise.all([
         loadUsersSafely(currentUser),
         readCollection('feedback'),
@@ -154,7 +170,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
       const totalTranscriptions = enrichedUsers.reduce((total, user) => total + (Number(user.totalTranscriptsByUser) || 0), 0);
 
       setUsers(enrichedUsers);
-      setFeedback(feedbackRows.sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0)));
+      setFeedback(feedbackRows.map(normalizeFeedback).sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0)));
       setTraffic(trafficRows);
       setStats({
         totalUsers: enrichedUsers.length,
@@ -298,7 +314,6 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
             ['overview', 'Overview'],
             ['users', 'Users'],
             ['support', `Support${unreadFeedback ? ` · ${unreadFeedback}` : ''}`],
-            ['aiFormatter', 'AI formatter'],
           ].map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={activeTab === id} className="tm-admin-tab" onClick={() => setActiveTab(id)}>{label}</button>
           ))}
@@ -343,10 +358,8 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
         )}
 
         {activeTab === 'support' && (
-          <section className="tm-admin-panel"><div className="tm-admin-panel-head"><div><h2 className="tm-admin-panel-title">Support and feedback</h2><p className="tm-admin-panel-note">Feedback is saved in Firestore and also emailed to info@typemywordz.ai.</p></div></div>{feedback.length ? <div className="tm-admin-feedback">{feedback.map((item) => <article className={`tm-admin-feedback-card ${item.readAt ? '' : 'unread'}`} key={item.id}><div className="tm-admin-feedback-meta"><div><strong>{item.name || 'Anonymous'}</strong><span>{item.email}</span></div><span>{formatDate(item.createdAt, true)}</span></div><div className="tm-admin-feedback-body">{item.feedback}</div><div className="tm-admin-feedback-actions"><a className="tm-admin-btn" href={`mailto:${item.email}?subject=${encodeURIComponent('Re: TypeMyworDz feedback')}`}>Reply by email</a>{!item.readAt && <button type="button" className="tm-admin-btn" onClick={() => handleReadFeedback(item)}>Mark as read</button>}</div></article>)}</div> : <div className="tm-admin-empty">No feedback has been submitted yet.</div>}</section>
+          <section className="tm-admin-panel"><div className="tm-admin-panel-head"><div><h2 className="tm-admin-panel-title">Support and feedback</h2><p className="tm-admin-panel-note">Feedback is saved in Firestore and also emailed to info@typemywordz.ai.</p></div></div>{feedback.length ? <div className="tm-admin-feedback">{feedback.map((item) => <article className={`tm-admin-feedback-card ${item.readAt ? '' : 'unread'}`} key={item.id}><div className="tm-admin-feedback-meta"><div><strong>{safeText(item.name, 'Anonymous')}</strong><span>{safeText(item.email, 'No email supplied')}</span></div><span>{formatDate(item.createdAt, true)}</span></div><div className="tm-admin-feedback-body">{safeText(item.feedback, 'No message supplied.')}</div><div className="tm-admin-feedback-actions"><a className="tm-admin-btn" href={`mailto:${encodeURIComponent(safeText(item.email, ''))}?subject=${encodeURIComponent('Re: TypeMyworDz feedback')}`}>Reply by email</a>{!item.readAt && <button type="button" className="tm-admin-btn" onClick={() => handleReadFeedback(item)}>Mark as read</button>}</div></article>)}</div> : <div className="tm-admin-empty">No feedback has been submitted yet.</div>}</section>
         )}
-
-        {activeTab === 'aiFormatter' && <AdminAIFormatter showMessage={showMessage} latestTranscription={latestTranscription} />}
       </div>
       <ConfirmDialog open={Boolean(confirmingDelete)} title="Remove this account?" body={confirmingDelete ? `${confirmingDelete.email} will lose access, its profile will be removed, and its saved transcripts and Ask chats will be deleted. This cannot be undone.` : ''} confirmLabel="Remove account" cancelLabel="Keep account" tone="danger" busy={deleteBusy} onCancel={() => setConfirmingDelete(null)} onConfirm={handleDeleteUser} />
     </div>
