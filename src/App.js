@@ -39,6 +39,7 @@ import AskChatList from './components/AskChatList';
 import Settings from './components/Settings';
 import Pricing from './components/Pricing';
 import AskPanel from './components/AskPanel';
+import HumanTranscription from './components/HumanTranscription';
 import { isPaidAIUser } from './aiAccess';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -262,7 +263,7 @@ function AppContent() {
     }
     try {
       // No amount is sent. The server holds the price list and looks the price
-      // up itself, so a price cannot be edited on its way out of the browser.
+      // up itself, so a price cannot be edited on its way out from the browser.
       let actualCountryCode = countryCode;
 
       // REMOVED: The problematic if (planName === 'Monthly Plan' || planName === 'Yearly Plan') { actualCountryCode = 'OTHER_AFRICA'; } block
@@ -644,8 +645,8 @@ function AppContent() {
       // old recordings. AAC needs more room to sound the same, so it gets 64.
       // The old list ended in audio/wav, which no browser can record at all.
       const RECORDING_FORMATS = [
-        { mimeType: 'audio/webm;codecs=opus', bits: 32000,  extension: 'webm' },
-        { mimeType: 'audio/ogg;codecs=opus',  bits: 32000,  extension: 'ogg'  },
+        { mimeType: 'audio/webm;codecs=opus', bits: 32000, extension: 'webm' },
+        { mimeType: 'audio/ogg;codecs=opus',  bits: 32000, extension: 'ogg'  },
         { mimeType: 'audio/mp4;codecs=mp4a.40.2', bits: 64000, extension: 'm4a' },
         { mimeType: 'audio/mp4',              bits: 64000,  extension: 'm4a' },
         { mimeType: 'audio/webm',             bits: 32000,  extension: 'webm' },
@@ -843,7 +844,7 @@ function AppContent() {
     }
 
     if (statusCheckTimeoutRef.current) {
-      console.log('DEBUG: Clearing status check timeout.');
+      console.log('DEBUG: Clearing transcription status check timeout.');
       clearTimeout(statusCheckTimeoutRef.current);
       statusCheckTimeoutRef.current = null;
     }
@@ -1427,7 +1428,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
     if (hasComplimentaryAccess) return { text: 'Full access', isFree: false, isAdmin: false, note: 'Complimentary account' };
     const p = userProfile?.plan;
     const until = userProfile?.expiresAt
-      ? ' \u00b7 until ' + new Date(userProfile.expiresAt).toLocaleDateString()
+      ? ' · until ' + new Date(userProfile.expiresAt).toLocaleDateString()
       : '';
     if (p === 'Yearly Plan')    return { text: 'Yearly' + until, isFree: false };
     if (p === 'Monthly Plan')   return { text: 'Monthly' + until, isFree: false };
@@ -1664,7 +1665,7 @@ return (
                         <div className="submenu-item" onClick={() => window.showComingSoon('Text-to-Speech')}>
                             <span className="menu-text">Text-to-Speech</span>
                         </div>
-                        <div className="submenu-item" onClick={() => window.showHumanTranscripts()}>
+                        <div className="submenu-item" onClick={(event) => { event.stopPropagation(); setOpenSubmenu(null); setCurrentView('human_transcripts'); }}>
                             <span className="menu-text">Human Transcripts</span>
                         </div>
                     </div>
@@ -1919,7 +1920,13 @@ return (
           </div>
         )}
         {/* Conditional Rendering for different views */}
-        {currentView === 'pricing' ? (
+        {currentView === 'human_transcripts' ? (
+          <HumanTranscription
+            onBack={() => setCurrentView('transcribe')}
+            onOpenFiles={() => setCurrentView('dashboard')}
+            showMessage={showMessage}
+          />
+        ) : currentView === 'pricing' ? (
           <Pricing
             mode="plans"
             isSignedIn={!!currentUser?.email}
@@ -1991,479 +1998,109 @@ return (
                        'if a transcription ever fails, you still have the audio.'}
                     </p>
                     <div className="tm-dialog-actions tm-rec-actions">
-                      <button
-                        type="button"
-                        className="tm-dialog-cancel"
-                        disabled={savingTake}
-                        onClick={() => { setRecordingChoice(false); resetTranscriptionProcessUI(); setSelectedFile(null); recordedAudioBlobRef.current = null; setTakeSaved(false); }}
-                      >
-                        Discard it
+                      <button className="tm-dialog-btn tm-dialog-cancel" type="button" onClick={() => setRecordingChoice(false)} disabled={savingTake}>
+                        Keep recording
                       </button>
-                      <button
-                        type="button"
-                        className="tm-dialog-cancel"
-                        disabled={savingTake}
-                        onClick={downloadRecordedAudio}
-                      >
-                        {savingTake ? 'Preparing your file\u2026' : 'Save a copy'}
+                      <button className="tm-dialog-btn tm-dialog-confirm" type="button" onClick={() => { setRecordingChoice(false); handleUpload(); }} disabled={savingTake}>
+                        Transcribe now
                       </button>
-                      <button
-                        type="button"
-                        className="tm-dialog-go"
-                        disabled={savingTake}
-                        onClick={() => { setRecordingChoice(false); handleUpload(); }}
-                      >
-                        Transcribe it
+                    </div>
+                    <div className="tm-rec-save">
+                      <label htmlFor="tm-download-format">Save a copy:</label>
+                      <select id="tm-download-format" value={downloadFormat} onChange={(e) => setDownloadFormat(e.target.value)} disabled={savingTake}>
+                        <option value="mp3">MP3 (small, compatible)</option>
+                        <option value="original">Original browser format</option>
+                      </select>
+                      <button className="tm-dialog-btn tm-dialog-save" type="button" onClick={downloadRecordedAudio} disabled={savingTake}>
+                        {savingTake ? 'Saving…' : 'Save recording'}
                       </button>
                     </div>
                   </div>
                 </div>
               )}
-              <ConfirmDialog
-                open={confirmReRecord}
-                title="Record over the one you have?"
-                body="The recording you just made has not been saved or transcribed yet, and starting a new one will replace it for good. Save a copy first if you might still want it."
-                confirmLabel="Record a new one"
-                cancelLabel="Keep what I have"
-                tone="danger"
-                onConfirm={() => { setConfirmReRecord(false); beginRecording(); }}
-                onCancel={() => setConfirmReRecord(false)}
+              {confirmReRecord && (
+                <ConfirmDialog
+                  open={confirmReRecord}
+                  title="Record over this take?"
+                  body="Your current recording has not been saved or transcribed. Starting again will replace it."
+                  confirmLabel="Record again"
+                  cancelLabel="Keep this take"
+                  onConfirm={() => { setConfirmReRecord(false); beginRecording(); }}
+                  onCancel={() => setConfirmReRecord(false)}
+                />
+              )}
+              {confirmingCancel && (
+                <ConfirmDialog
+                  open={confirmingCancel}
+                  title="Stop this transcription?"
+                  body="The work in progress will be discarded. Your original recording will stay on your device."
+                  confirmLabel="Stop transcription"
+                  cancelLabel="Keep working"
+                  onConfirm={() => { setConfirmingCancel(false); handleCancelUpload(); }}
+                  onCancel={() => setConfirmingCancel(false)}
+                />
+              )}
+              {/* The file input is intentionally kept in the workspace so it
+                  can be reached by the keyboard shortcut as well as the button. */}
+              <input className="tm-file" type="file" accept="audio/*,video/*" onChange={handleFileSelect} />
+              <TranscribeProgress
+                selectedFile={selectedFile}
+                audioDuration={audioDuration}
+                isRecording={isRecording}
+                recordingTime={recordingTime}
+                status={status}
+                transcription={transcription}
+                uploadPercent={uploadPercent}
+                transcribePhase={transcribePhase}
+                planBlock={planBlock}
+                onStartRecording={startRecording}
+                onStopRecording={stopRecording}
+                onChooseFile={chooseFile}
+                onUpload={handleUpload}
+                onCancel={() => setConfirmingCancel(true)}
+                onOpenPricing={handleOpenPricing}
+                speakerLabelsEnabled={speakerLabelsEnabled}
+                onSpeakerLabelsChange={setSpeakerLabelsEnabled}
+                selectedLanguage={selectedLanguage}
+                onLanguageChange={setSelectedLanguage}
               />
-              <ConfirmDialog
-                open={confirmingCancel}
-                title="Stop this transcription?"
-                body="The work done so far will be lost and you will need to start again. Your file stays selected."
-                confirmLabel="Stop it"
-                cancelLabel="Keep going"
-                tone="danger"
-                onConfirm={() => { setConfirmingCancel(false); handleCancelUpload(); }}
-                onCancel={() => setConfirmingCancel(false)}
-              />
-              {planBlock && (
-                <div className="tm-blocked" role="alert">
-                  <div className="tm-blocked-text">
-                    <strong>{planBlock}</strong>
-                    <span>Your file is still selected. Choose a plan and it will be ready to go.</span>
-                  </div>
-                  <div className="tm-blocked-acts">
-                    <button type="button" className="tm-blocked-go" onClick={() => setCurrentView('pricing')}>
-                      See plans
-                    </button>
-                    <button type="button" className="tm-blocked-go" onClick={() => setCurrentView('credits')}>
-                      Top up credits
-                    </button>
-                    <button type="button" className="tm-blocked-x" onClick={() => setPlanBlock(null)}>
-                      Not now
-                    </button>
-                  </div>
-                </div>
-              )}
-              {!hasComplimentaryAccess && userProfile && userProfile.plan === 'free'
-                && spendableFor(creditBalance, userProfile) <= 0 && (
-                <div className="tm-need" role="status">
-                  <div className="tm-need-text">
-                    <strong>You have no credits left.</strong>
-                    A plan gives you credits every period, or you can buy credits on
-                    their own. Either one unlocks everything.
-                  </div>
-                  <div className="tm-need-acts">
-                    <button type="button" className="tm-need-go" onClick={() => setCurrentView('pricing')}>
-                      See plans
-                    </button>
-                    <button type="button" className="tm-need-alt" onClick={() => setCurrentView('credits')}>
-                      Top up credits
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div style={{
-                backgroundColor: '#ffffff',
-                border: '1px solid #e5e6ea',
-                borderRadius: '12px',
-                padding: '28px',
-                marginBottom: '30px',
-                textAlign: 'center',
-                boxShadow: 'none'
-              }}>
-                <h2 style={{ 
-                  color: '#1a1b1f', 
-                  margin: '0 0 22px 0',
-                  fontSize: '1.25rem',
-                  fontWeight: '600'
-                }}>
-                  New transcription
-                </h2>
-                
-                <div style={{ marginBottom: '30px' }}>
-                  <h3 style={{ 
-                    color: '#6b6d76', 
-                    margin: '0 0 14px 0',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    letterSpacing: '0.07em',
-                    textTransform: 'uppercase'
-                  }}>
-                    Record audio
-                  </h3>
-                  
-                  {isRecording && (
-                    <div style={{
-                      color: '#c0392b',
-                      fontSize: '14px',
-                      marginBottom: '12px',
-                      fontWeight: '600'
-                    }}>
-                      Recording {formatTime(recordingTime)}
-                    </div>
-                  )}
-                  
-                  <button
-                    onClick={isRecording ? stopRecording : startRecording}
-                    style={{
-                      padding: '10px 18px',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      backgroundColor: isRecording ? '#c0392b' : '#28a745',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '7px',
-                      cursor: 'pointer',
-                      boxShadow: 'none',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      transition: 'background-color 0.15s ease'
-                    }}
-                  >
-                    <span style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      backgroundColor: 'white',
-                      display: 'inline-block'
-                    }} />
-                    {isRecording ? 'Stop recording' : 'Start recording'}
-                  </button>
-
-                  <div className="tm-rec-hint">
-                    {isRecording
-                      ? 'Press Ctrl and Space and the right arrow to stop.'
-                      : 'Press Ctrl and Space and the right arrow to start recording, or Ctrl and Shift and O to choose a file.'}
-                  </div>
-
-                  {recordedAudioBlobRef.current && !isRecording && !takeSaved && (
-                    <div className="tm-rec-warn" role="status">
-                      This recording only exists here until you transcribe it or save it. Save a
-                      copy to your computer if it matters, so a failed transcription cannot cost
-                      you the audio.
-                    </div>
-                  )}
-
-                  {recordedAudioBlobRef.current && !isRecording && (
-                    <div style={{ marginTop: '15px' }}>
-                      <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        gap: '10px',
-                        marginBottom: '10px'
-                      }}>
-                        <label htmlFor="downloadFormat" style={{ color: '#1a1b1f', fontWeight: '500', fontSize: '14px' }}>
-                          Download Format:
-                        </label>
-                        <select
-                          id="downloadFormat"
-                          value={downloadFormat}
-                          onChange={(e) => setDownloadFormat(e.target.value)}
-                          style={{
-                            padding: '6px 10px',
-                            borderRadius: '7px',
-                            border: '1px solid #d5d7dd',
-                            fontFamily: 'inherit',
-                            fontSize: '14px',
-                            background: '#fff'
-                          }}
-                        >
-                          <option value="mp3">MP3, plays anywhere</option>
-                          <option value="original">Original, exactly as recorded</option>
-                        </select>
-                      </div>
-                      <button
-                        onClick={downloadRecordedAudio}
-                        disabled={savingTake}
-                        style={{
-                          padding: '8px 14px',
-                          backgroundColor: '#fff',
-                          color: '#1a1b1f',
-                          border: '1px solid #d5d7dd',
-                          borderRadius: '7px',
-                          cursor: 'pointer',
-                          fontFamily: 'inherit',
-                          fontSize: '14px'
-                        }}
-                      >
-                        {savingTake ? 'Preparing your file\u2026' : (downloadFormat === 'mp3' ? 'Save recording as MP3' : 'Save recording as recorded')}
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <div style={{
-                  borderTop: '1px solid #eceef1',
-                  paddingTop: '26px'
-                }}>
-                  <h3 style={{ 
-                    color: '#6b6d76', 
-                    margin: '0 0 14px 0',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    letterSpacing: '0.07em',
-                    textTransform: 'uppercase'
-                  }}>
-                    Or upload a file
-                  </h3>
-                  
-                  <div style={{
-                    border: '1px dashed #ccced4',
-                    borderRadius: '10px',
-                    padding: '22px',
-                    marginBottom: '20px',
-                    backgroundColor: '#fafafb'
-                  }}>
-                    <input
-                      className="tm-file"
-                      type="file"
-                      accept="audio/mp3,audio/mpeg,audio/*,video/*"
-                      onChange={handleFileSelect}
-                    />
-                    {selectedFile && (
-                      <div style={{
-                        backgroundColor: '#eaf7ee',
-                        color: '#1e7e34',
-                        padding: '10px',
-                        borderRadius: '5px',
-                        marginTop: '10px'
-                      }}>
-                        Selected: {selectedFile.name}
-                        <div style={{ fontSize: '12px', marginTop: '5px', opacity: '0.8' }}>
-                          Ready for transcription
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
-                    <label htmlFor="languageSelect" style={{ color: '#1a1b1f', fontWeight: '500', fontSize: '14px' }}>
-                      Language
-                    </label>
-                    <select
-                      id="languageSelect"
-                      value={selectedLanguage}
-                      onChange={(e) => setSelectedLanguage(e.target.value)}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: '7px',
-                        border: '1px solid #d5d7dd',
-                        fontFamily: 'inherit',
-                        fontSize: '14px',
-                        background: '#fff'
-                      }}
-                    >
-                      <option value="en">English (Default)</option>
-                      <option value="es">Spanish</option>
-                      <option value="fr">French</option>
-                      <option value="de">German</option>
-                      <option value="it">Italian</option>
-                      <option value="pt">Portuguese</option>
-                      <option value="ru">Russian</option>
-                      <option value="zh">Chinese</option>
-                      <option value="ja">Japanese</option>
-                      <option value="ko">Korean</option>
-                    </select>
-                  </div>
-                  
-                  <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
-                    <label htmlFor="speakerLabelsSelect" style={{ color: '#1a1b1f', fontWeight: '500', fontSize: '14px' }}>
-                      Speaker tags
-                    </label>
-                    <select
-                      id="speakerLabelsSelect"
-                      value={speakerLabelsEnabled ? "true" : "false"}
-                      onChange={(e) => setSpeakerLabelsEnabled(e.target.value === "true")}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: '7px',
-                        border: '1px solid #d5d7dd',
-                        fontFamily: 'inherit',
-                        fontSize: '14px',
-                        background: '#fff'
-                      }}
-                    >
-                      <option value="false">No Speakers (Default)</option>
-                      <option value="true">With Speakers</option>
-                    </select>
-                  </div>
-
-                  {(status === 'processing' || status === 'uploading') && (
-                    <TranscribeProgress
-                      phase={transcribePhase}
-                      uploadPercent={uploadPercent}
-                      expectedSeconds={Math.max(10, (audioDuration || 0) * 0.3)}
-                      onCancel={() => setConfirmingCancel(true)}
-                    />
-                  )}
-
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
-                    {status === 'idle' && !isUploading && selectedFile && (
-                      <button
-                        onClick={handleUpload}
-                        disabled={!selectedFile || isUploading}
-                        style={{
-                          padding: '12px 26px',
-                          fontSize: '15px',
-                          fontWeight: 600,
-                          backgroundColor: (!selectedFile || isUploading) ? '#adb2bb' : '#28a745',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '8px',
-                          cursor: (!selectedFile || isUploading) ? 'not-allowed' : 'pointer',
-                          boxShadow: 'none'
-                        }}
-                      >
-                        Start transcription
-                      </button>
-                    )}
-
-                    {/* Cancel now lives inside the progress panel, beside the
-                        thing it cancels, rather than as a large red pill. */}
-                  </div>
-                </div>
-              </div>
-              {status && (status === 'completed' || status === 'failed') && (
-                <div style={{
-                  backgroundColor: status === 'completed' ? 'rgba(212, 237, 218, 0.95)' : 'rgba(255, 243, 205, 0.95)',
-                  border: `2px solid ${status === 'completed' ? '#27ae60' : '#f39c12'}`,
-                  borderRadius: '10px',
-                  padding: '20px',
-                  marginBottom: '30px',
-                  textAlign: 'center'
-                }}>
-                  <h3 style={{ 
-                    color: status === 'completed' ? '#27ae60' : '#f39c12',
-                    margin: '0'
-                  }}>
-                    {status ==='completed'?'Transcription Completed!':`Status: ${status}`}
-                  </h3>
-                  {status === 'failed' && (
-                    <>
-                      <p style={{ margin: '10px 0 0 0', color: '#666' }}>
-                        That job did not finish. This is most often a dropped
-                        connection. Your file is still selected, so you can simply
-                        try again.
-                      </p>
-                      {selectedFile && (
-                        <button
-                          type="button"
-                          className="tm-retry"
-                          disabled={isUploading}
-                          onClick={() => { setStatus('idle'); handleUpload(); }}
-                        >
-                          {isUploading ? 'Working\u2026' : 'Try again'}
-                        </button>
-                      )}
-                    </>
-                  )}
-                  {status === 'completed' && (
-                    <p className="tm-keepnote">
-                      Your transcript is saved and waiting in My files, so you can move
-                      around the app freely and come back to it whenever you like. We do
-                      not keep your recording, so when you return to proofread, open the
-                      transcript and pick the audio file from your own computer to play
-                      it alongside.
-                    </p>
-                  )}
-                </div>
-              )}
-              
-              {transcription && (
+              {status === 'completed' && transcription && (
                 <TranscriptEditor
-                  fileName={selectedFile ? selectedFile.name : 'Your transcript'}
-                  rawText={transcription}
+                  transcription={transcription}
                   segments={transcriptSegments}
-                  durationSeconds={audioDuration || 0}
-                  audioFile={selectedFile}
+                  selectedFile={selectedFile}
+                  audioDuration={audioDuration}
                   onSave={handleSaveFreshTranscript}
-                  onAskAI={isPaidAIUser(userProfile, currentUser?.email, creditBalance) ? () => setCurrentView('ai_assistant') : null}
-                  canUseAI={isPaidAIUser(userProfile, currentUser?.email, creditBalance)}
+                  onNew={() => { setConfirmingNew(true); }}
+                  onOpenAssistant={() => setCurrentView('ai_assistant')}
                 />
-              )}
-
-              {transcription && (
-                <AskPanel
-                  transcript={transcription}
-                  userPlan={userProfile?.plan || 'free'}
-                  userEmail={currentUser?.email || ''}
-                  userId={currentUser?.uid || ''}
-                  canUse={isPaidAIUser(userProfile, currentUser?.email, creditBalance)}
-                  onUpgrade={() => setCurrentView('pricing')}
-                  defaultOpen
-                />
-              )}
-
-              {transcription && (
-                <p className="tm-result-note">
-                  This transcript is saved. You can come back to it any time from{' '}
-                  <button type="button" className="tm-result-link" onClick={() => setCurrentView('dashboard')}>
-                    My files
-                  </button>.
-                </p>
               )}
             </main>
           </div>
         )}
-        <footer className="tm-footer tm-sitefoot">
-          <span>© {new Date().getFullYear()} TypeMyworDz</span>
-          <span className="tm-sitefoot-links">
-            <Link to="/privacy-policy">Privacy &amp; Security</Link>
-            <Link to="/terms">Terms of Service</Link>
-          </span>
-        </footer>
-
           </main>
         </div>
         </AskProvider>
-
-        <FeedbackModal
-          show={showFeedbackModal}
-          onClose={() => setShowFeedbackModal(false)}
-          onSend={handleSendFeedback}
-          userName={currentUser?.displayName}
-          userEmail={currentUser?.email}
-          isSending={isSendingFeedback}
-        />
+        {showFeedbackModal && (
+          <FeedbackModal
+            onClose={() => setShowFeedbackModal(false)}
+            onSubmit={handleSendFeedback}
+            isSending={isSendingFeedback}
+            initialName={feedbackName}
+            initialEmail={feedbackEmail}
+          />
+        )}
       </div>
     } />
   </Routes>
 );
 }
 
-// Main App Component with AuthProvider (existing, no changes needed here)
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          {/* Standalone routes that don't require auth check */}
-          <Route path="/transcription-editor" element={<RichTextEditor />} />
-          <Route path="/transcription/:id" element={<TranscriptionDetail />} />
-          {/* Try the proofreading editor on a sample transcript, no minutes spent. */}
-          <Route path="/editor-demo" element={<EditorDemo />} />
-          
-          {/* Main app routes */}
-          <Route path="/*" element={<AppContent />} /> 
-        </Routes>
-      </Router>
-    </AuthProvider>
+    <Router>
+      <AppContent />
+    </Router>
   );
 }
 
