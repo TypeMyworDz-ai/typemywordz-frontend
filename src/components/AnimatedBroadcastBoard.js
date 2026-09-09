@@ -66,11 +66,6 @@ const MESSAGES = [
     action: { label: 'Open Editor', view: 'editor' }
   },
   {
-    kind: 'feature',
-    text: 'Need a person rather than a machine? We offer human transcription.',
-    action: { label: 'Talk to us', view: 'feedback' }
-  },
-  {
     kind: 'tip',
     text: 'We never store your audio or video files. Your recordings stay yours.'
   }

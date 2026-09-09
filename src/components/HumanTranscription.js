@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { paymentCountryCode } from './Pricing';
 import './HumanTranscription.css';
 
 const ACCEPTED_AUDIO = '.mp3,.wav,.m4a,.mp4,.mov,.avi,.aac,.flac,.ogg,.webm';
@@ -82,6 +83,7 @@ export default function HumanTranscription({ onBack, onOpenFiles, showMessage })
       body.append('seconds', String(Math.round(durationSeconds)));
       body.append('turnaround', turnaround);
       body.append('difficulty', difficulty);
+      body.append('country_code', paymentCountryCode());
       const response = await fetch(`${backendUrl}/human-transcription/quote`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -201,7 +203,7 @@ export default function HumanTranscription({ onBack, onOpenFiles, showMessage })
           <div className="tm-human-quote-placeholder" role="status">
             <strong>{quote.exempt ? 'Admin test quote' : `Estimated quote: ${quote.cost.toLocaleString()} credits`}</strong>
             <span>
-              {quote.minutes} minute{quote.minutes === 1 ? '' : 's'} · {quote.pricing_tier === 'standard' ? 'standard' : 'rush or difficult'} rate.
+              {quote.minutes} minute{quote.minutes === 1 ? '' : 's'} · {quote.pricing_region === 'africa' ? 'African regional' : 'international'} {quote.pricing_tier === 'standard' ? 'standard' : 'rush or difficult'} rate.
               {quote.exempt ? ' This account is exempt from credit charges.' : quote.affordable ? ' You have enough credits to continue.' : ` You need ${quote.short_by.toLocaleString()} more credits.`}
             </span>
             <small>Nothing has been uploaded, reserved, or deducted.</small>

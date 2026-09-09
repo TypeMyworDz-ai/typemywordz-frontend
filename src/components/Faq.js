@@ -69,13 +69,6 @@ const QUESTIONS = [
       'If you are stuck, email info@typemywordz.ai and a person will answer.',
     ],
   },
-  {
-    q: 'What if I want a human to handle my job?',
-    a: [
-      'We can do that too. Alongside the automatic service we run a department that produces 100% human-made transcripts, for the jobs where the audio is difficult or the accuracy has to be beyond question.',
-      'Email info@typemywordz.ai, tell us roughly how long the recording is and when you need it back, and we will come back to you with a price and a turnaround.',
-    ],
-  },
 ];
 
 const Faq = () => {
