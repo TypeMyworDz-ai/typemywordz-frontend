@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import './HumanTranscription.css';
 
 const ACCEPTED_AUDIO = '.mp3,.wav,.m4a,.mp4,.mov,.avi,.aac,.flac,.ogg,.webm';
@@ -11,13 +12,21 @@ function formatFileSize(bytes) {
 }
 
 export default function HumanTranscription({ onBack, onOpenFiles, showMessage }) {
+  const { currentUser } = useAuth();
   const [file, setFile] = useState(null);
+  const [durationSeconds, setDurationSeconds] = useState(0);
+  const [durationLoading, setDurationLoading] = useState(false);
   const [turnaround, setTurnaround] = useState('standard');
   const [difficulty, setDifficulty] = useState('standard');
   const [timestamps, setTimestamps] = useState(true);
   const [speakers, setSpeakers] = useState(true);
   const [notes, setNotes] = useState('');
-  const [requested, setRequested] = useState(false);
+  const [quote, setQuote] = useState(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState('');
+
+  const backendUrl = process.env.REACT_APP_RAILWAY_BACKEND_URL ||
+    'https://backendforrailway-production-7128.up.railway.app';
 
   const fileLabel = useMemo(() => {
     if (!file) return 'Choose an audio or video file';
@@ -27,19 +36,65 @@ export default function HumanTranscription({ onBack, onOpenFiles, showMessage })
   const handleFileChange = (event) => {
     const nextFile = event.target.files?.[0] || null;
     setFile(nextFile);
-    setRequested(false);
+    setDurationSeconds(0);
+    setQuote(null);
+    setQuoteError('');
+    if (!nextFile) return;
+
+    setDurationLoading(true);
+    const media = document.createElement(nextFile.type.startsWith('video/') ? 'video' : 'audio');
+    const objectUrl = URL.createObjectURL(nextFile);
+    media.preload = 'metadata';
+    media.onloadedmetadata = () => {
+      setDurationSeconds(Number.isFinite(media.duration) ? media.duration : 0);
+      setDurationLoading(false);
+      URL.revokeObjectURL(objectUrl);
+    };
+    media.onerror = () => {
+      setDurationLoading(false);
+      setQuoteError('We could not read the recording length. Please choose another file.');
+      URL.revokeObjectURL(objectUrl);
+    };
+    media.src = objectUrl;
   };
 
-  const handleRequest = (event) => {
+  const handleRequest = async (event) => {
     event.preventDefault();
     if (!file) {
       showMessage?.('Choose an audio or video file first.');
       return;
     }
+    if (durationLoading || !durationSeconds) {
+      showMessage?.('We are still reading the recording length. Try again in a moment.');
+      return;
+    }
+    if (!currentUser) {
+      showMessage?.('Please sign in before requesting a quote.', 'warning');
+      return;
+    }
 
-    // The secure quote and credit reservation are deliberately added in the next release.
-    // This first release establishes the customer-facing flow without uploading or charging.
-    setRequested(true);
+    setQuoteLoading(true);
+    setQuoteError('');
+    setQuote(null);
+    try {
+      const token = await currentUser.getIdToken();
+      const body = new FormData();
+      body.append('seconds', String(Math.round(durationSeconds)));
+      body.append('turnaround', turnaround);
+      body.append('difficulty', difficulty);
+      const response = await fetch(`${backendUrl}/human-transcription/quote`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || 'The quote could not be prepared.');
+      setQuote(data);
+    } catch (error) {
+      setQuoteError(error.message || 'The quote could not be prepared.');
+    } finally {
+      setQuoteLoading(false);
+    }
   };
 
   return (
@@ -135,16 +190,29 @@ export default function HumanTranscription({ onBack, onOpenFiles, showMessage })
           />
         </label>
 
-        {requested && (
+        {quoteError && (
+          <div className="tm-human-quote-placeholder tm-human-quote-error" role="alert">
+            <strong>Quote unavailable</strong>
+            <span>{quoteError}</span>
+          </div>
+        )}
+
+        {quote && (
           <div className="tm-human-quote-placeholder" role="status">
-            <strong>Your file is ready for a quote.</strong>
-            <span>The secure quote and confirmation step are being connected next. Nothing has been uploaded or charged.</span>
+            <strong>{quote.exempt ? 'Admin test quote' : `Estimated quote: ${quote.cost.toLocaleString()} credits`}</strong>
+            <span>
+              {quote.minutes} minute{quote.minutes === 1 ? '' : 's'} · {quote.pricing_tier === 'standard' ? 'standard' : 'rush or difficult'} rate.
+              {quote.exempt ? ' This account is exempt from credit charges.' : quote.affordable ? ' You have enough credits to continue.' : ` You need ${quote.short_by.toLocaleString()} more credits.`}
+            </span>
+            <small>Nothing has been uploaded, reserved, or deducted.</small>
           </div>
         )}
 
         <div className="tm-human-footer">
-          <p>Nothing is uploaded or deducted until you review and confirm the quote.</p>
-          <button type="submit" className="tm-human-quote-button">Prepare my quote</button>
+          <p>We calculate the quote from the recording length on the server. Nothing is uploaded or deducted at this step.</p>
+          <button type="submit" className="tm-human-quote-button" disabled={quoteLoading || durationLoading}>
+            {quoteLoading ? 'Calculating quote…' : durationLoading ? 'Reading recording…' : 'Prepare my quote'}
+          </button>
         </div>
       </form>
 
