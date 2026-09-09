@@ -3948,8 +3948,7 @@ body {
   border-bottom: 1px solid #ececf0;
 }
 .tm-public-pricing-brand {
-  display: inline-flex;
-  flex-direction: column;
+  display: inline-block;
   color: inherit;
   text-decoration: none;
   font-size: 22px;
@@ -3957,6 +3956,7 @@ body {
   letter-spacing: -0.04em;
 }
 .tm-public-pricing-brand small {
+  display: block;
   margin-top: 3px;
   color: #7a7d86;
   font-size: 10px;
