@@ -37,7 +37,7 @@ import AskTypeMyworDz from './components/AskTypeMyworDz';
 import { AskProvider } from './components/AskContext';
 import AskChatList from './components/AskChatList';
 import Settings from './components/Settings';
-import Pricing from './components/Pricing';
+import Pricing, { PublicPricing } from './components/Pricing';
 import AskPanel from './components/AskPanel';
 import HumanTranscription from './components/HumanTranscription';
 import { isPaidAIUser } from './aiAccess';
@@ -1665,9 +1665,6 @@ return (
                         <div className="submenu-item" onClick={() => window.showComingSoon('Text-to-Speech')}>
                             <span className="menu-text">Text-to-Speech</span>
                         </div>
-                        <div className="submenu-item" onClick={(event) => { event.stopPropagation(); setOpenSubmenu(null); setCurrentView('human_transcripts'); }}>
-                            <span className="menu-text">Human Transcripts</span>
-                        </div>
                     </div>
                 )}
             </div>
@@ -2418,12 +2415,20 @@ return (
               )}
 
               {transcription && (
-                <p className="tm-result-note">
-                  This transcript is saved. You can come back to it any time from{' '}
-                  <button type="button" className="tm-result-link" onClick={() => setCurrentView('dashboard')}>
-                    My files
-                  </button>.
-                </p>
+                <>
+                  <p className="tm-result-note">
+                    This transcript is saved. You can come back to it any time from{' '}
+                    <button type="button" className="tm-result-link" onClick={() => setCurrentView('dashboard')}>
+                      My files
+                    </button>.
+                  </p>
+                  <div className="tm-human-result-gateway">
+                    <span>Need a careful human review for difficult or high-stakes audio?</span>
+                    <button type="button" onClick={() => setCurrentView('human_transcripts')}>
+                      Request human transcription
+                    </button>
+                  </div>
+                </>
               )}
             </main>
           </div>
@@ -2465,6 +2470,7 @@ function App() {
           <Route path="/transcription/:id" element={<TranscriptionDetail />} />
           {/* Try the proofreading editor on a sample transcript, no minutes spent. */}
           <Route path="/editor-demo" element={<EditorDemo />} />
+          <Route path="/pricing" element={<PublicPricing />} />
           
           {/* Main app routes */}
           <Route path="/*" element={<AppContent />} /> 
