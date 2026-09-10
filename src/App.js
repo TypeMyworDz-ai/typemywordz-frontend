@@ -2395,20 +2395,12 @@ return (
               )}
 
               {transcription && (
-                <>
-                  <p className="tm-result-note">
-                    This transcript is saved. You can come back to it any time from{' '}
-                    <button type="button" className="tm-result-link" onClick={() => setCurrentView('dashboard')}>
-                      My files
-                    </button>.
-                  </p>
-                  <div className="tm-human-result-gateway">
-                    <span>Need a careful human review for difficult or high-stakes audio?</span>
-                    <button type="button" onClick={() => setCurrentView('human_transcripts')}>
-                      Request human transcription
-                    </button>
-                  </div>
-                </>
+                <p className="tm-result-note">
+                  This transcript is saved. You can come back to it any time from{' '}
+                  <button type="button" className="tm-result-link" onClick={() => setCurrentView('dashboard')}>
+                    My files
+                  </button>.
+                </p>
               )}
             </main>
           </div>
