@@ -93,8 +93,9 @@ const Shell = ({ title, children }) => (
 // They used to share one long page, with the credit bundles hidden below the
 // fold. A client told us they never knew credits existed until they were told
 // to scroll. Each is now its own page, and each points clearly at the other.
-const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => {
-  const country = paymentCountryCode();
+const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo, testCountryCode }) => {
+  // The test override is passed only by the admin-only live checkout test path.
+  const country = testCountryCode || paymentCountryCode();
   const { catalogue, failed } = useCatalogue(country);
   const [busy, setBusy] = useState('');
 

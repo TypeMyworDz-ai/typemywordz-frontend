@@ -200,6 +200,10 @@ function AppContent() {
 
   // Admin list lives in src/adminEmails.js so it cannot drift from the backend.
   const isAdmin = isAdminEmail(currentUser?.email);
+  // Temporary, admin-only live checkout test switch. It is intentionally
+  // hidden from normal users and will be removed immediately after testing.
+  const forceGlobalPaddleTest = isAdmin &&
+    new URLSearchParams(window.location.search).get('paddle-test-us') === '1';
   // Free access covers the admin and the complimentary accounts. Anything that
   // asks a client to pay must check this, not isAdmin, or a complimentary
   // account starts seeing Upgrade and See plans.
@@ -1908,6 +1912,7 @@ return (
             mode="plans"
             isSignedIn={!!currentUser?.email}
             currentPlan={userProfile?.plan || 'free'}
+            testCountryCode={forceGlobalPaddleTest ? 'GLOBAL' : undefined}
             onBuy={(itemId, countryCode) => initializePayment(itemId, countryCode)}
             onGoTo={setCurrentView}
           />
@@ -1916,6 +1921,7 @@ return (
             mode="credits"
             isSignedIn={!!currentUser?.email}
             currentPlan={userProfile?.plan || 'free'}
+            testCountryCode={forceGlobalPaddleTest ? 'GLOBAL' : undefined}
             onBuy={(itemId, countryCode) => initializePayment(itemId, countryCode)}
             onGoTo={setCurrentView}
           />
