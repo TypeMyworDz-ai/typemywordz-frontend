@@ -295,4 +295,41 @@ const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => 
   );
 };
 
+
+export const PublicPricing = () => {
+  const [mode, setMode] = useState('plans');
+  return (
+    <div className="tm-public-pricing">
+      <header className="tm-public-pricing-head">
+        <a className="tm-public-pricing-brand" href="/" aria-label="TypeMyworDz home">
+          <span className="tm-w-purple">Type</span><span className="tm-w-green">My</span><span className="tm-w-purple">worDz</span>
+          <small>Your everyday AI companion</small>
+        </a>
+        <nav aria-label="Pricing page navigation">
+          <a href="/">Home</a>
+          <a href="/terms">Terms</a>
+          <a href="/privacy-policy">Privacy</a>
+          <a href="/refund-policy">Refunds</a>
+        </nav>
+      </header>
+      <main className="tm-public-pricing-main">
+        <Pricing
+          mode={mode}
+          isSignedIn={false}
+          currentPlan="free"
+          onBuy={() => {}}
+          onGoTo={setMode}
+        />
+        <p className="tm-public-pricing-note">
+          Ready to use TypeMyworDz? <a href="/">Create an account or sign in</a> to choose a plan.
+        </p>
+      </main>
+      <footer className="tm-public-pricing-foot">
+        <span>© {new Date().getFullYear()} TypeMyworDz</span>
+        <a href="mailto:info@typemywordz.ai">info@typemywordz.ai</a>
+      </footer>
+    </div>
+  );
+};
+
 export default Pricing;
