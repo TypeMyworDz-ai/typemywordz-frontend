@@ -118,17 +118,15 @@ const Landing = () => {
             Two AI tools that do<br />the work you were dreading.
           </h1>
           <p className="tm-lp-lede">
-            TypeMyworDz turns recordings into clean, speaker-separated text, and answers
-            whatever you ask it, on your transcripts or on anything else. Use one, use both.
-            The same credits cover the lot, so you are never paying for a product you did
-            not come for.
+            TypeMyworDz turns interviews, meetings, research recordings and everyday audio into clean, speaker-separated text, then lets you ask AI what matters. Use one tool or both—the same credits cover the workflow.
           </p>
+          <p className="tm-lp-audience">Built for researchers, legal teams, journalists, podcasters and busy professionals.</p>
 
           <ul className="tm-lp-ticks">
             <li><strong>Transcription</strong> with speaker labels, timestamps and a proper editor</li>
             <li><strong>Ask TypeMyworDz</strong> for research, drafting and questions of any kind</li>
             <li>Export to Word or plain text, or copy in one click</li>
-            <li>The leading AI models, without a separate subscription for each</li>
+            <li>Multiple AI models behind one simple workflow</li>
             <li>Your recordings and your questions are never used to train AI</li>
           </ul>
 
