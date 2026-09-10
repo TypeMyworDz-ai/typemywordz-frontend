@@ -318,8 +318,7 @@ const Landing = () => {
         <div className="tm-lp-inner tm-lp-narrow">
           <h2>Try it on a real recording</h2>
           <p>
-            Five minutes free is enough to judge the quality on your own audio, which is the
-            only test that matters.
+            Start with 30 free credits, upload a real recording, and judge the result on your own work.
           </p>
           <button className="tm-lp-cta-btn" onClick={go('top')}>
             Get started
