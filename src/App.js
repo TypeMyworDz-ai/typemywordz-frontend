@@ -752,8 +752,8 @@ function AppContent() {
   }, [beginRecording, takeSaved]);
 
   // Keyboard shortcuts, so nobody has to scroll the page to start, stop or
-  // pick a file. Deliberately Ctrl+Shift so they cannot collide with the
-  // browser's own shortcuts or with typing in the editor.
+  // pick a file. Recording uses Ctrl+R outside text fields; file selection
+  // remains on Ctrl+Shift+O.
   const chooseFile = useCallback(() => {
     const input = document.querySelector('input.tm-file');
     if (input) input.click();
@@ -768,50 +768,30 @@ function AppContent() {
       console.log('DEBUG: MediaRecorder stopped, isRecording set to false, interval cleared.'); // NEW LOG
     }
   }, [isRecording]);
-  // Improved cancel function with page refresh
   useEffect(() => {
-    // Recording is now Ctrl + Space + the right arrow. Three keys cannot
-    // arrive in one keypress, so we remember that Ctrl+Space is being held
-    // and fire when the right arrow is pressed on top of it. Space only
-    // counts while Ctrl is down, so ordinary typing can never arm this.
-    let spaceHeld = false;
     const inTextField = (el) =>
       !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 
     const onKey = (e) => {
-      if (e.altKey) return;
-      if (inTextField(e.target)) return;
+      if (e.altKey || !e.ctrlKey || inTextField(e.target)) return;
 
-      if (e.code === 'Space' && e.ctrlKey) {
-        spaceHeld = true;
-        e.preventDefault();
-        return;
-      }
-
-      if (e.ctrlKey && spaceHeld && e.key === 'ArrowRight') {
+      if (!e.shiftKey && (e.key || '').toLowerCase() === 'r') {
+        // Ctrl+R normally reloads the browser; keep it scoped to the app and
+        // use it for recording only when the client is outside a text field.
         e.preventDefault();
         if (isRecording) stopRecording();
         else startRecording();
         return;
       }
 
-      if (e.ctrlKey && e.shiftKey && (e.key || '').toLowerCase() === 'o') {
+      if (e.shiftKey && (e.key || '').toLowerCase() === 'o') {
         e.preventDefault();
         chooseFile();
       }
     };
-    // Let go of Space, or leave the window, and the combination disarms.
-    const onKeyUp = (e) => { if (e.code === 'Space' || !e.ctrlKey) spaceHeld = false; };
-    const onBlur = () => { spaceHeld = false; };
 
     window.addEventListener('keydown', onKey);
-    window.addEventListener('keyup', onKeyUp);
-    window.addEventListener('blur', onBlur);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('keyup', onKeyUp);
-      window.removeEventListener('blur', onBlur);
-    };
+    return () => window.removeEventListener('keydown', onKey);
   }, [isRecording, startRecording, stopRecording, chooseFile]);
 
   const handleCancelUpload = useCallback(async () => {
@@ -2152,8 +2132,8 @@ return (
 
                   <div className="tm-rec-hint">
                     {isRecording
-                      ? 'Press Ctrl and Space and the right arrow to stop.'
-                      : 'Press Ctrl and Space and the right arrow to start recording, or Ctrl and Shift and O to choose a file.'}
+                      ? 'Press Ctrl+R to stop.'
+                      : 'Press Ctrl+R to start recording, or Ctrl+Shift+O to choose a file.'}
                   </div>
 
                   {recordedAudioBlobRef.current && !isRecording && !takeSaved && (
