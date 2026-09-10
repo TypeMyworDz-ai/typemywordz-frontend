@@ -200,9 +200,10 @@ function AppContent() {
 
   // Admin list lives in src/adminEmails.js so it cannot drift from the backend.
   const isAdmin = isAdminEmail(currentUser?.email);
-  // Temporary, admin-only live checkout test switch. It is intentionally
+  // Temporary, admin/test-account-only live checkout switch. It is intentionally
   // hidden from normal users and will be removed immediately after testing.
-  const forceGlobalPaddleTest = isAdmin &&
+  const paddleTestEmail = currentUser?.email?.trim().toLowerCase();
+  const forceGlobalPaddleTest = (isAdmin || paddleTestEmail === 'njokigituku@gmail.com') &&
     new URLSearchParams(window.location.search).get('paddle-test-us') === '1';
   // Free access covers the admin and the complimentary accounts. Anything that
   // asks a client to pay must check this, not isAdmin, or a complimentary
