@@ -12,7 +12,7 @@ function formatFileSize(bytes) {
   return `${(bytes / Math.pow(1024, index)).toFixed(index ? 1 : 0)} ${units[index]}`;
 }
 
-export default function HumanTranscription({ onBack, onOpenFiles, showMessage }) {
+export default function HumanTranscription({ onBack, onOpenFiles, onTopUp, showMessage }) {
   const { currentUser } = useAuth();
   const [file, setFile] = useState(null);
   const [durationSeconds, setDurationSeconds] = useState(0);
@@ -201,11 +201,20 @@ export default function HumanTranscription({ onBack, onOpenFiles, showMessage })
 
         {quote && (
           <div className="tm-human-quote-placeholder" role="status">
-            <strong>{quote.exempt ? 'Admin test quote' : `Estimated quote: ${quote.cost.toLocaleString()} credits`}</strong>
+            <strong>{quote.exempt ? 'Admin test quote' : `Estimated quote: ${Number(quote.cost || 0).toLocaleString()} credits`}</strong>
             <span>
               {quote.minutes} minute{quote.minutes === 1 ? '' : 's'} · {quote.pricing_region === 'africa' ? 'African regional' : 'international'} {quote.pricing_tier === 'standard' ? 'standard' : 'rush or difficult'} rate.
-              {quote.exempt ? ' This account is exempt from credit charges.' : quote.affordable ? ' You have enough credits to continue.' : ` You need ${quote.short_by.toLocaleString()} more credits.`}
             </span>
+            <span>
+              {quote.exempt
+                ? 'This account is exempt from credit charges.'
+                : `Available credits: ${Number(quote.spendable || 0).toLocaleString()}. ${quote.affordable ? 'Your balance covers this quote.' : `You need ${Number(quote.short_by || 0).toLocaleString()} more credits before human work can begin.`}`}
+            </span>
+            {!quote.exempt && !quote.affordable && (
+              <button type="button" className="tm-human-topup-button" onClick={onTopUp}>
+                Top up {Number(quote.short_by || 0).toLocaleString()} credits
+              </button>
+            )}
             <small>Nothing has been uploaded, reserved, or deducted.</small>
           </div>
         )}
