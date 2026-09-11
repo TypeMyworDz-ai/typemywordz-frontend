@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAsk } from './AskContext';
+import { isCompAccessEmail } from '../adminEmails';
 
 // The client's own settings. Right now this is where the assistant model is
 // chosen, which used to sit awkwardly beside the chat. The list is fetched
@@ -60,6 +61,7 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
 
   const standard = models.filter((m) => m.tier === 'standard');
   const premium = models.filter((m) => m.tier === 'premium');
+  const isComplimentary = isCompAccessEmail(userEmail);
 
   const Group = ({ title, note, rows }) =>
     rows.length === 0 ? null : (
@@ -174,7 +176,7 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
             <Group title="Included with your plan" rows={standard} />
             <Group
               title="Advanced models"
-              note="Included with the Monthly and Yearly plans"
+              note={isComplimentary ? 'Included with your complimentary access' : 'Included with the Monthly and Yearly plans'}
               rows={premium}
             />
             <LockedGroup rows={lockedModels} />
