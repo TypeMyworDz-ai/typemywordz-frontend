@@ -177,6 +177,7 @@ const TranscriptEditor = ({
   canUseAI = true,
   showBack = false,
   showHumanRequest = false,
+  onHumanTopUp = null,
   onBack = null
 }) => {
   // ---- audio ----
@@ -784,6 +785,17 @@ const TranscriptEditor = ({
             )}
           </div>
 
+          {showHumanRequest && (
+            <div className="tm-ed-human-top">
+              <HumanRequest
+                fileName={fileName}
+                durationSeconds={shownLength}
+                placement="top"
+                onTopUp={onHumanTopUp}
+              />
+            </div>
+          )}
+
           {onAskAI && (
             <button type="button" className={'tm-ed-ai' + (canUseAI ? '' : ' tm-ed-ai-off')}
                     onClick={() => onAskAI(copyFromSegments(segments, 'full', { speakerNames }))}>
@@ -1015,7 +1027,7 @@ const TranscriptEditor = ({
           the only control was back at the top. Same modes, same last-used
           choice as the one above. */}
       <div className="tm-ed-copybelow">
-        <div className="tm-ed-copybelow-actions">
+        <div className="tm-ed-copybelow-left">
           <button type="button" className="tm-split-main tm-copybelow-btn"
                   onClick={() => doCopy(copyMode)}
                   title="Copy to clipboard (Ctrl+Shift+C)">
@@ -1025,15 +1037,19 @@ const TranscriptEditor = ({
             </svg>
             {copied ? 'Copied' : 'Copy transcript'}
           </button>
-          {showHumanRequest && (
-            <HumanRequest fileName={fileName} durationSeconds={shownLength} />
-          )}
+          <span className="tm-ed-copybelow-note">
+            {COPY_MODES.find((m) => m.id === copyMode)
+              ? COPY_MODES.find((m) => m.id === copyMode).label
+              : 'With speakers and timestamps'}
+          </span>
         </div>
-        <span className="tm-ed-copybelow-note">
-          {COPY_MODES.find((m) => m.id === copyMode)
-            ? COPY_MODES.find((m) => m.id === copyMode).label
-            : 'With speakers and timestamps'}
-        </span>
+        {showHumanRequest && (
+          <HumanRequest
+            fileName={fileName}
+            durationSeconds={shownLength}
+            onTopUp={onHumanTopUp}
+          />
+        )}
       </div>
 
       <div className="tm-ed-foot">
