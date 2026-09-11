@@ -124,7 +124,7 @@ const Landing = () => {
 
           <ul className="tm-lp-ticks">
             <li><strong>Transcription</strong> with speaker labels, timestamps and a proper editor</li>
-            <li><strong>Not happy with an AI transcript, or prefer a human finish?</strong> Sign up for proofreading services and get a quote.</li>
+            <li><strong>Not happy with an AI transcript, or prefer it proofread?</strong> Sign up for proofreading services and get a quote.</li>
             <li><strong>Ask TypeMyworDz</strong> for research, drafting and questions of any kind</li>
             <li>Export to Word or plain text, or copy in one click</li>
             <li>Multiple AI models behind one simple workflow</li>
