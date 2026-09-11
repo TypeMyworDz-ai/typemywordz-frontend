@@ -1,8 +1,17 @@
-.tm-ed-copybelow-actions {
+.tm-ed-copybelow-left {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
+}
+
+.tm-ed-human-top {
+  margin-left: auto;
+}
+
+.tm-ed-copybelow {
+  justify-content: space-between;
+  width: 100%;
 }
 
 .tm-human-request-button {
@@ -25,6 +34,18 @@
   background: #eeeaff;
   border-color: #a99be5;
   transform: translateY(-1px);
+}
+
+.tm-human-request-top {
+  background: #f7f5ff;
+  color: #4c39ad;
+  font-size: 0.8rem;
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+.tm-human-request-bottom {
+  margin-left: auto;
 }
 
 .tm-human-modal-backdrop {
@@ -196,6 +217,61 @@
   margin: 8px 0 0;
 }
 
+.tm-human-modal-balance {
+  align-items: baseline;
+  border-top: 1px solid #d9efdd;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 10px;
+}
+
+.tm-human-modal-balance span {
+  color: #356943;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.tm-human-modal-balance strong {
+  color: #1f6a32;
+  font-size: 0.95rem;
+}
+
+.tm-human-modal-balance-ok {
+  color: #356943 !important;
+}
+
+.tm-human-modal-balance-low {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.tm-human-modal-balance-low p {
+  color: #8f4a25;
+  margin: 0;
+}
+
+.tm-human-modal-topup {
+  background: #28a745;
+  border: 0;
+  border-radius: 7px;
+  color: #fff;
+  cursor: pointer;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+  min-height: 36px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.tm-human-modal-topup:hover { background: #218838; }
+
 .tm-human-modal-foot {
   align-items: center;
   border-top: 1px solid #eceaf1;
@@ -232,6 +308,8 @@
 @media (max-width: 620px) {
   .tm-human-modal-grid { grid-template-columns: 1fr; }
   .tm-human-modal-check { padding-top: 0; }
+  .tm-human-modal-balance-low { align-items: stretch; flex-direction: column; }
+  .tm-human-modal-topup { width: 100%; }
   .tm-human-modal-foot { align-items: stretch; flex-direction: column; }
   .tm-human-modal-primary { width: 100%; }
 }
