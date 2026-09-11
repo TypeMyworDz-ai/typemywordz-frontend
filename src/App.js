@@ -2379,6 +2379,7 @@ return (
                   onSave={handleSaveFreshTranscript}
                   onAskAI={isPaidAIUser(userProfile, currentUser?.email, creditBalance) ? () => setCurrentView('ai_assistant') : null}
                   canUseAI={isPaidAIUser(userProfile, currentUser?.email, creditBalance)}
+                  showHumanRequest
                 />
               )}
 
