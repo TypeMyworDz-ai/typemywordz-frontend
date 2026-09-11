@@ -167,6 +167,7 @@ const TranscriptionDetail = ({ setCurrentView }) => {
         createdAt={created}
         onSave={handleSave}
         showBack
+        showHumanRequest
         onBack={() => navigate('/dashboard')}
       />
 
