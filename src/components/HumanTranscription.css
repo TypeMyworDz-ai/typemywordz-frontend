@@ -295,6 +295,24 @@
   line-height: 1.5;
 }
 
+.tm-human-topup-button {
+  align-self: flex-start;
+  background: transparent;
+  border: 1px solid #5b44cf;
+  border-radius: 7px;
+  color: #4c38b3;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-top: 7px;
+  padding: 8px 11px;
+}
+
+.tm-human-topup-button:hover {
+  background: #f1efff;
+}
+
 .tm-human-footer {
   align-items: center;
   border-top: 1px solid #eeedf3;

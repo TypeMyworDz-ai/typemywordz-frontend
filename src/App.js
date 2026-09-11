@@ -1763,11 +1763,11 @@ return (
             </button>
 
             <button
-              className="tm-nav"
-              onClick={() => window.open('/transcription-editor', '_blank')}
+              className={"tm-nav" + (currentView === 'human_transcripts' ? " tm-nav-on" : "")}
+              onClick={() => setCurrentView('human_transcripts')}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h9"/></svg>
-              Editor
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+              Human Transcripts
             </button>
 
             <button
@@ -1901,6 +1901,7 @@ return (
           <HumanTranscription
             onBack={() => setCurrentView('transcribe')}
             onOpenFiles={() => setCurrentView('dashboard')}
+            onTopUp={() => setCurrentView('credits')}
             showMessage={showMessage}
           />
         ) : currentView === 'pricing' ? (
