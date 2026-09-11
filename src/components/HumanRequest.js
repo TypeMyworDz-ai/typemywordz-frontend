@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { paymentCountryCode } from './Pricing';
+import { fetchCreditBalance } from '../creditsService';
 import './HumanRequest.css';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL ||
@@ -26,7 +27,21 @@ function estimateTotal(baseQuote, options) {
   return Math.ceil(total);
 }
 
-export default function HumanRequest({ fileName = 'Transcript', durationSeconds = 0, onClose }) {
+const availableCredits = (balance) => {
+  if (!balance) return null;
+  if (balance.exempt || balance.unlimited) return Number.POSITIVE_INFINITY;
+  const value = Number(balance.spendable);
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
+};
+
+export default function HumanRequest({
+  fileName = 'Transcript',
+  durationSeconds = 0,
+  label = 'Want a human ear on this one?',
+  placement = 'bottom',
+  onTopUp,
+  onClose,
+}) {
   const { currentUser } = useAuth();
   const [open, setOpen] = useState(false);
   const [service, setService] = useState('standard');
@@ -36,16 +51,33 @@ export default function HumanRequest({ fileName = 'Transcript', durationSeconds 
   const [formatting, setFormatting] = useState('standard');
   const [turnaround, setTurnaround] = useState('standard');
   const [quote, setQuote] = useState(null);
+  const [balance, setBalance] = useState(null);
   const [quoteError, setQuoteError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [balanceLoading, setBalanceLoading] = useState(false);
 
   const options = useMemo(() => ({ service, speakers, difficulty, timestamps, formatting, turnaround }), [
     service, speakers, difficulty, timestamps, formatting, turnaround
   ]);
   const estimate = estimateTotal(quote, options);
+  const spendable = availableCredits(balance);
+  const shortBy = Number.isFinite(spendable) ? Math.max(0, estimate - spendable) : 0;
+  const balanceCoversEstimate = quote && (quote.exempt || spendable === Number.POSITIVE_INFINITY || shortBy === 0);
+
+  const refreshBalance = useCallback(async () => {
+    if (!currentUser) return;
+    setBalanceLoading(true);
+    try {
+      const nextBalance = await fetchCreditBalance(currentUser.uid, currentUser.email);
+      setBalance(nextBalance);
+    } finally {
+      setBalanceLoading(false);
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     if (!open) return undefined;
+    refreshBalance();
     const onKeyDown = (event) => {
       if (event.key === 'Escape') {
         setOpen(false);
@@ -54,7 +86,7 @@ export default function HumanRequest({ fileName = 'Transcript', durationSeconds 
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
+  }, [open, onClose, refreshBalance]);
 
   const close = () => {
     setOpen(false);
@@ -84,6 +116,7 @@ export default function HumanRequest({ fileName = 'Transcript', durationSeconds 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.detail || 'The quote could not be prepared.');
       setQuote(data);
+      await refreshBalance();
     } catch (error) {
       setQuoteError(error.message || 'The quote could not be prepared.');
     } finally {
@@ -95,11 +128,11 @@ export default function HumanRequest({ fileName = 'Transcript', durationSeconds 
     <>
       <button
         type="button"
-        className="tm-human-request-button"
+        className={`tm-human-request-button tm-human-request-${placement}`}
         onClick={() => setOpen(true)}
-        title="See the price for a trained human transcription"
+        title="See the price and credit requirement for a trained human transcription"
       >
-        Human transcription
+        {label}
       </button>
 
       {open && (
@@ -126,7 +159,7 @@ export default function HumanRequest({ fileName = 'Transcript', durationSeconds 
             <div className="tm-human-modal-grid">
               <label>
                 <span>Service</span>
-                <select value={service} onChange={(event) => setService(event.target.value)}>
+                <select value={service} onChange={(event) => { setService(event.target.value); setQuote(null); }}>
                   <option value="standard">Standard human transcript</option>
                   <option value="proofread">Proofread and corrected</option>
                   <option value="formatted">Formatted for delivery</option>
@@ -134,34 +167,34 @@ export default function HumanRequest({ fileName = 'Transcript', durationSeconds 
               </label>
               <label>
                 <span>Speaker count</span>
-                <select value={speakers} onChange={(event) => setSpeakers(event.target.value)}>
+                <select value={speakers} onChange={(event) => { setSpeakers(event.target.value); setQuote(null); }}>
                   <option value="1-2">One or two speakers</option>
                   <option value="3+">Three or more speakers</option>
                 </select>
               </label>
               <label>
                 <span>Audio difficulty</span>
-                <select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}>
+                <select value={difficulty} onChange={(event) => { setDifficulty(event.target.value); setQuote(null); }}>
                   <option value="standard">Clear and steady</option>
                   <option value="difficult">Difficult audio</option>
                 </select>
               </label>
               <label>
                 <span>Turnaround</span>
-                <select value={turnaround} onChange={(event) => setTurnaround(event.target.value)}>
+                <select value={turnaround} onChange={(event) => { setTurnaround(event.target.value); setQuote(null); }}>
                   <option value="standard">Standard delivery</option>
                   <option value="rush">Rush delivery</option>
                 </select>
               </label>
               <label>
                 <span>Formatting</span>
-                <select value={formatting} onChange={(event) => setFormatting(event.target.value)}>
+                <select value={formatting} onChange={(event) => { setFormatting(event.target.value); setQuote(null); }}>
                   <option value="standard">Standard paragraphs</option>
                   <option value="advanced">Detailed formatting</option>
                 </select>
               </label>
               <label className="tm-human-modal-check">
-                <input type="checkbox" checked={timestamps} onChange={(event) => setTimestamps(event.target.checked)} />
+                <input type="checkbox" checked={timestamps} onChange={(event) => { setTimestamps(event.target.checked); setQuote(null); }} />
                 <span>Include timestamps</span>
               </label>
             </div>
@@ -174,14 +207,27 @@ export default function HumanRequest({ fileName = 'Transcript', durationSeconds 
                   <span className="tm-human-modal-result-label">Estimated total</span>
                   <strong>{formatCredits(quote.exempt ? 0 : estimate)}</strong>
                 </div>
-                <p>
-                  This is a price preview based on the recording length and the options above. Credits are only considered after you review the completed work and approve it.
-                </p>
+                <div className="tm-human-modal-balance">
+                  <span>Available credits</span>
+                  <strong>
+                    {balanceLoading ? 'Checking…' : spendable === Number.POSITIVE_INFINITY ? 'Complimentary access' : formatCredits(spendable || 0)}
+                  </strong>
+                </div>
+                {balanceCoversEstimate ? (
+                  <p className="tm-human-modal-balance-ok">Your current balance covers this estimate. Credits will only be deducted after you approve the completed work.</p>
+                ) : (
+                  <div className="tm-human-modal-balance-low">
+                    <p>You need {formatCredits(shortBy)} more before this order can go ahead. Top up first; no human work will be started while the balance is short.</p>
+                    <button type="button" className="tm-human-modal-topup" onClick={onTopUp}>
+                      Top up {formatCredits(shortBy)}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
             <div className="tm-human-modal-foot">
-              <span>Powered by your TypeMyworDz credit balance. Checkout and Admin review will follow in the next release.</span>
+              <span>We check your balance before any order is created. There is no charge or reservation at this step.</span>
               <button type="button" className="tm-human-modal-primary" onClick={prepareQuote} disabled={loading || !durationSeconds}>
                 {loading ? 'Preparing…' : quote ? 'Refresh estimate' : 'Calculate price'}
               </button>
