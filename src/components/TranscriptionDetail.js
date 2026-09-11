@@ -69,6 +69,11 @@ const TranscriptionDetail = ({ setCurrentView }) => {
     navigate('/');
   }, [setCurrentView, navigate]);
 
+  const handleHumanTopUp = useCallback(() => {
+    if (typeof setCurrentView === 'function') setCurrentView('credits');
+    navigate('/');
+  }, [setCurrentView, navigate]);
+
   useEffect(() => {
     let cancelled = false;
     if (!currentUser?.uid && !currentUser?.email) return undefined;
@@ -167,6 +172,8 @@ const TranscriptionDetail = ({ setCurrentView }) => {
         createdAt={created}
         onSave={handleSave}
         showBack
+        showHumanRequest
+        onHumanTopUp={handleHumanTopUp}
         onBack={() => navigate('/dashboard')}
       />
 

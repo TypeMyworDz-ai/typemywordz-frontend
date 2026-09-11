@@ -1,0 +1,315 @@
+.tm-ed-copybelow-left {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.tm-ed-human-top {
+  margin-left: auto;
+}
+
+.tm-ed-copybelow {
+  justify-content: space-between;
+  width: 100%;
+}
+
+.tm-human-request-button {
+  align-items: center;
+  background: #f7f5ff;
+  border: 1px solid #cfc7f3;
+  border-radius: 8px;
+  color: #4c39ad;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 650;
+  min-height: 38px;
+  padding: 0 14px;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.tm-human-request-button:hover {
+  background: #eeeaff;
+  border-color: #a99be5;
+  transform: translateY(-1px);
+}
+
+.tm-human-request-top {
+  background: #f7f5ff;
+  color: #4c39ad;
+  font-size: 0.8rem;
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+.tm-human-request-bottom {
+  margin-left: auto;
+}
+
+.tm-human-modal-backdrop {
+  align-items: center;
+  background: rgba(28, 24, 52, 0.42);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 22px;
+  position: fixed;
+  z-index: 1000;
+}
+
+.tm-human-modal {
+  background: #fff;
+  border: 1px solid #e6e2f3;
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgba(37, 28, 92, 0.22);
+  color: #262432;
+  max-height: min(760px, calc(100vh - 44px));
+  max-width: 720px;
+  overflow: auto;
+  padding: clamp(22px, 4vw, 34px);
+  width: 100%;
+}
+
+.tm-human-modal-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+}
+
+.tm-human-modal-kicker {
+  color: #5b44cf;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.tm-human-modal h2 {
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  margin: 0;
+  max-width: 560px;
+}
+
+.tm-human-modal-subtitle {
+  color: #6c6878;
+  font-size: 0.91rem;
+  line-height: 1.55;
+  margin: 12px 0 0;
+  max-width: 600px;
+}
+
+.tm-human-modal-close {
+  background: transparent;
+  border: 0;
+  color: #716d7b;
+  cursor: pointer;
+  font-size: 1.7rem;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.tm-human-modal-close:hover { color: #292536; }
+
+.tm-human-modal-summary {
+  align-items: center;
+  background: #faf9ff;
+  border: 1px solid #e8e4f7;
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+  margin: 24px 0 20px;
+  padding: 13px 15px;
+}
+
+.tm-human-modal-summary span,
+.tm-human-modal-grid label > span {
+  color: #5e5a6a;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.tm-human-modal-summary strong { color: #32256e; font-size: 1.05rem; }
+
+.tm-human-modal-grid {
+  display: grid;
+  gap: 15px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tm-human-modal-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.tm-human-modal-grid select {
+  background: #fff;
+  border: 1px solid #d9d5e4;
+  border-radius: 8px;
+  color: #2e2b38;
+  font: inherit;
+  min-height: 42px;
+  padding: 0 10px;
+}
+
+.tm-human-modal-grid select:focus {
+  border-color: #5b44cf;
+  box-shadow: 0 0 0 3px rgba(91, 68, 207, 0.12);
+  outline: 0;
+}
+
+.tm-human-modal-check {
+  align-items: center;
+  flex-direction: row !important;
+  gap: 9px !important;
+  justify-content: flex-start;
+  padding-top: 24px;
+}
+
+.tm-human-modal-check input {
+  accent-color: #28a745;
+  height: 16px;
+  width: 16px;
+}
+
+.tm-human-modal-error {
+  background: #fff5f2;
+  border-left: 3px solid #c94a34;
+  color: #8f3524;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  margin: 20px 0 0;
+  padding: 11px 13px;
+}
+
+.tm-human-modal-result {
+  background: #f2fbf4;
+  border-left: 3px solid #28a745;
+  margin-top: 22px;
+  padding: 15px 16px;
+}
+
+.tm-human-modal-result > div {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.tm-human-modal-result-label {
+  color: #356943;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.tm-human-modal-result strong { color: #1f6a32; font-size: 1.35rem; }
+
+.tm-human-modal-result p {
+  color: #4f6f57;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+
+.tm-human-modal-balance {
+  align-items: baseline;
+  border-top: 1px solid #d9efdd;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 10px;
+}
+
+.tm-human-modal-balance span {
+  color: #356943;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.tm-human-modal-balance strong {
+  color: #1f6a32;
+  font-size: 0.95rem;
+}
+
+.tm-human-modal-balance-ok {
+  color: #356943 !important;
+}
+
+.tm-human-modal-balance-low {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.tm-human-modal-balance-low p {
+  color: #8f4a25;
+  margin: 0;
+}
+
+.tm-human-modal-topup {
+  background: #28a745;
+  border: 0;
+  border-radius: 7px;
+  color: #fff;
+  cursor: pointer;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+  min-height: 36px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.tm-human-modal-topup:hover { background: #218838; }
+
+.tm-human-modal-foot {
+  align-items: center;
+  border-top: 1px solid #eceaf1;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  margin-top: 24px;
+  padding-top: 20px;
+}
+
+.tm-human-modal-foot span {
+  color: #7c7886;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  max-width: 400px;
+}
+
+.tm-human-modal-primary {
+  background: #28a745;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 650;
+  min-height: 42px;
+  padding: 0 17px;
+  white-space: nowrap;
+}
+
+.tm-human-modal-primary:hover { background: #218838; }
+.tm-human-modal-primary:disabled { cursor: not-allowed; opacity: 0.55; }
+
+@media (max-width: 620px) {
+  .tm-human-modal-grid { grid-template-columns: 1fr; }
+  .tm-human-modal-check { padding-top: 0; }
+  .tm-human-modal-balance-low { align-items: stretch; flex-direction: column; }
+  .tm-human-modal-topup { width: 100%; }
+  .tm-human-modal-foot { align-items: stretch; flex-direction: column; }
+  .tm-human-modal-primary { width: 100%; }
+}
