@@ -4,6 +4,7 @@ import {
   formatTime, speakersIn, countWords, isUncertain, toSrt, toVtt,
   splitSegmentAt, startSpeakerTurn
 } from '../lib/transcript';
+import HumanRequest from './HumanRequest';
 
 // ---------------------------------------------------------------------------
 // The proofreading editor.
@@ -175,6 +176,7 @@ const TranscriptEditor = ({
   onAskAI = null,
   canUseAI = true,
   showBack = false,
+  showHumanRequest = false,
   onBack = null
 }) => {
   // ---- audio ----
@@ -1013,15 +1015,20 @@ const TranscriptEditor = ({
           the only control was back at the top. Same modes, same last-used
           choice as the one above. */}
       <div className="tm-ed-copybelow">
-        <button type="button" className="tm-split-main tm-copybelow-btn"
-                onClick={() => doCopy(copyMode)}
-                title="Copy to clipboard (Ctrl+Shift+C)">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.7">
-            <rect x="9" y="9" width="11" height="11" rx="2"/>
-            <path d="M15 6.5A1.5 1.5 0 0 0 13.5 5h-7A1.5 1.5 0 0 0 5 6.5v7A1.5 1.5 0 0 0 6.5 15"/>
-          </svg>
-          {copied ? 'Copied' : 'Copy transcript'}
-        </button>
+        <div className="tm-ed-copybelow-actions">
+          <button type="button" className="tm-split-main tm-copybelow-btn"
+                  onClick={() => doCopy(copyMode)}
+                  title="Copy to clipboard (Ctrl+Shift+C)">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.7">
+              <rect x="9" y="9" width="11" height="11" rx="2"/>
+              <path d="M15 6.5A1.5 1.5 0 0 0 13.5 5h-7A1.5 1.5 0 0 0 5 6.5v7A1.5 1.5 0 0 0 6.5 15"/>
+            </svg>
+            {copied ? 'Copied' : 'Copy transcript'}
+          </button>
+          {showHumanRequest && (
+            <HumanRequest fileName={fileName} durationSeconds={shownLength} />
+          )}
+        </div>
         <span className="tm-ed-copybelow-note">
           {COPY_MODES.find((m) => m.id === copyMode)
             ? COPY_MODES.find((m) => m.id === copyMode).label
