@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '../firebase';
+import TranscriptEditor from './TranscriptEditor';
 import './HumanJobWorkspace.css';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
@@ -190,7 +191,15 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
             <div className="tm-human-editor-card">
               <div className="tm-human-editor-head"><div><strong>Shared proofreading editor</strong><span>The same working area is used by the worker, admin and client.</span></div><div className="tm-human-editor-ad">Need a first draft or a quick answer? <button type="button" onClick={() => showMessage?.('Ask TypeMyworDz opens from the left navigation.', 'success')}>Use Ask TypeMyworDz</button></div></div>
-              <textarea value={editorText} onChange={(event) => setEditorText(event.target.value)} readOnly={mode === 'client' && !['client_review', 'released'].includes(selectedJob.status)} placeholder="The completed transcript will appear here." />
+              <TranscriptEditor
+                key={selectedJob.id}
+                fileName={selectedJob.audio?.name || `Human job ${selectedJob.id.slice(0, 6)}`}
+                rawText={selectedJob.transcript || editorText}
+                durationSeconds={Number(selectedJob.minutes || 0) * 60}
+                audioUrl={audioUrl || null}
+                readOnly={mode === 'client' && !['client_review', 'released'].includes(selectedJob.status)}
+                onChange={setEditorText}
+              />
               <p className="tm-human-editor-note">AI tools can help with first drafts and questions, but the final human release stays under admin review.</p>
             </div>
 

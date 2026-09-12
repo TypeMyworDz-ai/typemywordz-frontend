@@ -41,6 +41,7 @@ export default function HumanRequest({
   placement = 'bottom',
   onTopUp,
   onClose,
+  onOpenHumanTranscripts,
 }) {
   const { currentUser } = useAuth();
   const [open, setOpen] = useState(false);
@@ -50,6 +51,8 @@ export default function HumanRequest({
   const [timestamps, setTimestamps] = useState(true);
   const [formatting, setFormatting] = useState('standard');
   const [turnaround, setTurnaround] = useState('standard');
+  const [notes, setNotes] = useState('');
+  const [instructionFiles, setInstructionFiles] = useState([]);
   const [quote, setQuote] = useState(null);
   const [balance, setBalance] = useState(null);
   const [quoteError, setQuoteError] = useState('');
@@ -108,6 +111,9 @@ export default function HumanRequest({
       body.append('turnaround', turnaround);
       body.append('difficulty', difficulty);
       body.append('country_code', paymentCountryCode());
+      body.append('timestamps', String(timestamps));
+      body.append('speakers', String(speakers !== 'none'));
+      body.append('instructions', notes);
       const response = await fetch(`${BACKEND_URL}/human-transcription/quote`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -199,6 +205,15 @@ export default function HumanRequest({
               </label>
             </div>
 
+            <label className="tm-human-modal-notes">
+              <span>Instructions or notes <em>optional</em></span>
+              <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} placeholder="Names, spellings, formatting preferences, or context for the transcriber" />
+              <span className="tm-human-modal-attach">Attach reference files
+                <input type="file" multiple onChange={(event) => setInstructionFiles(Array.from(event.target.files || []))} />
+              </span>
+              {instructionFiles.length > 0 && <small>{instructionFiles.map((item) => item.name).join(', ')}</small>}
+            </label>
+
             {quoteError && <p className="tm-human-modal-error" role="alert">{quoteError}</p>}
 
             {quote && (
@@ -227,7 +242,7 @@ export default function HumanRequest({
             )}
 
             <div className="tm-human-modal-foot">
-              <span>We check your balance before any order is created. There is no charge or reservation at this step.</span>
+              <span>We check your balance before any order is created. There is no charge, reservation, or file upload while you are checking the price.</span>
               <button type="button" className="tm-human-modal-primary" onClick={prepareQuote} disabled={loading || !durationSeconds}>
                 {loading ? 'Preparing…' : quote ? 'Refresh estimate' : 'Calculate price'}
               </button>
