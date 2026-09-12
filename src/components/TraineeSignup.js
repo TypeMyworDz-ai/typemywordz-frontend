@@ -31,6 +31,7 @@ export default function TraineeSignup() {
   const [confirmed, setConfirmed] = useState(false);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentReference, setPaymentReference] = useState('');
+  const [koraFallback, setKoraFallback] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -90,8 +91,13 @@ export default function TraineeSignup() {
       try {
         if (['failed', 'cancelled'].includes(paymentStatus) || ['failed', 'cancelled'].includes(koraState)) {
           removeSession(PAID_INTENT_KEY);
-          removeSession(DRAFT_KEY);
-          setError('Payment was not completed. No trainee account was created.');
+          if (['failed', 'cancelled'].includes(koraState)) {
+            setKoraFallback(true);
+            setError('Kora payment was not completed. Your details are still here if you want to use Paystack instead.');
+          } else {
+            removeSession(DRAFT_KEY);
+            setError('Payment was not completed. No trainee account was created.');
+          }
           window.history.replaceState({}, document.title, '/trainee-signup');
           return;
         }
@@ -132,6 +138,7 @@ export default function TraineeSignup() {
   const startPayment = async (provider) => {
     setError('');
     setNotice('');
+    if (provider === 'kora') setKoraFallback(false);
     const address = (currentUser?.email || email).trim().toLowerCase();
     if (!looksLikeAnEmail(address)) return setError('Please enter a valid email address.');
     if (!currentUser && usesPlusAlias(address)) return setError('Please use your plain email address, without a plus alias.');
@@ -150,7 +157,8 @@ export default function TraineeSignup() {
       if (!response.ok || !data.status || !(data.authorization_url || data.checkout_url)) throw new Error(data.detail || data.message || 'Checkout could not be started.');
       window.location.href = data.authorization_url || data.checkout_url;
     } catch (paymentError) {
-      setError(friendlyAuthError(paymentError));
+      if (provider === 'kora') setKoraFallback(true);
+      setError(provider === 'kora' ? 'Kora could not start checkout. Want to pay with Paystack instead?' : friendlyAuthError(paymentError));
       setBusy(false);
     }
   };
@@ -194,7 +202,7 @@ export default function TraineeSignup() {
         <h1>Become a Skilled Transcriber</h1>
         <p className="tm-trainee-lede">Enrollment is currently open to Kenyan applicants only. Use your official ID names so we can keep your training and work records accurate.</p>
         <img className="tm-trainee-illustration" src="/trainee-african-headphones.png" alt="African transcription trainee working with headphones" />
-        <div className="tm-trainee-price"><strong>$1.50 USD</strong><span>Temporary test price. Paystack shows the final Kenyan charge at checkout.</span></div>
+        <div className="tm-trainee-price"><strong>$1.50 USD</strong><span>Temporary test price. Kora is the primary checkout; Paystack appears only if Kora cannot complete the payment.</span></div>
         {error && <p className="tm-auth-error" role="alert">{error}</p>}
         {notice && <p className="tm-auth-notice" role="status">{notice}</p>}
         <label className="tm-auth-label" htmlFor="trainee-official-name">Full official ID name</label>
@@ -203,7 +211,7 @@ export default function TraineeSignup() {
         {!currentUser && <input id="trainee-email" className="tm-auth-input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy || paymentConfirmed} />}
         {paymentConfirmed && !currentUser && <><label className="tm-auth-label" htmlFor="trainee-password">Create a password</label><div className="tm-auth-pwwrap"><input id="trainee-password" className="tm-auth-input" type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy} /><button type="button" className="tm-auth-peek" onClick={() => setShowPassword((value) => !value)} disabled={busy} aria-label={showPassword ? 'Hide password' : 'Show password'} title={showPassword ? 'Hide password' : 'Show password'}><PasswordEye hidden={!showPassword} /></button></div></>}
         {!paymentConfirmed && <label className="tm-trainee-check"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} disabled={busy} /> <span>I confirm that these are my official ID names.</span></label>}
-        <div className="tm-trainee-actions">{paymentConfirmed ? <button type="button" className="tm-auth-submit" onClick={completeSignup} disabled={busy}>{busy ? 'Creating your account…' : 'Create account and open Training Room'}</button> : <><button type="button" className="tm-auth-submit" onClick={() => startPayment('paystack')} disabled={busy}>{busy ? 'Opening secure checkout…' : 'Pay with Paystack'}</button><button type="button" className="tm-trainee-kora" onClick={() => startPayment('kora')} disabled={busy}>Use Kora instead</button></>}</div>
+        <div className="tm-trainee-actions">{paymentConfirmed ? <button type="button" className="tm-auth-submit" onClick={completeSignup} disabled={busy}>{busy ? 'Creating your account…' : 'Create account and open Training Room'}</button> : <><button type="button" className="tm-auth-submit" onClick={() => startPayment('kora')} disabled={busy}>{busy ? 'Opening secure checkout…' : 'Pay with Kora'}</button>{koraFallback && <button type="button" className="tm-trainee-kora" onClick={() => startPayment('paystack')} disabled={busy}>Want to pay with Paystack instead?</button>}</>}</div>
         <p className="tm-trainee-promise">This programme is designed to build your transcription skills. Completing the training does not guarantee employment or paid work; any future opportunity is assessed separately.</p>
         {currentUser && !paymentConfirmed && <p className="tm-trainee-signed">Signed in as {currentUser.email}</p>}
       </div>
