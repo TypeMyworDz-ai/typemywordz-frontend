@@ -613,7 +613,7 @@ const TranscriptEditor = ({
       const name = s.speaker ? (speakerNames[s.speaker] || s.speaker) : null;
       return `<p>${name ? `<strong>${escapeHtml(name)}:</strong> ` : ''}${escapeHtml(s.text)}</p>`;
     }).join('');
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
     if (!printWindow) return;
     printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(fileName)}</title><style>@page{size:Letter;margin:1in}body{color:#222;font-family:Arial,sans-serif;font-size:11pt;line-height:1.45;margin:0}h1{font-size:16pt;margin:0 0 18pt}p{margin:0 0 9pt;white-space:normal}</style></head><body><h1>${escapeHtml(fileName)}</h1>${body}</body></html>`);
     printWindow.document.close();
