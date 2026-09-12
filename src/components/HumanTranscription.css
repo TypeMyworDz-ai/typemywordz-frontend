@@ -363,3 +363,4 @@
   .tm-human-step-note { text-align: left; }
   .tm-human-quote-button { width: 100%; }
 }
+.tm-human-instruction-attach{display:grid;gap:6px;margin-top:10px;color:#6450a8;font-size:12px;font-weight:700}.tm-human-instruction-attach input{border:1px dashed #c9c1e5;border-radius:7px;padding:9px;background:#faf9fe;color:#6450a8}.tm-human-instruction-attach small{color:#858a95;font-weight:400}.tm-human-send-request{border:0;background:#6450a8;color:#fff;border-radius:7px;padding:10px 13px;font:700 13px inherit;cursor:pointer;width:max-content;margin-top:8px}.tm-human-send-request:disabled{opacity:.6;cursor:wait}
