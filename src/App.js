@@ -95,7 +95,7 @@ const CopiedNotification = ({ isVisible }) => {
 function AppContent() {
   const navigate = useNavigate();
   // Removed signInWithGoogle as it's not used in AppContent
-  const { currentUser, logout, userProfile, refreshUserProfile, showMessage, loading: authLoading } = useAuth();
+  const { currentUser, logout, userProfile, refreshUserProfile, showMessage, clearMessage, loading: authLoading } = useAuth();
   
   // Utility functions
   const formatTime = (seconds) => {
@@ -206,6 +206,14 @@ function AppContent() {
   const profileRole = String(userProfile?.role || userProfile?.user_type || '').toLowerCase();
   const isTrainee = !isAdmin && profileRole === 'trainee' && userProfile?.trainingRoomAccess === true && userProfile?.workerApproved !== true;
   const isWorker = !isAdmin && (['worker', 'transcriber'].includes(profileRole) || userProfile?.workerApproved === true);
+  // A trainee registration is not a normal client account. Until the
+  // provider confirms payment, keep the account on the payment screen only.
+  const traineePaymentPending = Boolean(
+    !isAdmin &&
+    userProfile &&
+    userProfile.trainingRoomAccess !== true &&
+    (userProfile.traineeStatus === 'payment_pending' || userProfile.trainingPaymentStatus === 'pending')
+  );
   // Free access covers the admin and the complimentary accounts. Anything that
   // asks a client to pay must check this, not isAdmin, or a complimentary
   // account starts seeing Upgrade and See plans.
@@ -450,8 +458,12 @@ function AppContent() {
           window.history.replaceState({}, document.title, window.location.pathname);
         } catch (error) {
           console.error('Kora payment verification error:', error);
+          clearMessage();
           showMessage('Kora payment verification failed: ' + error.message, 'error');
         } finally {
+          // A failed callback must be consumed. Leaving the reference in the
+          // URL makes the effect verify the same failed charge forever.
+          window.history.replaceState({}, document.title, window.location.pathname);
           setIsVerifyingPayment(false);
         }
       } else if (reference) {
@@ -495,12 +507,17 @@ function AppContent() {
             // Crucial: Clear URL parameters AFTER successful processing
             window.history.replaceState({}, document.title, window.location.pathname);
           } else {
+            clearMessage();
             showMessage('Payment verification failed: ' + (data.message || 'Unknown error'), 'error');
           }
         } catch (error) {
           console.error('Payment verification error:', error);
+          clearMessage();
           showMessage('Payment verification failed: ' + error.message, 'error');
         } finally {
+          // Consume failed callbacks as well as successful ones so the same
+          // provider error cannot be replayed on every render.
+          window.history.replaceState({}, document.title, window.location.pathname);
           setIsVerifyingPayment(false); // Reset flag regardless of outcome
         }
       } else if (paymentStatus === 'success') {
@@ -511,7 +528,7 @@ function AppContent() {
         setIsVerifyingPayment(false); // Reset flag
       }
     }
-  }, [currentUser, showMessage, refreshUserProfile, refreshCredits, setCurrentView, isVerifyingPayment]); // Removed isAdmin from dependencies as it's not used in the function body
+  }, [currentUser, showMessage, clearMessage, refreshUserProfile, refreshCredits, setCurrentView, isVerifyingPayment]);
 
   // useEffect to trigger payment callback handling
   useEffect(() => {
@@ -1657,6 +1674,17 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         <Route path="/faq" element={<Faq />} />
         <Route path="/trainee-signup" element={<TraineeSignup />} />
         <Route path="*" element={<Landing />} />
+      </Routes>
+    );
+  }
+
+  // A failed trainee checkout must never fall through to the ordinary client
+  // workspace. Keep only the enrollment/payment screen available so the
+  // applicant can retry without receiving client-plan access.
+  if (traineePaymentPending) {
+    return (
+      <Routes>
+        <Route path="*" element={<TraineeSignup />} />
       </Routes>
     );
   }
