@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { paymentCountryCode } from './Pricing';
 import { fetchCreditBalance } from '../creditsService';
@@ -51,6 +51,7 @@ export default function HumanRequest({
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
   const [requestLoading, setRequestLoading] = useState(false);
+  const requestIdRef = useRef('');
 
   const estimate = Number(quote?.credits ?? quote?.cost ?? 0);
   const spendable = availableCredits(balance);
@@ -115,7 +116,10 @@ export default function HumanRequest({
       setQuote(data);
       await refreshBalance();
     } catch (error) {
-      setQuoteError(error.message || 'The quote could not be prepared.');
+      const message = String(error?.message || '').toLowerCase();
+      setQuoteError(message === 'failed to fetch'
+        ? 'We could not reach the quote service. Please try again.'
+        : (error.message || 'The quote could not be prepared.'));
     } finally {
       setLoading(false);
     }
@@ -141,6 +145,10 @@ export default function HumanRequest({
       body.append('instructions', notes);
       body.append('source_type', 'ai_proofreading');
       body.append('initial_transcript', transcriptText);
+      if (!requestIdRef.current) {
+        requestIdRef.current = window.crypto?.randomUUID?.() || `proofread-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      }
+      body.append('client_request_id', requestIdRef.current);
       const response = await fetch(`${BACKEND_URL}/human-transcription/jobs`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -150,7 +158,10 @@ export default function HumanRequest({
       if (!response.ok) throw new Error(data.detail || 'The proofreading request could not be sent.');
       setRequestSent(true);
     } catch (error) {
-      setQuoteError(error.message || 'The proofreading request could not be sent.');
+      const message = String(error?.message || '').toLowerCase();
+      setQuoteError(message === 'failed to fetch'
+        ? 'We could not reach the human-work service. Your request was not confirmed, and it is safe to try again.'
+        : (error.message || 'The proofreading request could not be sent.'));
     } finally {
       setRequestLoading(false);
     }
@@ -258,7 +269,7 @@ export default function HumanRequest({
                   <>
                     <p className="tm-human-modal-balance-ok">Your current balance covers this estimate. Credits are only deducted after you confirm that your job is completed and client-ready.</p>
                     {!requestSent && <button type="button" className="tm-human-modal-primary" onClick={submitRequest} disabled={requestLoading || !transcriptText.trim()}>{requestLoading ? 'Sending request…' : 'Send for proofreading'}</button>}
-                    {requestSent && <p className="tm-human-modal-balance-ok">Request sent for admin approval. You can follow it under Human Transcripts.</p>}
+                    {requestSent && <div className="tm-human-modal-sent" role="status"><strong>Request sent</strong><p>Your proofreading request is now in the admin queue. You do not need to click the button again.</p><button type="button" className="tm-human-modal-primary" onClick={close}>Close</button></div>}
                   </>
                 ) : (
                   <div className="tm-human-modal-balance-low">
