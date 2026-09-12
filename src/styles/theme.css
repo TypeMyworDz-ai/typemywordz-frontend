@@ -550,6 +550,23 @@ body {
   color: var(--tm-faint);
 }
 
+.tm-nav-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #c93446;
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 800;
+}
+
 /* ---------- plan card, pinned to the bottom ---------- */
 
 .tm-plancard {
