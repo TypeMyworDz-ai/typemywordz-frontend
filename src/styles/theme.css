@@ -4078,7 +4078,8 @@ body {
 .tm-trainee-back{border:0;background:transparent;color:#3b7e53;padding:0;margin-bottom:28px;cursor:pointer;font:inherit}
 .tm-trainee-mark img{width:42px;height:42px;display:block;margin-bottom:22px}
 .tm-trainee-card h1{font-family:Georgia,serif;font-size:clamp(30px,5vw,46px);line-height:1.05;margin:6px 0 14px;color:#242b27}
-.tm-trainee-lede{color:#5e6961;line-height:1.65;margin:0 0 20px}
+.tm-trainee-lede{color:#5e6961;line-height:1.65;margin:0 0 16px}
+.tm-trainee-illustration{display:block;width:100%;height:180px;object-fit:cover;object-position:center 42%;border-radius:16px;margin:0 0 20px;border:1px solid #e5ebe4}
 .tm-trainee-price{display:flex;align-items:baseline;gap:12px;padding:16px 0;border-top:1px solid #ebf0eb;border-bottom:1px solid #ebf0eb;margin:18px 0 22px}.tm-trainee-price strong{font-size:24px;color:#3b7e53}.tm-trainee-price span{color:#69746c;font-size:13px}
 .tm-trainee-check{display:flex;gap:9px;align-items:flex-start;margin:18px 0;color:#4e5d52;font-size:14px;line-height:1.45}.tm-trainee-check input{margin-top:3px;accent-color:#3b7e53}
 .tm-trainee-actions{display:grid;gap:10px;margin-top:18px}.tm-trainee-kora{width:100%;border:1px solid #c9d8cc;background:#fff;color:#316944;border-radius:10px;padding:12px 16px;font:inherit;cursor:pointer}.tm-trainee-kora:disabled,.tm-auth-submit:disabled{opacity:.6;cursor:wait}
