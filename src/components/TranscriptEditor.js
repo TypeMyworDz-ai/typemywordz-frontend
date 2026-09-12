@@ -55,9 +55,12 @@ const writeLS = (key, value) => {
 
 const Segment = memo(function Segment({
   seg, index, isActive, isEditing, showTimes, approximate, speakerNames,
-  onSeek, onEdit, onCommit, onEditKeyDown, highlight, activeHit, caretAtStart
+  onSeek, onEdit, onCommit, onEditKeyDown, onRenameSpeaker, onTabSpeaker,
+  readOnly, highlight, activeHit, caretAtStart
 }) {
   const areaRef = useRef(null);
+  const speakerRef = useRef(null);
+  const [editingSpeaker, setEditingSpeaker] = useState(false);
 
   useEffect(() => {
     if (isEditing && areaRef.current) {
@@ -124,9 +127,29 @@ const Segment = memo(function Segment({
         </button>
       )}
 
-      {name && <span className="tm-seg-who">{name}</span>}
+      {name && (
+        editingSpeaker ? (
+          <input
+            ref={speakerRef}
+            className="tm-seg-who-input"
+            autoFocus
+            defaultValue={name}
+            aria-label={`Edit ${name}`}
+            onBlur={(event) => { setEditingSpeaker(false); onRenameSpeaker(seg.speaker, event.target.value); }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') { event.preventDefault(); setEditingSpeaker(false); onRenameSpeaker(seg.speaker, event.target.value); }
+              if (event.key === 'Escape') { event.preventDefault(); setEditingSpeaker(false); }
+              if (event.key === 'Tab') { event.preventDefault(); setEditingSpeaker(false); onRenameSpeaker(seg.speaker, event.target.value); onTabSpeaker(index, event.shiftKey); }
+            }}
+          />
+        ) : (
+          <button type="button" className="tm-seg-who" onClick={() => !readOnly && setEditingSpeaker(true)} title={readOnly ? name : `Rename ${name} everywhere`}>
+            {name}
+          </button>
+        )
+      )}
 
-      {isEditing ? (
+      {isEditing && !readOnly ? (
         <textarea
           ref={areaRef}
           className="tm-seg-input"
@@ -144,11 +167,11 @@ const Segment = memo(function Segment({
           className="tm-seg-text"
           role="button"
           tabIndex={0}
-          onClick={() => onEdit(index)}
+          onClick={() => !readOnly && onEdit(index)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') { e.preventDefault(); onEdit(index); }
+            if (!readOnly && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onEdit(index); }
           }}
-          title="Click to correct this line"
+          title={readOnly ? 'Transcript line' : 'Click to correct this line'}
         >
           {uncertain ? <span className="tm-low-mark">{body}</span> : body}
           {uncertain && (
@@ -178,7 +201,9 @@ const TranscriptEditor = ({
   showBack = false,
   showHumanRequest = false,
   onHumanTopUp = null,
-  onBack = null
+  onBack = null,
+  readOnly = false,
+  onChange = null
 }) => {
   // ---- audio ----
   const audioRef = useRef(null);
@@ -209,16 +234,42 @@ const TranscriptEditor = ({
   const [segments, setSegments] = useState(initial.segments);
   const [timing, setTiming] = useState(initial.timing);
   const [speakerNames, setSpeakerNames] = useState({});
+  const historyRef = useRef([{ segments: initial.segments, speakerNames: {} }]);
+  const historyIndexRef = useRef(0);
   const [editingIndex, setEditingIndex] = useState(null);
-  // The line that was just split off, so a second Enter can turn it into a
-  // new speaker turn instead of jumping on to the line below.
-  const [freshSplit, setFreshSplit] = useState(-1);
+  const [freshSplit, setFreshSplit] = useState(null);
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState('idle'); // idle | saving | saved | error
+
+  const publishEdit = useCallback((nextSegments, nextSpeakerNames = speakerNames) => {
+    const nextHistory = historyRef.current.slice(0, historyIndexRef.current + 1);
+    nextHistory.push({ segments: nextSegments, speakerNames: nextSpeakerNames });
+    historyRef.current = nextHistory;
+    historyIndexRef.current = nextHistory.length - 1;
+    setSegments(nextSegments);
+    setSpeakerNames(nextSpeakerNames);
+    setDirty(true);
+    onChange?.(segmentsToHtml(nextSegments, nextSpeakerNames));
+  }, [onChange, speakerNames]);
+
+  const applyHistory = useCallback((direction) => {
+    const nextIndex = historyIndexRef.current + direction;
+    if (nextIndex < 0 || nextIndex >= historyRef.current.length) return;
+    historyIndexRef.current = nextIndex;
+    const snapshot = historyRef.current[nextIndex];
+    setSegments(snapshot.segments);
+    setSpeakerNames(snapshot.speakerNames);
+    setDirty(nextIndex !== 0);
+    onChange?.(segmentsToHtml(snapshot.segments, snapshot.speakerNames));
+    setEditingIndex(null);
+  }, [onChange]);
 
   useEffect(() => {
     setSegments(initial.segments);
     setTiming(initial.timing);
+    setSpeakerNames({});
+    historyRef.current = [{ segments: initial.segments, speakerNames: {} }];
+    historyIndexRef.current = 0;
     setDirty(false);
   }, [initial]);
 
@@ -325,16 +376,15 @@ const TranscriptEditor = ({
   // ---- editing ----
   const commit = useCallback((index, value) => {
     setEditingIndex(null);
-    setSegments((prev) => {
-      if (prev[index] === undefined) return prev;
-      const clean = String(value).replace(/\s+/g, ' ').trim();
-      if (clean === prev[index].text) return prev;
-      const next = prev.slice();
-      next[index] = { ...next[index], text: clean };
-      setDirty(true);
-      return next;
-    });
-  }, []);
+    setFreshSplit(null);
+    const current = segments[index];
+    if (!current) return;
+    const clean = String(value).replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ').trim();
+    if (clean === current.text) return;
+    const next = segments.slice();
+    next[index] = { ...current, text: clean };
+    publishEdit(next, speakerNames);
+  }, [publishEdit, segments, speakerNames]);
 
   const onEditKeyDown = useCallback((e, index) => {
     if (e.key === 'Escape') {
@@ -342,69 +392,66 @@ const TranscriptEditor = ({
       setEditingIndex(null);
       return;
     }
-    if (e.key === 'Enter' && !e.shiftKey) {
+
+    if (e.ctrlKey && e.key === 'Enter') {
       e.preventDefault();
       const value = e.target.value;
       const caret = e.target.selectionStart;
-
-      // Work the new list out here and now rather than inside a state
-      // updater. React is free to run an updater later, during the next
-      // render, so anything decided in there is not reliably known yet.
-      // Getting that wrong made this whole gesture fall through to the
-      // old behaviour on the first live test.
-
-      // Enter again, straight away, on a line that was only just split off:
-      // that is the client saying this is somebody else talking.
-      if (freshSplit === index && caret === 0) {
-        const turned = startSpeakerTurn(segments, index);
-        if (turned !== segments) {
-          setSegments(turned);
-          setDirty(true);
-        }
-        setFreshSplit(-1);
-        return;
-      }
-
-      // Enter in the middle of a line starts a new paragraph right there.
       const split = splitSegmentAt(segments, index, caret, value);
-      if (split) {
-        // This box is about to lose focus, and its own blur handler would
-        // otherwise write the whole uncut line back over the first half.
-        e.target.value = split[index].text;
-        setSegments(split);
-        setDirty(true);
-        setEditingIndex(index + 1);
-        setFreshSplit(index + 1);
-        return;
-      }
-
-      // Otherwise it behaves the way it always has: move on to the next line.
-      setFreshSplit(-1);
-      commit(index, value);
-      if (index + 1 < segments.length) setEditingIndex(index + 1);
+      if (!split) return;
+      const speakerSplit = startSpeakerTurn(split, index + 1);
+      e.target.value = speakerSplit[index].text;
+      publishEdit(speakerSplit, speakerNames);
+      setFreshSplit(index + 1);
+      setEditingIndex(index + 1);
       return;
     }
+
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault();
+      const value = e.target.value;
+      const caret = e.target.selectionStart;
+      if (value.slice(0, caret).endsWith('\n')) {
+        const split = splitSegmentAt(segments, index, caret - 1, value);
+        if (split) {
+          e.target.value = split[index].text;
+          publishEdit(split, speakerNames);
+          setFreshSplit(index + 1);
+          setEditingIndex(index + 1);
+        }
+        return;
+      }
+      e.target.setRangeText('\n', caret, caret, 'end');
+      e.target.style.height = 'auto';
+      e.target.style.height = e.target.scrollHeight + 'px';
+      return;
+    }
+
+    // Enter never advances, creates a speaker, or commits the line.
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      return;
+    }
+
     if (e.key === 'Tab') {
       e.preventDefault();
-      setFreshSplit(-1);
       commit(index, e.target.value);
       const next = e.shiftKey ? index - 1 : index + 1;
       if (next >= 0 && next < segments.length) setEditingIndex(next);
     }
-  }, [commit, segments, freshSplit]);
+  }, [commit, publishEdit, segments, speakerNames]);
 
-  // Same job as the double Enter, for anyone who would rather use a button.
+  const onTabSpeaker = useCallback((index, backwards) => {
+    const next = backwards ? index - 1 : index + 1;
+    if (next >= 0 && next < segments.length) setEditingIndex(next);
+  }, [segments.length]);
+
   const newSpeakerHere = useCallback(() => {
     const at = editingIndex !== null ? editingIndex : activeIndex;
     if (at === null || at < 0) return;
-    setSegments((prev) => {
-      const next = startSpeakerTurn(prev, at);
-      if (next === prev) return prev;
-      setDirty(true);
-      return next;
-    });
-    setFreshSplit(-1);
-  }, [editingIndex, activeIndex]);
+    const next = startSpeakerTurn(segments, at);
+    if (next !== segments) publishEdit(next, speakerNames);
+  }, [activeIndex, editingIndex, publishEdit, segments, speakerNames]);
 
   // ---- saving ----
   const save = useCallback(async () => {
@@ -576,13 +623,10 @@ const TranscriptEditor = ({
 
   const replaceAll = useCallback(() => {
     if (!find) return;
-    setSegments((prev) => {
-      const rx = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-      const next = prev.map((s) => ({ ...s, text: s.text.replace(rx, replace) }));
-      setDirty(true);
-      return next;
-    });
-  }, [find, replace]);
+    const rx = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    const next = segments.map((s) => ({ ...s, text: s.text.replace(rx, replace) }));
+    publishEdit(next, speakerNames);
+  }, [find, publishEdit, replace, segments, speakerNames]);
 
   // ---- speakers ----
   const speakers = useMemo(() => speakersIn(segments), [segments]);
@@ -591,13 +635,11 @@ const TranscriptEditor = ({
   const applyRename = useCallback((label, value) => {
     setRenaming(null);
     const clean = String(value).trim();
-    setSpeakerNames((prev) => {
-      const next = { ...prev };
-      if (!clean || clean === label) { delete next[label]; } else { next[label] = clean; }
-      return next;
-    });
-    setDirty(true);
-  }, []);
+    const nextNames = { ...speakerNames };
+    if (!clean || clean === label) delete nextNames[label];
+    else nextNames[label] = clean;
+    publishEdit(segments, nextNames);
+  }, [publishEdit, segments, speakerNames]);
 
   // ---- uncertain lines ----
   const uncertainIndexes = useMemo(
@@ -628,6 +670,16 @@ const TranscriptEditor = ({
         setTimeout(() => findRef.current && findRef.current.focus(), 30);
         return;
       }
+      if (mod && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        applyHistory(e.shiftKey ? 1 : -1);
+        return;
+      }
+      if (mod && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault();
+        applyHistory(1);
+        return;
+      }
       if (mod && (e.key === 's' || e.key === 'S')) {
         e.preventDefault(); save(); return;
       }
@@ -639,7 +691,7 @@ const TranscriptEditor = ({
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [doCopy, copyMode, save, togglePlay, nudge]);
+  }, [applyHistory, copyMode, doCopy, nudge, save, togglePlay]);
 
   // Close the menus on an outside click.
   useEffect(() => {
@@ -923,8 +975,9 @@ const TranscriptEditor = ({
                 />
               ) : (
                 <button key={label} type="button" className="tm-spk-chip"
-                        onClick={() => setRenaming(label)}
-                        title={'Rename ' + label + ' everywhere in this transcript'}>
+                        onClick={() => !readOnly && setRenaming(label)}
+                        disabled={readOnly}
+                        title={readOnly ? label : 'Rename ' + label + ' everywhere in this transcript'}>
                   {speakerNames[label] || label}
                 </button>
               )
@@ -941,11 +994,8 @@ const TranscriptEditor = ({
         )}
 
         <button type="button" className="tm-ed-tool"
-                disabled={editingIndex === null && activeIndex < 0}
-                title={
-                  'Mark the line you are on as somebody new talking. ' +
-                  'You can also press Enter twice while correcting a line.'
-                }
+                disabled={readOnly || (editingIndex === null && activeIndex < 0)}
+                title="Mark the line you are on as somebody new talking"
                 onClick={newSpeakerHere}>
           New speaker here
         </button>
@@ -1014,9 +1064,12 @@ const TranscriptEditor = ({
                 : -1
             }
             onSeek={seek}
-            onEdit={setEditingIndex}
+            onEdit={(index) => { setFreshSplit(null); setEditingIndex(index); }}
             onCommit={commit}
             onEditKeyDown={onEditKeyDown}
+            onRenameSpeaker={applyRename}
+            onTabSpeaker={onTabSpeaker}
+            readOnly={readOnly}
             caretAtStart={freshSplit === i}
           />
         ))}
@@ -1054,10 +1107,10 @@ const TranscriptEditor = ({
 
       <div className="tm-ed-foot">
         <span>
-          Click any line to correct it. Enter at the end of a line moves on to
-          the next one. Enter in the middle of a line starts a new paragraph
-          there, and pressing Enter again straight away marks it as a new
-          speaker. Shift and Enter puts in a plain line break.
+          Click any line to correct it. Click on any speaker tag to edit. Tab at
+          any place of a text chunk or speaker block takes you to the next one.
+          Shift+Enter once starts a new line and Shift+Enter twice starts a new
+          paragraph. Ctrl+Enter creates a new speaker.
         </span>
         {audioUrl && (
           <span>
