@@ -1590,6 +1590,47 @@ body {
 }
 .tm-ed-foot b { font-weight: 650; color: var(--tm-body); }
 
+.tm-ed-shortcuts {
+  align-items: center;
+  background: #f1fbf4;
+  border: 1px solid #bfe4c8;
+  border-left: 4px solid var(--tm-green);
+  border-radius: 9px;
+  color: var(--tm-body);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  line-height: 1.45;
+  padding: 10px 13px;
+}
+
+.tm-ed-shortcuts strong {
+  color: #1f6a32;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tm-ed-shortcuts kbd,
+.tm-ed-audio-shortcuts b {
+  background: #fff;
+  border: 1px solid #a8cdb0;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  color: #1f6a32;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+
+.tm-ed-audio-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  line-height: 1.5;
+}
+
 @media (max-width: 720px) {
   .tm-ed-head { padding: 15px 16px 13px; }
   .tm-play, .tm-ed-bar, .tm-find, .tm-ed-foot, .tm-ed-warn { padding-left: 16px; padding-right: 16px; }
