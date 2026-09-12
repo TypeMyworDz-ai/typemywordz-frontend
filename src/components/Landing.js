@@ -150,8 +150,8 @@ const Landing = () => {
         <div className="tm-lp-hero-card">
           <Login />
           <Link className="tm-lp-trainee-link" to="/trainee-signup">
-            <strong>Want to become a TypeMyworDz proofreader?</strong>
-            <span>See the paid Kenya-only training enrollment.</span>
+            <strong>Want to become a TypeMyworDz Trainee and Potentially a Proofreader?</strong>
+            <span>Click here</span>
           </Link>
           <p className="tm-lp-freenote">
             <strong>30 credits free</strong> when you sign up. No card, no trial that quietly
