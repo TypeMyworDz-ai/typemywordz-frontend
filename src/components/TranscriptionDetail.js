@@ -9,7 +9,7 @@ import { isPaidAIUser } from '../aiAccess';
 import { fetchCreditBalance } from '../creditsService';
 
 // ---------------------------------------------------------------------------
-// One saved transcript, opened from My files.
+// One saved transcript, opened from Dashboard.
 //
 // This page used to carry its own audio player, its own copy menu and its own
 // export code, all slightly different from the versions on the transcribe
@@ -150,7 +150,7 @@ const TranscriptionDetail = ({ setCurrentView }) => {
           <h2>We could not find that transcript</h2>
           <p>It may have expired, or been deleted.</p>
           <button type="button" className="tm-newbtn" onClick={() => navigate('/dashboard')}>
-            Back to my files
+            Back to Dashboard
           </button>
         </div>
       </div>

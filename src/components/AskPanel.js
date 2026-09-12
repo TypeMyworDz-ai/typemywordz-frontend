@@ -7,7 +7,7 @@ import { readModelPref } from './AskContext';
 // This is the same conversation component used on the Ask TypeMyworDz page,
 // given the transcript so the client can ask about the words in front of them
 // rather than pasting them somewhere else. It appears in two places: straight
-// after a job finishes, and whenever a transcript is opened from My files.
+// after a job finishes, and whenever a transcript is opened from Dashboard.
 //
 // It deliberately does NOT save to the chat history. A question about the
 // transcript you are looking at belongs to that transcript, not to a separate

@@ -136,6 +136,75 @@ const creditLabel = (user) => {
 
 const planExpiry = (user) => user.balance?.planCreditsExpireAt || user.expiresAt;
 
+
+const UserChatDialog = ({ currentUser, target, onClose, showMessage }) => {
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState('');
+  const [file, setFile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!target?.uid || !currentUser) return;
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${BACKEND_URL}/api/user-chats/${encodeURIComponent(target.uid)}/messages`, { headers: { Authorization: `Bearer ${token}` } });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || 'The conversation could not be loaded.');
+      setMessages(payload.messages || []);
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+    } finally { setLoading(false); }
+  }, [currentUser, showMessage, target?.uid]);
+
+  useEffect(() => {
+    load();
+    const interval = window.setInterval(load, 5000);
+    return () => window.clearInterval(interval);
+  }, [load]);
+
+  const send = async (event) => {
+    event.preventDefault();
+    if (busy || (!draft.trim() && !file)) return;
+    setBusy(true);
+    const form = new FormData();
+    form.append('message', draft.trim());
+    if (file) form.append('attachment', file);
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${BACKEND_URL}/api/user-chats/${encodeURIComponent(target.uid)}/messages`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || 'The message could not be sent.');
+      if (payload.message) setMessages((previous) => previous.concat(payload.message));
+      setDraft(''); setFile(null); event.target.reset();
+    } catch (error) {
+      const message = String(error?.message || '').toLowerCase();
+      showMessage?.(message === 'failed to fetch' ? 'The message could not be sent. Check your connection and try again.' : error.message, 'error');
+    } finally { setBusy(false); }
+  };
+
+  const download = async (item) => {
+    if (!item?.attachment) return;
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${BACKEND_URL}/api/user-chats/${encodeURIComponent(target.uid)}/messages/${item.id}/attachment`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) throw new Error('That attachment could not be downloaded.');
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a'); link.href = url; link.download = item.attachment.name || 'attachment'; link.click(); URL.revokeObjectURL(url);
+    } catch (error) { showMessage?.(error.message, 'error'); }
+  };
+
+  return (
+    <div className="tm-user-chat-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="tm-user-chat-dialog" role="dialog" aria-modal="true" aria-labelledby="tm-user-chat-title">
+        <header className="tm-user-chat-head"><div><p className="tm-admin-kicker">Direct conversation</p><h2 id="tm-user-chat-title">{target.name || target.email}</h2><span>{target.email}{target.role ? ` · ${target.role}` : ''}</span></div><button type="button" className="tm-user-chat-close" onClick={onClose} aria-label="Close conversation">×</button></header>
+        <div className="tm-user-chat-messages">{loading ? <div className="tm-admin-empty">Loading conversation…</div> : messages.length ? messages.map((item) => <article key={item.id} className="tm-user-chat-message"><div><strong>{item.sender_uid === currentUser.uid ? 'You' : (target.name || target.email)}</strong><time>{formatDate(item.createdAt, true)}</time></div>{item.message && <p>{item.message}</p>}{item.attachment && <button type="button" className="tm-admin-link-button" onClick={() => download(item)}>Download: {item.attachment.name}</button>}</article>) : <div className="tm-admin-empty">No messages yet. Start the conversation here.</div>}</div>
+        <form className="tm-user-chat-form" onSubmit={send}><textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Write a private message" rows={2} /><div><label className="tm-user-chat-attach">{file ? file.name : 'Attach a file'}<input type="file" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label><button type="submit" className="tm-admin-btn" disabled={busy || (!draft.trim() && !file)}>{busy ? 'Sending…' : 'Send'}</button></div></form>
+      </section>
+    </div>
+  );
+};
+
 const AdminDashboard = ({ showMessage, latestTranscription }) => {
   const { currentUser } = useAuth();
   const isAdmin = isAdminEmail(currentUser?.email);
@@ -158,6 +227,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
   const [search, setSearch] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [chatUser, setChatUser] = useState(null);
 
   const loadTrainees = useCallback(async () => {
     if (!currentUser) return;
@@ -396,7 +466,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
         {activeTab === 'users' && (
           <section className="tm-admin-panel tm-admin-table-panel">
             <div className="tm-admin-table-toolbar"><div><h2 className="tm-admin-panel-title">Users and access</h2><p className="tm-admin-panel-note">Credits come from the server ledger; they are not guessed from the plan label.</p></div><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input className="tm-admin-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search email or access" aria-label="Search users" /><button type="button" className="tm-admin-btn" onClick={exportUserData}>Export CSV</button></div></div>
-            <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Account</th><th>Access</th><th>Credits</th><th>Plan expiry</th><th>Minutes</th><th>Transcripts</th><th>Joined</th><th>Last active</th><th>Action</th></tr></thead><tbody>{filteredUsers.map((user) => { const access = accessLabel(user); const minutes = Number(user.totalMinutesTranscribedByUser); return <tr key={user.id}><td><div className="tm-admin-email">{user.email}{ADMIN_EMAILS.includes(user.email) && <span className="tm-admin-badge ai" style={{ marginLeft: 7 }}>Admin</span>}</div>{user.name && <div className="tm-admin-name">{user.name}</div>}</td><td><span className={`tm-admin-badge ${access.tone}`}>{access.text}</span></td><td>{creditLabel(user)}</td><td>{formatDate(planExpiry(user))}</td><td>{Number.isFinite(minutes) ? formatNumber(minutes) : 'Not measured'}</td><td>{formatNumber(user.totalTranscriptsByUser || 0)}</td><td>{formatDate(user.createdAt)}</td><td>{formatDate(user.lastAccessed)}</td><td>{isAdminEmail(user.email) ? <span className="tm-admin-small">Protected</span> : <button type="button" className="tm-admin-btn tm-admin-btn-danger" onClick={() => setConfirmingDelete(user)}>Remove</button>}</td></tr>; })}</tbody></table>{!filteredUsers.length && <div className="tm-admin-empty">No accounts match that search.</div>}</div>
+            <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Account</th><th>Access</th><th>Credits</th><th>Plan expiry</th><th>Minutes</th><th>Transcripts</th><th>Joined</th><th>Last active</th><th>Action</th></tr></thead><tbody>{filteredUsers.map((user) => { const access = accessLabel(user); const minutes = Number(user.totalMinutesTranscribedByUser); return <tr key={user.id}><td><div className="tm-admin-email">{user.email}{ADMIN_EMAILS.includes(user.email) && <span className="tm-admin-badge ai" style={{ marginLeft: 7 }}>Admin</span>}</div>{user.name && <div className="tm-admin-name">{user.name}</div>}</td><td><span className={`tm-admin-badge ${access.tone}`}>{access.text}</span></td><td>{creditLabel(user)}</td><td>{formatDate(planExpiry(user))}</td><td>{Number.isFinite(minutes) ? formatNumber(minutes) : 'Not measured'}</td><td>{formatNumber(user.totalTranscriptsByUser || 0)}</td><td>{formatDate(user.createdAt)}</td><td>{formatDate(user.lastAccessed)}</td><td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><button type="button" className="tm-admin-btn" onClick={() => setChatUser(user)}>Chat</button>{isAdminEmail(user.email) ? <span className="tm-admin-small">Protected</span> : <button type="button" className="tm-admin-btn tm-admin-btn-danger" onClick={() => setConfirmingDelete(user)}>Remove</button>}</div></td></tr>; })}</tbody></table>{!filteredUsers.length && <div className="tm-admin-empty">No accounts match that search.</div>}</div>
           </section>
         )}
 
@@ -416,6 +486,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
         )}
       </div>
       <ConfirmDialog open={Boolean(confirmingDelete)} title="Remove this account?" body={confirmingDelete ? `${confirmingDelete.email} will lose access, its profile will be removed, and its saved transcripts and Ask chats will be deleted. This cannot be undone.` : ''} confirmLabel="Remove account" cancelLabel="Keep account" tone="danger" busy={deleteBusy} onCancel={() => setConfirmingDelete(null)} onConfirm={handleDeleteUser} />
+      {chatUser && <UserChatDialog currentUser={currentUser} target={chatUser} showMessage={showMessage} onClose={() => setChatUser(null)} />}
     </div>
   );
 };

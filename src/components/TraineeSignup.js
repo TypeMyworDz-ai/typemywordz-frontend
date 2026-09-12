@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { auth } from '../firebase';
+import { deleteUser, signOut } from 'firebase/auth';
 import { useAuth } from '../contexts/AuthContext';
 import { looksLikeAnEmail, usesPlusAlias, isDisposableEmail, friendlyAuthError, MIN_PASSWORD_LENGTH } from '../utils/emailChecks';
 
@@ -30,6 +32,33 @@ export default function TraineeSignup() {
     else if (userProfile?.name) setOfficialName(userProfile.name);
   }, [userProfile]);
 
+  const removeUnpaidAccount = async (user, deleteAuth = false) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      await fetch(`${BACKEND_URL}/api/trainee/cancel-pending`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ created_for_trainee: deleteAuth }) });
+    } catch (cleanupError) {
+      console.warn('Pending trainee cleanup could not reach the server:', cleanupError);
+    }
+    if (deleteAuth) {
+      try { await deleteUser(user); } catch (deleteError) { console.warn('Pending trainee auth cleanup:', deleteError); }
+      try { await signOut(auth); } catch (signOutError) { console.warn('Pending trainee sign-out:', signOutError); }
+    }
+    try { window.sessionStorage.removeItem('tmwd_trainee_checkout_started'); } catch (storageError) { /* ignore */ }
+  };
+
+  // Returning to this page after abandoning checkout must not leave a usable
+  // Firebase account behind. A successful callback changes the profile before
+  // this screen is shown, so this only applies to an unpaid pending account.
+  useEffect(() => {
+    const hasPaymentCallback = new URLSearchParams(window.location.search).has('reference') || window.location.search.includes('kora=') || window.location.search.includes('payment=');
+    let started = false;
+    try { started = window.sessionStorage.getItem('tmwd_trainee_checkout_started') === '1'; } catch (storageError) { /* ignore */ }
+    if (currentUser && userProfile?.trainingPaymentStatus === 'pending' && started && !hasPaymentCallback) {
+      removeUnpaidAccount(currentUser, Boolean(userProfile?.traineeAccountPendingDeletion));
+    }
+  }, [currentUser, userProfile]);
+
   const registerAndPay = async (provider) => {
     setError('');
     setNotice('');
@@ -37,8 +66,9 @@ export default function TraineeSignup() {
     if (!confirmed) return setError('Please confirm that you are using your official ID names.');
 
     setBusy(true);
+    let user = currentUser;
+    const createdForTrainee = !currentUser;
     try {
-      let user = currentUser;
       if (!user) {
         const address = email.trim().toLowerCase();
         if (!looksLikeAnEmail(address)) throw new Error('Please enter a valid email address.');
@@ -53,14 +83,14 @@ export default function TraineeSignup() {
       const registration = await fetch(`${BACKEND_URL}/api/trainee/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ official_name: officialName.trim(), country_code: 'KE' }),
+        body: JSON.stringify({ official_name: officialName.trim(), country_code: 'KE', created_for_trainee: createdForTrainee }),
       });
       const registrationData = await registration.json().catch(() => ({}));
       if (!registration.ok) throw new Error(registrationData.detail || 'We could not save your trainee registration.');
 
       const endpoint = provider === 'kora' ? '/api/initialize-kora-trainee-payment' : '/api/initialize-paystack-payment';
       const body = provider === 'kora'
-        ? { official_name: officialName.trim(), country_code: 'KE', redirect_url: `${window.location.origin}/?kora=success` }
+        ? { official_name: officialName.trim(), country_code: 'KE', redirect_url: `${window.location.origin}/?kora=success&trainee=1` }
         : {
             email: user.email,
             amount: 0,
@@ -73,8 +103,10 @@ export default function TraineeSignup() {
       const response = await fetch(`${BACKEND_URL}${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.status) throw new Error(data.detail || data.message || 'Checkout could not be started.');
+      try { window.sessionStorage.setItem('tmwd_trainee_checkout_started', '1'); } catch (storageError) { /* ignore */ }
       window.location.href = data.authorization_url || data.checkout_url;
     } catch (err) {
+      await removeUnpaidAccount(user, createdForTrainee);
       setError(friendlyAuthError(err));
       setBusy(false);
     }
