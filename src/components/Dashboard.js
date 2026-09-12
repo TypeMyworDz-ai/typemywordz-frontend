@@ -1,21 +1,76 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchUserTranscriptions, deleteTranscription, updateTranscription } from '../userService';
 import { useNavigate } from 'react-router-dom';
 import ConfirmDialog from './ConfirmDialog';
 import { htmlToText } from '../lib/transcript';
-import HumanFilesSummary from './HumanFilesSummary';
+import './Dashboard.css';
 
-// `standalone` means this page is on its own address rather than inside the
-// workspace, so it needs its own New transcription button and has to navigate
-// rather than switch the workspace view.
+const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
+
+const HUMAN_STATUS = {
+  pending_admin: { label: 'Waiting for admin', tone: 'waiting', note: 'Your request is in the admin queue.' },
+  approved: { label: 'Approved', tone: 'approved', note: 'Ready to be assigned to a proofreader.' },
+  assigned: { label: 'Assigned', tone: 'assigned', note: 'A proofreader has been assigned.' },
+  in_progress: { label: 'In progress', tone: 'progress', note: 'Your proofreader is working on it.' },
+  submitted: { label: 'Under review', tone: 'review', note: 'The completed work is with the admin.' },
+  client_review: { label: 'Your approval needed', tone: 'action', note: 'Review the finished transcript before release.' },
+  client_approved: { label: 'Awaiting release', tone: 'action', note: 'The admin will release it after the final credit check.' },
+  released: { label: 'Released', tone: 'released', note: 'Ready to open and download.' },
+  cancelled: { label: 'Cancelled', tone: 'cancelled', note: 'This request is closed.' },
+};
+
+const toDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value.toDate === 'function') return value.toDate();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const formatDate = (value) => {
+  const date = toDate(value);
+  if (!date) return 'Date unavailable';
+  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+const formatDuration = (seconds) => {
+  const total = Number(seconds);
+  if (!Number.isFinite(total) || total <= 0) return 'Length unavailable';
+  const minutes = Math.floor(total / 60);
+  const remaining = Math.floor(total % 60).toString().padStart(2, '0');
+  return `${minutes}:${remaining}`;
+};
+
+const humanFileName = (job) => job.audio?.name || job.fileName || 'Proofreading request';
+
+const normalizeAiItem = (transcription) => ({
+  ...transcription,
+  kind: 'ai',
+  title: transcription.fileName || 'Untitled transcript',
+  date: transcription.createdAt,
+  durationSeconds: transcription.duration,
+  searchable: `${transcription.fileName || ''} ${htmlToText(transcription.transcriptionText || transcription.text || '')}`.toLowerCase(),
+});
+
+const normalizeHumanItem = (job) => ({
+  ...job,
+  kind: 'human',
+  title: humanFileName(job),
+  date: job.createdAt,
+  durationSeconds: Number(job.seconds || 0),
+  searchable: `${humanFileName(job)} ${job.status || ''} ${job.instructions || ''}`.toLowerCase(),
+});
+
 const Dashboard = ({ setCurrentView, standalone = false }) => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [transcriptions, setTranscriptions] = useState([]);
+  const [humanJobs, setHumanJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeFilter, setActiveFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [editingId, setEditingId] = useState(null);
   const [editingText, setEditingText] = useState('');
@@ -23,539 +78,203 @@ const Dashboard = ({ setCurrentView, standalone = false }) => {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  const loadTranscriptions = useCallback(async () => {
-    if (currentUser?.uid) {
-      setLoading(true);
-      setError('');
-      try {
-        const fetchedTranscriptions = await fetchUserTranscriptions(currentUser.uid);
-        console.log('DEBUG: Fetched Transcriptions:', fetchedTranscriptions); // NEW LOG
-        // Ensure createdAt is a valid Date object for sorting
-        fetchedTranscriptions.forEach(t => {
-            if (t.createdAt && typeof t.createdAt.toDate === 'function') {
-                t.createdAt = t.createdAt.toDate();
-            } else if (t.createdAt instanceof Date === false) {
-                // Fallback for non-Firestore Timestamp dates
-                t.createdAt = new Date(t.createdAt);
-            }
-        });
-        fetchedTranscriptions.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); // Sort by actual Date object
-        setTranscriptions(fetchedTranscriptions);
-        console.log('DEBUG: Transcriptions after loading and initial sort:', fetchedTranscriptions); // NEW LOG
-      } catch (err) {
-        console.error("Error fetching transcriptions:", err);
-        setError("Failed to load transcriptions. Please try again.");
-      } finally {
-        setLoading(false);
-      }
+  const loadFiles = useCallback(async () => {
+    if (!currentUser?.uid) return;
+    setLoading(true);
+    setError('');
+    try {
+      const [fetchedTranscriptions, humanResponse] = await Promise.all([
+        fetchUserTranscriptions(currentUser.uid),
+        (async () => {
+          try {
+            const token = await currentUser.getIdToken();
+            const response = await fetch(`${BACKEND_URL}/human-transcription/jobs?scope=mine`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!response.ok) return [];
+            const payload = await response.json();
+            return payload.jobs || [];
+          } catch (humanError) {
+            console.warn('Human work could not be loaded:', humanError);
+            return [];
+          }
+        })(),
+      ]);
+      setTranscriptions((fetchedTranscriptions || []).map((item) => ({
+        ...item,
+        createdAt: toDate(item.createdAt),
+      })));
+      setHumanJobs(humanResponse);
+    } catch (loadError) {
+      console.error('Error fetching files:', loadError);
+      setError('We could not load your files. Please try again.');
+    } finally {
+      setLoading(false);
     }
-  }, [currentUser?.uid]);
+  }, [currentUser]);
 
   useEffect(() => {
-    loadTranscriptions();
-  }, [loadTranscriptions]);
+    loadFiles();
+  }, [loadFiles]);
 
-  // Ask first. Deleting a transcript cannot be undone.
-  const handleDelete = useCallback((transcriptionId, e) => {
-    e.stopPropagation();
+  const aiItems = useMemo(() => transcriptions.map(normalizeAiItem), [transcriptions]);
+  const humanItems = useMemo(() => humanJobs.map(normalizeHumanItem), [humanJobs]);
+  const allItems = useMemo(() => [...aiItems, ...humanItems], [aiItems, humanItems]);
+
+  const filteredItems = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    const matchesFilter = (item) => activeFilter === 'all' || item.kind === activeFilter;
+    return allItems.filter((item) => matchesFilter(item) && (!query || item.searchable.includes(query))).sort((a, b) => {
+      if (sortBy === 'name') return a.title.localeCompare(b.title);
+      if (sortBy === 'duration') return (b.durationSeconds || 0) - (a.durationSeconds || 0);
+      if (sortBy === 'oldest') return (toDate(a.date)?.getTime() || 0) - (toDate(b.date)?.getTime() || 0);
+      return (toDate(b.date)?.getTime() || 0) - (toDate(a.date)?.getTime() || 0);
+    });
+  }, [activeFilter, allItems, searchTerm, sortBy]);
+
+  const totalMinutes = useMemo(() => allItems.reduce((sum, item) => sum + ((item.durationSeconds || 0) / 60), 0), [allItems]);
+  const quotedCredits = useMemo(() => humanJobs.reduce((sum, job) => sum + Number(job.quote_credits || 0), 0), [humanJobs]);
+  const releasedCredits = useMemo(() => humanJobs.reduce((sum, job) => sum + Number(job.credits_charged || 0), 0), [humanJobs]);
+
+  const openNewTranscription = useCallback(() => {
+    if (setCurrentView && !standalone) setCurrentView('transcribe');
+    else navigate('/');
+  }, [navigate, setCurrentView, standalone]);
+
+  const openHumanWork = useCallback(() => {
+    if (setCurrentView && !standalone) setCurrentView('human_transcripts');
+    else navigate('/');
+  }, [navigate, setCurrentView, standalone]);
+
+  const handleEdit = useCallback((transcription, event) => {
+    event.stopPropagation();
+    setEditingId(transcription.id);
+    setEditingText(transcription.transcriptionText || transcription.text || '');
+  }, []);
+
+  const handleDelete = useCallback((transcriptionId, event) => {
+    event.stopPropagation();
     setPendingDelete(transcriptionId);
   }, []);
 
   const confirmDelete = useCallback(async () => {
-    if (!pendingDelete) return;
+    if (!pendingDelete || !currentUser?.uid) return;
     setDeleting(true);
     try {
       await deleteTranscription(currentUser.uid, pendingDelete);
       setPendingDelete(null);
-      loadTranscriptions();
-    } catch (err) {
-      console.error("Error deleting transcription:", err);
-      setError("Failed to delete transcription. Please try again.");
+      await loadFiles();
+    } catch (deleteError) {
+      console.error('Error deleting transcription:', deleteError);
+      setError('The transcript could not be deleted. Please try again.');
       setPendingDelete(null);
     } finally {
       setDeleting(false);
     }
-  }, [currentUser?.uid, loadTranscriptions, pendingDelete]);
+  }, [currentUser?.uid, loadFiles, pendingDelete]);
 
-  const handleEdit = useCallback((transcription, e) => {
-    e.stopPropagation();
-    setEditingId(transcription.id);
-    // FIX: Prioritize 'transcriptionText', fallback to 'text'
-    setEditingText(transcription.transcriptionText || transcription.text || '');
-  }, []);
-
-  const handleSaveEdit = useCallback(async () => {
+  const saveEdit = useCallback(async () => {
     if (!editingId || !currentUser?.uid) return;
-    
     setIsSaving(true);
     try {
-      // FIX: Update 'transcriptionText' field
       await updateTranscription(currentUser.uid, editingId, { transcriptionText: editingText });
-      
-      // Update local state
-      setTranscriptions(prev => 
-        prev.map(t => 
-          t.id === editingId 
-            ? { ...t, transcriptionText: editingText } // FIX: Update transcriptionText
-            : t
-        )
-      );
-      
+      setTranscriptions((previous) => previous.map((item) => (
+        item.id === editingId ? { ...item, transcriptionText: editingText } : item
+      )));
       setEditingId(null);
       setEditingText('');
-    } catch (err) {
-      console.error("Error updating transcription:", err);
-      setError("Failed to save transcription. Please try again.");
+    } catch (saveError) {
+      console.error('Error updating transcription:', saveError);
+      setError('The transcript could not be saved. Please try again.');
     } finally {
       setIsSaving(false);
     }
-  }, [editingId, currentUser?.uid, editingText]);
-
-  const handleCancelEdit = useCallback(() => {
-    setEditingId(null);
-    setEditingText('');
-  }, []);
-
-  const handleTranscriptionClick = (transcription) => {
-    // Only navigate if not editing
-    if (editingId !== transcription.id) {
-      navigate(`/transcription/${transcription.id}`, { state: { transcription } });
-    }
-  };
-
-  // Handle the "Transcribe New Audio" button click - for standalone dashboard only
-  const handleTranscribeNewAudio = useCallback(() => {
-    // Inside the workspace, switching the view is enough. On the standalone
-    // page there is no workspace to switch, so we go to the app itself.
-    if (setCurrentView && !standalone) {
-      setCurrentView('transcribe');
-    } else {
-      navigate('/');
-    }
-  }, [setCurrentView, standalone, navigate]);
-
-  // UPDATED: filteredTranscriptions with robust checks and DEBUG LOGS
-  const filteredTranscriptions = transcriptions.filter(transcription => {
-    const lowerSearchTerm = searchTerm.toLowerCase();
-    const fileName = transcription.fileName ? transcription.fileName.toLowerCase() : '';
-    // Search the words that were actually spoken, not the HTML they are stored
-    // in. Searching the raw markup meant a search for "strong" matched every
-    // transcript that had speaker names in it.
-    const text = htmlToText(transcription.transcriptionText || transcription.text).toLowerCase();
-    return fileName.includes(lowerSearchTerm) || text.includes(lowerSearchTerm);
-  });
-
-  // UPDATED: sortedTranscriptions with DEBUG LOGS
-  const sortedTranscriptions = [...filteredTranscriptions].sort((a, b) => {
-    console.log('DEBUG SORT: Comparing:', a.fileName, 'and', b.fileName); // NEW LOG
-    switch (sortBy) {
-      case 'newest':
-        // Ensure createdAt is a valid date object before comparison
-        const dateA_newest = a.createdAt instanceof Date ? a.createdAt : new Date(0);
-        const dateB_newest = b.createdAt instanceof Date ? b.createdAt : new Date(0);
-        return dateB_newest.getTime() - dateA_newest.getTime();
-      case 'oldest':
-        // Ensure createdAt is a valid date object before comparison
-        const dateA_oldest = a.createdAt instanceof Date ? a.createdAt : new Date(0);
-        const dateB_oldest = b.createdAt instanceof Date ? b.createdAt : new Date(0);
-        return dateA_oldest.getTime() - dateB_oldest.getTime();
-      case 'name':
-        // Add null/undefined checks for fileName before localeCompare
-        const fileNameA = a.fileName || '';
-        const fileNameB = b.fileName || '';
-        return fileNameA.localeCompare(fileNameB);
-      case 'duration':
-        return (b.duration || 0) - (a.duration || 0);
-      default:
-        // Default sort by newest, with null/undefined checks
-        const defaultDateA = a.createdAt instanceof Date ? a.createdAt : new Date(0);
-        const defaultDateB = b.createdAt instanceof Date ? b.createdAt : new Date(0);
-        return defaultDateB.getTime() - defaultDateA.getTime();
-    }
-  });
-  console.log('DEBUG: After sorting, sortedTranscriptions.length:', sortedTranscriptions.length); // NEW LOG
-
-  const formatDuration = (seconds) => {
-    const n = Number(seconds);
-    if (!Number.isFinite(n) || n <= 0) return 'Length unknown';
-    const minutes = Math.floor(n / 60);
-    const remainingSeconds = Math.floor(n % 60);
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
+  }, [currentUser?.uid, editingId, editingText]);
 
   if (!currentUser) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff' }}>
-        <div style={{ textAlign: 'center', padding: '2rem', backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1f2937', marginBottom: '1rem' }}>Access Required</h2>
-          <p style={{ color: '#6b7280' }}>Please log in to view your dashboard.</p>
-        </div>
-      </div>
-    );
+    return <div className="tm-files-state"><h2>Sign in to see your files</h2><p>Your saved transcripts and proofreading requests will appear here.</p></div>;
   }
 
   if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff' }}>
-        <div style={{ textAlign: 'center', padding: '2rem' }}>
-          <div style={{ 
-            width: '2rem', 
-            height: '2rem', 
-            border: '2px solid #e5e7eb', 
-            borderTop: '2px solid #28a745', 
-            borderRadius: '50%', 
-            animation: 'spin 1s linear infinite',
-            margin: '0 auto 1rem auto'
-          }}></div>
-          <p style={{ color: '#6b7280' }}>Loading transcriptions...</p>
-        </div>
-      </div>
-    );
+    return <div className="tm-files-state"><div className="tm-files-spinner" /><p>Loading your work</p></div>;
   }
 
   if (error) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff' }}>
-        <div style={{ textAlign: 'center', padding: '2rem', backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #ef4444' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#dc2626', marginBottom: '1rem' }}>Error</h2>
-          <p style={{ color: '#6b7280', marginBottom: '1rem' }}>{error}</p>
-          <button 
-            onClick={loadTranscriptions}
-            style={{ backgroundColor: '#28a745', color: 'white', padding: '0.5rem 1rem', borderRadius: '7px', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
+    return <div className="tm-files-state tm-files-state-error"><h2>My files is having trouble loading</h2><p>{error}</p><button type="button" className="tm-files-primary" onClick={loadFiles}>Try again</button></div>;
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#ffffff', position: 'relative' }}>
-
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '2rem 1rem' }}>
-        {/* Header */}
-        <div className="tm-page-head">
+    <div className="tm-files-page">
+      <div className="tm-files-container">
+        <header className="tm-files-header">
           <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#14161a', marginBottom: '0.35rem' }}>My files</h1>
-            <p style={{ color: '#858a95', fontSize: '0.9rem', margin: 0 }}>Every transcription you have made.</p>
+            <p className="tm-files-eyebrow">Your work library</p>
+            <h1>My files</h1>
+            <p className="tm-files-intro">AI transcripts and proofreading work, together in one place.</p>
           </div>
-          {standalone && (
-            <button type="button" className="tm-primary" onClick={handleTranscribeNewAudio}>
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
-                   strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-              New transcription
-            </button>
-          )}
-        </div>
+          <button type="button" className="tm-files-primary" onClick={openNewTranscription}>
+            <span aria-hidden="true">+</span> New transcription
+          </button>
+        </header>
 
-        <HumanFilesSummary />
+        <section className="tm-files-overview" aria-label="File overview">
+          <div className="tm-files-overview-lead">
+            <span className="tm-files-overview-mark" aria-hidden="true">↗</span>
+            <div><strong>{allItems.length} {allItems.length === 1 ? 'piece' : 'pieces'} of work</strong><span>Nothing is lost when you leave the editor.</span></div>
+          </div>
+          <div className="tm-files-overview-stat"><strong>{Math.round(totalMinutes)}</strong><span>minutes</span></div>
+          <div className="tm-files-overview-stat"><strong>{humanJobs.length}</strong><span>proofreading {humanJobs.length === 1 ? 'request' : 'requests'}</span></div>
+          {humanJobs.length > 0 && <div className="tm-files-overview-stat"><strong>{releasedCredits || quotedCredits}</strong><span>{releasedCredits ? 'credits used' : 'credits quoted'}</span></div>}
+        </section>
 
-        {/* Search and Filter */}
-        <div style={{ marginBottom: '1.5rem' }}>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ flex: '1', position: 'relative', minWidth: '200px' }}>
-              <input
-                type="text"
-                placeholder="Search transcriptions..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={{ 
-                  width: '100%', 
-                  boxSizing: 'border-box',
-                  paddingLeft: '2.5rem', 
-                  paddingRight: '1rem', 
-                  paddingTop: '0.5rem', 
-                  paddingBottom: '0.5rem', 
-                  border: '1px solid #d5d7dd', 
-                  borderRadius: '7px',
-                  fontFamily: 'inherit',
-                  fontSize: '0.875rem'
-                }}
-              />
-              <div style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
-                <svg style={{ width: '1rem', height: '1rem', color: '#9ca3af' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <label style={{ fontSize: '0.875rem', fontWeight: '500', color: '#3f434c', whiteSpace: 'nowrap' }}>Sort by</label>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                style={{ 
-                  padding: '0.5rem 0.75rem', 
-                  border: '1px solid #d5d7dd', 
-                  borderRadius: '7px',
-                  fontFamily: 'inherit',
-                  fontSize: '0.875rem',
-                  background: '#fff'
-                }}
-              >
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
-                <option value="name">File Name</option>
-                <option value="duration">Duration</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.85rem', marginBottom: '1.75rem' }}>
-          <div style={{ backgroundColor: '#fff', border: '1px solid #e5e6ea', borderRadius: '10px', boxShadow: 'none', padding: '1.15rem 1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <div style={{ padding: '0.5rem', backgroundColor: '#f8f8f9', borderRadius: '7px', marginRight: '0.85rem', display: 'flex' }}>
-                <svg style={{ width: '1.1rem', height: '1.1rem', color: '#858a95' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-              </div>
-              <div>
-                <p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#6b7280', margin: 0 }}>Total</p>
-                <p style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', margin: 0 }}>{transcriptions.length}</p>
-              </div>
-            </div>
-          </div>
-          <div style={{ backgroundColor: '#fff', border: '1px solid #e5e6ea', borderRadius: '10px', boxShadow: 'none', padding: '1.15rem 1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <div style={{ padding: '0.5rem', backgroundColor: '#eaf7ee', borderRadius: '7px', marginRight: '0.85rem', display: 'flex' }}>
-                <svg style={{ width: '1.1rem', height: '1.1rem', color: '#218838' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              </div>
-              <div>
-                <p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#6b7280', margin: 0 }}>Minutes</p>
-                <p style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', margin: 0 }}>{Math.round(transcriptions.reduce((sum, t) => sum + (t.duration || 0), 0) / 60)}</p>
-              </div>
-            </div>
-          </div>
-          <div style={{ backgroundColor: '#fff', border: '1px solid #e5e6ea', borderRadius: '10px', boxShadow: 'none', padding: '1.15rem 1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <div style={{ padding: '0.5rem', backgroundColor: '#f8f8f9', borderRadius: '7px', marginRight: '0.85rem', display: 'flex' }}>
-                <svg style={{ width: '1.1rem', height: '1.1rem', color: '#858a95' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              </div>
-              <div>
-                <p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#6b7280', margin: 0 }}>This Week</p>
-                <p style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', margin: 0 }}>{transcriptions.filter(t => t.createdAt && (t.createdAt.getTime() > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).getTime())).length}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        {/* Conditional rendering for Transcriptions List */}
-        {sortedTranscriptions.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: '600', color: '#14161a', marginBottom: '0.5rem' }}>Nothing here yet</h3>
-            <p style={{ color: '#858a95', marginBottom: '1.5rem' }}>Upload or record something and it will appear here.</p>
-            <button 
-              onClick={handleTranscribeNewAudio}
-              style={{ 
-                backgroundColor: '#28a745', 
-                color: 'white', 
-                padding: '0.75rem 1.5rem', 
-                borderRadius: '7px', 
-                border: 'none', 
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                fontSize: '0.9rem',
-                fontWeight: '600'
-              }}
-            >
-              Start Transcribing
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem' }}>
-            {sortedTranscriptions.map((transcription) => (
-              <div
-                key={transcription.id}
-                onClick={() => handleTranscriptionClick(transcription)}
-                style={{ 
-                  backgroundColor: 'white', 
-                  borderRadius: '0.5rem', 
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)', 
-                  border: '1px solid #e5e7eb',
-                  cursor: editingId === transcription.id ? 'default' : 'pointer',
-                  transition: 'all 0.2s',
-                  opacity: editingId && editingId !== transcription.id ? 0.5 : 1
-                }}
-                onMouseEnter={(e) => {
-                  if (editingId !== transcription.id) {
-                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (editingId !== transcription.id) {
-                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                  }
-                }}
-              >
-                <div style={{ padding: '1.5rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                    <div style={{ flex: 1 }}>
-                      <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#111827', marginBottom: '0.5rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {transcription.fileName || 'Untitled Transcription'} {/* Fallback for fileName */}
-                      </h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.875rem', color: '#6b7280' }}>
-                          <svg style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                          {formatDuration(transcription.duration)}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.875rem', color: '#6b7280' }}>
-                          <svg style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                          {transcription.createdAt instanceof Date ? transcription.createdAt.toLocaleDateString() : 'N/A'} {/* Robust date display */}
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button
-                        onClick={(e) => handleEdit(transcription, e)}
-                        style={{ 
-                          color: '#858a95', 
-                          padding: '0.5rem',
-                          border: 'none',
-                          background: 'none',
-                          cursor: 'pointer',
-                          borderRadius: '0.25rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.25rem'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.target.style.backgroundColor = '#f8f8f9';
-                          e.target.style.color = '#14161a';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.target.style.backgroundColor = 'transparent';
-                          e.target.style.color = '#858a95';
-                        }}
-                        title="Edit transcription"
-                      >
-                        <svg style={{ width: '1rem', height: '1rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                      </button>
-                      <button
-                        onClick={(e) => handleDelete(transcription.id, e)}
-                        style={{ 
-                          color: '#9ca3af', 
-                          padding: '0.5rem',
-                          border: 'none',
-                          background: 'none',
-                          cursor: 'pointer',
-                          borderRadius: '0.25rem'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.target.style.backgroundColor = '#fef2f2';
-                          e.target.style.color = '#ef4444';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.target.style.backgroundColor = 'transparent';
-                          e.target.style.color = '#9ca3af';
-                        }}
-                        title="Delete transcription"
-                      >
-                        <svg style={{ width: '1.25rem', height: '1.25rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                      </button>
-                    </div>
-                  </div>
-
-                  {editingId === transcription.id ? (
-                    <div style={{ marginBottom: '1rem' }}>
-                      <textarea
-                        value={editingText}
-                        onChange={(e) => setEditingText(e.target.value)}
-                        style={{
-                          width: '100%',
-                          minHeight: '100px',
-                          padding: '0.75rem',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '0.5rem',
-                          fontSize: '0.875rem',
-                          resize: 'vertical'
-                        }}
-                      ></textarea>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
-                        <button
-                          onClick={handleCancelEdit}
-                          style={{
-                            backgroundColor: '#ef4444',
-                            color: 'white',
-                            padding: '0.5rem 1rem',
-                            borderRadius: '0.25rem',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: '0.75rem',
-                            fontWeight: '500'
-                          }}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={handleSaveEdit}
-                          disabled={isSaving}
-                          style={{
-                            backgroundColor: '#22c55e',
-                            color: 'white',
-                            padding: '0.5rem 1rem',
-                            borderRadius: '0.25rem',
-                            border: 'none',
-                            cursor: isSaving ? 'not-allowed' : 'pointer',
-                            fontSize: '0.75rem',
-                            fontWeight: '500',
-                            opacity: isSaving ? 0.7 : 1
-                          }}
-                        >
-                          {isSaving ? 'Saving...' : 'Save'}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ backgroundColor: '#f9fafb', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem' }}>
-                      <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
-                        {/* FIX: Prioritize 'transcriptionText' for display */}
-                        {(() => {
-                          // Transcripts are stored as HTML, so the tags have to
-                          // come off before this is shown as a preview.
-                          const plain = htmlToText(transcription.transcriptionText || transcription.text).trim();
-                          if (!plain) return 'This transcript is empty.';
-                          return plain.length > 150 ? plain.slice(0, 150) + '\u2026' : plain;
-                        })()}
-                      </p>
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.75rem', color: '#6b7280' }}>
-                      Click to edit
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#218838', fontWeight: '600' }}>
-                      Open →
-                    </div>
-                  </div>
-                </div>
-              </div>
+        <section className="tm-files-controls" aria-label="Find files">
+          <div className="tm-files-tabs" role="tablist" aria-label="File type">
+            {[['all', 'All work', allItems.length], ['ai', 'AI transcripts', aiItems.length], ['human', 'Proofreading', humanItems.length]].map(([value, label, count]) => (
+              <button key={value} type="button" role="tab" aria-selected={activeFilter === value} className={activeFilter === value ? 'active' : ''} onClick={() => setActiveFilter(value)}>
+                {label}<span>{count}</span>
+              </button>
             ))}
           </div>
-        )}
-        {/* CSS for animations */}
-        <style>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-          @keyframes float {
-            0%, 100% { transform: translateX(-50%) translateY(0px); }
-            50% { transform: translateX(-50%) translateY(-3px); }
-          }
-        `}</style>
+          <div className="tm-files-tools">
+            <label className="tm-files-search"><span className="sr-only">Search files</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.5-4.5m2-5.5a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" /></svg><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search by file name or words" /></label>
+            <label className="tm-files-sort"><span>Sort</span><select value={sortBy} onChange={(event) => setSortBy(event.target.value)}><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">File name</option><option value="duration">Longest first</option></select></label>
+          </div>
+        </section>
 
-        <ConfirmDialog
-          open={!!pendingDelete}
-          title="Delete this transcript?"
-          body="The transcript and its wording will be removed from your files. This cannot be undone."
-          confirmLabel="Delete"
-          cancelLabel="Keep it"
-          tone="danger"
-          busy={deleting}
-          onConfirm={confirmDelete}
-          onCancel={() => setPendingDelete(null)}
-        />
+        <div className="tm-files-list-head"><div><p className="tm-files-eyebrow">Recent work</p><h2>{activeFilter === 'all' ? 'Everything you have made' : activeFilter === 'ai' ? 'AI transcripts' : 'Proofreading work'}</h2></div><span>{filteredItems.length} shown</span></div>
+
+        {filteredItems.length === 0 ? (
+          <section className="tm-files-empty">
+            <div className="tm-files-empty-icon" aria-hidden="true">⌁</div>
+            <h3>{searchTerm ? 'No matching files' : activeFilter === 'human' ? 'No proofreading work yet' : 'Your library is ready'}</h3>
+            <p>{searchTerm ? 'Try a different file name or phrase.' : activeFilter === 'human' ? 'When you request proofreading, its quote and progress will appear here.' : 'Start with a recording or upload a file and it will stay here for you.'}</p>
+            {!searchTerm && <button type="button" className="tm-files-secondary" onClick={activeFilter === 'human' ? openHumanWork : openNewTranscription}>{activeFilter === 'human' ? 'Open proofreading' : 'Start transcribing'}</button>}
+          </section>
+        ) : (
+          <section className="tm-files-list" aria-label="Saved work">
+            {filteredItems.map((item) => {
+              const humanStatus = item.kind === 'human' ? (HUMAN_STATUS[item.status] || { label: item.status || 'Human work', tone: 'waiting', note: 'This request is in your library.' }) : null;
+              const isEditing = item.kind === 'ai' && editingId === item.id;
+              return (
+                <article key={`${item.kind}-${item.id}`} className={`tm-file-row tm-file-row-${item.kind} ${humanStatus ? `tm-file-status-${humanStatus.tone}` : ''}`} onClick={() => item.kind === 'human' ? openHumanWork() : navigate(`/transcription/${item.id}`, { state: { transcription: item } })}>
+                  <div className="tm-file-type-mark" aria-hidden="true">{item.kind === 'human' ? 'P' : 'T'}</div>
+                  <div className="tm-file-main">
+                    <div className="tm-file-title-line"><h3>{item.title}</h3><span className={`tm-file-category tm-file-category-${item.kind}`}>{item.kind === 'human' ? 'Proofreading' : 'AI transcript'}</span>{humanStatus && <span className={`tm-file-status tm-file-status-chip-${humanStatus.tone}`}>{humanStatus.label}</span>}</div>
+                    {isEditing ? (
+                      <div className="tm-file-editor" onClick={(event) => event.stopPropagation()}><textarea value={editingText} onChange={(event) => setEditingText(event.target.value)} /><div><button type="button" className="tm-files-quiet" onClick={() => { setEditingId(null); setEditingText(''); }}>Cancel</button><button type="button" className="tm-files-secondary" disabled={isSaving} onClick={saveEdit}>{isSaving ? 'Saving' : 'Save changes'}</button></div></div>
+                    ) : <p className="tm-file-preview">{item.kind === 'human' ? humanStatus.note : (() => { const plain = htmlToText(item.transcriptionText || item.text || '').trim(); return plain ? (plain.length > 190 ? `${plain.slice(0, 190)}…` : plain) : 'This transcript is empty.'; })()}</p>}
+                    <div className="tm-file-meta"><span>{formatDate(item.date)}</span><span>{formatDuration(item.durationSeconds)}</span>{item.kind === 'human' && <span>{item.quote_credits || 0} credits quoted{item.credits_charged ? ` · ${item.credits_charged} used` : ''}</span>}</div>
+                  </div>
+                  <div className="tm-file-actions" onClick={(event) => event.stopPropagation()}>{item.kind === 'ai' && <><button type="button" aria-label={`Edit ${item.title}`} title="Edit transcript" onClick={(event) => handleEdit(item, event)}>Edit</button><button type="button" className="danger" aria-label={`Delete ${item.title}`} title="Delete transcript" onClick={(event) => handleDelete(item.id, event)}>Delete</button></>}{item.kind === 'human' && <span className="tm-file-open">Open work <span aria-hidden="true">→</span></span>}</div>
+                </article>
+              );
+            })}
+          </section>
+        )}
+
+        <p className="tm-files-footnote">Audio is not kept with saved transcripts. If you reopen a transcript for proofreading, choose the original audio from your device.</p>
       </div>
+      <ConfirmDialog open={!!pendingDelete} title="Delete this transcript?" body="The transcript and its wording will be removed from your files. This cannot be undone." confirmLabel="Delete" cancelLabel="Keep it" tone="danger" busy={deleting} onConfirm={confirmDelete} onCancel={() => setPendingDelete(null)} />
     </div>
   );
 };
