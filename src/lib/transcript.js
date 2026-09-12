@@ -195,14 +195,14 @@ const freshId = (segments) => {
 // lands on each side, which keeps the running order sensible. Returns null
 // when there is nothing to split, so the caller can fall back to its normal
 // behaviour rather than creating an empty line.
-export const splitSegmentAt = (segments, index, caret, value) => {
+export const splitSegmentAt = (segments, index, caret, value, { allowEmpty = false } = {}) => {
   const seg = segments[index];
   if (!seg) return null;
   const whole = String(value === undefined || value === null ? seg.text : value);
   const at = Math.max(0, Math.min(Number(caret) || 0, whole.length));
   const head = whole.slice(0, at).replace(/\s+/g, ' ').trim();
   const tail = whole.slice(at).replace(/\s+/g, ' ').trim();
-  if (!head || !tail) return null;
+  if (!allowEmpty && (!head || !tail)) return null;
   const start = Number(seg.start) || 0;
   const end = Number(seg.end) || 0;
   const span = end > start ? end - start : 0;
@@ -272,9 +272,9 @@ export const segmentsToHtml = (segments, speakerNames = {}) => segments
     const text = String(s.text || '').trim();
     if (!s.speaker) return text;
     const name = speakerNames[s.speaker] || s.speaker;
-    return `<strong>${name}:</strong> ${text}`;
+    return `<strong>${name}:</strong>${text ? ` ${text}` : ''}`;
   })
-  .filter(Boolean)
+  .filter((line, index) => line || segments[index]?.speaker)
   .join('\n');
 
 // ----- copy modes --------------------------------------------------------
