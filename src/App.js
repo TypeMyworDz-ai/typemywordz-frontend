@@ -134,6 +134,7 @@ function AppContent() {
   // Removed uploadProgress state and its setter
   // Removed transcriptionProgress state and its setter
   const [currentView, setCurrentView] = useState('transcribe');
+  const [selectedHumanJobId, setSelectedHumanJobId] = useState('');
 
   useEffect(() => {
     recordPageView(`${window.location.pathname}#${currentView}`);
@@ -142,7 +143,7 @@ function AppContent() {
   // screen used to do nothing visible, so clients clicked it repeatedly and
   // then lost the screen anyway. Now it genuinely clears the workspace, and
   // asks first, because the wording is what stops the panic: the transcript
-  // is already saved in My files.
+  // is already saved in Dashboard.
   const [confirmingNew, setConfirmingNew] = useState(false);
   // True when a transcript is sitting in the workspace but the client is
   // looking at some other page. Used to point them back to it rather than
@@ -425,16 +426,38 @@ function AppContent() {
     return initializePaddlePayment(itemId, countryCode);
   }, [initializePaddlePayment, initializePaystackPayment, initializeKoraPayment, showMessage]);
 
+  const cancelPendingTraineeAccount = useCallback(async () => {
+    if (!currentUser) return;
+    let authDeleted = false;
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${RAILWAY_BACKEND_URL}/api/trainee/cancel-pending`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      const payload = await response.json().catch(() => ({}));
+      authDeleted = Boolean(payload.deleted?.auth);
+    } catch (cleanupError) {
+      console.warn('Failed trainee cleanup request:', cleanupError);
+    }
+    try { window.sessionStorage.removeItem('tmwd_trainee_checkout_started'); } catch (storageError) { /* ignore */ }
+    if (authDeleted) await logout();
+    else await refreshUserProfile();
+  }, [currentUser, logout, refreshUserProfile]);
+
   // Handle payment success callback - MODIFIED to prevent infinite loop
   const handlePaystackCallback = useCallback(async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const reference = urlParams.get('reference');
     const paymentStatus = urlParams.get('payment');
     const koraReference = urlParams.get('reference');
-    const isKoraCallback = urlParams.get('kora') === 'success';
+    const koraState = urlParams.get('kora') || '';
+    const isKoraCallback = koraState !== '';
+    const isTraineeCallback = urlParams.get('trainee') === '1';
+
+    // A new trainee has no Firebase account yet. TraineeSignup verifies the
+    // public payment callback and only creates the account afterward.
+    if (isTraineeCallback && !currentUser) return;
     
     // Only proceed if there's a reference/success status AND we're not already verifying
-    if ((reference || paymentStatus === 'success' || isKoraCallback) && !isVerifyingPayment) {
+    if ((reference || ['success', 'failed', 'cancelled'].includes(paymentStatus) || isKoraCallback) && !isVerifyingPayment) {
       setIsVerifyingPayment(true); // Set flag to true to prevent re-entry
       console.log('Checking payment callback:', { reference, paymentStatus });
       
@@ -455,8 +478,10 @@ function AppContent() {
             'success'
           );
           setCurrentView(isTraineePayment ? 'trainee' : 'transcribe');
+          try { window.sessionStorage.removeItem('tmwd_trainee_checkout_started'); } catch (storageError) { /* ignore */ }
           window.history.replaceState({}, document.title, window.location.pathname);
         } catch (error) {
+          if (isTraineeCallback) await cancelPendingTraineeAccount();
           console.error('Kora payment verification error:', error);
           clearMessage();
           showMessage('Kora payment verification failed: ' + error.message, 'error');
@@ -505,12 +530,15 @@ function AppContent() {
             setCurrentView(isTraineePayment ? 'trainee' : 'transcribe');
             
             // Crucial: Clear URL parameters AFTER successful processing
+            try { window.sessionStorage.removeItem('tmwd_trainee_checkout_started'); } catch (storageError) { /* ignore */ }
             window.history.replaceState({}, document.title, window.location.pathname);
           } else {
+            if (isTraineeCallback) await cancelPendingTraineeAccount();
             clearMessage();
             showMessage('Payment verification failed: ' + (data.message || 'Unknown error'), 'error');
           }
         } catch (error) {
+          if (isTraineeCallback) await cancelPendingTraineeAccount();
           console.error('Payment verification error:', error);
           clearMessage();
           showMessage('Payment verification failed: ' + error.message, 'error');
@@ -522,13 +550,17 @@ function AppContent() {
         }
       } else if (paymentStatus === 'success') {
         showMessage('Payment completed! Please wait for verification...', 'info');
-        // If only paymentStatus='success' is present without a reference,
-        // it might be an intermediate state. We should still clear it.
         window.history.replaceState({}, document.title, window.location.pathname);
-        setIsVerifyingPayment(false); // Reset flag
+        setIsVerifyingPayment(false);
+      } else if (isTraineeCallback && (['failed', 'cancelled'].includes(paymentStatus) || ['failed', 'cancelled'].includes(koraState))) {
+        await cancelPendingTraineeAccount();
+        clearMessage();
+        showMessage('Payment was not completed. No trainee account was created.', 'error');
+        window.history.replaceState({}, document.title, window.location.pathname);
+        setIsVerifyingPayment(false);
       }
     }
-  }, [currentUser, showMessage, clearMessage, refreshUserProfile, refreshCredits, setCurrentView, isVerifyingPayment]);
+  }, [currentUser, showMessage, clearMessage, refreshUserProfile, refreshCredits, setCurrentView, isVerifyingPayment, cancelPendingTraineeAccount]);
 
   // useEffect to trigger payment callback handling
   useEffect(() => {
@@ -1202,7 +1234,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   const handleUpload = useCallback(async () => {
     // A double click, or a click while the first request is still in flight,
     // used to be able to start two jobs for the same recording. That is how
-    // duplicate entries appear in My files.
+    // duplicate entries appear in Dashboard.
     if (uploadInFlightRef.current) {
       console.log('DEBUG: handleUpload ignored, a transcription is already starting.');
       return;
@@ -1873,7 +1905,7 @@ return (
               onClick={() => setCurrentView('dashboard')}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M4 6.5A1.5 1.5 0 0 1 5.5 5h3.2l1.8 2h8A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5z"/></svg>
-              My files
+              Dashboard
             </button>
 
             <button
@@ -2042,6 +2074,8 @@ return (
           />
         ) : currentView === 'human_worker' ? (
           <HumanJobWorkspace mode="worker" onBack={() => setCurrentView('transcribe')} showMessage={showMessage} />
+        ) : currentView === 'human_job' ? (
+          <HumanJobWorkspace mode="client" initialJobId={selectedHumanJobId} onBack={() => setCurrentView('dashboard')} showMessage={showMessage} />
         ) : currentView === 'pricing' ? (
           <Pricing
             mode="plans"
@@ -2076,7 +2110,10 @@ return (
             onUpgrade={() => setCurrentView('pricing')}
           />
           ) : currentView === 'dashboard' ? (
-          <Dashboard setCurrentView={setCurrentView} />
+          <Dashboard
+            setCurrentView={setCurrentView}
+            onOpenHumanJob={(jobId) => { setSelectedHumanJobId(jobId); setCurrentView('human_job'); }}
+          />
         ) : (
           <div style={{
             flex: 1,
@@ -2095,7 +2132,7 @@ return (
               <ConfirmDialog
                 open={confirmingNew}
                 title="Start a new transcription?"
-                body="This clears the workspace so you can upload the next file. Your current transcript is already saved in My files, so nothing is lost, and you can reopen it there whenever you like."
+                body="This clears the workspace so you can upload the next file. Your current transcript is already saved in Dashboard, so nothing is lost, and you can reopen it there whenever you like."
                 confirmLabel="Start a new one"
                 cancelLabel="Stay here"
                 onConfirm={() => { setConfirmingNew(false); resetTranscriptionProcessUI(); setCurrentView('transcribe'); }}
@@ -2498,7 +2535,7 @@ return (
                   )}
                   {status === 'completed' && (
                     <p className="tm-keepnote">
-                      Your transcript is saved and waiting in My files, so you can move
+                      Your transcript is saved and waiting in Dashboard, so you can move
                       around the app freely and come back to it whenever you like. We do
                       not keep your recording, so when you return to proofread, open the
                       transcript and pick the audio file from your own computer to play
@@ -2539,7 +2576,7 @@ return (
                 <p className="tm-result-note">
                   This transcript is saved. You can come back to it any time from{' '}
                   <button type="button" className="tm-result-link" onClick={() => setCurrentView('dashboard')}>
-                    My files
+                    Dashboard
                   </button>.
                 </p>
               )}
