@@ -402,7 +402,9 @@ function AppContent() {
     // Paystack remains primary for African plans. Kora is the fallback.
     if (isAfrica) {
       try {
-        return await initializePaystackPayment(itemId, countryCode);
+        const paystackResult = await initializePaystackPayment(itemId, countryCode);
+        if (!paystackResult) throw new Error('Paystack checkout did not open.');
+        return paystackResult;
       } catch (error) {
         console.warn('Paystack plan initialization failed; trying Kora.', error);
         showMessage('Paystack checkout was unavailable. Trying Kora instead...', 'info');
