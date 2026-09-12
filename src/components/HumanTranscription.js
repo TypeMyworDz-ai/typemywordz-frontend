@@ -164,7 +164,7 @@ export default function HumanTranscription({ onBack, onOpenFiles, onTopUp, showM
 
       <div className="tm-human-notice">
         <span className="tm-human-notice-dot" aria-hidden="true" />
-        You will see the exact credit quote before you confirm. Credits are only deducted after you approve the order.
+        You will see the exact credit quote before you confirm. Credits are only deducted after you confirm that your job is completed and client-ready.
       </div>
 
       <form className="tm-human-card" onSubmit={handleRequest}>

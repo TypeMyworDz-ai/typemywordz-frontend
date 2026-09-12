@@ -102,6 +102,9 @@ const Landing = () => {
           <div className="menu-item" onClick={go('plans')}>
             <span className="menu-text">Pricing</span>
           </div>
+          <Link className="menu-item" to="/trainee-signup">
+            <span className="menu-text">Trainee sign-up</span>
+          </Link>
           <Link className="menu-item" to="/faq">
             <span className="menu-text">Help and FAQ</span>
           </Link>
@@ -146,6 +149,10 @@ const Landing = () => {
 
         <div className="tm-lp-hero-card">
           <Login />
+          <Link className="tm-lp-trainee-link" to="/trainee-signup">
+            <strong>Want to become a TypeMyworDz proofreader?</strong>
+            <span>See the paid Kenya-only training enrollment.</span>
+          </Link>
           <p className="tm-lp-freenote">
             <strong>30 credits free</strong> when you sign up. No card, no trial that quietly
             becomes a bill.
