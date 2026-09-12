@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import { Document, Packer, Paragraph, TextRun } from 'docx';
 import {
   buildSegments, segmentsToHtml, copyFromSegments, COPY_MODES,
   formatTime, speakersIn, countWords, isUncertain, toSrt, toVtt,
@@ -576,7 +577,7 @@ const TranscriptEditor = ({
   // ---- export ----
   const download = useCallback((content, extension, type) => {
     const base = String(fileName).replace(/\.[^.]+$/, '') || 'transcript';
-    const blob = new Blob([content], { type });
+    const blob = content instanceof Blob ? content : new Blob([content], { type });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -588,21 +589,38 @@ const TranscriptEditor = ({
     setExportOpen(false);
   }, [fileName]);
 
-  const exportWord = useCallback(() => {
-    const escapeRtf = (value) => Array.from(String(value || '')).map((character) => {
-      if (character === '\\') return '\\\\';
-      if (character === '{' || character === '}') return `\\${character}`;
-      if (character === '\n' || character === '\r') return '\\line ';
-      const code = character.charCodeAt(0);
-      return code > 127 ? `\\u${code > 32767 ? code - 65536 : code}?` : character;
-    }).join('');
-    const title = escapeRtf(fileName);
-    const body = segments.map((s) => {
-      const name = s.speaker ? (speakerNames[s.speaker] || s.speaker) : null;
-      return `{\\pard\\sa160\\sl276\\slmult1 ${name ? `\\b ${escapeRtf(name)}:\\b0 ` : ''}${escapeRtf(s.text)}\\par}`;
-    }).join('');
-    const rtf = `{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Aptos;}}\\paperw12240\\paperh15840\\margl1440\\margr1440\\margt1440\\margb1440\\fs22\\f0\\b ${title}\\b0\\par${body}}`;
-    download(rtf, 'rtf', 'application/rtf;charset=utf-8');
+  const exportWord = useCallback(async () => {
+    const children = [
+      new Paragraph({
+        spacing: { after: 240 },
+        children: [new TextRun({ text: String(fileName || 'Transcript'), bold: true, size: 28 })]
+      }),
+      ...segments.map((s) => {
+        const name = s.speaker ? (speakerNames[s.speaker] || s.speaker) : null;
+        const runs = [];
+        if (name) runs.push(new TextRun({ text: `${name}: `, bold: true }));
+        runs.push(new TextRun({ text: String(s.text || '') }));
+        return new Paragraph({ spacing: { after: 160 }, children: runs });
+      })
+    ];
+    const doc = new Document({
+      styles: {
+        default: {
+          document: { run: { font: 'Aptos', size: 22 } }
+        }
+      },
+      sections: [{
+        properties: {
+          page: {
+            size: { width: 12240, height: 15840 },
+            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 }
+          }
+        },
+        children
+      }]
+    });
+    const blob = await Packer.toBlob(doc);
+    download(blob, 'docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   }, [segments, speakerNames, fileName, download]);
 
   const exportPdf = useCallback(() => {
@@ -864,8 +882,8 @@ const TranscriptEditor = ({
                 <div className="tm-split-head">Download</div>
                 <button type="button" className="tm-split-item" onClick={exportWord}>
                   <span className="tm-split-tick" />
-                  <span><span className="tm-split-name">Word-compatible document</span>
-                    <span className="tm-split-hint">RTF with clear margins and bold speaker names</span></span>
+                  <span><span className="tm-split-name">Word document (.docx)</span>
+                    <span className="tm-split-hint">Letter page with one-inch margins and bold speaker names</span></span>
                 </button>
                 <button type="button" className="tm-split-item" onClick={exportPdf}>
                   <span className="tm-split-tick" />
@@ -915,6 +933,8 @@ const TranscriptEditor = ({
                 durationSeconds={shownLength}
                 placement="top"
                 onTopUp={onHumanTopUp}
+                transcriptText={copyFromSegments(segments, 'full', { speakerNames })}
+                audioFile={localFile}
               />
             </div>
           )}
@@ -1172,6 +1192,8 @@ const TranscriptEditor = ({
             fileName={fileName}
             durationSeconds={shownLength}
             onTopUp={onHumanTopUp}
+            transcriptText={copyFromSegments(segments, 'full', { speakerNames })}
+            audioFile={localFile}
           />
         )}
       </div>

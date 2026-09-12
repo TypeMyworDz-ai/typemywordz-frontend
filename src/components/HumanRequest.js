@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { paymentCountryCode } from './Pricing';
 import { fetchCreditBalance } from '../creditsService';
@@ -16,17 +16,6 @@ const formatDuration = (seconds) => {
 
 const formatCredits = (value) => `${Math.max(0, Math.round(value)).toLocaleString()} credits`;
 
-function estimateTotal(baseQuote, options) {
-  if (!baseQuote) return 0;
-  let total = Number(baseQuote.credits) || 0;
-  if (options.service === 'proofread') total *= 1.2;
-  if (options.service === 'formatted') total *= 1.3;
-  if (options.speakers === '3+') total *= 1.1;
-  if (options.timestamps) total *= 1.05;
-  if (options.formatting === 'advanced') total *= 1.1;
-  return Math.ceil(total);
-}
-
 const availableCredits = (balance) => {
   if (!balance) return null;
   if (balance.exempt || balance.unlimited) return Number.POSITIVE_INFINITY;
@@ -42,6 +31,8 @@ export default function HumanRequest({
   onTopUp,
   onClose,
   onOpenHumanTranscripts,
+  transcriptText = '',
+  audioFile = null,
 }) {
   const { currentUser } = useAuth();
   const [open, setOpen] = useState(false);
@@ -58,11 +49,10 @@ export default function HumanRequest({
   const [quoteError, setQuoteError] = useState('');
   const [loading, setLoading] = useState(false);
   const [balanceLoading, setBalanceLoading] = useState(false);
+  const [requestSent, setRequestSent] = useState(false);
+  const [requestLoading, setRequestLoading] = useState(false);
 
-  const options = useMemo(() => ({ service, speakers, difficulty, timestamps, formatting, turnaround }), [
-    service, speakers, difficulty, timestamps, formatting, turnaround
-  ]);
-  const estimate = estimateTotal(quote, options);
+  const estimate = Number(quote?.credits ?? quote?.cost ?? 0);
   const spendable = availableCredits(balance);
   const shortBy = Number.isFinite(spendable) ? Math.max(0, estimate - spendable) : 0;
   const balanceCoversEstimate = quote && (quote.exempt || spendable === Number.POSITIVE_INFINITY || shortBy === 0);
@@ -110,10 +100,11 @@ export default function HumanRequest({
       body.append('seconds', String(Math.round(Number(durationSeconds) || 0)));
       body.append('turnaround', turnaround);
       body.append('difficulty', difficulty);
-      body.append('country_code', paymentCountryCode());
+      body.append('service', service);
+      body.append('speakers', speakers);
       body.append('timestamps', String(timestamps));
-      body.append('speakers', String(speakers !== 'none'));
-      body.append('instructions', notes);
+      body.append('formatting', formatting);
+      body.append('country_code', paymentCountryCode());
       const response = await fetch(`${BACKEND_URL}/human-transcription/quote`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -127,6 +118,40 @@ export default function HumanRequest({
       setQuoteError(error.message || 'The quote could not be prepared.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const submitRequest = async () => {
+    if (!currentUser || !quote || (!quote.exempt && !quote.affordable)) return;
+    setRequestLoading(true);
+    setQuoteError('');
+    try {
+      const token = await currentUser.getIdToken();
+      const body = new FormData();
+      if (audioFile) body.append('audio', audioFile);
+      instructionFiles.forEach((item) => body.append('attachments', item));
+      body.append('seconds', String(Math.round(Number(durationSeconds) || 0)));
+      body.append('turnaround', turnaround);
+      body.append('difficulty', difficulty);
+      body.append('service', service);
+      body.append('speakers', speakers);
+      body.append('timestamps', String(timestamps));
+      body.append('formatting', formatting);
+      body.append('instructions', notes);
+      body.append('source_type', 'ai_proofreading');
+      body.append('initial_transcript', transcriptText);
+      const response = await fetch(`${BACKEND_URL}/human-transcription/jobs`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || 'The proofreading request could not be sent.');
+      setRequestSent(true);
+    } catch (error) {
+      setQuoteError(error.message || 'The proofreading request could not be sent.');
+    } finally {
+      setRequestLoading(false);
     }
   };
 
@@ -229,7 +254,11 @@ export default function HumanRequest({
                   </strong>
                 </div>
                 {balanceCoversEstimate ? (
-                  <p className="tm-human-modal-balance-ok">Your current balance covers this estimate. Credits will only be deducted after you approve the completed work.</p>
+                  <>
+                    <p className="tm-human-modal-balance-ok">Your current balance covers this estimate. Credits will only be deducted after you approve the completed work.</p>
+                    {!requestSent && <button type="button" className="tm-human-modal-primary" onClick={submitRequest} disabled={requestLoading || !transcriptText.trim()}>{requestLoading ? 'Sending request…' : 'Send for proofreading'}</button>}
+                    {requestSent && <p className="tm-human-modal-balance-ok">Request sent for admin approval. You can follow it under Human Transcripts.</p>}
+                  </>
                 ) : (
                   <div className="tm-human-modal-balance-low">
                     <p>You need {formatCredits(shortBy)} more before this order can go ahead. Top up first; no human work will be started while the balance is short.</p>

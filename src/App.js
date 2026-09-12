@@ -41,6 +41,7 @@ import Pricing, { PublicPricing } from './components/Pricing';
 import AskPanel from './components/AskPanel';
 import HumanTranscription from './components/HumanTranscription';
 import HumanJobWorkspace from './components/HumanJobWorkspace';
+import TraineeDashboard from './components/TraineeDashboard';
 import { isPaidAIUser } from './aiAccess';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -354,7 +355,7 @@ function AppContent() {
   }, [currentUser, handlePaddleEvent, showMessage]);
 
   const initializePayment = useCallback((itemId, countryCode) => {
-    if (AFRICA_PAYMENT_COUNTRIES.has(countryCode)) {
+    if (String(itemId || '').startsWith('topup-custom-') || AFRICA_PAYMENT_COUNTRIES.has(countryCode)) {
       return initializePaystackPayment(itemId, countryCode);
     }
     return initializePaddlePayment(itemId, countryCode);
@@ -1770,6 +1771,14 @@ return (
               Human Transcripts
             </button>
 
+            <button
+              className={"tm-nav" + (currentView === 'trainee' ? " tm-nav-on" : "")}
+              onClick={() => setCurrentView('trainee')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l7 4v5c0 4.6-3 8-7 9-4-1-7-4.4-7-9V7z"/><path d="M9 12l2 2 4-4"/></svg>
+              Trainee pathway
+            </button>
+
             {isWorker && (
               <button
                 className={"tm-nav" + (currentView === 'human_worker' ? " tm-nav-on" : "")}
@@ -1907,7 +1916,9 @@ return (
           </div>
         )}
         {/* Conditional Rendering for different views */}
-        {currentView === 'human_transcripts' ? (
+        {currentView === 'trainee' ? (
+          <TraineeDashboard onBack={() => setCurrentView('transcribe')} onOpenWork={() => setCurrentView('human_worker')} showMessage={showMessage} />
+        ) : currentView === 'human_transcripts' ? (
           <HumanTranscription
             onBack={() => setCurrentView('transcribe')}
             onOpenFiles={() => setCurrentView('dashboard')}
