@@ -801,7 +801,7 @@ const TranscriptEditor = ({
             <button type="button" className="tm-ed-back" onClick={onBack}>
               <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor"
                    strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M9.5 3.5L5 8l4.5 4.5"/></svg>
-              My files
+              Dashboard
             </button>
           )}
           <h2 className="tm-ed-title" title={fileName}>{fileName}</h2>

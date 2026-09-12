@@ -14,7 +14,7 @@ const STATUS_LABELS = {
 
 const moneylessDate = (value) => value ? new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Not recorded';
 
-export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage }) {
+export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '' }) {
   const { currentUser } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [workers, setWorkers] = useState([]);
@@ -79,12 +79,13 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
   useEffect(() => { loadJobs(); loadWorkers(); }, [loadJobs, loadWorkers]);
   useEffect(() => {
-    if (!selectedId && jobs[0]?.id) setSelectedId(jobs[0].id);
+    if (initialJobId && jobs.some((job) => job.id === initialJobId)) setSelectedId(initialJobId);
+    else if (!selectedId && jobs[0]?.id) setSelectedId(jobs[0].id);
     if (selectedJob) {
       setEditorText(selectedJob.transcript || '');
       setSelectedWorker(selectedJob.worker_uid || '');
     }
-  }, [jobs, selectedId, selectedJob]);
+  }, [initialJobId, jobs, selectedId, selectedJob]);
   useEffect(() => {
     let objectUrl = '';
     (async () => {
@@ -129,12 +130,23 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
   const sendMessage = async (event) => {
     event.preventDefault();
-    if (!selectedJob) return;
+    if (!selectedJob || busy || (!messageText.trim() && !messageFile)) return;
     const form = new FormData();
-    form.append('message', messageText);
+    form.append('message', messageText.trim());
     if (messageFile) form.append('attachment', messageFile);
-    await act(`/human-transcription/jobs/${selectedJob.id}/messages`, { method: 'POST', body: form });
-    setMessageText(''); setMessageFile(null); event.target.reset();
+    setBusy(true);
+    try {
+      const payload = await request(`/human-transcription/jobs/${selectedJob.id}/messages`, { method: 'POST', body: form });
+      if (payload.message) setMessages((previous) => previous.concat(payload.message));
+      setMessageText('');
+      setMessageFile(null);
+      event.target.reset();
+    } catch (error) {
+      const message = String(error?.message || '').toLowerCase();
+      showMessage?.(message === 'failed to fetch' ? 'The message could not be sent. Check your connection and try again.' : error.message, 'error');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const submitWorker = () => act(`/human-transcription/jobs/${selectedJob.id}/submit`, {

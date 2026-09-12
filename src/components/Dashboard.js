@@ -62,7 +62,7 @@ const normalizeHumanItem = (job) => ({
   searchable: `${humanFileName(job)} ${job.status || ''} ${job.instructions || ''}`.toLowerCase(),
 });
 
-const Dashboard = ({ setCurrentView, standalone = false }) => {
+const Dashboard = ({ setCurrentView, onOpenHumanJob, standalone = false }) => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [transcriptions, setTranscriptions] = useState([]);
@@ -141,10 +141,11 @@ const Dashboard = ({ setCurrentView, standalone = false }) => {
     else navigate('/');
   }, [navigate, setCurrentView, standalone]);
 
-  const openHumanWork = useCallback(() => {
+  const openHumanWork = useCallback((jobId = '') => {
+    if (onOpenHumanJob && !standalone) { onOpenHumanJob(jobId); return; }
     if (setCurrentView && !standalone) setCurrentView('human_transcripts');
     else navigate('/');
-  }, [navigate, setCurrentView, standalone]);
+  }, [navigate, onOpenHumanJob, setCurrentView, standalone]);
 
   const handleEdit = useCallback((transcription, event) => {
     event.stopPropagation();
@@ -192,7 +193,7 @@ const Dashboard = ({ setCurrentView, standalone = false }) => {
   }, [currentUser?.uid, editingId, editingText]);
 
   if (!currentUser) {
-    return <div className="tm-files-state"><h2>Sign in to see your files</h2><p>Your saved transcripts and proofreading requests will appear here.</p></div>;
+    return <div className="tm-files-state"><h2>Sign in to open your Dashboard</h2><p>Your saved transcripts and proofreading requests will appear here.</p></div>;
   }
 
   if (loading) {
@@ -200,7 +201,7 @@ const Dashboard = ({ setCurrentView, standalone = false }) => {
   }
 
   if (error) {
-    return <div className="tm-files-state tm-files-state-error"><h2>My files is having trouble loading</h2><p>{error}</p><button type="button" className="tm-files-primary" onClick={loadFiles}>Try again</button></div>;
+    return <div className="tm-files-state tm-files-state-error"><h2>Dashboard is having trouble loading</h2><p>{error}</p><button type="button" className="tm-files-primary" onClick={loadFiles}>Try again</button></div>;
   }
 
   return (
@@ -209,7 +210,7 @@ const Dashboard = ({ setCurrentView, standalone = false }) => {
         <header className="tm-files-header">
           <div>
             <p className="tm-files-eyebrow">Your work library</p>
-            <h1>My files</h1>
+            <h1>Dashboard</h1>
             <p className="tm-files-intro">AI transcripts and proofreading work, together in one place.</p>
           </div>
           <button type="button" className="tm-files-primary" onClick={openNewTranscription}>
@@ -256,7 +257,7 @@ const Dashboard = ({ setCurrentView, standalone = false }) => {
               const humanStatus = item.kind === 'human' ? (HUMAN_STATUS[item.status] || { label: item.status || 'Human work', tone: 'waiting', note: 'This request is in your library.' }) : null;
               const isEditing = item.kind === 'ai' && editingId === item.id;
               return (
-                <article key={`${item.kind}-${item.id}`} className={`tm-file-row tm-file-row-${item.kind} ${humanStatus ? `tm-file-status-${humanStatus.tone}` : ''}`} onClick={() => item.kind === 'human' ? openHumanWork() : navigate(`/transcription/${item.id}`, { state: { transcription: item } })}>
+                <article key={`${item.kind}-${item.id}`} className={`tm-file-row tm-file-row-${item.kind} ${humanStatus ? `tm-file-status-${humanStatus.tone}` : ''}`} onClick={() => item.kind === 'human' ? openHumanWork(item.id) : navigate(`/transcription/${item.id}`, { state: { transcription: item } })}>
                   <div className="tm-file-type-mark" aria-hidden="true">{item.kind === 'human' ? 'P' : 'T'}</div>
                   <div className="tm-file-main">
                     <div className="tm-file-title-line"><h3>{item.title}</h3><span className={`tm-file-category tm-file-category-${item.kind}`}>{item.kind === 'human' ? 'Proofreading' : 'AI transcript'}</span>{humanStatus && <span className={`tm-file-status tm-file-status-chip-${humanStatus.tone}`}>{humanStatus.label}</span>}</div>

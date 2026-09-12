@@ -48,7 +48,7 @@ const PrivacyPolicy = () => (
         </tr>
         <tr>
           <td>The transcripts we produce</td>
-          <td>So you can find, edit and export your work later from My files.</td>
+          <td>So you can find, edit and export your work later from Dashboard.</td>
         </tr>
         <tr>
           <td>Minutes used, plan, and payment status</td>
@@ -81,7 +81,7 @@ const PrivacyPolicy = () => (
     </p>
     <p>
       A practical consequence: once you leave the editor, the audio is gone from our side. Your
-      transcript stays in My files, but if you want to listen along while proofreading later,
+      transcript stays in Dashboard, but if you want to listen along while proofreading later,
       you will need to open your own copy of the recording from your device. The app tells you
       this at the point it matters.
     </p>

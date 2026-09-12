@@ -37,7 +37,7 @@ const QUESTIONS = [
     q: 'What file types can I upload, and can I record straight into the app?',
     a: [
       'Common audio and video files both work. You can also record directly in your browser, which is free. You only use your plan when you transcribe.',
-      'One thing worth knowing: once you leave the editor, the transcript stays in My Files but the audio does not. If you want to proofread against the audio later, keep your own copy of the file.',
+      'One thing worth knowing: once you leave the editor, the transcript stays in Dashboard but the audio does not. If you want to proofread against the audio later, keep your own copy of the file.',
     ],
   },
   {
