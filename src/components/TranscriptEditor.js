@@ -1139,19 +1139,21 @@ const TranscriptEditor = ({
       </div>
 
       <div className="tm-ed-foot">
-        <span>
-          Click any line to correct it. Click on any speaker tag to edit. Tab at
-          any place of a text chunk or speaker block takes you to the next one.
-          Shift+Enter once starts a new line and Shift+Enter twice starts a new
-          paragraph. Ctrl+Enter creates a new speaker.
-        </span>
+        <div className="tm-ed-shortcuts" role="note" aria-label="Editor keyboard shortcuts">
+          <strong>Keyboard shortcuts</strong>
+          <span>Click a line to correct it or a speaker tag to rename it everywhere.</span>
+          <span><kbd>Tab</kbd> next text or speaker block</span>
+          <span><kbd>Shift</kbd> + <kbd>Enter</kbd> new line; press twice for a new paragraph</span>
+          <span><kbd>Ctrl</kbd> + <kbd>Enter</kbd> new speaker</span>
+          <span><kbd>Ctrl</kbd> + <kbd>Z</kbd> undo &nbsp; <kbd>Ctrl</kbd> + <kbd>Y</kbd> redo</span>
+        </div>
         {audioUrl && (
-          <span>
-            <b>Ctrl+Space</b> play or pause &nbsp;·&nbsp;
-            <b>Ctrl+&larr;</b> back 5s &nbsp;·&nbsp;
-            <b>Ctrl+&rarr;</b> forward 5s &nbsp;·&nbsp;
-            <b>Ctrl+Shift+C</b> copy
-          </span>
+          <div className="tm-ed-audio-shortcuts">
+            <span><b>Ctrl+Space</b> play or pause</span>
+            <span><b>Ctrl+&larr;</b> back 5s</span>
+            <span><b>Ctrl+&rarr;</b> forward 5s</span>
+            <span><b>Ctrl+Shift+C</b> copy</span>
+          </div>
         )}
       </div>
     </div>
