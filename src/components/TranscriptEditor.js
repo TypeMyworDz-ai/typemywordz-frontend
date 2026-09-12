@@ -143,7 +143,18 @@ const Segment = memo(function Segment({
             }}
           />
         ) : (
-          <button type="button" className="tm-seg-who" onClick={() => !readOnly && setEditingSpeaker(true)} title={readOnly ? name : `Rename ${name} everywhere`}>
+          <button
+            type="button"
+            className="tm-seg-who"
+            onClick={() => !readOnly && setEditingSpeaker(true)}
+            onKeyDown={(event) => {
+              if (event.key === 'Tab') {
+                event.preventDefault();
+                onTabSpeaker(index, event.shiftKey);
+              }
+            }}
+            title={readOnly ? name : `Rename ${name} everywhere`}
+          >
             {name}
           </button>
         )
@@ -169,6 +180,11 @@ const Segment = memo(function Segment({
           tabIndex={0}
           onClick={() => !readOnly && onEdit(index)}
           onKeyDown={(e) => {
+            if (e.key === 'Tab') {
+              e.preventDefault();
+              onTabSpeaker(index, e.shiftKey);
+              return;
+            }
             if (!readOnly && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onEdit(index); }
           }}
           title={readOnly ? 'Transcript line' : 'Click to correct this line'}
@@ -387,6 +403,22 @@ const TranscriptEditor = ({
   }, [publishEdit, segments, speakerNames]);
 
   const onEditKeyDown = useCallback((e, index) => {
+    const mod = e.ctrlKey || e.metaKey;
+
+    if (mod && (e.key === 'z' || e.key === 'Z')) {
+      e.preventDefault();
+      commit(index, e.target.value);
+      applyHistory(e.shiftKey ? 1 : -1);
+      return;
+    }
+
+    if (mod && (e.key === 'y' || e.key === 'Y')) {
+      e.preventDefault();
+      commit(index, e.target.value);
+      applyHistory(1);
+      return;
+    }
+
     if (e.key === 'Escape') {
       e.preventDefault();
       setEditingIndex(null);
@@ -397,7 +429,7 @@ const TranscriptEditor = ({
       e.preventDefault();
       const value = e.target.value;
       const caret = e.target.selectionStart;
-      const split = splitSegmentAt(segments, index, caret, value);
+      const split = splitSegmentAt(segments, index, caret, value, { allowEmpty: true });
       if (!split) return;
       const speakerSplit = startSpeakerTurn(split, index + 1);
       e.target.value = speakerSplit[index].text;
@@ -439,7 +471,7 @@ const TranscriptEditor = ({
       const next = e.shiftKey ? index - 1 : index + 1;
       if (next >= 0 && next < segments.length) setEditingIndex(next);
     }
-  }, [commit, publishEdit, segments, speakerNames]);
+  }, [applyHistory, commit, publishEdit, segments, speakerNames]);
 
   const onTabSpeaker = useCallback((index, backwards) => {
     const next = backwards ? index - 1 : index + 1;
@@ -660,6 +692,7 @@ const TranscriptEditor = ({
   useEffect(() => {
     const onKey = (e) => {
       const mod = e.ctrlKey || e.metaKey;
+      const editableTarget = e.target && e.target.matches?.('textarea,input,[contenteditable="true"]');
 
       if (mod && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
         e.preventDefault(); doCopy(copyMode); return;
@@ -670,12 +703,12 @@ const TranscriptEditor = ({
         setTimeout(() => findRef.current && findRef.current.focus(), 30);
         return;
       }
-      if (mod && (e.key === 'z' || e.key === 'Z')) {
+      if (!editableTarget && mod && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
         applyHistory(e.shiftKey ? 1 : -1);
         return;
       }
-      if (mod && (e.key === 'y' || e.key === 'Y')) {
+      if (!editableTarget && mod && (e.key === 'y' || e.key === 'Y')) {
         e.preventDefault();
         applyHistory(1);
         return;
