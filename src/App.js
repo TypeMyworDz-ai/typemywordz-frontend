@@ -42,6 +42,7 @@ import AskPanel from './components/AskPanel';
 import HumanTranscription from './components/HumanTranscription';
 import HumanJobWorkspace from './components/HumanJobWorkspace';
 import TraineeDashboard from './components/TraineeDashboard';
+import TraineeSignup from './components/TraineeSignup';
 import { isPaidAIUser } from './aiAccess';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -203,7 +204,8 @@ function AppContent() {
   // Admin list lives in src/adminEmails.js so it cannot drift from the backend.
   const isAdmin = isAdminEmail(currentUser?.email);
   const profileRole = String(userProfile?.role || userProfile?.user_type || '').toLowerCase();
-  const isWorker = !isAdmin && (['worker', 'trainee', 'transcriber'].includes(profileRole) || userProfile?.workerApproved === true);
+  const isTrainee = !isAdmin && profileRole === 'trainee' && userProfile?.trainingRoomAccess === true && userProfile?.workerApproved !== true;
+  const isWorker = !isAdmin && (['worker', 'transcriber'].includes(profileRole) || userProfile?.workerApproved === true);
   // Free access covers the admin and the complimentary accounts. Anything that
   // asks a client to pay must check this, not isAdmin, or a complimentary
   // account starts seeing Upgrade and See plans.
@@ -366,13 +368,31 @@ function AppContent() {
     const urlParams = new URLSearchParams(window.location.search);
     const reference = urlParams.get('reference');
     const paymentStatus = urlParams.get('payment');
+    const koraReference = urlParams.get('reference');
+    const isKoraCallback = urlParams.get('kora') === 'success';
     
     // Only proceed if there's a reference/success status AND we're not already verifying
-    if ((reference || paymentStatus === 'success') && !isVerifyingPayment) {
+    if ((reference || paymentStatus === 'success' || isKoraCallback) && !isVerifyingPayment) {
       setIsVerifyingPayment(true); // Set flag to true to prevent re-entry
       console.log('Checking payment callback:', { reference, paymentStatus });
       
-      if (reference) {
+      if (isKoraCallback && koraReference) {
+        try {
+          showMessage('Verifying Kora payment...', 'info');
+          const response = await fetch(`${RAILWAY_BACKEND_URL}/api/verify-kora-payment`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reference: koraReference }) });
+          const data = await response.json();
+          if (!response.ok || data.status !== 'success') throw new Error(data.detail || 'Kora payment verification failed.');
+          await refreshUserProfile();
+          showMessage('Payment successful. Your Training Room is ready.', 'success');
+          setCurrentView('trainee');
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } catch (error) {
+          console.error('Kora payment verification error:', error);
+          showMessage('Kora payment verification failed: ' + error.message, 'error');
+        } finally {
+          setIsVerifyingPayment(false);
+        }
+      } else if (reference) {
         try {
           showMessage('Verifying payment...', 'info');
           
@@ -393,21 +413,22 @@ function AppContent() {
           if (response.ok && data.status === 'success') {
             const bought = data.data.plan || '';
             const isTopUp = bought.startsWith('topup-');
+            const isTraineePayment = bought === 'trainee-training';
 
-            // A credit purchase must not touch the plan. The server has
-            // already added the credits, so all that is left is to reread
-            // the account.
-            if (!isTopUp) {
+            // The server enrolls paid trainees directly. It must never be
+            // treated as an AI subscription or credit purchase.
+            if (!isTopUp && !isTraineePayment) {
               await updateUserPlan(currentUser.uid, bought, reference);
             }
             await refreshUserProfile();
 
             showMessage(
-              isTopUp ? 'Payment successful. Your credits have been added.'
-                      : `Payment successful! ${bought} activated.`,
+              isTraineePayment ? 'Payment successful. Your Training Room is ready.'
+                : isTopUp ? 'Payment successful. Your credits have been added.'
+                : `Payment successful! ${bought} activated.`,
               'success'
             );
-            setCurrentView('transcribe');
+            setCurrentView(isTraineePayment ? 'trainee' : 'transcribe');
             
             // Crucial: Clear URL parameters AFTER successful processing
             window.history.replaceState({}, document.title, window.location.pathname);
@@ -1572,6 +1593,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/refund-policy" element={<RefundPolicy />} />
         <Route path="/faq" element={<Faq />} />
+        <Route path="/trainee-signup" element={<TraineeSignup />} />
         <Route path="*" element={<Landing />} />
       </Routes>
     );
@@ -1585,6 +1607,7 @@ return (
     <Route path="/terms" element={<TermsOfService />} />
     <Route path="/refund-policy" element={<RefundPolicy />} />
     <Route path="/faq" element={<Faq />} />
+    <Route path="/trainee-signup" element={<TraineeSignup />} />
     <Route path="/dashboard" element={<><Dashboard setCurrentView={setCurrentView} standalone /><FloatingWhatsApp /></>} />
     <Route path="/admin" element={isAdmin ? <><AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} /><FloatingWhatsApp /></> : <Navigate to="/" />} />
     
@@ -1771,13 +1794,15 @@ return (
               Human Transcripts
             </button>
 
-            <button
-              className={"tm-nav" + (currentView === 'trainee' ? " tm-nav-on" : "")}
-              onClick={() => setCurrentView('trainee')}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l7 4v5c0 4.6-3 8-7 9-4-1-7-4.4-7-9V7z"/><path d="M9 12l2 2 4-4"/></svg>
-              Trainee pathway
-            </button>
+            {isTrainee && (
+              <button
+                className={"tm-nav" + (currentView === 'trainee' ? " tm-nav-on" : "")}
+                onClick={() => setCurrentView('trainee')}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l7 4v5c0 4.6-3 8-7 9-4-1-7-4.4-7-9V7z"/><path d="M9 12l2 2 4-4"/></svg>
+                Training Room
+              </button>
+            )}
 
             {isWorker && (
               <button
@@ -1785,7 +1810,7 @@ return (
                 onClick={() => setCurrentView('human_worker')}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5V6.8A2.8 2.8 0 0 1 6.8 4h10.4A2.8 2.8 0 0 1 20 6.8v12.7"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20"/><path d="M8 8h8M8 12h6"/></svg>
-                Assigned human work
+                Work Room
               </button>
             )}
 
