@@ -305,6 +305,56 @@
 .tm-human-modal-primary:hover { background: #218838; }
 .tm-human-modal-primary:disabled { cursor: not-allowed; opacity: 0.55; }
 
+.tm-human-modal-notes {
+  display: grid;
+  gap: 8px;
+  grid-column: 1 / -1;
+  margin-top: 16px;
+}
+
+.tm-human-modal-notes > span:first-child {
+  color: #403c49;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.tm-human-modal-notes em { color: #8b8792; font-style: normal; font-weight: 400; }
+.tm-human-modal-notes textarea {
+  background: #fff;
+  border: 1px solid #d9d5e4;
+  border-radius: 8px;
+  box-sizing: border-box;
+  color: #2e2b38;
+  display: block;
+  font: inherit;
+  line-height: 1.45;
+  min-height: 88px;
+  padding: 10px 11px;
+  resize: vertical;
+  width: 100%;
+}
+
+.tm-human-modal-notes textarea:focus {
+  border-color: #5b44cf;
+  box-shadow: 0 0 0 3px rgba(91, 68, 207, 0.12);
+  outline: 0;
+}
+
+.tm-human-modal-attach {
+  align-items: center;
+  color: #2f6d43;
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  font-weight: 650;
+  gap: 8px;
+}
+
+.tm-human-modal-attach input { font: inherit; font-weight: 400; }
+.tm-human-modal-notes small { color: #7c7886; font-size: 0.72rem; }
+
+
 @media (max-width: 620px) {
   .tm-human-modal-grid { grid-template-columns: 1fr; }
   .tm-human-modal-check { padding-top: 0; }
