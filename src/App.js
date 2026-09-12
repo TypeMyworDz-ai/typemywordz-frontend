@@ -40,6 +40,7 @@ import Settings from './components/Settings';
 import Pricing, { PublicPricing } from './components/Pricing';
 import AskPanel from './components/AskPanel';
 import HumanTranscription from './components/HumanTranscription';
+import HumanJobWorkspace from './components/HumanJobWorkspace';
 import { isPaidAIUser } from './aiAccess';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -200,6 +201,8 @@ function AppContent() {
 
   // Admin list lives in src/adminEmails.js so it cannot drift from the backend.
   const isAdmin = isAdminEmail(currentUser?.email);
+  const profileRole = String(userProfile?.role || userProfile?.user_type || '').toLowerCase();
+  const isWorker = !isAdmin && (['worker', 'trainee', 'transcriber'].includes(profileRole) || userProfile?.workerApproved === true);
   // Free access covers the admin and the complimentary accounts. Anything that
   // asks a client to pay must check this, not isAdmin, or a complimentary
   // account starts seeing Upgrade and See plans.
@@ -1633,14 +1636,11 @@ return (
                 {/* Products Submenu */}
                 {openSubmenu === 'productsSubmenu' && (
                     <div className={`submenu ${openSubmenu === 'productsSubmenu' ? 'open' : ''}`} id="productsSubmenu">
-                        <div className="submenu-item" onClick={() => window.showSpeechToText()}>
-                            <span className="menu-text">Speech-to-Text</span>
+                        <div className="submenu-item" onClick={() => setCurrentView('transcribe')}>
+                            <span className="menu-text">AI transcripts</span>
                         </div>
                         <div className="submenu-item" onClick={() => setCurrentView('ai_assistant')}>
                             <span className="menu-text">Ask TypeMyworDz</span>
-                        </div>
-                        <div className="submenu-item" onClick={() => window.showComingSoon('TypeMyNote')}>
-                            <span className="menu-text">TypeMyNote</span>
                         </div>
                         <div className="submenu-item" onClick={() => window.showComingSoon('Text-to-Speech')}>
                             <span className="menu-text">Text-to-Speech</span>
@@ -1769,6 +1769,16 @@ return (
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
               Human Transcripts
             </button>
+
+            {isWorker && (
+              <button
+                className={"tm-nav" + (currentView === 'human_worker' ? " tm-nav-on" : "")}
+                onClick={() => setCurrentView('human_worker')}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5V6.8A2.8 2.8 0 0 1 6.8 4h10.4A2.8 2.8 0 0 1 20 6.8v12.7"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20"/><path d="M8 8h8M8 12h6"/></svg>
+                Assigned human work
+              </button>
+            )}
 
             <button
               className={"tm-nav tm-nav-ai" + (currentView === 'ai_assistant' ? " tm-nav-on" : "")}
@@ -1904,6 +1914,8 @@ return (
             onTopUp={() => setCurrentView('credits')}
             showMessage={showMessage}
           />
+        ) : currentView === 'human_worker' ? (
+          <HumanJobWorkspace mode="worker" onBack={() => setCurrentView('transcribe')} showMessage={showMessage} />
         ) : currentView === 'pricing' ? (
           <Pricing
             mode="plans"
