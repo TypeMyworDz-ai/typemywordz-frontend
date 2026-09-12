@@ -43,6 +43,7 @@ import HumanTranscription from './components/HumanTranscription';
 import HumanJobWorkspace from './components/HumanJobWorkspace';
 import TraineeDashboard from './components/TraineeDashboard';
 import TraineeSignup from './components/TraineeSignup';
+import DirectMessages from './components/DirectMessages';
 import { isPaidAIUser } from './aiAccess';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -219,6 +220,17 @@ function AppContent() {
   // asks a client to pay must check this, not isAdmin, or a complimentary
   // account starts seeing Upgrade and See plans.
   const hasComplimentaryAccess = hasFreeAccess(currentUser?.email);
+
+  // A paid trainee should land directly in Training Room after account creation,
+  // and must never be routed through the ordinary client workspace first.
+  useEffect(() => {
+    if (!currentUser || !isTrainee) return;
+    if (currentView === 'human_transcripts') setCurrentView('trainee');
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('open') !== 'training-room') return;
+    setCurrentView('trainee');
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }, [currentUser, currentView, isTrainee]);
 
   // The credit balance, as the server reports it. The browser never works
   // this out for itself; it asks and shows the answer.
@@ -398,16 +410,15 @@ function AppContent() {
     const isAfrica = AFRICA_PAYMENT_COUNTRIES.has(countryCode);
     const isTopUp = String(itemId || '').startsWith('topup-');
 
-    // African credit top-ups use Paystack first, with Kora as fallback.
+    // Kora is the primary African checkout for both plans and credit top-ups.
+    // Paystack stays available only as a quiet fallback if Kora cannot start.
     if (isAfrica && isTopUp) {
       try {
-        const paystackResult = await initializePaystackPayment(itemId, countryCode);
-        if (!paystackResult) throw new Error('Paystack checkout did not open.');
-        return paystackResult;
+        return await initializeKoraPayment(itemId, countryCode);
       } catch (error) {
-        console.warn('Paystack top-up initialization failed; trying Kora.', error);
-        showMessage('Paystack checkout was unavailable. Trying Kora instead...', 'info');
-        return initializeKoraPayment(itemId, countryCode);
+        console.warn('Kora top-up initialization failed; trying Paystack.', error);
+        showMessage('Kora checkout was unavailable. Trying Paystack instead...', 'info');
+        return initializePaystackPayment(itemId, countryCode);
       }
     }
 
@@ -1908,13 +1919,28 @@ return (
               Dashboard
             </button>
 
-            <button
+            {!isTrainee && <button
+              className={"tm-nav" + (currentView === 'messages' ? " tm-nav-on" : "")}
+              onClick={() => setCurrentView('messages')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/><path d="M8 9h8M8 13h5"/></svg>
+              Messages
+            </button>}
+            {isTrainee && <button
+              className={"tm-nav" + (currentView === 'messages' ? " tm-nav-on" : "")}
+              onClick={() => setCurrentView('messages')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/><path d="M8 9h8M8 13h5"/></svg>
+              Messages
+            </button>}
+
+            {!isTrainee && <button
               className={"tm-nav" + (currentView === 'human_transcripts' ? " tm-nav-on" : "")}
               onClick={() => setCurrentView('human_transcripts')}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
               Human Transcripts
-            </button>
+            </button>}
 
             {isTrainee && (
               <button
@@ -2063,7 +2089,9 @@ return (
           </div>
         )}
         {/* Conditional Rendering for different views */}
-        {currentView === 'trainee' ? (
+        {currentView === 'messages' ? (
+          <DirectMessages showMessage={showMessage} />
+        ) : currentView === 'trainee' ? (
           <TraineeDashboard onBack={() => setCurrentView('transcribe')} onOpenWork={() => setCurrentView('human_worker')} showMessage={showMessage} />
         ) : currentView === 'human_transcripts' ? (
           <HumanTranscription
