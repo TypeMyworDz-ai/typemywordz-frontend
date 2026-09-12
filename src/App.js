@@ -296,6 +296,7 @@ function AppContent() {
       if (response.ok && data.status) {
         showMessage('Redirecting to payment page...Please do not refresh.', 'info');
         window.location.href = data.authorization_url;
+        return data;
       } else {
         throw new Error(data.message || 'Payment initialization failed');
       }
@@ -330,6 +331,7 @@ function AppContent() {
     }
     showMessage('Opening secure Kora checkout...', 'info');
     window.location.href = data.checkout_url;
+    return data;
   }, [currentUser, showMessage]);
 
   const handlePaddleEvent = useCallback((eventData) => {
