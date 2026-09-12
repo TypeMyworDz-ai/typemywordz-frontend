@@ -142,6 +142,31 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     body: JSON.stringify({ transcript: editorText, notes: feedback }),
   });
 
+  const downloadProtectedFile = async (path, filename, unavailableMessage) => {
+    try {
+      const idToken = await token();
+      const response = await fetch(`${BACKEND_URL}${path}`, { headers: { Authorization: `Bearer ${idToken}` } });
+      if (!response.ok) throw new Error(unavailableMessage);
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename || 'human-work-file';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+    }
+  };
+
+  const downloadAttachment = (message) => {
+    if (!selectedJob?.id || !message?.id || !message.attachment) return;
+    return downloadProtectedFile(
+      `/human-transcription/jobs/${selectedJob.id}/messages/${message.id}/attachment`,
+      message.attachment.name,
+      'The chat attachment could not be downloaded.',
+    );
+  };
+
   if (loading) return <div className="tm-human-workspace-loading">Loading human work…</div>;
 
   return (
@@ -172,7 +197,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <div className="tm-human-job-detail">
           {!selectedJob ? <div className="tm-human-empty">Choose a job to see its details.</div> : <>
             <div className="tm-human-detail-head">
-              <div><span className="tm-human-status">{STATUS_LABELS[selectedJob.status] || selectedJob.status}</span><h2>{selectedJob.audio?.name || 'Human-transcription request'}</h2><p>{selectedJob.minutes || 0} minutes · {selectedJob.quote_credits || 0} credits · {selectedJob.turnaround || 'standard'} delivery</p></div>
+              <div><span className="tm-human-status">{STATUS_LABELS[selectedJob.status] || selectedJob.status}</span><h2>{selectedJob.audio?.name || (selectedJob.source_type === 'ai_proofreading' ? 'AI transcript for proofreading' : 'Human-transcription request')}</h2><p>{selectedJob.source_type === 'ai_proofreading' ? 'AI transcript proofreading' : 'New human transcript'} · {selectedJob.minutes || 0} minutes · {selectedJob.quote_credits || 0} credits · {selectedJob.turnaround || 'standard'} delivery</p></div>
               <div className="tm-human-detail-actions">
                 {mode === 'admin' && selectedJob.status === 'pending_admin' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/approve`, { method: 'POST' })}>Approve request</button>}
                 {mode === 'worker' && ['assigned', 'in_progress'].includes(selectedJob.status) && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/start`, { method: 'POST' })}>Start work</button>}
@@ -188,6 +213,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             {mode === 'admin' && selectedJob.status === 'submitted' && <div className="tm-human-review"><label>Worker rating<select value={rating} onChange={(event) => setRating(event.target.value)}><option value="5">5 — excellent</option><option value="4">4 — strong</option><option value="3">3 — acceptable</option><option value="2">2 — needs work</option><option value="1">1 — poor</option></select></label><textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder="Notes for the client and worker" /><button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating, feedback }) })}>Send to client</button></div>}
 
             {audioUrl && <div className="tm-human-audio-card"><strong>Source recording</strong><span>Available to the client, admin and assigned worker.</span><audio controls src={audioUrl} /></div>}
+            {selectedJob.instruction_attachments?.length > 0 && <div className="tm-human-reference-card"><strong>Reference files from the client</strong><span>Use these notes, spellings, and supporting documents while working.</span><div className="tm-human-reference-list">{selectedJob.instruction_attachments.map((item, index) => <button type="button" key={`${item.name}-${index}`} onClick={() => downloadProtectedFile(`/human-transcription/jobs/${selectedJob.id}/instruction/${index}`, item.name, 'The reference file could not be downloaded.')}>Download: {item.name}</button>)}</div></div>}
 
             <div className="tm-human-editor-card">
               <div className="tm-human-editor-head"><div><strong>Shared proofreading editor</strong><span>The same working area is used by the worker, admin and client.</span></div><div className="tm-human-editor-ad">Need a first draft or a quick answer? <button type="button" onClick={() => showMessage?.('Ask TypeMyworDz opens from the left navigation.', 'success')}>Use Ask TypeMyworDz</button></div></div>
@@ -205,7 +231,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
             <div className="tm-human-chat-card">
               <div className="tm-human-chat-head"><div><strong>Conversation</strong><span>Client, admin and assigned worker only</span></div><span className="tm-human-live-dot">Live</span></div>
-              <div className="tm-human-messages">{messages.map((item) => <article key={item.id} className="tm-human-message"><div><strong>{item.sender_role === 'admin' ? 'TypeMyworDz admin' : item.sender_email}</strong><time>{moneylessDate(item.createdAt)}</time></div>{item.message && <p>{item.message}</p>}{item.attachment && <a href="#attachment" onClick={(event) => event.preventDefault()}>Attached: {item.attachment.name}</a>}</article>)}{!messages.length && <div className="tm-human-empty">No messages yet. Keep the job conversation here so nobody has to move to another app.</div>}</div>
+              <div className="tm-human-messages">{messages.map((item) => <article key={item.id} className="tm-human-message"><div><strong>{item.sender_role === 'admin' ? 'TypeMyworDz admin' : item.sender_email}</strong><time>{moneylessDate(item.createdAt)}</time></div>{item.message && <p>{item.message}</p>}{item.attachment && <button type="button" className="tm-human-attachment-link" onClick={() => downloadAttachment(item)}>Download: {item.attachment.name}</button>}</article>)}{!messages.length && <div className="tm-human-empty">No messages yet. Keep the job conversation here so nobody has to move to another app.</div>}</div>
               <form className="tm-human-message-form" onSubmit={sendMessage}><input value={messageText} onChange={(event) => setMessageText(event.target.value)} placeholder="Write to the people on this job" /><label className="tm-human-attach">Attach any file<input type="file" onChange={(event) => setMessageFile(event.target.files?.[0] || null)} /></label><button type="submit" disabled={busy || (!messageText.trim() && !messageFile)}>Send</button></form>
             </div>
           </>}

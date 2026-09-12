@@ -23,6 +23,7 @@ export default function HumanTranscription({ onBack, onOpenFiles, onTopUp, showM
   const [formatting, setFormatting] = useState('standard');
   const [timestamps, setTimestamps] = useState(true);
   const [speakers, setSpeakers] = useState('1-2');
+  const [speakerLabels, setSpeakerLabels] = useState(true);
   const [notes, setNotes] = useState('');
   const [instructionFiles, setInstructionFiles] = useState([]);
   const [quote, setQuote] = useState(null);
@@ -80,6 +81,7 @@ export default function HumanTranscription({ onBack, onOpenFiles, onTopUp, showM
       body.append('formatting', formatting);
       body.append('timestamps', String(timestamps));
       body.append('speakers', speakers);
+      body.append('speaker_labels', String(speakerLabels));
       body.append('instructions', notes);
       body.append('source_type', 'human_transcription');
       const response = await fetch(`${backendUrl}/human-transcription/jobs`, {
@@ -238,8 +240,8 @@ export default function HumanTranscription({ onBack, onOpenFiles, onTopUp, showM
             <span>Include timestamps</span>
           </label>
           <label className="tm-human-check">
-            <input type="checkbox" checked={speakers} onChange={(event) => setSpeakers(event.target.checked)} />
-            <span>Separate speakers</span>
+            <input type="checkbox" checked={speakerLabels} onChange={(event) => setSpeakerLabels(event.target.checked)} />
+            <span>Label speaker changes</span>
           </label>
         </div>
 

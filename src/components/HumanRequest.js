@@ -136,6 +136,7 @@ export default function HumanRequest({
       body.append('service', service);
       body.append('speakers', speakers);
       body.append('timestamps', String(timestamps));
+      body.append('speaker_labels', 'true');
       body.append('formatting', formatting);
       body.append('instructions', notes);
       body.append('source_type', 'ai_proofreading');
