@@ -22,7 +22,10 @@ export default function HumanTranscription({ onBack, onOpenFiles, onTopUp, showM
   const [timestamps, setTimestamps] = useState(true);
   const [speakers, setSpeakers] = useState(true);
   const [notes, setNotes] = useState('');
+  const [instructionFiles, setInstructionFiles] = useState([]);
   const [quote, setQuote] = useState(null);
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [requestSent, setRequestSent] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState('');
 
@@ -57,6 +60,33 @@ export default function HumanTranscription({ onBack, onOpenFiles, onTopUp, showM
       URL.revokeObjectURL(objectUrl);
     };
     media.src = objectUrl;
+  };
+
+  const handleCreateJob = async () => {
+    if (!quote?.affordable && !quote?.exempt) return;
+    setRequestLoading(true);
+    setQuoteError('');
+    try {
+      const token = await currentUser.getIdToken();
+      const body = new FormData();
+      body.append('audio', file);
+      instructionFiles.forEach((item) => body.append('attachments', item));
+      body.append('seconds', String(Math.round(durationSeconds)));
+      body.append('turnaround', turnaround);
+      body.append('difficulty', difficulty);
+      body.append('timestamps', String(timestamps));
+      body.append('speakers', String(speakers));
+      body.append('instructions', notes);
+      const response = await fetch(`${backendUrl}/human-transcription/jobs`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` }, body,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || 'The request could not be sent.');
+      setRequestSent(true);
+      showMessage?.('Your request is with the TypeMyworDz admin team.', 'success');
+    } catch (error) {
+      setQuoteError(error.message || 'The request could not be sent.');
+    } finally { setRequestLoading(false); }
   };
 
   const handleRequest = async (event) => {
@@ -190,6 +220,11 @@ export default function HumanTranscription({ onBack, onOpenFiles, onTopUp, showM
             placeholder="Names, spellings, formatting preferences, or context that will help the transcriber"
             rows={4}
           />
+          <div className="tm-human-instruction-attach">
+            <span>Attach instructions or reference files</span>
+            <input type="file" multiple onChange={(event) => setInstructionFiles(Array.from(event.target.files || []))} />
+            <small>{instructionFiles.length ? instructionFiles.map((item) => item.name).join(', ') : 'PDF, Word, images, audio, video, or any other supporting file'}</small>
+          </div>
         </label>
 
         {quoteError && (
@@ -215,7 +250,12 @@ export default function HumanTranscription({ onBack, onOpenFiles, onTopUp, showM
                 Top up {Number(quote.short_by || 0).toLocaleString()} credits
               </button>
             )}
-            <small>Nothing has been uploaded, reserved, or deducted.</small>
+            <small>{requestSent ? 'Request sent for admin approval.' : 'Nothing has been uploaded, reserved, or deducted until you send the request.'}</small>
+            {!requestSent && (quote.affordable || quote.exempt) && (
+              <button type="button" className="tm-human-send-request" onClick={handleCreateJob} disabled={requestLoading}>
+                {requestLoading ? 'Sending request…' : 'Send to admin for approval'}
+              </button>
+            )}
           </div>
         )}
 

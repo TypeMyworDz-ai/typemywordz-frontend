@@ -4,6 +4,7 @@ import { fetchUserTranscriptions, deleteTranscription, updateTranscription } fro
 import { useNavigate } from 'react-router-dom';
 import ConfirmDialog from './ConfirmDialog';
 import { htmlToText } from '../lib/transcript';
+import HumanFilesSummary from './HumanFilesSummary';
 
 // `standalone` means this page is on its own address rather than inside the
 // workspace, so it needs its own New transcription button and has to navigate
@@ -247,6 +248,8 @@ const Dashboard = ({ setCurrentView, standalone = false }) => {
             </button>
           )}
         </div>
+
+        <HumanFilesSummary />
 
         {/* Search and Filter */}
         <div style={{ marginBottom: '1.5rem' }}>

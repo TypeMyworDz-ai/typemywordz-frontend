@@ -11,3 +11,4 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+.tm-human-files-summary{border:1px solid #e5e6ea;border-radius:12px;background:#fff;margin:0 0 22px;padding:20px}.tm-human-files-summary-head{display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid #ececf0;padding-bottom:14px}.tm-human-files-summary-head h2{margin:4px 0;font-size:18px}.tm-human-files-summary-head p{margin:0;color:#858a95;font-size:13px}.tm-human-files-summary-head>span{color:#6450a8;font-weight:800;font-size:12px}.tm-human-files-rows{display:grid}.tm-human-files-row{display:flex;justify-content:space-between;gap:14px;padding:13px 0;border-bottom:1px solid #f0f0f2}.tm-human-files-row:last-child{border-bottom:0}.tm-human-files-row strong,.tm-human-files-row span{display:block}.tm-human-files-row span{font-size:12px;color:#858a95;margin-top:4px}.tm-human-files-row b{font-size:12px;color:#6450a8;white-space:nowrap;align-self:center}
