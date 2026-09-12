@@ -136,6 +136,31 @@ function AppContent() {
   // Removed transcriptionProgress state and its setter
   const [currentView, setCurrentView] = useState('transcribe');
   const [selectedHumanJobId, setSelectedHumanJobId] = useState('');
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+
+  const refreshUnreadMessageCount = useCallback(async () => {
+    if (!currentUser) {
+      setUnreadMessageCount(0);
+      return;
+    }
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${RAILWAY_BACKEND_URL}/api/messaging/unread-count`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+      const data = await response.json().catch(() => ({}));
+      setUnreadMessageCount(Math.max(0, Number(data.count) || 0));
+    } catch {
+      // A badge should never interrupt the workspace if the count is briefly unavailable.
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    refreshUnreadMessageCount();
+    const interval = window.setInterval(refreshUnreadMessageCount, 10000);
+    return () => window.clearInterval(interval);
+  }, [refreshUnreadMessageCount]);
 
   useEffect(() => {
     recordPageView(`${window.location.pathname}#${currentView}`);
@@ -1924,14 +1949,16 @@ return (
               onClick={() => setCurrentView('messages')}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/><path d="M8 9h8M8 13h5"/></svg>
-              Messages
+              <span>Messages</span>
+              {unreadMessageCount > 0 && <span className="tm-nav-badge" aria-label={`${unreadMessageCount} unread messages`}>{unreadMessageCount > 99 ? '99+' : unreadMessageCount}</span>}
             </button>}
             {isTrainee && <button
               className={"tm-nav" + (currentView === 'messages' ? " tm-nav-on" : "")}
               onClick={() => setCurrentView('messages')}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/><path d="M8 9h8M8 13h5"/></svg>
-              Messages
+              <span>Messages</span>
+              {unreadMessageCount > 0 && <span className="tm-nav-badge" aria-label={`${unreadMessageCount} unread messages`}>{unreadMessageCount > 99 ? '99+' : unreadMessageCount}</span>}
             </button>}
 
             {!isTrainee && <button
@@ -2090,7 +2117,7 @@ return (
         )}
         {/* Conditional Rendering for different views */}
         {currentView === 'messages' ? (
-          <DirectMessages showMessage={showMessage} />
+          <DirectMessages showMessage={showMessage} onMessagesRead={refreshUnreadMessageCount} />
         ) : currentView === 'trainee' ? (
           <TraineeDashboard onBack={() => setCurrentView('transcribe')} onOpenWork={() => setCurrentView('human_worker')} showMessage={showMessage} />
         ) : currentView === 'human_transcripts' ? (

@@ -12,7 +12,11 @@ const STATUS_LABELS = {
   released: 'Released', cancelled: 'Cancelled'
 };
 
-const moneylessDate = (value) => value ? new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Not recorded';
+const moneylessDate = (value) => {
+  if (!value) return 'Not recorded';
+  const date = value?.toDate ? value.toDate() : new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Not recorded' : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+};
 
 export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '' }) {
   const { currentUser } = useAuth();
@@ -35,11 +39,18 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
   const request = useCallback(async (path, options = {}) => {
     const idToken = await token();
-    const response = await fetch(`${BACKEND_URL}${path}`, {
-      ...options,
-      headers: { ...(options.headers || {}), Authorization: `Bearer ${idToken}` },
-    });
-    const payload = await response.json().catch(() => ({}));
+    let response;
+    try {
+      response = await fetch(`${BACKEND_URL}${path}`, {
+        ...options,
+        headers: { ...(options.headers || {}), Authorization: `Bearer ${idToken}` },
+      });
+    } catch {
+      throw new Error('The conversation could not reach the server. Please try again.');
+    }
+    const responseText = await response.text();
+    let payload = {};
+    try { payload = responseText ? JSON.parse(responseText) : {}; } catch { /* use the fallback below */ }
     if (!response.ok) throw new Error(payload.detail || 'The workflow request failed.');
     return payload;
   }, [token]);
@@ -112,7 +123,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     } catch (error) {
       loadMessages();
     }
-    const interval = window.setInterval(loadMessages, 5000);
+    const interval = window.setInterval(loadMessages, 3000);
     return () => { if (liveListener) liveListener(); window.clearInterval(interval); };
   }, [loadMessages, selectedJob?.id]);
 
@@ -142,11 +153,16 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       setMessageFile(null);
       event.target.reset();
     } catch (error) {
-      const message = String(error?.message || '').toLowerCase();
-      showMessage?.(message === 'failed to fetch' ? 'The message could not be sent. Check your connection and try again.' : error.message, 'error');
+      showMessage?.(error.message || 'The message could not be sent. Please try again.', 'error');
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleMessageKeyDown = (event) => {
+    if (event.key !== 'Enter' || event.shiftKey) return;
+    event.preventDefault();
+    if (!busy && (messageText.trim() || messageFile)) event.currentTarget.form?.requestSubmit();
   };
 
   const submitWorker = () => act(`/human-transcription/jobs/${selectedJob.id}/submit`, {
@@ -244,7 +260,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             <div className="tm-human-chat-card">
               <div className="tm-human-chat-head"><div><strong>Conversation</strong><span>Client, admin and assigned worker only</span></div><span className="tm-human-live-dot">Live</span></div>
               <div className="tm-human-messages">{messages.map((item) => <article key={item.id} className="tm-human-message"><div><strong>{item.sender_role === 'admin' ? 'TypeMyworDz admin' : item.sender_email}</strong><time>{moneylessDate(item.createdAt)}</time></div>{item.message && <p>{item.message}</p>}{item.attachment && <button type="button" className="tm-human-attachment-link" onClick={() => downloadAttachment(item)}>Download: {item.attachment.name}</button>}</article>)}{!messages.length && <div className="tm-human-empty">No messages yet. Keep the job conversation here so nobody has to move to another app.</div>}</div>
-              <form className="tm-human-message-form" onSubmit={sendMessage}><input value={messageText} onChange={(event) => setMessageText(event.target.value)} placeholder="Write to the people on this job" /><label className="tm-human-attach">Attach any file<input type="file" onChange={(event) => setMessageFile(event.target.files?.[0] || null)} /></label><button type="submit" disabled={busy || (!messageText.trim() && !messageFile)}>Send</button></form>
+              <form className="tm-human-message-form" onSubmit={sendMessage}><textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} onKeyDown={handleMessageKeyDown} placeholder="Write to the people on this job" rows={2} aria-label="Job conversation message" /><div className="tm-human-message-actions"><span className="tm-human-message-hint">Enter to send · Shift+Enter for a new line</span><label className="tm-human-attach">Attach any file<input type="file" onChange={(event) => setMessageFile(event.target.files?.[0] || null)} /></label><button type="submit" disabled={busy || (!messageText.trim() && !messageFile)}>Send</button></div></form>
             </div>
           </>}
         </div>

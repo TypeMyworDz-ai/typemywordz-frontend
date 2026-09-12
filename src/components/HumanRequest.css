@@ -242,6 +242,28 @@
   color: #356943 !important;
 }
 
+.tm-human-modal-sent {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid #cfe7d2;
+  border-radius: 9px;
+  background: #f3fbf4;
+}
+
+.tm-human-modal-sent strong {
+  color: #2f6c3d;
+}
+
+.tm-human-modal-sent p {
+  margin: 5px 0 10px;
+  color: #4f6d56;
+  line-height: 1.45;
+}
+
+.tm-human-modal-sent .tm-human-modal-primary {
+  margin-top: 0;
+}
+
 .tm-human-modal-balance-low {
   align-items: center;
   display: flex;

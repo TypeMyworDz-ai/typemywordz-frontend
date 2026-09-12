@@ -19,7 +19,7 @@ const roleLabel = (role) => {
 
 const isTeamRole = (role) => roleLabel(role) === 'team';
 
-export default function DirectMessages({ showMessage, compact = false }) {
+export default function DirectMessages({ showMessage, compact = false, onMessagesRead }) {
   const { currentUser } = useAuth();
   const [contacts, setContacts] = useState([]);
   const [selectedUid, setSelectedUid] = useState('');
@@ -37,12 +37,12 @@ export default function DirectMessages({ showMessage, compact = false }) {
         ...options,
         headers: { Authorization: `Bearer ${token}`, ...(options.headers || {}) },
       });
-    } catch (error) {
+    } catch {
       throw new Error('Messages could not reach the server. Please try again.');
     }
     const responseText = await response.text();
     let payload = {};
-    try { payload = responseText ? JSON.parse(responseText) : {}; } catch (error) { /* keep the friendly fallback below */ }
+    try { payload = responseText ? JSON.parse(responseText) : {}; } catch { /* keep the friendly fallback below */ }
     if (!response.ok) throw new Error(payload.detail || 'Messaging is unavailable right now.');
     return payload;
   }, [currentUser]);
@@ -62,18 +62,23 @@ export default function DirectMessages({ showMessage, compact = false }) {
     }
   }, [currentUser, request, showMessage]);
 
-  const loadMessages = useCallback(async () => {
+  const loadMessages = useCallback(async (silent = false) => {
     if (!selectedUid) { setMessages([]); return; }
     try {
       const payload = await request(`/api/user-chats/${encodeURIComponent(selectedUid)}/messages`);
       setMessages(payload.messages || []);
+      onMessagesRead?.();
     } catch (error) {
-      showMessage?.(error.message, 'error');
+      if (!silent) showMessage?.(error.message, 'error');
     }
-  }, [request, selectedUid, showMessage]);
+  }, [onMessagesRead, request, selectedUid, showMessage]);
 
   useEffect(() => { loadContacts(); }, [loadContacts]);
-  useEffect(() => { loadMessages(); }, [loadMessages]);
+  useEffect(() => {
+    loadMessages();
+    const interval = window.setInterval(() => loadMessages(true), 5000);
+    return () => window.clearInterval(interval);
+  }, [loadMessages]);
 
   const selectedContact = contacts.find((contact) => contact.uid === selectedUid);
   const incomingLabel = isTeamRole(selectedContact?.role)
