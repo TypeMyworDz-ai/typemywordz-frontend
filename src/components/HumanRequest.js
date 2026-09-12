@@ -255,7 +255,7 @@ export default function HumanRequest({
                 </div>
                 {balanceCoversEstimate ? (
                   <>
-                    <p className="tm-human-modal-balance-ok">Your current balance covers this estimate. Credits will only be deducted after you approve the completed work.</p>
+                    <p className="tm-human-modal-balance-ok">Your current balance covers this estimate. Credits are only deducted after you confirm that your job is completed and client-ready.</p>
                     {!requestSent && <button type="button" className="tm-human-modal-primary" onClick={submitRequest} disabled={requestLoading || !transcriptText.trim()}>{requestLoading ? 'Sending request…' : 'Send for proofreading'}</button>}
                     {requestSent && <p className="tm-human-modal-balance-ok">Request sent for admin approval. You can follow it under Human Transcripts.</p>}
                   </>
