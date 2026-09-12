@@ -305,6 +305,33 @@ function AppContent() {
     }
   }, [currentUser, showMessage]);
 
+  const initializeKoraPayment = useCallback(async (planName, countryCode) => {
+    const email = currentUser?.email;
+    if (!email) {
+      showMessage('Please sign in first.', 'info');
+      return;
+    }
+    const response = await fetch(`${RAILWAY_BACKEND_URL}/api/initialize-kora-payment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        amount: 0,
+        plan_name: planName,
+        user_id: currentUser.uid,
+        country_code: countryCode,
+        callback_url: `${window.location.origin}/?kora=success`,
+        update_admin_revenue: true,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.status || !data.checkout_url) {
+      throw new Error(data.detail || data.message || 'Kora checkout could not be started.');
+    }
+    showMessage('Opening secure Kora checkout...', 'info');
+    window.location.href = data.checkout_url;
+  }, [currentUser, showMessage]);
+
   const handlePaddleEvent = useCallback((eventData) => {
     if (eventData?.name !== 'checkout.completed') return;
     showMessage('Payment received. Your account will update shortly.', 'success');
@@ -356,12 +383,38 @@ function AppContent() {
     }
   }, [currentUser, handlePaddleEvent, showMessage]);
 
-  const initializePayment = useCallback((itemId, countryCode) => {
-    if (String(itemId || '').startsWith('topup-custom-') || AFRICA_PAYMENT_COUNTRIES.has(countryCode)) {
+  const initializePayment = useCallback(async (itemId, countryCode) => {
+    const isAfrica = AFRICA_PAYMENT_COUNTRIES.has(countryCode);
+    const isTopUp = String(itemId || '').startsWith('topup-');
+
+    // Kora is the primary gateway for African credit top-ups. Paystack is the
+    // fallback if Kora is unavailable or rejects initialization.
+    if (isAfrica && isTopUp) {
+      try {
+        return await initializeKoraPayment(itemId, countryCode);
+      } catch (error) {
+        console.warn('Kora top-up initialization failed; trying Paystack.', error);
+        showMessage('Kora checkout was unavailable. Trying Paystack instead...', 'info');
+        return initializePaystackPayment(itemId, countryCode);
+      }
+    }
+
+    // Paystack remains primary for African plans. Kora is the fallback.
+    if (isAfrica) {
+      try {
+        return await initializePaystackPayment(itemId, countryCode);
+      } catch (error) {
+        console.warn('Paystack plan initialization failed; trying Kora.', error);
+        showMessage('Paystack checkout was unavailable. Trying Kora instead...', 'info');
+        return initializeKoraPayment(itemId, countryCode);
+      }
+    }
+
+    if (String(itemId || '').startsWith('topup-custom-')) {
       return initializePaystackPayment(itemId, countryCode);
     }
     return initializePaddlePayment(itemId, countryCode);
-  }, [initializePaddlePayment, initializePaystackPayment]);
+  }, [initializePaddlePayment, initializePaystackPayment, initializeKoraPayment, showMessage]);
 
   // Handle payment success callback - MODIFIED to prevent infinite loop
   const handlePaystackCallback = useCallback(async () => {
@@ -382,9 +435,17 @@ function AppContent() {
           const response = await fetch(`${RAILWAY_BACKEND_URL}/api/verify-kora-payment`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reference: koraReference }) });
           const data = await response.json();
           if (!response.ok || data.status !== 'success') throw new Error(data.detail || 'Kora payment verification failed.');
+          const bought = data.data?.plan || '';
+          const isTraineePayment = Boolean(data.data?.training_room) || bought === 'trainee-training';
           await refreshUserProfile();
-          showMessage('Payment successful. Your Training Room is ready.', 'success');
-          setCurrentView('trainee');
+          if (!isTraineePayment) await refreshCredits();
+          showMessage(
+            isTraineePayment ? 'Payment successful. Your Training Room is ready.'
+              : bought.startsWith('topup-') ? 'Payment successful. Your credits have been added.'
+              : `Payment successful! ${bought} activated.`,
+            'success'
+          );
+          setCurrentView(isTraineePayment ? 'trainee' : 'transcribe');
           window.history.replaceState({}, document.title, window.location.pathname);
         } catch (error) {
           console.error('Kora payment verification error:', error);
@@ -449,7 +510,7 @@ function AppContent() {
         setIsVerifyingPayment(false); // Reset flag
       }
     }
-  }, [currentUser, showMessage, refreshUserProfile, setCurrentView, isVerifyingPayment]); // Removed isAdmin from dependencies as it's not used in the function body
+  }, [currentUser, showMessage, refreshUserProfile, refreshCredits, setCurrentView, isVerifyingPayment]); // Removed isAdmin from dependencies as it's not used in the function body
 
   // useEffect to trigger payment callback handling
   useEffect(() => {
