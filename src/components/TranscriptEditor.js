@@ -150,7 +150,13 @@ const Segment = memo(function Segment({
             onKeyDown={(event) => {
               if (event.key === 'Tab') {
                 event.preventDefault();
-                onTabSpeaker(index, event.shiftKey);
+                if (!readOnly && !String(seg.text || '').trim()) onEdit(index);
+                else onTabSpeaker(index, event.shiftKey);
+                return;
+              }
+              if (!readOnly && (event.key === 'Backspace' || event.key === 'Delete')) {
+                event.preventDefault();
+                onRenameSpeaker(seg.speaker, '');
               }
             }}
             title={readOnly ? name : `Rename ${name} everywhere`}
@@ -583,19 +589,38 @@ const TranscriptEditor = ({
   }, [fileName]);
 
   const exportWord = useCallback(() => {
+    const escapeRtf = (value) => Array.from(String(value || '')).map((character) => {
+      if (character === '\\') return '\\\\';
+      if (character === '{' || character === '}') return `\\${character}`;
+      if (character === '\n' || character === '\r') return '\\line ';
+      const code = character.charCodeAt(0);
+      return code > 127 ? `\\u${code > 32767 ? code - 65536 : code}?` : character;
+    }).join('');
+    const title = escapeRtf(fileName);
     const body = segments.map((s) => {
       const name = s.speaker ? (speakerNames[s.speaker] || s.speaker) : null;
-      const escape = (t) => String(t)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      return '<p>' + (name ? `<strong>${escape(name)}:</strong> ` : '') + escape(s.text) + '</p>';
-    }).join('\n');
-    const doc =
-      '<html xmlns:o="urn:schemas-microsoft-com:office:office" ' +
-      'xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
-      '<head><meta charset="utf-8"><title>' + String(fileName) + '</title></head><body>' +
-      '<h2>' + String(fileName) + '</h2>' + body + '</body></html>';
-    download(doc, 'doc', 'application/msword');
+      return `{\\pard\\sa160\\sl276\\slmult1 ${name ? `\\b ${escapeRtf(name)}:\\b0 ` : ''}${escapeRtf(s.text)}\\par}`;
+    }).join('');
+    const rtf = `{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Aptos;}}\\paperw12240\\paperh15840\\margl1440\\margr1440\\margt1440\\margb1440\\fs22\\f0\\b ${title}\\b0\\par${body}}`;
+    download(rtf, 'rtf', 'application/rtf;charset=utf-8');
   }, [segments, speakerNames, fileName, download]);
+
+  const exportPdf = useCallback(() => {
+    const escapeHtml = (value) => String(value || '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/\r\n?|\n/g, '<br>');
+    const body = segments.map((s) => {
+      const name = s.speaker ? (speakerNames[s.speaker] || s.speaker) : null;
+      return `<p>${name ? `<strong>${escapeHtml(name)}:</strong> ` : ''}${escapeHtml(s.text)}</p>`;
+    }).join('');
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+    if (!printWindow) return;
+    printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(fileName)}</title><style>@page{size:Letter;margin:1in}body{color:#222;font-family:Arial,sans-serif;font-size:11pt;line-height:1.45;margin:0}h1{font-size:16pt;margin:0 0 18pt}p{margin:0 0 9pt;white-space:normal}</style></head><body><h1>${escapeHtml(fileName)}</h1>${body}</body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    setExportOpen(false);
+  }, [segments, speakerNames, fileName]);
 
   // ---- find and replace ----
   const [findOpen, setFindOpen] = useState(false);
@@ -668,7 +693,15 @@ const TranscriptEditor = ({
     setRenaming(null);
     const clean = String(value).trim();
     const nextNames = { ...speakerNames };
-    if (!clean || clean === label) delete nextNames[label];
+    if (!clean) {
+      delete nextNames[label];
+      const nextSegments = segments.map((segment) => (
+        segment.speaker === label ? { ...segment, speaker: null } : segment
+      ));
+      publishEdit(nextSegments, nextNames);
+      return;
+    }
+    if (clean === label) delete nextNames[label];
     else nextNames[label] = clean;
     publishEdit(segments, nextNames);
   }, [publishEdit, segments, speakerNames]);
@@ -831,8 +864,13 @@ const TranscriptEditor = ({
                 <div className="tm-split-head">Download</div>
                 <button type="button" className="tm-split-item" onClick={exportWord}>
                   <span className="tm-split-tick" />
-                  <span><span className="tm-split-name">Word document</span>
-                    <span className="tm-split-hint">Speaker names in bold</span></span>
+                  <span><span className="tm-split-name">Word-compatible document</span>
+                    <span className="tm-split-hint">RTF with clear margins and bold speaker names</span></span>
+                </button>
+                <button type="button" className="tm-split-item" onClick={exportPdf}>
+                  <span className="tm-split-tick" />
+                  <span><span className="tm-split-name">PDF</span>
+                    <span className="tm-split-hint">Print-ready layout; choose Save as PDF</span></span>
                 </button>
                 <button type="button" className="tm-split-item"
                         onClick={() => download(copyFromSegments(segments, 'full', { speakerNames }), 'txt', 'text/plain;charset=utf-8')}>
@@ -1142,7 +1180,7 @@ const TranscriptEditor = ({
         <div className="tm-ed-shortcuts" role="note" aria-label="Editor keyboard shortcuts">
           <strong>Keyboard shortcuts</strong>
           <span>Click a line to correct it or a speaker tag to rename it everywhere.</span>
-          <span><kbd>Tab</kbd> next text or speaker block</span>
+          <span><kbd>Tab</kbd> next text or speaker block; on an empty speaker tag, it opens that text box</span>
           <span><kbd>Shift</kbd> + <kbd>Enter</kbd> new line; press twice for a new paragraph</span>
           <span><kbd>Ctrl</kbd> + <kbd>Enter</kbd> new speaker</span>
           <span><kbd>Ctrl</kbd> + <kbd>Z</kbd> undo &nbsp; <kbd>Ctrl</kbd> + <kbd>Y</kbd> redo</span>
