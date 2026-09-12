@@ -218,6 +218,11 @@ const Dashboard = ({ setCurrentView, onOpenHumanJob, standalone = false }) => {
           </button>
         </header>
 
+        <section className="tm-dashboard-guidelines" aria-label="Human-work guidelines">
+          <div><p className="tm-files-eyebrow">Human-work reference</p><h2>TypeMyworDz work guidelines</h2><p>Review the standards used for proofreading requests, client instructions, names, speaker turns, timestamps and final quality checks.</p></div>
+          <a href="/training-guidelines.html" target="_blank" rel="noreferrer">Open guidelines</a>
+        </section>
+
         <section className="tm-files-overview" aria-label="File overview">
           <div className="tm-files-overview-lead">
             <span className="tm-files-overview-mark" aria-hidden="true">↗</span>
