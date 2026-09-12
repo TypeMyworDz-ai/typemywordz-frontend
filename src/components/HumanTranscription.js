@@ -19,8 +19,10 @@ export default function HumanTranscription({ onBack, onOpenFiles, onTopUp, showM
   const [durationLoading, setDurationLoading] = useState(false);
   const [turnaround, setTurnaround] = useState('standard');
   const [difficulty, setDifficulty] = useState('standard');
+  const [service, setService] = useState('standard');
+  const [formatting, setFormatting] = useState('standard');
   const [timestamps, setTimestamps] = useState(true);
-  const [speakers, setSpeakers] = useState(true);
+  const [speakers, setSpeakers] = useState('1-2');
   const [notes, setNotes] = useState('');
   const [instructionFiles, setInstructionFiles] = useState([]);
   const [quote, setQuote] = useState(null);
@@ -74,9 +76,12 @@ export default function HumanTranscription({ onBack, onOpenFiles, onTopUp, showM
       body.append('seconds', String(Math.round(durationSeconds)));
       body.append('turnaround', turnaround);
       body.append('difficulty', difficulty);
+      body.append('service', service);
+      body.append('formatting', formatting);
       body.append('timestamps', String(timestamps));
-      body.append('speakers', String(speakers));
+      body.append('speakers', speakers);
       body.append('instructions', notes);
+      body.append('source_type', 'human_transcription');
       const response = await fetch(`${backendUrl}/human-transcription/jobs`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` }, body,
       });
@@ -113,6 +118,10 @@ export default function HumanTranscription({ onBack, onOpenFiles, onTopUp, showM
       body.append('seconds', String(Math.round(durationSeconds)));
       body.append('turnaround', turnaround);
       body.append('difficulty', difficulty);
+      body.append('service', service);
+      body.append('speakers', speakers);
+      body.append('timestamps', String(timestamps));
+      body.append('formatting', formatting);
       body.append('country_code', paymentCountryCode());
       const response = await fetch(`${backendUrl}/human-transcription/quote`, {
         method: 'POST',
@@ -186,6 +195,21 @@ export default function HumanTranscription({ onBack, onOpenFiles, onTopUp, showM
 
         <div className="tm-human-grid">
           <label className="tm-human-field">
+            <span>Service</span>
+            <select value={service} onChange={(event) => setService(event.target.value)}>
+              <option value="standard">Standard transcript</option>
+              <option value="proofread">Proofread and corrected</option>
+              <option value="formatted">Formatted for delivery</option>
+            </select>
+          </label>
+          <label className="tm-human-field">
+            <span>Speakers</span>
+            <select value={speakers} onChange={(event) => setSpeakers(event.target.value)}>
+              <option value="1-2">One or two speakers</option>
+              <option value="3+">Three or more speakers</option>
+            </select>
+          </label>
+          <label className="tm-human-field">
             <span>Turnaround</span>
             <select value={turnaround} onChange={(event) => setTurnaround(event.target.value)}>
               <option value="standard">Standard delivery</option>
@@ -197,6 +221,13 @@ export default function HumanTranscription({ onBack, onOpenFiles, onTopUp, showM
             <select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}>
               <option value="standard">Clear and steady</option>
               <option value="difficult">Difficult audio</option>
+            </select>
+          </label>
+          <label className="tm-human-field">
+            <span>Formatting</span>
+            <select value={formatting} onChange={(event) => setFormatting(event.target.value)}>
+              <option value="standard">Standard paragraphs</option>
+              <option value="advanced">Detailed formatting</option>
             </select>
           </label>
         </div>

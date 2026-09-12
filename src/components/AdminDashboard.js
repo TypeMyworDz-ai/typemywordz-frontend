@@ -143,6 +143,8 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
   const [users, setUsers] = useState([]);
   const [feedback, setFeedback] = useState([]);
   const [traffic, setTraffic] = useState([]);
+  const [trainees, setTrainees] = useState([]);
+  const [traineeLoading, setTraineeLoading] = useState(false);
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeUsers: 0,
@@ -156,6 +158,29 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
   const [search, setSearch] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+
+  const loadTrainees = useCallback(async () => {
+    if (!currentUser) return;
+    setTraineeLoading(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${BACKEND_URL}/api/admin/trainees`, { headers: { Authorization: `Bearer ${token}` } });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || 'Trainees could not be loaded.');
+      setTrainees(Array.isArray(payload.trainees) ? payload.trainees : []);
+    } catch (error) { showMessage?.(error.message, 'error'); } finally { setTraineeLoading(false); }
+  }, [currentUser, showMessage]);
+
+  const decideTrainee = async (uid, decision, payment_status) => {
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${BACKEND_URL}/api/admin/trainees/${uid}/decision`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ decision, payment_status }) });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || 'The trainee decision failed.');
+      showMessage?.('Trainee record updated.', 'success');
+      await loadTrainees();
+    } catch (error) { showMessage?.(error.message, 'error'); }
+  };
 
   const fetchAdminData = useCallback(async () => {
     if (!currentUser?.email || !isAdminEmail(currentUser.email)) return;
@@ -206,8 +231,8 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
   }, [currentUser, showMessage]);
 
   useEffect(() => {
-    if (isAdmin) fetchAdminData();
-  }, [isAdmin, fetchAdminData]);
+    if (isAdmin) { fetchAdminData(); loadTrainees(); }
+  }, [isAdmin, fetchAdminData, loadTrainees]);
 
   const trafficSnapshot = useMemo(() => {
     const cutoff = Date.now() - 30 * 86400000;
@@ -331,6 +356,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
             ['users', 'Users'],
             ['support', `Support${unreadFeedback ? ` · ${unreadFeedback}` : ''}`],
             ['human', 'Human work'],
+            ['trainees', `Trainees${trainees.length ? ` · ${trainees.length}` : ''}`],
           ].map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={activeTab === id} className="tm-admin-tab" onClick={() => setActiveTab(id)}>{label}</button>
           ))}
@@ -376,6 +402,13 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
 
         {activeTab === 'human' && (
           <HumanJobWorkspace mode="admin" showMessage={showMessage} />
+        )}
+
+        {activeTab === 'trainees' && (
+          <section className="tm-admin-panel tm-admin-table-panel">
+            <div className="tm-admin-table-toolbar"><div><h2 className="tm-admin-panel-title">Trainee applications</h2><p className="tm-admin-panel-note">Verify payment, approve levels, and promote ready people into the worker pool.</p></div><button type="button" className="tm-admin-btn" onClick={loadTrainees} disabled={traineeLoading}>{traineeLoading ? 'Refreshing…' : 'Refresh trainees'}</button></div>
+            <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Applicant</th><th>Application</th><th>Payment</th><th>Level</th><th>Actions</th></tr></thead><tbody>{trainees.map((trainee) => <tr key={trainee.uid || trainee.id}><td><strong>{trainee.name || 'Unnamed applicant'}</strong><div className="tm-admin-name">{trainee.email}</div><div className="tm-admin-name">{trainee.country || 'Country not supplied'}</div></td><td>{String(trainee.traineeStatus || 'not started').replaceAll('_', ' ')}</td><td>{String(trainee.trainingPaymentStatus || 'not submitted').replaceAll('_', ' ')}<div className="tm-admin-name">{trainee.trainingPaymentReference || ''}</div></td><td>{trainee.trainingLevel || 0} · {String(trainee.trainingStatus || 'not started').replaceAll('_', ' ')}</td><td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{trainee.traineeStatus !== 'approved' && trainee.role !== 'worker' && <button type="button" className="tm-admin-btn" onClick={() => decideTrainee(trainee.uid, 'approve', 'verified')}>Approve</button>}{trainee.traineeStatus !== 'rejected' && trainee.role !== 'worker' && <button type="button" className="tm-admin-btn tm-admin-btn-danger" onClick={() => decideTrainee(trainee.uid, 'reject', 'rejected')}>Reject</button>}{trainee.role === 'trainee' && <button type="button" className="tm-admin-btn" onClick={() => decideTrainee(trainee.uid, 'approve_level', 'verified')}>Approve next level</button>}{trainee.role === 'trainee' && <button type="button" className="tm-admin-btn" onClick={() => decideTrainee(trainee.uid, 'promote_worker', 'verified')}>Promote worker</button>}</div></td></tr>)}</tbody></table>{!trainees.length && <div className="tm-admin-empty">No trainee applications yet.</div>}</div>
+          </section>
         )}
 
         {activeTab === 'support' && (

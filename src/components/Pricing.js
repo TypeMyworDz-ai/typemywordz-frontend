@@ -97,6 +97,7 @@ const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => 
   const country = paymentCountryCode();
   const { catalogue, failed } = useCatalogue(country);
   const [busy, setBusy] = useState('');
+  const [customCredits, setCustomCredits] = useState('50');
 
   const buy = useCallback(
     (itemId) => {
@@ -127,7 +128,7 @@ const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => 
     );
   }
 
-  const { plans, topups, topup_valid_days: topupDays, free_trial_credits: freeCredits } = catalogue;
+  const { plans, topups, custom_topup: customTopup, topup_valid_days: topupDays, free_trial_credits: freeCredits } = catalogue;
 
   const buyLabel = (id, fallback) =>
     !isSignedIn ? 'Sign in to buy' : busy === id ? 'Opening checkout\u2026' : fallback;
@@ -161,6 +162,21 @@ const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => 
               </button>
             </div>
           ))}
+          {customTopup && (
+            <div className="tm-pr-bundle tm-pr-bundle-custom">
+              <div className="tm-pr-bundle-lbl">Choose your amount</div>
+              <label className="tm-pr-custom-label">
+                <span>Credits</span>
+                <input type="number" min={customTopup.min_credits} max={customTopup.max_credits} value={customCredits} onChange={(event) => setCustomCredits(event.target.value)} />
+              </label>
+              <div className="tm-pr-bundle-price">{money(Number(customCredits || 0) * Number(customTopup.price_per_credit || 0))}</div>
+              <div className="tm-pr-bundle-rate">{money(Number(customTopup.price_per_credit || 0))} per credit</div>
+              <button type="button" className="tm-pr-buy" disabled={!isSignedIn || busy === `topup-custom-${customCredits}`} onClick={() => buy(`topup-custom-${Math.round(Number(customCredits || 0))}`)}>
+                {buyLabel(`topup-custom-${customCredits}`, 'Buy this amount')}
+              </button>
+              <small>Choose between {customTopup.min_credits} and {customTopup.max_credits} credits.</small>
+            </div>
+          )}
         </div>
 
         <p className="tm-pr-switch">
