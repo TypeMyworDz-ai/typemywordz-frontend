@@ -27,6 +27,14 @@ const MicrosoftMark = () => (
   </svg>
 );
 
+const PasswordEye = ({ hidden }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M2.2 12s3.5-6 9.8-6 9.8 6 9.8 6-3.5 6-9.8 6-9.8-6-9.8-6Z" />
+    <circle cx="12" cy="12" r="2.5" />
+    {hidden && <path d="m4 4 16 16" />}
+  </svg>
+);
+
 const Login = () => {
   // 'signin' | 'signup' | 'reset'
   const [mode, setMode] = useState('signin');
@@ -270,8 +278,10 @@ const Login = () => {
                 className="tm-auth-peek"
                 onClick={() => setShowPassword((v) => !v)}
                 disabled={working}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                title={showPassword ? 'Hide password' : 'Show password'}
               >
-                {showPassword ? 'Hide' : 'Show'}
+                <PasswordEye hidden={!showPassword} />
               </button>
             </div>
             {mode === 'signup' && (

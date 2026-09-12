@@ -5,12 +5,21 @@ import { looksLikeAnEmail, usesPlusAlias, isDisposableEmail, friendlyAuthError, 
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 
+const PasswordEye = ({ hidden }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M2.2 12s3.5-6 9.8-6 9.8 6 9.8 6-3.5 6-9.8 6-9.8-6-9.8-6Z" />
+    <circle cx="12" cy="12" r="2.5" />
+    {hidden && <path d="m4 4 16 16" />}
+  </svg>
+);
+
 export default function TraineeSignup() {
   const navigate = useNavigate();
   const { currentUser, userProfile, signUpWithEmail } = useAuth();
   const [officialName, setOfficialName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -77,9 +86,9 @@ export default function TraineeSignup() {
         <button type="button" className="tm-trainee-back" onClick={() => navigate('/')}>Back to TypeMyworDz</button>
         <div className="tm-trainee-mark"><img src="/android-chrome-192x192.png" alt="" /></div>
         <p className="tm-lp-eyebrow">Training Room enrollment</p>
-        <h1>Train for paid proofreading work</h1>
+        <h1>Become a Skilled Transcriber</h1>
         <p className="tm-trainee-lede">Enrollment is currently open to Kenyan applicants only. Use your official ID names so we can keep your training and work records accurate.</p>
-        <div className="tm-trainee-price"><strong>$30 USD</strong><span>Paystack shows the final Kenyan charge at checkout.</span></div>
+        <div className="tm-trainee-price"><strong>$1.50 USD</strong><span>Temporary test price. Paystack shows the final Kenyan charge at checkout.</span></div>
         {error && <p className="tm-auth-error" role="alert">{error}</p>}
         {notice && <p className="tm-auth-notice" role="status">{notice}</p>}
         <label className="tm-auth-label" htmlFor="trainee-official-name">Full official ID name</label>
@@ -88,14 +97,19 @@ export default function TraineeSignup() {
           <label className="tm-auth-label" htmlFor="trainee-email">Email</label>
           <input id="trainee-email" className="tm-auth-input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy} />
           <label className="tm-auth-label" htmlFor="trainee-password">Password</label>
-          <input id="trainee-password" className="tm-auth-input" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy} />
+          <div className="tm-auth-pwwrap">
+            <input id="trainee-password" className="tm-auth-input" type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy} />
+            <button type="button" className="tm-auth-peek" onClick={() => setShowPassword((value) => !value)} disabled={busy} aria-label={showPassword ? 'Hide password' : 'Show password'} title={showPassword ? 'Hide password' : 'Show password'}>
+              <PasswordEye hidden={!showPassword} />
+            </button>
+          </div>
         </>}
         <label className="tm-trainee-check"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} disabled={busy} /> <span>I confirm that these are my official ID names.</span></label>
         <div className="tm-trainee-actions">
           <button type="button" className="tm-auth-submit" onClick={() => registerAndPay('paystack')} disabled={busy}>{busy ? 'Opening secure checkout…' : 'Pay with Paystack'}</button>
           <button type="button" className="tm-trainee-kora" onClick={() => registerAndPay('kora')} disabled={busy}>Use Kora instead</button>
         </div>
-        <p className="tm-trainee-promise">Complete all training modules and practicals successfully, and you may be considered for paid TypeMyworDz proofreading work. Becoming a worker is selective, not automatic.</p>
+        <p className="tm-trainee-promise">This programme is designed to build your transcription skills. Completing the training does not guarantee employment or paid work; any future opportunity is assessed separately.</p>
         {currentUser && <p className="tm-trainee-signed">Signed in as {currentUser.email}</p>}
       </div>
     </main>
