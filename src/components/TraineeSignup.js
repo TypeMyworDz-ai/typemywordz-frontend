@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { auth } from '../firebase';
-import { deleteUser, signOut } from 'firebase/auth';
 import { useAuth } from '../contexts/AuthContext';
 import { looksLikeAnEmail, usesPlusAlias, isDisposableEmail, friendlyAuthError, MIN_PASSWORD_LENGTH } from '../utils/emailChecks';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
+const PAID_INTENT_KEY = 'tmwd_trainee_paid_intent';
+const DRAFT_KEY = 'tmwd_trainee_checkout_draft';
 
 const PasswordEye = ({ hidden }) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -15,99 +15,172 @@ const PasswordEye = ({ hidden }) => (
   </svg>
 );
 
+const readSession = (key) => {
+  try { return JSON.parse(window.sessionStorage.getItem(key) || 'null'); } catch (error) { return null; }
+};
+const removeSession = (key) => { try { window.sessionStorage.removeItem(key); } catch (error) { /* ignore */ } };
+const writeSession = (key, value) => { try { window.sessionStorage.setItem(key, JSON.stringify(value)); } catch (error) { /* ignore */ } };
+
 export default function TraineeSignup() {
   const navigate = useNavigate();
-  const { currentUser, userProfile, signUpWithEmail } = useAuth();
+  const { currentUser, userProfile, signUpWithEmail, logout } = useAuth();
   const [officialName, setOfficialName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [paymentReference, setPaymentReference] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  useEffect(() => {
-    if (userProfile?.officialIdName) setOfficialName(userProfile.officialIdName);
-    else if (userProfile?.name) setOfficialName(userProfile.name);
-  }, [userProfile]);
-
-  const removeUnpaidAccount = async (user, deleteAuth = false) => {
+  const removeOldPendingAccount = useCallback(async (user) => {
     if (!user) return;
     try {
       const token = await user.getIdToken();
-      await fetch(`${BACKEND_URL}/api/trainee/cancel-pending`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ created_for_trainee: deleteAuth }) });
-    } catch (cleanupError) {
-      console.warn('Pending trainee cleanup could not reach the server:', cleanupError);
-    }
-    if (deleteAuth) {
-      try { await deleteUser(user); } catch (deleteError) { console.warn('Pending trainee auth cleanup:', deleteError); }
-      try { await signOut(auth); } catch (signOutError) { console.warn('Pending trainee sign-out:', signOutError); }
-    }
-    try { window.sessionStorage.removeItem('tmwd_trainee_checkout_started'); } catch (storageError) { /* ignore */ }
-  };
-
-  // Returning to this page after abandoning checkout must not leave a usable
-  // Firebase account behind. A successful callback changes the profile before
-  // this screen is shown, so this only applies to an unpaid pending account.
-  useEffect(() => {
-    const hasPaymentCallback = new URLSearchParams(window.location.search).has('reference') || window.location.search.includes('kora=') || window.location.search.includes('payment=');
-    let started = false;
-    try { started = window.sessionStorage.getItem('tmwd_trainee_checkout_started') === '1'; } catch (storageError) { /* ignore */ }
-    if (currentUser && userProfile?.trainingPaymentStatus === 'pending' && started && !hasPaymentCallback) {
-      removeUnpaidAccount(currentUser, Boolean(userProfile?.traineeAccountPendingDeletion));
-    }
-  }, [currentUser, userProfile]);
-
-  const registerAndPay = async (provider) => {
-    setError('');
-    setNotice('');
-    if (!officialName.trim() || officialName.trim().length < 2) return setError('Enter your full official name exactly as it appears on your ID.');
-    if (!confirmed) return setError('Please confirm that you are using your official ID names.');
-
-    setBusy(true);
-    let user = currentUser;
-    const createdForTrainee = !currentUser;
-    try {
-      if (!user) {
-        const address = email.trim().toLowerCase();
-        if (!looksLikeAnEmail(address)) throw new Error('Please enter a valid email address.');
-        if (usesPlusAlias(address)) throw new Error('Please use your plain email address, without a plus alias.');
-        if (password.length < MIN_PASSWORD_LENGTH) throw new Error(`Please choose a password of at least ${MIN_PASSWORD_LENGTH} characters.`);
-        if (await isDisposableEmail(address)) throw new Error('Please use a permanent email address. Temporary inboxes are not accepted.');
-        const result = await signUpWithEmail(address, password, officialName.trim());
-        user = result.user;
-      }
-
-      const token = await user.getIdToken();
-      const registration = await fetch(`${BACKEND_URL}/api/trainee/register`, {
+      await fetch(`${BACKEND_URL}/api/trainee/cancel-pending`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ official_name: officialName.trim(), country_code: 'KE', created_for_trainee: createdForTrainee }),
+        body: JSON.stringify({ force_pending_cleanup: true }),
       });
-      const registrationData = await registration.json().catch(() => ({}));
-      if (!registration.ok) throw new Error(registrationData.detail || 'We could not save your trainee registration.');
+    } catch (cleanupError) {
+      console.warn('Old pending trainee cleanup failed:', cleanupError);
+    }
+    await logout();
+  }, [logout]);
 
-      const endpoint = provider === 'kora' ? '/api/initialize-kora-trainee-payment' : '/api/initialize-paystack-payment';
-      const body = provider === 'kora'
-        ? { official_name: officialName.trim(), country_code: 'KE', redirect_url: `${window.location.origin}/?kora=success&trainee=1` }
-        : {
-            email: user.email,
-            amount: 0,
-            plan_name: 'trainee-training',
-            user_id: user.uid,
-            country_code: 'KE',
-            callback_url: `${window.location.origin}/?payment=success&trainee=1`,
-            update_admin_revenue: true,
-          };
-      const response = await fetch(`${BACKEND_URL}${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+  useEffect(() => {
+    const oldPending = currentUser && userProfile?.trainingPaymentStatus === 'pending' && userProfile?.trainingRoomAccess !== true;
+    if (oldPending) removeOldPendingAccount(currentUser);
+  }, [currentUser, removeOldPendingAccount, userProfile]);
+
+  useEffect(() => {
+    const draft = readSession(DRAFT_KEY);
+    const paid = readSession(PAID_INTENT_KEY);
+    if (draft) {
+      setEmail(draft.email || '');
+      setOfficialName(draft.officialName || '');
+    }
+    if (paid?.reference) {
+      setPaymentConfirmed(true);
+      setPaymentReference(paid.reference);
+      setEmail(paid.email || draft?.email || '');
+      setOfficialName(paid.officialName || draft?.officialName || '');
+      setNotice('Payment confirmed. Create your account below to open the Training Room.');
+    } else if (userProfile?.officialIdName) {
+      setOfficialName(userProfile.officialIdName);
+    } else if (userProfile?.name) {
+      setOfficialName(userProfile.name);
+    }
+  }, [userProfile]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const reference = params.get('reference');
+    const isTrainee = params.get('trainee') === '1';
+    const paymentStatus = params.get('payment') || '';
+    const koraState = params.get('kora') || '';
+    if (!isTrainee || (!reference && !paymentStatus && !koraState) || currentUser) return;
+
+    let cancelled = false;
+    const verify = async () => {
+      setBusy(true);
+      setError('');
+      try {
+        if (['failed', 'cancelled'].includes(paymentStatus) || ['failed', 'cancelled'].includes(koraState)) {
+          removeSession(PAID_INTENT_KEY);
+          removeSession(DRAFT_KEY);
+          setError('Payment was not completed. No trainee account was created.');
+          window.history.replaceState({}, document.title, '/trainee-signup');
+          return;
+        }
+        const endpoint = koraState ? '/api/verify-kora-payment' : '/api/verify-payment';
+        const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reference }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status !== 'success') throw new Error(data.detail || data.message || 'Payment verification failed.');
+        const paidData = data.data || {};
+        if (paidData.plan !== 'trainee-training') throw new Error('This payment is not a trainee enrollment.');
+        const draft = readSession(DRAFT_KEY) || {};
+        writeSession(PAID_INTENT_KEY, { reference, email: paidData.email || draft.email || '', officialName: draft.officialName || '' });
+        if (!cancelled) {
+          setPaymentConfirmed(true);
+          setPaymentReference(reference);
+          setEmail(paidData.email || draft.email || '');
+          setOfficialName(draft.officialName || '');
+          setNotice('Payment confirmed. Create your account below to open the Training Room.');
+          window.history.replaceState({}, document.title, '/trainee-signup');
+        }
+      } catch (verificationError) {
+        if (!cancelled) {
+          removeSession(PAID_INTENT_KEY);
+          setError(friendlyAuthError(verificationError));
+          window.history.replaceState({}, document.title, '/trainee-signup');
+        }
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    };
+    verify();
+    return () => { cancelled = true; };
+  }, [currentUser]);
+
+  const startPayment = async (provider) => {
+    setError('');
+    setNotice('');
+    const address = (currentUser?.email || email).trim().toLowerCase();
+    if (!looksLikeAnEmail(address)) return setError('Please enter a valid email address.');
+    if (!currentUser && usesPlusAlias(address)) return setError('Please use your plain email address, without a plus alias.');
+    if (!currentUser && await isDisposableEmail(address)) return setError('Please use a permanent email address. Temporary inboxes are not accepted.');
+    if (!officialName.trim() || officialName.trim().length < 2) return setError('Enter your full official name exactly as it appears on your ID.');
+    if (!confirmed) return setError('Please confirm that you are using your official ID names.');
+    setBusy(true);
+    try {
+      writeSession(DRAFT_KEY, { email: address, officialName: officialName.trim() });
+      const response = await fetch(`${BACKEND_URL}/api/initialize-trainee-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: address, official_name: officialName.trim(), country_code: 'KE', provider, callback_url: `${window.location.origin}/trainee-signup?payment=success&trainee=1` }),
+      });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.status) throw new Error(data.detail || data.message || 'Checkout could not be started.');
-      try { window.sessionStorage.setItem('tmwd_trainee_checkout_started', '1'); } catch (storageError) { /* ignore */ }
+      if (!response.ok || !data.status || !(data.authorization_url || data.checkout_url)) throw new Error(data.detail || data.message || 'Checkout could not be started.');
       window.location.href = data.authorization_url || data.checkout_url;
-    } catch (err) {
-      await removeUnpaidAccount(user, createdForTrainee);
-      setError(friendlyAuthError(err));
+    } catch (paymentError) {
+      setError(friendlyAuthError(paymentError));
+      setBusy(false);
+    }
+  };
+
+  const completeSignup = async () => {
+    if (!paymentReference) return setError('The paid enrollment could not be found.');
+    if (currentUser) {
+      setBusy(true);
+      try {
+        const token = await currentUser.getIdToken();
+        const response = await fetch(`${BACKEND_URL}/api/trainee/complete-signup`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ reference: paymentReference, official_name: officialName.trim() }) });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) throw new Error(data.detail || 'The Training Room could not be opened.');
+        removeSession(PAID_INTENT_KEY); removeSession(DRAFT_KEY); navigate('/');
+      } catch (completeError) { setError(friendlyAuthError(completeError)); } finally { setBusy(false); }
+      return;
+    }
+    const address = email.trim().toLowerCase();
+    if (!looksLikeAnEmail(address)) return setError('Please enter a valid email address.');
+    if (password.length < MIN_PASSWORD_LENGTH) return setError(`Please choose a password of at least ${MIN_PASSWORD_LENGTH} characters.`);
+    setBusy(true);
+    try {
+      const result = await signUpWithEmail(address, password, officialName.trim());
+      const token = await result.user.getIdToken();
+      const response = await fetch(`${BACKEND_URL}/api/trainee/complete-signup`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ reference: paymentReference, official_name: officialName.trim() }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.detail || 'The Training Room could not be opened.');
+      removeSession(PAID_INTENT_KEY); removeSession(DRAFT_KEY); navigate('/');
+    } catch (completeError) {
+      setError(friendlyAuthError(completeError));
       setBusy(false);
     }
   };
@@ -120,29 +193,19 @@ export default function TraineeSignup() {
         <p className="tm-lp-eyebrow">Training Room enrollment</p>
         <h1>Become a Skilled Transcriber</h1>
         <p className="tm-trainee-lede">Enrollment is currently open to Kenyan applicants only. Use your official ID names so we can keep your training and work records accurate.</p>
+        <img className="tm-trainee-illustration" src="/trainee-african-headphones.png" alt="African transcription trainee working with headphones" />
         <div className="tm-trainee-price"><strong>$1.50 USD</strong><span>Temporary test price. Paystack shows the final Kenyan charge at checkout.</span></div>
         {error && <p className="tm-auth-error" role="alert">{error}</p>}
         {notice && <p className="tm-auth-notice" role="status">{notice}</p>}
         <label className="tm-auth-label" htmlFor="trainee-official-name">Full official ID name</label>
-        <input id="trainee-official-name" className="tm-auth-input" value={officialName} onChange={(e) => setOfficialName(e.target.value)} placeholder="As shown on your official ID" disabled={busy} />
-        {!currentUser && <>
-          <label className="tm-auth-label" htmlFor="trainee-email">Email</label>
-          <input id="trainee-email" className="tm-auth-input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy} />
-          <label className="tm-auth-label" htmlFor="trainee-password">Password</label>
-          <div className="tm-auth-pwwrap">
-            <input id="trainee-password" className="tm-auth-input" type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy} />
-            <button type="button" className="tm-auth-peek" onClick={() => setShowPassword((value) => !value)} disabled={busy} aria-label={showPassword ? 'Hide password' : 'Show password'} title={showPassword ? 'Hide password' : 'Show password'}>
-              <PasswordEye hidden={!showPassword} />
-            </button>
-          </div>
-        </>}
-        <label className="tm-trainee-check"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} disabled={busy} /> <span>I confirm that these are my official ID names.</span></label>
-        <div className="tm-trainee-actions">
-          <button type="button" className="tm-auth-submit" onClick={() => registerAndPay('paystack')} disabled={busy}>{busy ? 'Opening secure checkout…' : 'Pay with Paystack'}</button>
-          <button type="button" className="tm-trainee-kora" onClick={() => registerAndPay('kora')} disabled={busy}>Use Kora instead</button>
-        </div>
+        <input id="trainee-official-name" className="tm-auth-input" value={officialName} onChange={(e) => setOfficialName(e.target.value)} placeholder="As shown on your official ID" disabled={busy || paymentConfirmed} />
+        {!currentUser && <label className="tm-auth-label" htmlFor="trainee-email">Email</label>}
+        {!currentUser && <input id="trainee-email" className="tm-auth-input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy || paymentConfirmed} />}
+        {paymentConfirmed && !currentUser && <><label className="tm-auth-label" htmlFor="trainee-password">Create a password</label><div className="tm-auth-pwwrap"><input id="trainee-password" className="tm-auth-input" type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy} /><button type="button" className="tm-auth-peek" onClick={() => setShowPassword((value) => !value)} disabled={busy} aria-label={showPassword ? 'Hide password' : 'Show password'} title={showPassword ? 'Hide password' : 'Show password'}><PasswordEye hidden={!showPassword} /></button></div></>}
+        {!paymentConfirmed && <label className="tm-trainee-check"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} disabled={busy} /> <span>I confirm that these are my official ID names.</span></label>}
+        <div className="tm-trainee-actions">{paymentConfirmed ? <button type="button" className="tm-auth-submit" onClick={completeSignup} disabled={busy}>{busy ? 'Creating your account…' : 'Create account and open Training Room'}</button> : <><button type="button" className="tm-auth-submit" onClick={() => startPayment('paystack')} disabled={busy}>{busy ? 'Opening secure checkout…' : 'Pay with Paystack'}</button><button type="button" className="tm-trainee-kora" onClick={() => startPayment('kora')} disabled={busy}>Use Kora instead</button></>}</div>
         <p className="tm-trainee-promise">This programme is designed to build your transcription skills. Completing the training does not guarantee employment or paid work; any future opportunity is assessed separately.</p>
-        {currentUser && <p className="tm-trainee-signed">Signed in as {currentUser.email}</p>}
+        {currentUser && !paymentConfirmed && <p className="tm-trainee-signed">Signed in as {currentUser.email}</p>}
       </div>
     </main>
   );
