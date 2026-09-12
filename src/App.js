@@ -387,34 +387,31 @@ function AppContent() {
     const isAfrica = AFRICA_PAYMENT_COUNTRIES.has(countryCode);
     const isTopUp = String(itemId || '').startsWith('topup-');
 
-    // Kora is the primary gateway for African credit top-ups. Paystack is the
-    // fallback if Kora is unavailable or rejects initialization.
+    // African credit top-ups use Paystack first, with Kora as fallback.
     if (isAfrica && isTopUp) {
-      try {
-        return await initializeKoraPayment(itemId, countryCode);
-      } catch (error) {
-        console.warn('Kora top-up initialization failed; trying Paystack.', error);
-        showMessage('Kora checkout was unavailable. Trying Paystack instead...', 'info');
-        return initializePaystackPayment(itemId, countryCode);
-      }
-    }
-
-    // Paystack remains primary for African plans. Kora is the fallback.
-    if (isAfrica) {
       try {
         const paystackResult = await initializePaystackPayment(itemId, countryCode);
         if (!paystackResult) throw new Error('Paystack checkout did not open.');
         return paystackResult;
       } catch (error) {
-        console.warn('Paystack plan initialization failed; trying Kora.', error);
+        console.warn('Paystack top-up initialization failed; trying Kora.', error);
         showMessage('Paystack checkout was unavailable. Trying Kora instead...', 'info');
         return initializeKoraPayment(itemId, countryCode);
       }
     }
 
-    if (String(itemId || '').startsWith('topup-custom-')) {
-      return initializePaystackPayment(itemId, countryCode);
+    // African plans use Kora first, with Paystack as fallback.
+    if (isAfrica) {
+      try {
+        return await initializeKoraPayment(itemId, countryCode);
+      } catch (error) {
+        console.warn('Kora plan initialization failed; trying Paystack.', error);
+        showMessage('Kora checkout was unavailable. Trying Paystack instead...', 'info');
+        return initializePaystackPayment(itemId, countryCode);
+      }
     }
+
+    // International payments are handled only by Paddle.
     return initializePaddlePayment(itemId, countryCode);
   }, [initializePaddlePayment, initializePaystackPayment, initializeKoraPayment, showMessage]);
 
