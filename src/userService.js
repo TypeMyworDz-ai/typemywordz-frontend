@@ -82,71 +82,61 @@ const getUserProfileRef = (uid) => doc(db, USERS_COLLECTION, uid);
 // Create or update user profile
 export const createUserProfile = async (uid, email, name = '') => {
   const userRef = getUserProfileRef(uid);
-  const docSnap = await getDoc(userRef);
+  const currentTime = new Date();
+  let created = false;
 
-  const userPlan = 'free'; // All new users start with 'free' plan
-  const currentTime = new Date(); // Get current time once
+  // AuthContext can observe a new Firebase user at the same time as a sign-in
+  // handler. Use one transaction so only one observer can claim a brand-new
+  // profile and trigger the one-off welcome email.
+  await runTransaction(db, async (transaction) => {
+    const docSnap = await transaction.get(userRef);
+    const userPlan = 'free';
 
-  if (!docSnap.exists()) {
-    await setDoc(userRef, {
-      uid,
-      email,
-      name,
-      plan: userPlan,
-      totalMinutesUsed: 0,
-      hasReceivedInitialFreeMinutes: false, // New users start with the free trial available
-      createdAt: currentTime, // Use concrete Date object
-      lastAccessed: currentTime, // Use concrete Date object
-      expiresAt: null, 
-      subscriptionStartDate: null,
-    });
-    console.log("User profile created for:", email, "with plan:", userPlan);
+    if (!docSnap.exists()) {
+      transaction.set(userRef, {
+        uid,
+        email,
+        name,
+        plan: userPlan,
+        totalMinutesUsed: 0,
+        hasReceivedInitialFreeMinutes: false,
+        createdAt: currentTime,
+        lastAccessed: currentTime,
+        expiresAt: null,
+        subscriptionStartDate: null,
+      });
+      created = true;
+      return;
+    }
 
-    // Brand new account, so send the one-off welcome email. This is
-    // deliberately fire-and-forget: if the email provider is slow or down the
-    // client still gets straight into the app, and nothing here can throw.
+    const existingData = docSnap.data();
+    const updates = { lastAccessed: currentTime };
+    if (existingData.totalMinutesUsed === undefined) updates.totalMinutesUsed = 0;
+    if (existingData.hasReceivedInitialFreeMinutes === undefined) {
+      updates.hasReceivedInitialFreeMinutes = (existingData.totalMinutesUsed || 0) > 0;
+    }
+    if (existingData.plan === undefined) updates.plan = 'free';
+    if (existingData.expiresAt === undefined) updates.expiresAt = null;
+    if (existingData.subscriptionStartDate === undefined) updates.subscriptionStartDate = null;
+    transaction.update(userRef, updates);
+  });
+
+  if (created) {
     try {
-      fetch(`${RAILWAY_BACKEND_URL}/api/send-welcome-email`, {
+      const response = await fetch(`${RAILWAY_BACKEND_URL}/api/send-welcome-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, name }),
-      }).catch(() => {});
-    } catch (e) {
-      // Never let a welcome email get in the way of signing up.
+        keepalive: true,
+      });
+      if (!response.ok) console.warn('Welcome email request failed:', response.status);
+    } catch (error) {
+      // Signup still succeeds if the email provider is unavailable.
+      console.warn('Welcome email request failed:', error);
     }
-    return true;
-  } else {
-    const existingData = docSnap.data();
-    const updates = {
-      lastAccessed: currentTime, // Use concrete Date object
-    };
-
-    // Initialize new fields for existing users if they don't exist
-    if (existingData.totalMinutesUsed === undefined) {
-      updates.totalMinutesUsed = 0; // Reset or initialize to 0
-    }
-    if (existingData.hasReceivedInitialFreeMinutes === undefined) {
-      // If they had any usage before, assume they've received their initial minutes
-      updates.hasReceivedInitialFreeMinutes = (existingData.totalMinutesUsed || 0) > 0;
-    }
-    if (existingData.plan === undefined) { // Ensure plan is set for older users
-      updates.plan = 'free';
-    }
-    if (existingData.expiresAt === undefined) { // Ensure expiresAt is set
-      updates.expiresAt = null;
-    }
-    if (existingData.subscriptionStartDate === undefined) { // Ensure subscriptionStartDate is set
-      updates.subscriptionStartDate = null;
-    }
-
-
-    // Only update if there are actual changes (more than just lastAccessed)
-    if (Object.keys(updates).length > 1 || (Object.keys(updates).length === 1 && updates.lastAccessed)) {
-        await updateDoc(userRef, updates);
-        console.log("User profile updated for:", email);
-    }
-    return false;
   }
+
+  return created;
 };
 
 // Get user profile (UPDATED for correct expiry logic and new plan names)
