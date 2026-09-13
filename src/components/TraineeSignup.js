@@ -226,7 +226,7 @@ export default function TraineeSignup() {
         <h1>Become a Skilled Transcriber</h1>
         <p className="tm-trainee-lede">Enrollment is currently open to Kenyan applicants only. Use your official ID names so we can keep your training and work records accurate.</p>
         <img className="tm-trainee-illustration" src="/trainee-african-headphones.png" alt="African transcription trainee working with headphones" />
-        <div className="tm-trainee-price"><strong>$1.50 USD</strong><span>Temporary test price. Kora is the primary checkout; Paystack appears only if Kora cannot complete the payment.</span></div>
+        <div className="tm-trainee-price"><strong>$0.50 USD</strong><span>Reduced testing price. Kora is the primary checkout; Paystack appears only if Kora cannot complete the payment.</span></div>
         {error && <p className="tm-auth-error" role="alert">{error}</p>}
         {notice && <p className="tm-auth-notice" role="status">{notice}</p>}
         <label className="tm-auth-label" htmlFor="trainee-official-name">Full official ID name</label>

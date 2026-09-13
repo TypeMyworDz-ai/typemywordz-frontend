@@ -283,7 +283,7 @@ export default function HumanRequest({
             )}
 
             <div className="tm-human-modal-foot">
-              <span>We check your balance before any order is created. There is no charge, reservation, or file upload while you are checking the price.</span>
+              <span>We check your balance before any order is created. There is no charge, reservation, or file upload while you are checking the price. <a href="/training-guidelines.pdf" target="_blank" rel="noreferrer">Read the human-work guide</a> before you request.</span>
               <button type="button" className="tm-human-modal-primary" onClick={prepareQuote} disabled={loading || !durationSeconds}>
                 {loading ? 'Preparing…' : quote ? 'Refresh estimate' : 'Calculate price'}
               </button>
