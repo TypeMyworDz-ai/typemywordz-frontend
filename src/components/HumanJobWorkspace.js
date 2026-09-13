@@ -18,6 +18,13 @@ const moneylessDate = (value) => {
   return Number.isNaN(date.getTime()) ? 'Not recorded' : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 };
 
+const formatAttachmentSize = (bytes) => {
+  const size = Number(bytes || 0);
+  if (!size) return '';
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '' }) {
   const { currentUser } = useAuth();
   const [jobs, setJobs] = useState([]);
@@ -260,7 +267,11 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             <div className="tm-human-chat-card">
               <div className="tm-human-chat-head"><div><strong>Conversation</strong><span>Client, admin and assigned worker only</span></div><span className="tm-human-live-dot">Live</span></div>
               <div className="tm-human-messages">{messages.map((item) => <article key={item.id} className="tm-human-message"><div><strong>{item.sender_role === 'admin' ? 'TypeMyworDz admin' : item.sender_email}</strong><time>{moneylessDate(item.createdAt)}</time></div>{item.message && <p>{item.message}</p>}{item.attachment && <button type="button" className="tm-human-attachment-link" onClick={() => downloadAttachment(item)}>Download: {item.attachment.name}</button>}</article>)}{!messages.length && <div className="tm-human-empty">No messages yet. Keep the job conversation here so nobody has to move to another app.</div>}</div>
-              <form className="tm-human-message-form" onSubmit={sendMessage}><textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} onKeyDown={handleMessageKeyDown} placeholder="Write to the people on this job" rows={2} aria-label="Job conversation message" /><div className="tm-human-message-actions"><span className="tm-human-message-hint">Enter to send · Shift+Enter for a new line</span><label className="tm-human-attach">Attach any file<input type="file" onChange={(event) => setMessageFile(event.target.files?.[0] || null)} /></label><button type="submit" disabled={busy || (!messageText.trim() && !messageFile)}>Send</button></div></form>
+              <form className="tm-human-message-form" onSubmit={sendMessage}>
+                <textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} onKeyDown={handleMessageKeyDown} placeholder="Write to the people on this job" rows={2} aria-label="Job conversation message" />
+                {messageFile && <div className="tm-human-attachment-preview" role="status" aria-live="polite"><span><strong>Attached:</strong> {messageFile.name}{formatAttachmentSize(messageFile.size) ? ` · ${formatAttachmentSize(messageFile.size)}` : ''}</span><button type="button" onClick={() => setMessageFile(null)} aria-label={`Remove ${messageFile.name}`}>Remove</button></div>}
+                <div className="tm-human-message-actions"><label className="tm-human-attach" title="Attach any file" aria-label="Attach any file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 3.5h8l3 3V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M15 3.5V7h3M9 11h6M9 15h6"/></svg><input type="file" onChange={(event) => setMessageFile(event.target.files?.[0] || null)} /></label><span className="tm-human-message-hint">Enter to send · Shift+Enter for a new line</span><button type="submit" disabled={busy || (!messageText.trim() && !messageFile)}>Send</button></div>
+              </form>
             </div>
           </>}
         </div>
