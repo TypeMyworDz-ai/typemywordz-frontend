@@ -114,6 +114,7 @@ export const createUserProfile = async (uid, email, name = '') => {
     } catch (e) {
       // Never let a welcome email get in the way of signing up.
     }
+    return true;
   } else {
     const existingData = docSnap.data();
     const updates = {
@@ -144,6 +145,7 @@ export const createUserProfile = async (uid, email, name = '') => {
         await updateDoc(userRef, updates);
         console.log("User profile updated for:", email);
     }
+    return false;
   }
 };
 
