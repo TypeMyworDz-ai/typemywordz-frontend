@@ -1505,6 +1505,22 @@ body {
 }
 
 .tm-ed-empty { padding: 34px 22px; color: var(--tm-muted); font-size: 14px; }
+.tm-ed-empty-start {
+  display: block;
+  width: 100%;
+  min-height: 140px;
+  margin: 18px 22px;
+  padding: 12px 14px;
+  border: 1px dashed var(--tm-border, #d7dae0);
+  border-radius: 8px;
+  background: #fbfbfc;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--tm-ink);
+  resize: vertical;
+}
+.tm-ed-empty-start:focus { outline: 2px solid var(--tm-green); outline-offset: 2px; border-style: solid; }
 
 .tm-seg {
   display: flex;
