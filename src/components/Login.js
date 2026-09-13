@@ -47,7 +47,7 @@ const Login = () => {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');   // a calm, non-error confirmation
 
-  const { signInWithGoogle, signInWithMicrosoft, signInWithEmail, signUpWithEmail, sendPasswordReset } = useAuth();
+  const { signInWithGoogle, signInWithMicrosoft, signInWithEmail, signUpWithEmail, sendPasswordReset, showMessage } = useAuth();
   const navigate = useNavigate();
 
   const switchTo = (next) => {
@@ -139,6 +139,7 @@ const Login = () => {
       }
 
       await signUpWithEmail(address, password, name);
+      showMessage('Welcome to TypeMyworDz.', 'success');
       navigate('/');
     } catch (err) {
       setError(friendlyAuthError(err));

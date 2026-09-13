@@ -163,17 +163,36 @@ export default function TraineeSignup() {
     }
   };
 
+  const finalizeEnrollment = async (user) => {
+    let lastError = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const token = await user.getIdToken(true);
+      const response = await fetch(`${BACKEND_URL}/api/trainee/complete-signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reference: paymentReference, official_name: officialName.trim() }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.success) return data;
+      lastError = new Error(data.detail || 'The Training Room could not be opened.');
+      if (response.status !== 409 || attempt === 2) break;
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+    }
+    throw lastError || new Error('The Training Room could not be opened.');
+  };
+
   const completeSignup = async () => {
     if (!paymentReference) return setError('The paid enrollment could not be found.');
     if (currentUser) {
       setBusy(true);
       try {
-        const token = await currentUser.getIdToken();
-        const response = await fetch(`${BACKEND_URL}/api/trainee/complete-signup`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ reference: paymentReference, official_name: officialName.trim() }) });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data.success) throw new Error(data.detail || 'The Training Room could not be opened.');
-        removeSession(PAID_INTENT_KEY); removeSession(DRAFT_KEY); navigate('/');
-      } catch (completeError) { setError(friendlyAuthError(completeError)); } finally { setBusy(false); }
+        await finalizeEnrollment(currentUser);
+        removeSession(PAID_INTENT_KEY); removeSession(DRAFT_KEY);
+        window.location.assign('/?open=training-room');
+      } catch (completeError) {
+        setError(friendlyAuthError(completeError));
+        setBusy(false);
+      }
       return;
     }
     const address = email.trim().toLowerCase();
@@ -182,11 +201,9 @@ export default function TraineeSignup() {
     setBusy(true);
     try {
       const result = await signUpWithEmail(address, password, officialName.trim());
-      const token = await result.user.getIdToken();
-      const response = await fetch(`${BACKEND_URL}/api/trainee/complete-signup`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ reference: paymentReference, official_name: officialName.trim() }) });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.success) throw new Error(data.detail || 'The Training Room could not be opened.');
-      removeSession(PAID_INTENT_KEY); removeSession(DRAFT_KEY); navigate('/');
+      await finalizeEnrollment(result.user);
+      removeSession(PAID_INTENT_KEY); removeSession(DRAFT_KEY);
+      window.location.assign('/?open=training-room');
     } catch (completeError) {
       setError(friendlyAuthError(completeError));
       setBusy(false);
