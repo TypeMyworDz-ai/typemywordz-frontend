@@ -102,9 +102,6 @@ const Landing = () => {
           <div className="menu-item" onClick={go('plans')}>
             <span className="menu-text">Pricing</span>
           </div>
-          <Link className="menu-item" to="/trainee-signup">
-            <span className="menu-text">Trainee sign-up</span>
-          </Link>
           <Link className="menu-item" to="/faq">
             <span className="menu-text">Help and FAQ</span>
           </Link>
