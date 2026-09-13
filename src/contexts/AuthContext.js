@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { auth, googleProvider, microsoftProvider } from '../firebase'; // Removed db import
 import {
   onAuthStateChanged,
+  getRedirectResult,
   signInWithRedirect,
   signOut,
   createUserWithEmailAndPassword,
@@ -158,6 +159,18 @@ export const AuthProvider = ({ children }) => {
       showMessage(`Error logging out: ${error.message}`,'error');
     }
   };
+
+  useEffect(() => {
+    let active = true;
+    getRedirectResult(auth).catch((error) => {
+      // Firebase reports no-auth-event on ordinary page loads. Only surface
+      // a real provider/callback failure to the client.
+      if (!active || error?.code === 'auth/no-auth-event') return;
+      console.error('OAuth redirect result error:', error);
+      showMessage(`Sign-in could not be completed: ${error.message}`, 'error');
+    });
+    return () => { active = false; };
+  }, [showMessage]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
