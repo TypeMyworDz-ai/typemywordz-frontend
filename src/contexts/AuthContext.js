@@ -3,7 +3,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { auth, googleProvider, microsoftProvider } from '../firebase'; // Removed db import
 import {
   onAuthStateChanged,
-  signInWithPopup,
+  signInWithRedirect,
   signOut,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -97,24 +97,13 @@ export const AuthProvider = ({ children }) => {
     }
   }, [currentUser, showMessage]);
 
+  // Redirect is more reliable than a popup on the branded auth domain:
+  // the popup callback can lose its opener/session state before Firebase
+  // completes the OAuth exchange. The normal auth-state listener below loads
+  // the profile after the provider redirects back to the app.
   const signInWithGoogle = async () => {
     try {
-      const result = await signInWithPopup(auth, googleProvider); 
-      
-      setProfileLoading(true);
-      try {
-        await createUserProfile(result.user.uid, result.user.email, result.user.displayName);
-        const profile = await getUserProfile(result.user.uid);
-        setUserProfile(profile);
-        showMessage(`Signed in as ${result.user.email}`,'success');
-      } catch (error) {
-        console.error('Error creating/loading profile after Google sign-in:', error);
-        showMessage(`Error with profile after Google sign-in: ${error.message}`,'error');
-      } finally {
-        setProfileLoading(false);
-      }
-      
-      return result;
+      await signInWithRedirect(auth, googleProvider);
     } catch (error) {
       console.error('Google sign-in error:', error);
       showMessage(`Google sign-in failed: ${error.message}`,'error');
@@ -124,22 +113,7 @@ export const AuthProvider = ({ children }) => {
 
   const signInWithMicrosoft = async () => {
     try {
-      const result = await signInWithPopup(auth, microsoftProvider); 
-      
-      setProfileLoading(true);
-      try {
-        await createUserProfile(result.user.uid, result.user.email, result.user.displayName);
-        const profile = await getUserProfile(result.user.uid);
-        setUserProfile(profile);
-        showMessage(`Signed in as ${result.user.email}`,'success');
-      } catch (error) {
-        console.error('Error creating/loading profile after Microsoft sign-in:', error);
-        showMessage(`Error with profile after Microsoft sign-in: ${error.message}`,'error');
-      } finally {
-        setProfileLoading(false);
-      }
-      
-      return result;
+      await signInWithRedirect(auth, microsoftProvider);
     } catch (error) {
       console.error('Microsoft sign-in error:', error);
       showMessage(`Microsoft sign-in failed: ${error.message}`,'error');
