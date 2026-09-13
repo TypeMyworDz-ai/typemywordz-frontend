@@ -2067,6 +2067,14 @@ return (
 
           <main className="tm-main">
 
+        {unreadMessageCount > 0 && currentView !== 'messages' && (
+          <button type="button" className="tm-unread-banner" onClick={() => setCurrentView('messages')}>
+            <span className="tm-unread-banner-dot" aria-hidden="true" />
+            <span><strong>{unreadMessageCount > 99 ? '99+' : unreadMessageCount} unread message{unreadMessageCount === 1 ? '' : 's'}</strong><small>Open Messages to read the latest client, admin, worker or job update.</small></span>
+            <span className="tm-unread-banner-link">Open Messages</span>
+          </button>
+        )}
+
         {/* A client who walks away from a finished transcript and then comes
             back has no way of knowing it is still sitting under Transcribe.
             Several of them clicked New transcription instead, which starts a
