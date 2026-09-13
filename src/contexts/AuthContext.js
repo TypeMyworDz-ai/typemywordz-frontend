@@ -160,9 +160,40 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loadAuthenticatedUser = useCallback(async (user) => {
+    setCurrentUser(user);
+    if (!user) {
+      setUserProfile(null);
+      setProfileLoading(false);
+      setLoading(false);
+      return;
+    }
+    setProfileLoading(true);
+    try {
+      // During paid trainee completion, never create a normal free profile
+      // in the auth callback before the backend can promote the UID.
+      if (hasPendingPaidTraineeIntent(user.email)) {
+        setUserProfile(null);
+      } else {
+        await createUserProfile(user.uid, user.email, user.displayName);
+        const profile = await getUserProfile(user.uid);
+        setUserProfile(profile);
+      }
+    } catch (error) {
+      console.error('Error loading user profile in AuthContext:', error);
+      showMessage(`Error loading profile: ${error.message}`,'error');
+    } finally {
+      setProfileLoading(false);
+      setLoading(false);
+    }
+  }, [showMessage]);
+
   useEffect(() => {
     let active = true;
-    getRedirectResult(auth).catch((error) => {
+    getRedirectResult(auth).then((result) => {
+      if (active && result?.user) return loadAuthenticatedUser(result.user);
+      return null;
+    }).catch((error) => {
       // Firebase reports no-auth-event on ordinary page loads. Only surface
       // a real provider/callback failure to the client.
       if (!active || error?.code === 'auth/no-auth-event') return;
@@ -170,37 +201,9 @@ export const AuthProvider = ({ children }) => {
       showMessage(`Sign-in could not be completed: ${error.message}`, 'error');
     });
     return () => { active = false; };
-  }, [showMessage]);
+  }, [loadAuthenticatedUser, showMessage]);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      if (user) {
-        setProfileLoading(true);
-        try {
-          // During paid trainee completion, never create a normal free profile
-          // in the auth callback before the backend can promote the UID.
-          if (hasPendingPaidTraineeIntent(user.email)) {
-            setUserProfile(null);
-          } else {
-            await createUserProfile(user.uid, user.email, user.displayName);
-            const profile = await getUserProfile(user.uid);
-            setUserProfile(profile);
-          }
-        } catch (error) {
-          console.error('Error loading user profile in AuthContext:', error);
-          showMessage(`Error loading profile: ${error.message}`,'error');
-        } finally {
-          setProfileLoading(false);
-        }
-      } else {
-        setUserProfile(null);
-      }
-      setLoading(false);
-    });
-
-    return unsubscribe;
-  }, [showMessage]);
+  useEffect(() => onAuthStateChanged(auth, loadAuthenticatedUser), [loadAuthenticatedUser]);
 
   const value = {
     currentUser,
