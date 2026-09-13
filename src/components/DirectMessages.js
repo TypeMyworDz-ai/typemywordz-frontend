@@ -65,7 +65,12 @@ export default function DirectMessages({ showMessage, compact = false, onMessage
     try {
       const payload = await request('/api/messaging/inbox');
       const next = payload.threads || [];
-      setThreads(next);
+      const activeId = selectedIdRef.current;
+      setThreads((current) => {
+        const serverIds = new Set(next.map((thread) => thread.id));
+        const activeLocalThread = current.find((thread) => thread.id === activeId && !serverIds.has(thread.id));
+        return activeLocalThread ? [activeLocalThread, ...next] : next;
+      });
       setSelectedId((current) => current || next[0]?.id || '');
     } catch (error) {
       if (!silent) showMessage?.(error.message, 'error');
@@ -159,7 +164,8 @@ export default function DirectMessages({ showMessage, compact = false, onMessage
       if (payload.message) setMessages((current) => current.concat(payload.message));
       setDraft('');
       setFile(null);
-      event.currentTarget.reset();
+      // The composer is controlled by React, so clearing draft/file state is
+      // enough. Do not call reset() on the pooled submit event after await.
       // Refresh the inbox and this exact conversation.  Do not rely on a
       // newly-created thread object or a polling response to identify the
       // active conversation; either can otherwise replace the board with an
