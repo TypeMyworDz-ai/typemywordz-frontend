@@ -149,14 +149,8 @@ export const AuthProvider = ({ children }) => {
       }
     }
 
-    try {
-      await sendEmailVerification(result.user);
-    } catch (error) {
-      // The account exists and works and the email can be sent again later, so
-      // this must not look to the client like a failed signup.
-      console.error('Could not send the verification email:', error);
-    }
-
+    // Do not send a verification email automatically during signup.
+    // The user can request one later through resendVerificationEmail().
     return result;
   };
 
