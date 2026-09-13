@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
@@ -31,6 +31,17 @@ export default function DirectMessages({ showMessage, compact = false, onMessage
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [starting, setStarting] = useState(false);
+  const selectedIdRef = useRef('');
+  const threadsRef = useRef([]);
+  const messageRequestRef = useRef(0);
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
+  useEffect(() => {
+    threadsRef.current = threads;
+  }, [threads]);
 
   const request = useCallback(async (path, options = {}) => {
     const token = await currentUser.getIdToken();
@@ -85,23 +96,26 @@ export default function DirectMessages({ showMessage, compact = false, onMessage
     ].filter(Boolean).join(' ').toLowerCase().includes(query));
   }, [search, threads]);
 
-  const loadMessages = useCallback(async (silent = false) => {
-    if (!selectedThread) {
-      setMessages([]);
+  const loadMessages = useCallback(async (silent = false, threadOverride = null) => {
+    const thread = threadOverride || threadsRef.current.find((item) => item.id === selectedIdRef.current);
+    const requestId = ++messageRequestRef.current;
+    if (!thread) {
+      if (!selectedIdRef.current) setMessages([]);
       return;
     }
-    const path = selectedThread.kind === 'job'
-      ? `/human-transcription/jobs/${encodeURIComponent(selectedThread.job.id)}/messages`
-      : `/api/user-chats/${encodeURIComponent(selectedThread.user.uid)}/messages`;
+    const path = thread.kind === 'job'
+      ? `/human-transcription/jobs/${encodeURIComponent(thread.job.id)}/messages`
+      : `/api/user-chats/${encodeURIComponent(thread.user.uid)}/messages`;
     try {
       const payload = await request(path);
+      if (requestId !== messageRequestRef.current || selectedIdRef.current !== thread.id) return;
       setMessages(payload.messages || []);
       onMessagesRead?.();
-      setThreads((current) => current.map((thread) => thread.id === selectedThread.id ? { ...thread, unreadCount: 0 } : thread));
+      setThreads((current) => current.map((item) => item.id === thread.id ? { ...item, unreadCount: 0 } : item));
     } catch (error) {
-      if (!silent) showMessage?.(error.message, 'error');
+      if (!silent && requestId === messageRequestRef.current) showMessage?.(error.message, 'error');
     }
-  }, [onMessagesRead, request, selectedThread, showMessage]);
+  }, [onMessagesRead, request, showMessage]);
 
   useEffect(() => { loadInbox(); loadContacts(); }, [loadContacts, loadInbox]);
   useEffect(() => {
@@ -131,11 +145,12 @@ export default function DirectMessages({ showMessage, compact = false, onMessage
 
   const send = async (event) => {
     event.preventDefault();
-    if (!selectedThread || (!draft.trim() && !file)) return;
+    const threadToSend = selectedThread;
+    if (!threadToSend || (!draft.trim() && !file)) return;
     setBusy(true);
-    const path = selectedThread.kind === 'job'
-      ? `/human-transcription/jobs/${encodeURIComponent(selectedThread.job.id)}/messages`
-      : `/api/user-chats/${encodeURIComponent(selectedThread.user.uid)}/messages`;
+    const path = threadToSend.kind === 'job'
+      ? `/human-transcription/jobs/${encodeURIComponent(threadToSend.job.id)}/messages`
+      : `/api/user-chats/${encodeURIComponent(threadToSend.user.uid)}/messages`;
     try {
       const form = new FormData();
       form.append('message', draft.trim());
@@ -144,8 +159,13 @@ export default function DirectMessages({ showMessage, compact = false, onMessage
       if (payload.message) setMessages((current) => current.concat(payload.message));
       setDraft('');
       setFile(null);
-      event.target.reset();
+      event.currentTarget.reset();
+      // Refresh the inbox and this exact conversation.  Do not rely on a
+      // newly-created thread object or a polling response to identify the
+      // active conversation; either can otherwise replace the board with an
+      // empty result immediately after a successful send.
       await loadInbox(true);
+      await loadMessages(true, threadToSend);
     } catch (error) {
       showMessage?.(error.message, 'error');
     } finally {
