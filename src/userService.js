@@ -3,10 +3,12 @@ import { isAdminEmail, isCompAccessEmail } from './adminEmails';
 import { usableTopUpCredits, spendableFor, fetchCreditBalance } from './creditsService';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc, addDoc, runTransaction } from 'firebase/firestore'; // Keep serverTimestamp just in case for other uses, but we'll manually set for this fix
 
-// Length of the free trial, in minutes. Kept small deliberately: it is
-// enough for a new client to judge the quality, and not enough to be worth
-// abusing with throwaway accounts.
-export const FREE_TRIAL_MINUTES = 5;
+// Length of the free trial, in minutes. Matches the server's
+// FREE_TRIAL_CREDITS (one credit is one minute), so this is only a fallback
+// figure for the rare case the browser cannot reach the credit balance
+// endpoint at all; the server-issued balance is always the real source of
+// truth for how many free minutes an account actually has left.
+export const FREE_TRIAL_MINUTES = 30;
 
 // How much transcription each paid plan includes, in minutes.
 //
