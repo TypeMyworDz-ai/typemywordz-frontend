@@ -272,17 +272,39 @@ function AppContent() {
   // then read the balance. The conversion does its work once and ignores
   // every call after, so running it on every sign-in is safe and means no
   // client is ever left on the old system.
+  //
+  // This deliberately waits for userProfile rather than firing on currentUser
+  // alone. currentUser is set the instant Firebase Auth resolves, which for a
+  // brand-new account is before its Firestore profile document has actually
+  // been written. Calling the backfill that early found no profile to read,
+  // silently did nothing, and left a fresh signup looking like it had zero
+  // credits until the next full reload. Waiting for userProfile guarantees
+  // the account exists server-side before we ask it to convert or report a
+  // balance, and it is retried with a short backoff in case the profile
+  // write is still committing when this first runs.
   useEffect(() => {
     let cancelled = false;
     if (!currentUser) { setCreditBalance(null); return undefined; }
+    if (!userProfile) return undefined;
     (async () => {
-      await runCreditBackfill(currentUser.uid, currentUser.email);
-      if (cancelled) return;
-      const bal = await fetchCreditBalance(currentUser.uid, currentUser.email);
-      if (!cancelled) setCreditBalance(bal);
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (cancelled) return;
+        const backfillResult = await runCreditBackfill(currentUser.uid, currentUser.email);
+        if (cancelled) return;
+        const bal = await fetchCreditBalance(currentUser.uid, currentUser.email);
+        if (cancelled) return;
+        if (bal) setCreditBalance(bal);
+        // A genuinely fresh, unpaid free account with a zero balance and no
+        // record of the trial being granted yet almost always means the
+        // profile write had not landed when we asked. Retry briefly rather
+        // than leaving the client staring at "no credits left".
+        const looksUnresolved = backfillResult === null || (bal && bal.total === 0 && !bal.planCreditsExpireAt && !userProfile.hasReceivedInitialFreeMinutes);
+        if (!looksUnresolved) return;
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
     })();
     return () => { cancelled = true; };
-  }, [currentUser]);
+  }, [currentUser, userProfile]);
 
   // NEW: State to prevent duplicate payment verification
   const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);

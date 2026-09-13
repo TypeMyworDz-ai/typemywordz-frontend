@@ -1,7 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
-import { db } from '../firebase';
 import TranscriptEditor from './TranscriptEditor';
 import './HumanJobWorkspace.css';
 
@@ -40,6 +38,12 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [audioUrl, setAudioUrl] = useState('');
+  // Admin is the only role that can see both sides of a job, and even admin
+  // sees them as two separate conversations, never merged: one with the
+  // client, one with the assigned worker. A client or worker never chooses
+  // this; the server decides their thread from their role regardless of
+  // what this is set to.
+  const [adminThread, setAdminThread] = useState('client');
 
   const token = useCallback(() => currentUser?.getIdToken(), [currentUser]);
   const selectedJob = useMemo(() => jobs.find((job) => job.id === selectedId) || jobs[0] || null, [jobs, selectedId]);
@@ -87,13 +91,14 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const loadMessages = useCallback(async () => {
     if (!selectedJob?.id) return;
     try {
-      const payload = await request(`/human-transcription/jobs/${selectedJob.id}/messages`);
+      const query = mode === 'admin' ? `?thread=${adminThread}` : '';
+      const payload = await request(`/human-transcription/jobs/${selectedJob.id}/messages${query}`);
       setMessages(payload.messages || []);
     } catch (error) {
       // A quiet refresh failure should not interrupt editing.
       console.warn('Human chat refresh failed:', error);
     }
-  }, [request, selectedJob?.id]);
+  }, [request, selectedJob?.id, mode, adminThread]);
 
   useEffect(() => { loadJobs(); loadWorkers(); }, [loadJobs, loadWorkers]);
   useEffect(() => {
@@ -119,19 +124,18 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [selectedJob?.id, selectedJob?.audio, token]);
 
+  // Messages come from the backend's REST endpoint, never straight from
+  // Firestore. The server is the only thing that knows which of the two
+  // separate conversations (client<->admin or worker<->admin) this actor is
+  // allowed to see, so a direct Firestore listener here could only either
+  // be blocked outright or, worse, end up reading both threads unfiltered.
+  // Polling every few seconds is a deliberate trade of a little latency for
+  // that guarantee.
   useEffect(() => {
     if (!selectedJob?.id) return undefined;
-    let liveListener;
-    try {
-      const messagesQuery = query(collection(db, 'human_jobs', selectedJob.id, 'messages'), orderBy('createdAt'));
-      liveListener = onSnapshot(messagesQuery, (snapshot) => {
-        setMessages(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
-      }, () => { loadMessages(); });
-    } catch (error) {
-      loadMessages();
-    }
+    loadMessages();
     const interval = window.setInterval(loadMessages, 3000);
-    return () => { if (liveListener) liveListener(); window.clearInterval(interval); };
+    return () => window.clearInterval(interval);
   }, [loadMessages, selectedJob?.id]);
 
   const act = async (path, options = {}) => {
@@ -151,6 +155,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     if (!selectedJob || busy || (!messageText.trim() && !messageFile)) return;
     const form = new FormData();
     form.append('message', messageText.trim());
+    if (mode === 'admin') form.append('thread', adminThread);
     if (messageFile) form.append('attachment', messageFile);
     setBusy(true);
     try {
@@ -265,8 +270,21 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             </div>
 
             <div className="tm-human-chat-card">
-              <div className="tm-human-chat-head"><div><strong>Conversation</strong><span>Client, admin and assigned worker only</span></div><span className="tm-human-live-dot">Live</span></div>
-              <div className="tm-human-messages">{messages.map((item) => <article key={item.id} className="tm-human-message"><div><strong>{item.sender_role === 'admin' ? 'TypeMyworDz admin' : item.sender_email}</strong><time>{moneylessDate(item.createdAt)}</time></div>{item.message && <p>{item.message}</p>}{item.attachment && <button type="button" className="tm-human-attachment-link" onClick={() => downloadAttachment(item)}>Download: {item.attachment.name}</button>}</article>)}{!messages.length && <div className="tm-human-empty">No messages yet. Keep the job conversation here so nobody has to move to another app.</div>}</div>
+              <div className="tm-human-chat-head">
+                <div><strong>Conversation</strong><span>{mode === 'admin' ? 'Two separate threads: the worker never sees the client, and the client never sees the worker.' : mode === 'worker' ? 'You and TypeMyworDz admin only. The client is never part of this thread.' : 'You and TypeMyworDz admin only. The worker is never part of this thread.'}</span></div>
+                <span className="tm-human-live-dot">Live</span>
+              </div>
+              {mode === 'admin' && (
+                <div className="tm-human-thread-tabs" role="tablist" aria-label="Choose which conversation to view">
+                  <button type="button" role="tab" aria-selected={adminThread === 'client'} className={adminThread === 'client' ? 'active' : ''} onClick={() => setAdminThread('client')}>Message client</button>
+                  <button type="button" role="tab" aria-selected={adminThread === 'worker'} className={adminThread === 'worker' ? 'active' : ''} disabled={!selectedJob.worker_uid} title={selectedJob.worker_uid ? '' : 'Assign a worker first'} onClick={() => setAdminThread('worker')}>Message worker</button>
+                </div>
+              )}
+              <div className="tm-human-messages">{messages.map((item) => {
+                const isMine = item.sender_uid === currentUser?.uid;
+                const label = item.sender_role === 'admin' ? 'TypeMyworDz admin' : isMine ? 'You' : item.sender_role === 'worker' ? 'Worker' : 'Client';
+                return <article key={item.id} className="tm-human-message"><div><strong>{label}</strong><time>{moneylessDate(item.createdAt)}</time></div>{item.message && <p>{item.message}</p>}{item.attachment && <button type="button" className="tm-human-attachment-link" onClick={() => downloadAttachment(item)}>Download: {item.attachment.name}</button>}</article>;
+              })}{!messages.length && <div className="tm-human-empty">No messages yet. Keep the job conversation here so nobody has to move to another app.</div>}</div>
               <form className="tm-human-message-form" onSubmit={sendMessage}>
                 <textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} onKeyDown={handleMessageKeyDown} placeholder="Write to the people on this job" rows={2} aria-label="Job conversation message" />
                 {messageFile && <div className="tm-human-attachment-preview" role="status" aria-live="polite"><span><strong>Attached:</strong> {messageFile.name}{formatAttachmentSize(messageFile.size) ? ` · ${formatAttachmentSize(messageFile.size)}` : ''}</span><button type="button" onClick={() => setMessageFile(null)} aria-label={`Remove ${messageFile.name}`}>Remove</button></div>}

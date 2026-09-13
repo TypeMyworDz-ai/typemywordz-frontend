@@ -181,7 +181,7 @@ const Login = () => {
     : mode === 'reset' ? 'Reset your password'
       : 'Sign in';
 
-  const blurb = mode === 'signup' ? 'Five minutes of transcription free, no card needed.'
+  const blurb = mode === 'signup' ? '30 minutes of transcription free, no card needed.'
     : mode === 'reset' ? 'We will email you a link to set a new password.'
       : 'Welcome back.';
 

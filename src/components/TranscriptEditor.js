@@ -1137,7 +1137,28 @@ const TranscriptEditor = ({
       <div className="tm-ed-list" ref={listRef}
            onWheel={() => { followRef.current = false; }}>
         {segments.length === 0 ? (
-          <p className="tm-ed-empty">This transcript is empty.</p>
+          readOnly ? (
+            <p className="tm-ed-empty">This transcript is empty.</p>
+          ) : (
+            // A brand-new human-transcription job starts with no text at
+            // all, and buildSegments() has nothing to turn into a line, so
+            // there was previously no line to click and therefore no way to
+            // type a single character. This gives the worker one starting
+            // line; typing into it creates the first real segment, after
+            // which every normal editing tool (split, speaker tags, find)
+            // works exactly as it does on an AI-transcribed job.
+            <textarea
+              className="tm-ed-empty-start"
+              autoFocus
+              placeholder="Start typing the transcript here…"
+              onChange={(e) => {
+                const value = e.target.value;
+                if (!value) return;
+                publishEdit([{ id: 0, start: 0, end: 0, speaker: null, text: value }]);
+                setEditingIndex(0);
+              }}
+            />
+          )
         ) : segments.map((seg, i) => (
           <Segment
             key={seg.id}
