@@ -82,7 +82,7 @@ export default function TraineeSignup() {
     const isTrainee = params.get('trainee') === '1';
     const paymentStatus = params.get('payment') || '';
     const koraState = params.get('kora') || '';
-    if (!isTrainee || (!reference && !paymentStatus && !koraState) || currentUser) return;
+    if (!isTrainee || (!reference && !paymentStatus && !koraState)) return;
 
     let cancelled = false;
     const verify = async () => {
@@ -111,6 +111,13 @@ export default function TraineeSignup() {
         if (!response.ok || data.status !== 'success') throw new Error(data.detail || data.message || 'Payment verification failed.');
         const paidData = data.data || {};
         if (paidData.plan !== 'trainee-training') throw new Error('This payment is not a trainee enrollment.');
+        if (currentUser && paidData.training_room) {
+          removeSession(PAID_INTENT_KEY);
+          removeSession(DRAFT_KEY);
+          window.history.replaceState({}, document.title, '/trainee-signup');
+          window.location.assign('/?open=training-room');
+          return;
+        }
         const draft = readSession(DRAFT_KEY) || {};
         writeSession(PAID_INTENT_KEY, { reference, email: paidData.email || draft.email || '', officialName: draft.officialName || '' });
         if (!cancelled) {

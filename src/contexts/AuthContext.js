@@ -15,6 +15,16 @@ import { createUserProfile, getUserProfile } from '../userService';
 import Toaster, { durationForType } from '../components/Toaster';
 
 const AuthContext = createContext();
+const PAID_TRAINEE_INTENT_KEY = 'tmwd_trainee_paid_intent';
+
+const hasPendingPaidTraineeIntent = (email) => {
+  try {
+    const intent = JSON.parse(window.sessionStorage.getItem(PAID_TRAINEE_INTENT_KEY) || 'null');
+    return Boolean(intent?.reference && intent?.email && intent.email.toLowerCase() === (email || '').toLowerCase());
+  } catch (error) {
+    return false;
+  }
+};
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -181,9 +191,15 @@ export const AuthProvider = ({ children }) => {
       if (user) {
         setProfileLoading(true);
         try {
-          await createUserProfile(user.uid, user.email, user.displayName);
-          const profile = await getUserProfile(user.uid);
-          setUserProfile(profile);
+          // During paid trainee completion, never create a normal free profile
+          // in the auth callback before the backend can promote the UID.
+          if (hasPendingPaidTraineeIntent(user.email)) {
+            setUserProfile(null);
+          } else {
+            await createUserProfile(user.uid, user.email, user.displayName);
+            const profile = await getUserProfile(user.uid);
+            setUserProfile(profile);
+          }
         } catch (error) {
           console.error('Error loading user profile in AuthContext:', error);
           showMessage(`Error loading profile: ${error.message}`,'error');
