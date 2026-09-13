@@ -4,7 +4,7 @@ import { auth, googleProvider, microsoftProvider } from '../firebase'; // Remove
 import {
   onAuthStateChanged,
   getRedirectResult,
-  signInWithRedirect,
+  signInWithPopup,
   signOut,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -98,13 +98,12 @@ export const AuthProvider = ({ children }) => {
     }
   }, [currentUser, showMessage]);
 
-  // Redirect is more reliable than a popup on the branded auth domain:
-  // the popup callback can lose its opener/session state before Firebase
-  // completes the OAuth exchange. The normal auth-state listener below loads
-  // the profile after the provider redirects back to the app.
+  // Use the native Firebase auth domain with the popup flow. This preserves
+  // the previously working sign-in behavior while avoiding the custom-domain
+  // callback that fails to restore the browser session.
   const signInWithGoogle = async () => {
     try {
-      await signInWithRedirect(auth, googleProvider);
+      await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error('Google sign-in error:', error);
       showMessage(`Google sign-in failed: ${error.message}`,'error');
@@ -114,7 +113,7 @@ export const AuthProvider = ({ children }) => {
 
   const signInWithMicrosoft = async () => {
     try {
-      await signInWithRedirect(auth, microsoftProvider);
+      await signInWithPopup(auth, microsoftProvider);
     } catch (error) {
       console.error('Microsoft sign-in error:', error);
       showMessage(`Microsoft sign-in failed: ${error.message}`,'error');
