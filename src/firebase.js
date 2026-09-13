@@ -4,7 +4,11 @@ import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  // Use Firebase's native auth domain for the OAuth callback. The custom
+  // auth.typemywordz.ai handler currently returns to the app without
+  // restoring the Firebase session in this browser. Provider branding still
+  // comes from the TypeMyworDz OAuth consent configuration.
+  authDomain: 'typemywordz-d7344.firebaseapp.com',
   projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
   storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
