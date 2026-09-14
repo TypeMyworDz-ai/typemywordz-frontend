@@ -136,6 +136,25 @@ export const createUserProfile = async (uid, email, name = '') => {
       // Signup still succeeds if the email provider is unavailable.
       console.warn('Welcome email request failed:', error);
     }
+
+    // A referral code sitting in the URL (?ref=CODE) only ever applies to a
+    // genuinely brand-new account, and only once - never on an ordinary
+    // login. Read it, then clear it so a later visit or a page refresh
+    // cannot apply it a second time.
+    try {
+      const code = window.localStorage.getItem('tm_referral_code');
+      if (code) {
+        window.localStorage.removeItem('tm_referral_code');
+        const form = new FormData();
+        form.append('user_id', uid);
+        form.append('user_email', email);
+        form.append('code', code);
+        await fetch(`${RAILWAY_BACKEND_URL}/referrals/apply`, { method: 'POST', body: form });
+      }
+    } catch (error) {
+      // A referral bonus is a nice-to-have, never a signup blocker.
+      console.warn('Referral code could not be applied:', error);
+    }
   }
 
   return created;
