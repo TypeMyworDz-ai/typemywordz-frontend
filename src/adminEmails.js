@@ -13,10 +13,7 @@ export const ADMIN_EMAILS = [
 // no elevated access to anyone else's data. Keeping this list separate from
 // ADMIN_EMAILS is the whole point, so that "does not pay" never quietly turns
 // into "can see everything".
-export const COMP_ACCESS_EMAILS = [
-  // Dedicated Deepgram-only test account.
-  'info@typemywordztest.com',
-];
+export const COMP_ACCESS_EMAILS = [];
 
 // Case-insensitive, whitespace-tolerant check, matching the backend's behaviour.
 export const isAdminEmail = (email) => {
