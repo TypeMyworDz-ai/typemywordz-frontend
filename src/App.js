@@ -37,6 +37,7 @@ import AskTypeMyworDz from './components/AskTypeMyworDz';
 import { AskProvider } from './components/AskContext';
 import AskChatList from './components/AskChatList';
 import Settings from './components/Settings';
+import Referrals from './components/Referrals';
 import Pricing, { PublicPricing } from './components/Pricing';
 import AskPanel from './components/AskPanel';
 import HumanTranscription from './components/HumanTranscription';
@@ -137,6 +138,21 @@ function AppContent() {
   const [currentView, setCurrentView] = useState('transcribe');
   const [selectedHumanJobId, setSelectedHumanJobId] = useState('');
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+
+  // A referral link looks like typemywordz.ai/?ref=CODE. Whoever clicked it
+  // might not sign up for several minutes, so the code is stashed until a
+  // brand-new account actually gets created (see userService.createUserProfile),
+  // then cleared. It is never applied to an existing account.
+  useEffect(() => {
+    try {
+      const ref = new URLSearchParams(window.location.search).get('ref');
+      if (ref && /^[A-Za-z0-9]{4,12}$/.test(ref)) {
+        window.localStorage.setItem('tm_referral_code', ref.toUpperCase());
+      }
+    } catch {
+      // Referral capture is best-effort only; it must never block the app loading.
+    }
+  }, []);
 
   const refreshUnreadMessageCount = useCallback(async () => {
     if (!currentUser) {
@@ -2046,6 +2062,14 @@ return (
               </>
             )}
 
+            <button
+              className={"tm-nav" + (currentView === 'referrals' ? " tm-nav-on" : "")}
+              onClick={() => setCurrentView('referrals')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21c-4.97-3.14-8-6.4-8-10.13A4.87 4.87 0 0 1 12 7a4.87 4.87 0 0 1 8 3.87C20 14.6 16.97 17.86 12 21z"/></svg>
+              Refer &amp; earn
+            </button>
+
             <div className="tm-plancard">
               <div className={"tm-plancard-name" + (planLabel.pending ? " tm-plan-pending" : "")}>{planLabel.text}</div>
               {planLabel.pending ? null : planLabel.isFree ? (
@@ -2193,6 +2217,11 @@ return (
             userEmail={currentUser?.email || ''}
             canUseAI={isPaidAIUser(userProfile, currentUser?.email, creditBalance)}
             onUpgrade={() => setCurrentView('pricing')}
+          />
+        ) : currentView === 'referrals' ? (
+          <Referrals
+            userId={currentUser?.uid || ''}
+            userEmail={currentUser?.email || ''}
           />
           ) : currentView === 'dashboard' ? (
           <Dashboard
