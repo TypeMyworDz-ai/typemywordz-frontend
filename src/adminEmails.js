@@ -2,7 +2,6 @@
 // This list must stay in step with ADMIN_EMAILS in the backend (main.py).
 export const ADMIN_EMAILS = [
   'typemywordz@gmail.com',
-  'mutheepatriciah3@gmail.com',
 ];
 
 // Complimentary accounts: free to use the app, but NOT admins.
