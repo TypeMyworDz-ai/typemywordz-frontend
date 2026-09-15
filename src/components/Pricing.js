@@ -98,6 +98,13 @@ const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => 
   const { catalogue, failed } = useCatalogue(country);
   const [busy, setBusy] = useState('');
   const [customCredits, setCustomCredits] = useState('50');
+  const customMinimum = Number(catalogue?.custom_topup?.min_credits) || 50;
+
+  useEffect(() => {
+    if (catalogue?.custom_topup && Number(customCredits) < customMinimum) {
+      setCustomCredits(String(customMinimum));
+    }
+  }, [catalogue, customCredits, customMinimum]);
 
   const buy = useCallback(
     (itemId) => {
@@ -129,14 +136,9 @@ const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => 
   }
 
   const { plans, topups, custom_topup: customTopup, topup_valid_days: topupDays, free_trial_credits: freeCredits } = catalogue;
-  const customMinimum = Number(customTopup?.min_credits) || 50;
   const customMaximum = Number(customTopup?.max_credits) || 50000;
   const customAmount = Math.round(Number(customCredits) || 0);
   const customAmountValid = customAmount >= customMinimum && customAmount <= customMaximum;
-
-  useEffect(() => {
-    if (customTopup && customAmount < customMinimum) setCustomCredits(String(customMinimum));
-  }, [customTopup, customAmount, customMinimum]);
 
   const buyLabel = (id, fallback) =>
     !isSignedIn ? 'Sign in to buy' : busy === id ? 'Opening checkout\u2026' : fallback;
