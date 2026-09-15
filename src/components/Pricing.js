@@ -164,17 +164,19 @@ const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => 
           ))}
           {customTopup && (
             <div className="tm-pr-bundle tm-pr-bundle-custom">
-              <div className="tm-pr-bundle-lbl">Choose your amount</div>
+              <div className="tm-pr-custom-kicker">Flexible top-up</div>
+              <div className="tm-pr-custom-title">Set your exact amount</div>
+              <p className="tm-pr-custom-copy">No fixed bundle. Choose the number of credits that fits this project and pay only for that amount.</p>
               <label className="tm-pr-custom-label">
                 <span>Credits</span>
-                <input type="number" min={customTopup.min_credits} max={customTopup.max_credits} value={customCredits} onChange={(event) => setCustomCredits(event.target.value)} />
+                <input type="number" min={customTopup.min_credits} max={customTopup.max_credits} value={customCredits} onChange={(event) => setCustomCredits(event.target.value)} aria-label="Custom credit amount" />
               </label>
-              <div className="tm-pr-bundle-price">{money(Number(customCredits || 0) * Number(customTopup.price_per_credit || 0))}</div>
+              <div className="tm-pr-custom-total">{money(Number(customCredits || 0) * Number(customTopup.price_per_credit || 0))}</div>
               <div className="tm-pr-bundle-rate">{money(Number(customTopup.price_per_credit || 0))} per credit</div>
               <button type="button" className="tm-pr-buy" disabled={!isSignedIn || busy === `topup-custom-${customCredits}`} onClick={() => buy(`topup-custom-${Math.round(Number(customCredits || 0))}`)}>
                 {buyLabel(`topup-custom-${customCredits}`, 'Buy this amount')}
               </button>
-              <small>Choose between {customTopup.min_credits} and {customTopup.max_credits} credits.</small>
+              <small>Minimum {customTopup.min_credits} credits. Set the exact amount you need.</small>
             </div>
           )}
         </div>
