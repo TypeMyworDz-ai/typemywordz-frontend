@@ -9,7 +9,7 @@ const formatDate = (value) => {
   return Number.isNaN(date.getTime()) ? 'Recorded' : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 };
 
-export default function CreditHistory({ admin = false, showMessage }) {
+export default function CreditHistory({ admin = false, showMessage, onBack }) {
   const { currentUser } = useAuth();
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +78,12 @@ export default function CreditHistory({ admin = false, showMessage }) {
           <h1 id="credit-history-title">Credit activity</h1>
           <p>{admin ? 'Make a support adjustment and leave a clear record for the client.' : 'Every addition and deduction is recorded with its reason and time.'}</p>
         </div>
-        {!admin && <button className="tm-human-refresh" type="button" onClick={() => loadHistory()}>Refresh</button>}
+        {!admin && (
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {onBack && <button className="tm-human-refresh" type="button" onClick={onBack}>Back to Dashboard</button>}
+            <button className="tm-human-refresh" type="button" onClick={() => loadHistory()}>Refresh</button>
+          </div>
+        )}
       </div>
 
       {admin && (
