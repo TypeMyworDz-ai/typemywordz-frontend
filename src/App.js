@@ -435,14 +435,14 @@ function AppContent() {
       return;
     }
     try {
-      const customMatch = String(itemId || '').match(/^topup-custom-(\d+)$/);
+      const customMatch = String(itemId || '').match(/^topup-custom-(-?\d+)$/);
       let transactionId = '';
       let config = null;
 
       if (customMatch) {
         const credits = Number(customMatch[1]);
         if (!Number.isInteger(credits) || credits < 100) {
-          throw new Error('International custom top-ups require at least 100 credits.');
+          throw new Error('Minimum allowed top up is 100 credits.');
         }
         const token = await currentUser.getIdToken();
         const response = await fetch(`${RAILWAY_BACKEND_URL}/paddle-custom-topup`, {
