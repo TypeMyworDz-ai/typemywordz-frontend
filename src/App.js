@@ -2118,11 +2118,14 @@ return (
                     <div className="tm-credits-note">Running low.</div>
                   ) : null}
 
-                  {(creditsExhausted(creditBalance) || creditsAreFrozen(creditBalance) || creditsRunningLow(creditBalance)) && (
-                    <button className="tm-credits-cta" onClick={() => setCurrentView('credits')}>
-                      Add credits
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className={`tm-credits-link${spendableCredits(creditBalance) > 0 ? ' tm-credits-link-green' : ' tm-credits-link-red'}`}
+                    onClick={() => setCurrentView('credits')}
+                  >
+                    {spendableCredits(creditBalance) > 0 ? 'Credits running low? Top up.' : 'No credits left? Top up.'}
+                  </button>
+
                 </div>
               )}
             </div>
