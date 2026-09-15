@@ -98,6 +98,13 @@ const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => 
   const { catalogue, failed } = useCatalogue(country);
   const [busy, setBusy] = useState('');
   const [customCredits, setCustomCredits] = useState('50');
+  const customMinimum = Number(catalogue?.custom_topup?.min_credits) || 50;
+
+  useEffect(() => {
+    if (catalogue?.custom_topup && Number(customCredits) < customMinimum) {
+      setCustomCredits(String(customMinimum));
+    }
+  }, [catalogue, customCredits, customMinimum]);
 
   const buy = useCallback(
     (itemId) => {
@@ -129,7 +136,9 @@ const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => 
   }
 
   const { plans, topups, custom_topup: customTopup, topup_valid_days: topupDays, free_trial_credits: freeCredits } = catalogue;
-  const customMinimum = Number(customTopup?.min_credits) || 50;
+  const customMaximum = Number(customTopup?.max_credits) || 50000;
+  const customAmount = Math.round(Number(customCredits) || 0);
+  const customAmountValid = customAmount >= customMinimum && customAmount <= customMaximum;
 
   const buyLabel = (id, fallback) =>
     !isSignedIn ? 'Sign in to buy' : busy === id ? 'Opening checkout\u2026' : fallback;
@@ -169,14 +178,14 @@ const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => 
               <div className="tm-pr-custom-title">Type the exact amount of credits you need.</div>
               <label className="tm-pr-custom-label">
                 <span>Credits</span>
-                <input type="number" min={customMinimum} max={customTopup.max_credits} value={customCredits} onChange={(event) => setCustomCredits(event.target.value)} aria-label="Custom credit amount" />
+                <input type="number" min={customMinimum} max={customMaximum} value={customCredits} onChange={(event) => setCustomCredits(event.target.value)} aria-label="Custom credit amount" />
               </label>
-              <div className="tm-pr-custom-total">{money(Number(customCredits || 0) * Number(customTopup.price_per_credit || 0))}</div>
+              <div className="tm-pr-custom-total">{money(customAmount * Number(customTopup.price_per_credit || 0))}</div>
               <div className="tm-pr-bundle-rate">{money(Number(customTopup.price_per_credit || 0))} per credit</div>
-              <button type="button" className="tm-pr-buy" disabled={!isSignedIn || busy === `topup-custom-${customCredits}`} onClick={() => buy(`topup-custom-${Math.round(Number(customCredits || 0))}`)}>
-                {buyLabel(`topup-custom-${customCredits}`, 'Buy this amount')}
+              <button type="button" className="tm-pr-buy" disabled={!isSignedIn || !customAmountValid || busy === `topup-custom-${customAmount}`} onClick={() => buy(`topup-custom-${customAmount}`)}>
+                {buyLabel(`topup-custom-${customAmount}`, 'Buy this amount')}
               </button>
-              <small>Minimum {customMinimum} credits.</small>
+              <small>Minimum {customMinimum} credits. Enter at least {customMinimum} credits to continue.</small>
             </div>
           )}
         </div>
