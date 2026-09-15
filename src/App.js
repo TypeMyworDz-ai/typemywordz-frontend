@@ -435,35 +435,59 @@ function AppContent() {
       return;
     }
     try {
-      const response = await fetch(PADDLE_CONFIG_URL);
-      const config = await response.json();
-      if (!response.ok) throw new Error(config.detail || 'Paddle checkout is not ready yet.');
+      const customMatch = String(itemId || '').match(/^topup-custom-(\d+)$/);
+      let transactionId = '';
+      let config = null;
 
-      const priceId = config.price_ids?.[itemId];
-      if (!priceId) throw new Error('This item is not available for international checkout yet.');
+      if (customMatch) {
+        const credits = Number(customMatch[1]);
+        if (!Number.isInteger(credits) || credits < 100) {
+          throw new Error('International custom top-ups require at least 100 credits.');
+        }
+        const token = await currentUser.getIdToken();
+        const response = await fetch(`${RAILWAY_BACKEND_URL}/paddle-custom-topup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ credits, country_code: countryCode || 'GLOBAL' }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || 'Paddle custom checkout could not be created.');
+        transactionId = data.transaction_id || '';
+        config = await fetch(PADDLE_CONFIG_URL).then(async (configResponse) => {
+          const configData = await configResponse.json();
+          if (!configResponse.ok) throw new Error(configData.detail || 'Paddle checkout is not ready yet.');
+          return configData;
+        });
+      } else {
+        const response = await fetch(PADDLE_CONFIG_URL);
+        config = await response.json();
+        if (!response.ok) throw new Error(config.detail || 'Paddle checkout is not ready yet.');
+        if (!config.price_ids?.[itemId]) throw new Error('This item is not available for international checkout yet.');
+      }
+
       if (!window.Paddle) throw new Error('Secure checkout is still loading. Please try again in a moment.');
-
       if (config.environment === 'sandbox' && window.Paddle.Environment?.set) {
         window.Paddle.Environment.set('sandbox');
       }
       if (!window.__tmPaddleInitialized) {
-        window.Paddle.Initialize({
-          token: config.client_token,
-          eventCallback: handlePaddleEvent,
-        });
+        window.Paddle.Initialize({ token: config.client_token, eventCallback: handlePaddleEvent });
         window.__tmPaddleInitialized = true;
       }
 
       showMessage('Opening secure checkout...', 'info');
-      window.Paddle.Checkout.open({
-        items: [{ priceId, quantity: 1 }],
-        customData: {
-          user_id: currentUser.uid,
-          email,
-          item_id: itemId,
-          country_code: countryCode || 'GLOBAL',
-        },
-      });
+      if (transactionId) {
+        window.Paddle.Checkout.open({ transactionId });
+      } else {
+        window.Paddle.Checkout.open({
+          items: [{ priceId: config.price_ids[itemId], quantity: 1 }],
+          customData: {
+            user_id: currentUser.uid,
+            email,
+            item_id: itemId,
+            country_code: countryCode || 'GLOBAL',
+          },
+        });
+      }
     } catch (error) {
       console.error('Paddle payment error:', error);
       showMessage('Checkout could not be opened: ' + error.message, 'error');
