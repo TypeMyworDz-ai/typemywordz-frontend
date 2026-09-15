@@ -203,6 +203,10 @@ function AppContent() {
   const [savingTake, setSavingTake] = useState(false);
   const [confirmReRecord, setConfirmReRecord] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [audioDetected, setAudioDetected] = useState(false);
+  const [silencePaused, setSilencePaused] = useState(false);
+  const [autoPauseEnabled, setAutoPauseEnabled] = useState(false);
   const [downloadFormat, setDownloadFormat] = useState('mp3');
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en'); 
@@ -238,12 +242,51 @@ function AppContent() {
   // Refs
   const mediaRecorderRef = useRef(null);
   const recordingIntervalRef = useRef(null);
-  const recordedAudioBlobRef = useRef(null); 
+  const recordedAudioBlobRef = useRef(null);
+  const recordingAudioContextRef = useRef(null);
+  const recordingAnalyserRef = useRef(null);
+  const recordingSourceRef = useRef(null);
+  const recordingAnimationFrameRef = useRef(null);
+  const autoPauseEnabledRef = useRef(false);
+  const recordingPausedRef = useRef(false);
+  const silenceStartedAtRef = useRef(null);
+  const speechStartedAtRef = useRef(null); 
   const abortControllerRef = useRef(null);
   const transcriptionIntervalRef = useRef(null);
   const statusCheckTimeoutRef = useRef(null);
   const isCancelledRef = useRef(false);
   const accountRef = useRef(null);
+
+  const stopRecordingMonitor = useCallback(() => {
+    if (recordingAnimationFrameRef.current !== null) {
+      cancelAnimationFrame(recordingAnimationFrameRef.current);
+      recordingAnimationFrameRef.current = null;
+    }
+    if (recordingSourceRef.current) {
+      try { recordingSourceRef.current.disconnect(); } catch (e) { /* already disconnected */ }
+      recordingSourceRef.current = null;
+    }
+    if (recordingAudioContextRef.current) {
+      recordingAudioContextRef.current.close().catch(() => {});
+      recordingAudioContextRef.current = null;
+    }
+    recordingAnalyserRef.current = null;
+    recordingPausedRef.current = false;
+    silenceStartedAtRef.current = null;
+    speechStartedAtRef.current = null;
+    setAudioLevel(0);
+    setAudioDetected(false);
+    setSilencePaused(false);
+  }, []);
+
+  useEffect(() => {
+    autoPauseEnabledRef.current = autoPauseEnabled;
+    if (!autoPauseEnabled && recordingPausedRef.current && mediaRecorderRef.current?.state === 'paused') {
+      mediaRecorderRef.current.resume();
+      recordingPausedRef.current = false;
+      setSilencePaused(false);
+    }
+  }, [autoPauseEnabled]);
 
   // Admin list lives in src/adminEmails.js so it cannot drift from the backend.
   const isAdmin = isAdminEmail(currentUser?.email);
@@ -691,6 +734,7 @@ function AppContent() {
     setSpeakerLabelsEnabled(false);
     
     recordedAudioBlobRef.current = null;
+    stopRecordingMonitor();
     
     if (abortControllerRef.current) {
       console.log('DEBUG: Aborting active fetch request.');
@@ -730,7 +774,7 @@ function AppContent() {
       isCancelledRef.current = false;
       console.log('DEBUG: Reset complete, ready for new operations.');
     }, 500);
-  }, []); // No external dependencies, so empty array is correct
+  }, [stopRecordingMonitor]);
 
   // Enhanced file selection with proper job cancellation - ADDING LOGS
   const handleFileSelect = useCallback(async (event) => {
@@ -873,6 +917,75 @@ function AppContent() {
         } 
       });
       console.log('DEBUG: Microphone stream obtained.'); // NEW LOG
+
+      // Monitor the microphone without changing the recorded stream. The waveform
+      // is always shown while recording; auto-pause is deliberately opt-in.
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioContextClass) {
+        const audioContext = new AudioContextClass();
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 512;
+        analyser.smoothingTimeConstant = 0.72;
+        source.connect(analyser);
+        recordingAudioContextRef.current = audioContext;
+        recordingSourceRef.current = source;
+        recordingAnalyserRef.current = analyser;
+        recordingPausedRef.current = false;
+        silenceStartedAtRef.current = null;
+        speechStartedAtRef.current = null;
+        const samples = new Uint8Array(analyser.fftSize);
+        const SILENCE_THRESHOLD = 0.035;
+        const SPEECH_THRESHOLD = 0.055;
+        const SILENCE_HOLD_MS = 2500;
+        const RESUME_HOLD_MS = 350;
+
+        const monitorAudio = () => {
+          if (!recordingAnalyserRef.current) return;
+          analyser.getByteTimeDomainData(samples);
+          let sum = 0;
+          for (let i = 0; i < samples.length; i += 1) {
+            const normalized = (samples[i] - 128) / 128;
+            sum += normalized * normalized;
+          }
+          const rms = Math.min(1, Math.sqrt(sum / samples.length) * 4);
+          const now = performance.now();
+          const isSpeech = rms >= (recordingPausedRef.current ? SPEECH_THRESHOLD : SILENCE_THRESHOLD);
+          setAudioLevel(rms);
+          setAudioDetected(isSpeech);
+
+          if (isSpeech) {
+            silenceStartedAtRef.current = null;
+            if (recordingPausedRef.current && autoPauseEnabledRef.current) {
+              if (!speechStartedAtRef.current) speechStartedAtRef.current = now;
+              if (now - speechStartedAtRef.current >= RESUME_HOLD_MS && mediaRecorderRef.current?.state === 'paused') {
+                mediaRecorderRef.current.resume();
+                recordingPausedRef.current = false;
+                speechStartedAtRef.current = null;
+                setSilencePaused(false);
+              }
+            } else {
+              speechStartedAtRef.current = null;
+            }
+          } else {
+            speechStartedAtRef.current = null;
+            if (autoPauseEnabledRef.current && mediaRecorderRef.current?.state === 'recording') {
+              if (!silenceStartedAtRef.current) silenceStartedAtRef.current = now;
+              if (now - silenceStartedAtRef.current >= SILENCE_HOLD_MS) {
+                mediaRecorderRef.current.pause();
+                recordingPausedRef.current = true;
+                silenceStartedAtRef.current = null;
+                setSilencePaused(true);
+              }
+            } else if (!autoPauseEnabledRef.current) {
+              silenceStartedAtRef.current = null;
+            }
+          }
+
+          recordingAnimationFrameRef.current = requestAnimationFrame(monitorAudio);
+        };
+        monitorAudio();
+      }
       
       // Browsers cannot record MP3. What they can record is Opus inside a
       // WebM file, and on Apple devices AAC inside an MP4 file. For a single
@@ -907,6 +1020,7 @@ function AppContent() {
 
       mediaRecorderRef.current.onstop = async () => {
         console.log('DEBUG: MediaRecorder stopped. Processing recorded audio.');
+        stopRecordingMonitor();
         const originalBlob = new Blob(chunks, { type: mimeType });
         stream.getTracks().forEach(track => track.stop());
 
@@ -964,16 +1078,21 @@ function AppContent() {
       mediaRecorderRef.current.start(1000);
       setIsRecording(true);
       setRecordingTime(0);
+      setAudioLevel(0);
+      setAudioDetected(false);
+      setSilencePaused(false);
       console.log('DEBUG: MediaRecorder started. isRecording set to true.'); // NEW LOG
 
       recordingIntervalRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
+        if (mediaRecorderRef.current?.state === 'recording') {
+          setRecordingTime(prev => prev + 1);
+        }
       }, 1000);
     } catch (error) {
       console.error('DEBUG: Could not access microphone:', error); // NEW LOG
       showMessage('Could not access microphone: ' + error.message, 'error');
     }
-  }, [resetTranscriptionProcessUI, showMessage, measureAudio]);
+  }, [resetTranscriptionProcessUI, showMessage, measureAudio, stopRecordingMonitor]);
 
   // Point K. Starting a new recording throws away the last one, and clients
   // were losing work that way. If there is a take in hand that has not been
@@ -2420,15 +2539,36 @@ return (
                     Record audio
                   </h3>
                   
+                  <label className="tm-auto-pause-toggle">
+                    <input
+                      type="checkbox"
+                      checked={autoPauseEnabled}
+                      onChange={(event) => setAutoPauseEnabled(event.target.checked)}
+                    />
+                    <span>Pause automatically during long silence</span>
+                  </label>
+
                   {isRecording && (
-                    <div style={{
-                      color: '#c0392b',
-                      fontSize: '14px',
-                      marginBottom: '12px',
-                      fontWeight: '600'
-                    }}>
-                      Recording {formatTime(recordingTime)}
-                    </div>
+                    <>
+                      <div className="tm-recording-status">
+                        <span className={audioDetected ? 'tm-audio-status-dot tm-audio-status-dot-live' : 'tm-audio-status-dot'} />
+                        <span>{silencePaused ? 'Paused during silence. Listening for audio.' : audioDetected ? 'Audio detected' : 'Listening for audio'}</span>
+                        <strong>{formatTime(recordingTime)}</strong>
+                      </div>
+                      <div className="tm-waveform" role="img" aria-label={audioDetected ? 'Microphone audio detected' : 'Listening for microphone audio'}>
+                        {Array.from({ length: 28 }, (_, index) => {
+                          const pulse = 0.35 + Math.abs(Math.sin(index * 0.85 + recordingTime * 0.9)) * 0.65;
+                          const scale = Math.max(0.28, Math.min(1.65, 0.28 + audioLevel * 2.2 * pulse));
+                          return (
+                            <span
+                              key={index}
+                              className={audioDetected ? 'tm-wave-bar tm-wave-bar-live' : 'tm-wave-bar'}
+                              style={{ transform: `scaleY(${scale})`, animationDelay: `${index * 22}ms` }}
+                            />
+                          );
+                        })}
+                      </div>
+                    </>
                   )}
                   
                   <button

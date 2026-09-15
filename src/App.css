@@ -262,3 +262,92 @@ select:focus {
   opacity: 0;
   transition: opacity 0.5s ease-out;
 }
+
+
+/* Recorder microphone monitor */
+.tm-auto-pause-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto 16px;
+  color: #555862;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tm-auto-pause-toggle input {
+  accent-color: #6653c7;
+  width: 16px;
+  height: 16px;
+}
+
+.tm-recording-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 22px;
+  margin: 0 auto 8px;
+  color: #6653c7;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tm-recording-status strong {
+  margin-left: 4px;
+  color: #303139;
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-audio-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #aaaeb8;
+  display: inline-block;
+}
+
+.tm-audio-status-dot-live {
+  background: #6653c7;
+  box-shadow: 0 0 0 4px rgba(102, 83, 199, 0.12);
+}
+
+.tm-waveform {
+  width: min(100%, 390px);
+  height: 56px;
+  margin: 0 auto 14px;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid rgba(102, 83, 199, 0.18);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(102, 83, 199, 0.06), rgba(102, 83, 199, 0.015));
+  overflow: hidden;
+}
+
+.tm-wave-bar {
+  width: 4px;
+  height: 34px;
+  flex: 1 1 4px;
+  max-width: 8px;
+  border-radius: 999px;
+  background: #b9b2e9;
+  transform-origin: center;
+  transition: transform 120ms ease, background-color 180ms ease;
+}
+
+.tm-wave-bar-live {
+  background: #6653c7;
+  animation: tm-wave-breathe 720ms ease-in-out infinite alternate;
+}
+
+@keyframes tm-wave-breathe {
+  from { opacity: 0.72; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-wave-bar-live { animation: none; }
+}
