@@ -2545,29 +2545,37 @@ return (
                       checked={autoPauseEnabled}
                       onChange={(event) => setAutoPauseEnabled(event.target.checked)}
                     />
-                    <span>Pause automatically during long silence</span>
+                    <span>Pause automatically during long silence (Your mic/recording device should be well configured.)</span>
                   </label>
 
                   {isRecording && (
                     <>
-                      <div className="tm-recording-status">
-                        <span className={audioDetected ? 'tm-audio-status-dot tm-audio-status-dot-live' : 'tm-audio-status-dot'} />
-                        <span>{silencePaused ? 'Paused during silence. Listening for audio.' : audioDetected ? 'Audio detected' : 'Listening for audio'}</span>
-                        <strong>{formatTime(recordingTime)}</strong>
-                      </div>
-                      <div className="tm-waveform" role="img" aria-label={audioDetected ? 'Microphone audio detected' : 'Listening for microphone audio'}>
-                        {Array.from({ length: 28 }, (_, index) => {
-                          const pulse = 0.35 + Math.abs(Math.sin(index * 0.85 + recordingTime * 0.9)) * 0.65;
-                          const scale = Math.max(0.28, Math.min(1.65, 0.28 + audioLevel * 2.2 * pulse));
+                      <div
+                        className={`tm-waveform${audioDetected ? ' tm-waveform-live' : ''}${silencePaused ? ' tm-waveform-paused' : ''}`}
+                        role="img"
+                        aria-label={audioDetected ? 'Microphone waveform showing audio levels' : 'Waiting for microphone audio'}
+                      >
+                        <span className="tm-waveform-baseline" aria-hidden="true" />
+                        {Array.from({ length: 32 }, (_, index) => {
+                          const pulse = 0.32 + Math.abs(Math.sin(index * 0.72 + recordingTime * 0.9)) * 0.68;
+                          const scale = Math.max(0.22, Math.min(1.35, 0.22 + audioLevel * 1.75 * pulse));
                           return (
                             <span
                               key={index}
                               className={audioDetected ? 'tm-wave-bar tm-wave-bar-live' : 'tm-wave-bar'}
-                              style={{ transform: `scaleY(${scale})`, animationDelay: `${index * 22}ms` }}
+                              style={{ transform: `scaleY(${scale})`, animationDelay: `${index * 26}ms` }}
                             />
                           );
                         })}
                       </div>
+                      <div className="tm-recording-timer" aria-live="polite">
+                        {formatTime(recordingTime)}
+                      </div>
+                      {silencePaused && (
+                        <div className="tm-recording-pause-note" role="status">
+                          Paused during silence. Listening for audio.
+                        </div>
+                      )}
                     </>
                   )}
                   
