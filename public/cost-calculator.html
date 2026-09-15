@@ -88,6 +88,7 @@ background:var(--g);color:#fff;border-radius:20px;padding:2px 8px;margin-left:7p
 font-weight:600;padding:11px 20px;border-radius:var(--radius)}
 .cta:hover{background:#218838}
 .muted-note{font-size:13px;color:var(--muted);margin-top:10px}
+.region-note{font-size:12px;color:var(--muted);margin:12px 0 0;padding-left:2px}
 .loading{color:var(--muted);font-size:14px;margin:20px 0}
 @media (max-width:520px){.fields{gap:10px}.answer .lead{font-size:21px}}
 </style>
@@ -130,6 +131,7 @@ pay.</p>
 </div>
 
 <div id="out"><p class="loading">Loading today&rsquo;s prices&hellip;</p></div>
+<p id="region-note" class="region-note" aria-live="polite"></p>
 
 <h2>Things worth knowing</h2>
 <ul>
@@ -195,7 +197,14 @@ correct and we would like to know: <span class="tm-mail">info<!-- -->@typemyword
   };
 
   var out = document.getElementById('out');
+  var regionNote = document.getElementById('region-note');
   var catalogue = null;
+  var detectedCountry = countryCode();
+  if (regionNote) {
+    regionNote.textContent = detectedCountry === 'GLOBAL'
+      ? 'Using international pricing for card/Paddle customers.'
+      : 'Using regional pricing for your detected location.';
+  }
 
   function money(v, cur) {
     var s = (Math.round(v * 100) / 100).toFixed(2).replace(/\.00$/, '');
@@ -347,7 +356,7 @@ correct and we would like to know: <span class="tm-mail">info<!-- -->@typemyword
     el.addEventListener('change', render);
   });
 
-  fetch(BACKEND + '/pricing?country_code=' + encodeURIComponent(countryCode()))
+  fetch(BACKEND + '/pricing?country_code=' + encodeURIComponent(detectedCountry))
     .then(function (r) { if (!r.ok) throw new Error('unavailable'); return r.json(); })
     .then(function (d) { catalogue = d; render(); })
     .catch(function () {
