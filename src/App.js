@@ -2028,16 +2028,6 @@ return (
               </button>
             )}
 
-            {!isTrainee && !isWorker && (
-              <button
-                className={"tm-nav" + (currentView === 'credit_history' ? " tm-nav-on" : "")}
-                onClick={() => setCurrentView('credit_history')}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M5 6h14M5 12h14M5 18h9"/><circle cx="18" cy="18" r="2"/></svg>
-                Credit activity
-              </button>
-            )}
-
             <button
               className={"tm-nav tm-nav-ai" + (currentView === 'ai_assistant' ? " tm-nav-on" : "")}
               onClick={() => {
@@ -2223,7 +2213,7 @@ return (
             onGoTo={setCurrentView}
           />
         ) : currentView === 'credit_history' ? (
-          <CreditHistory showMessage={showMessage} />
+          <CreditHistory showMessage={showMessage} onBack={() => setCurrentView('dashboard')} />
         ) : currentView === 'admin' ? (
           <AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} />
         ) : currentView === 'credit_admin' ? (
