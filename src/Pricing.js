@@ -130,7 +130,6 @@ const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => 
   }
 
   const { plans, topups, custom_topup: customTopup, topup_valid_days: topupDays, free_trial_credits: freeCredits } = catalogue;
-  const customMaximum = Number(customTopup?.max_credits) || 50000;
   const customAmount = Math.round(Number(customCredits) || 0);
 
   const buyLabel = (id, fallback) =>
@@ -171,7 +170,7 @@ const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => 
               <div className="tm-pr-custom-title">Type the exact amount of credits you need.</div>
               <label className="tm-pr-custom-label">
                 <span>Credits</span>
-                <input type="number" max={customMaximum} step="1" value={customCredits} onChange={(event) => setCustomCredits(event.target.value)} aria-label="Custom credit amount" />
+                <input type="text" inputMode="numeric" pattern="[0-9]*" value={customCredits} onChange={(event) => setCustomCredits(event.target.value)} aria-label="Custom credit amount" />
               </label>
               <div className="tm-pr-custom-total">{money(customAmount * Number(customTopup.price_per_credit || 0))}</div>
               <div className="tm-pr-bundle-rate">{money(Number(customTopup.price_per_credit || 0))} per credit</div>
