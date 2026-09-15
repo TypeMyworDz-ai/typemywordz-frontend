@@ -179,7 +179,12 @@ correct and we would like to know: <span class="tm-mail">info<!-- -->@typemyword
     'Africa/Nairobi': 'KE', 'Africa/Lagos': 'NG',
     'Africa/Accra': 'GH', 'Africa/Johannesburg': 'ZA'
   };
+  var requestedCountry = '';
+  try {
+    requestedCountry = String(new URLSearchParams(window.location.search).get('country_code') || '').toUpperCase();
+  } catch (e) { /* use automatic detection */ }
   function countryCode() {
+    if (requestedCountry === 'GLOBAL' || requestedCountry === 'INTERNATIONAL') return 'GLOBAL';
     try {
       var zone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
       if (TZ[zone]) return TZ[zone];
