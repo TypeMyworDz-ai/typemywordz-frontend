@@ -44,6 +44,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   // this; the server decides their thread from their role regardless of
   // what this is set to.
   const [adminThread, setAdminThread] = useState('client');
+  const [workerTab, setWorkerTab] = useState('in_progress');
+  const [paymentHistory, setPaymentHistory] = useState(null);
 
   const token = useCallback(() => currentUser?.getIdToken(), [currentUser]);
   const selectedJob = useMemo(() => jobs.find((job) => job.id === selectedId) || jobs[0] || null, [jobs, selectedId]);
@@ -68,7 +70,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
   const loadJobs = useCallback(async () => {
     try {
-      const scope = mode === 'admin' ? 'admin' : mode === 'worker' ? 'assigned' : 'mine';
+      const scope = mode === 'admin' ? 'admin' : mode === 'worker' ? (workerTab === 'finished' ? 'finished' : 'assigned') : 'mine';
       const payload = await request(`/human-transcription/jobs?scope=${scope}`);
       setJobs(payload.jobs || []);
     } catch (error) {
@@ -76,13 +78,23 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     } finally {
       setLoading(false);
     }
-  }, [mode, request, showMessage]);
+  }, [mode, request, showMessage, workerTab]);
 
   const loadWorkers = useCallback(async () => {
     if (mode !== 'admin') return;
     try {
       const payload = await request('/human-transcription/workers');
       setWorkers(payload.workers || []);
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+    }
+  }, [mode, request, showMessage]);
+
+  const loadPayments = useCallback(async () => {
+    if (mode !== 'worker') return;
+    try {
+      const payload = await request('/human-transcription/worker/payment-history');
+      setPaymentHistory(payload);
     } catch (error) {
       showMessage?.(error.message, 'error');
     }
@@ -100,7 +112,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     }
   }, [request, selectedJob?.id, mode, adminThread]);
 
-  useEffect(() => { loadJobs(); loadWorkers(); }, [loadJobs, loadWorkers]);
+  useEffect(() => { loadJobs(); loadWorkers(); loadPayments(); }, [loadJobs, loadWorkers, loadPayments]);
   useEffect(() => {
     if (initialJobId && jobs.some((job) => job.id === initialJobId)) setSelectedId(initialJobId);
     else if (!selectedId && jobs[0]?.id) setSelectedId(jobs[0].id);
@@ -148,6 +160,13 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     } catch (error) {
       showMessage?.(error.message, 'error');
     } finally { setBusy(false); }
+  };
+
+  const deleteJob = async () => {
+    if (!selectedJob || mode !== 'admin') return;
+    if (!window.confirm('Delete this human-work job and its conversation? This cannot be undone.')) return;
+    await act(`/human-transcription/jobs/${selectedJob.id}`, { method: 'DELETE' });
+    setSelectedId('');
   };
 
   const sendMessage = async (event) => {
@@ -218,9 +237,27 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           <h1>{mode === 'admin' ? 'Human work queue' : mode === 'worker' ? 'Your assigned work' : 'Your human-transcription work'}</h1>
           <p>{mode === 'admin' ? 'Approve requests, assign the right worker, review delivery and release credits only after approval.' : mode === 'worker' ? 'Open an assignment, work in the shared editor, and send it back for review.' : 'Follow each request from quote to delivery. Credits remain untouched until the finished work is approved and released.'}</p>
         </div>
-        <button className="tm-human-refresh" type="button" onClick={() => { loadJobs(); loadWorkers(); }}>Refresh</button>
+        <button className="tm-human-refresh" type="button" onClick={() => { loadJobs(); loadWorkers(); loadPayments(); }}>Refresh</button>
       </div>
 
+      {mode === 'worker' && (
+        <div className="tm-human-thread-tabs tm-worker-room-tabs" role="tablist" aria-label="Worker room sections">
+          <button type="button" role="tab" aria-selected={workerTab === 'in_progress'} className={workerTab === 'in_progress' ? 'active' : ''} onClick={() => setWorkerTab('in_progress')}>In Progress</button>
+          <button type="button" role="tab" aria-selected={workerTab === 'finished'} className={workerTab === 'finished' ? 'active' : ''} onClick={() => setWorkerTab('finished')}>Finished Jobs</button>
+          <button type="button" role="tab" aria-selected={workerTab === 'payments'} className={workerTab === 'payments' ? 'active' : ''} onClick={() => { setWorkerTab('payments'); loadPayments(); }}>Payment History · KES</button>
+        </div>
+      )}
+
+      {mode === 'worker' && workerTab === 'payments' ? (
+        <div className="tm-human-chat-card tm-worker-payment-panel">
+          <div className="tm-human-chat-head"><div><strong>Payment history</strong><span>Completed work accrues toward the weekly payout.</span></div><span className="tm-human-live-dot">KES</span></div>
+          {!paymentHistory ? <div className="tm-human-empty">Loading payment history…</div> : <>
+            <div className="tm-worker-payment-totals"><div><small>Paid</small><strong>KES {paymentHistory.totals?.paid_kes || 0}</strong></div><div><small>Upcoming</small><strong>KES {paymentHistory.totals?.upcoming_kes || 0}</strong></div></div>
+            <h3>Paid</h3>{!(paymentHistory.paid || []).length && <p className="tm-human-empty">No payments have been marked paid yet.</p>}{(paymentHistory.paid || []).map((item) => <div className="tm-worker-payment-row" key={item.job_id}><span>Job {item.job_id.slice(0, 8)}</span><strong>KES {item.amount_kes}</strong><small>{item.minutes} min · {moneylessDate(item.paid_at)}</small></div>)}
+            <h3>Upcoming weekly accrual</h3>{!(paymentHistory.upcoming || []).length && <p className="tm-human-empty">No upcoming accruals.</p>}{(paymentHistory.upcoming || []).map((item) => <div className="tm-worker-payment-row" key={item.job_id}><span>Job {item.job_id.slice(0, 8)}</span><strong>KES {item.amount_kes}</strong><small>{item.minutes} min · {STATUS_LABELS[item.job_status] || item.job_status}</small></div>)}
+          </>}
+        </div>
+      ) : (
       <div className="tm-human-workspace-grid">
         <aside className="tm-human-job-list">
           <div className="tm-human-list-head"><strong>{jobs.length} job{jobs.length === 1 ? '' : 's'}</strong><span>Live updates</span></div>
@@ -228,7 +265,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             <button type="button" key={job.id} className={`tm-human-job-row ${selectedJob?.id === job.id ? 'selected' : ''}`} onClick={() => setSelectedId(job.id)}>
               <strong>{job.audio?.name || `Human job ${job.id.slice(0, 6)}`}</strong>
               <span>{STATUS_LABELS[job.status] || job.status}</span>
-              <small>{job.quote_credits || 0} credits · {moneylessDate(job.createdAt)}</small>
+              <small>{mode === 'worker' ? moneylessDate(job.createdAt) : `${job.quote_credits || 0} credits · ${moneylessDate(job.createdAt)}`}</small>
             </button>
           ))}
           {!jobs.length && <div className="tm-human-empty">No human work is waiting here.</div>}
@@ -237,13 +274,14 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <div className="tm-human-job-detail">
           {!selectedJob ? <div className="tm-human-empty">Choose a job to see its details.</div> : <>
             <div className="tm-human-detail-head">
-              <div><span className="tm-human-status">{STATUS_LABELS[selectedJob.status] || selectedJob.status}</span><h2>{selectedJob.audio?.name || (selectedJob.source_type === 'ai_proofreading' ? 'AI transcript for proofreading' : 'Human-transcription request')}</h2><p>{selectedJob.source_type === 'ai_proofreading' ? 'AI transcript proofreading' : 'New human transcript'} · {selectedJob.minutes || 0} minutes · {selectedJob.quote_credits || 0} credits · {selectedJob.turnaround || 'standard'} delivery</p></div>
+              <div><span className="tm-human-status">{STATUS_LABELS[selectedJob.status] || selectedJob.status}</span><h2>{selectedJob.audio?.name || (selectedJob.source_type === 'ai_proofreading' ? 'AI transcript for proofreading' : 'Human-transcription request')}</h2><p>{selectedJob.source_type === 'ai_proofreading' ? 'AI transcript proofreading' : 'New human transcript'} · {selectedJob.minutes || 0} minutes{mode !== 'worker' ? ` · ${selectedJob.quote_credits || 0} credits` : ''} · {selectedJob.turnaround || 'standard'} delivery</p></div>
               <div className="tm-human-detail-actions">
                 {mode === 'admin' && selectedJob.status === 'pending_admin' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/approve`, { method: 'POST' })}>Approve request</button>}
                 {mode === 'worker' && ['assigned', 'in_progress'].includes(selectedJob.status) && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/start`, { method: 'POST' })}>Start work</button>}
                 {mode === 'worker' && ['assigned', 'in_progress'].includes(selectedJob.status) && <button type="button" onClick={submitWorker} disabled={busy}>Submit for review</button>}
                 {mode === 'client' && selectedJob.status === 'client_review' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/client-approve`, { method: 'POST' })}>Approve completed work</button>}
                 {mode === 'admin' && selectedJob.status === 'client_approved' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/release`, { method: 'POST' })}>Release and deduct credits</button>}
+                {mode === 'admin' && <button type="button" onClick={deleteJob}>Delete job</button>}
                 {mode === 'client' && selectedJob.status === 'released' && <button type="button" onClick={async () => { const idToken = await token(); const response = await fetch(`${BACKEND_URL}/human-transcription/jobs/${selectedJob.id}/download`, { headers: { Authorization: `Bearer ${idToken}` } }); if (!response.ok) { showMessage?.('The completed transcript is not ready to download.', 'error'); return; } const url = URL.createObjectURL(await response.blob()); const link = document.createElement('a'); link.href = url; link.download = `human-${selectedJob.id}.txt`; link.click(); URL.revokeObjectURL(url); }}>Download transcript</button>}
               </div>
             </div>
@@ -294,6 +332,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           </>}
         </div>
       </div>
+      )}
     </section>
   );
 }

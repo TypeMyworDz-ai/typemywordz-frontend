@@ -42,6 +42,7 @@ import Pricing, { PublicPricing } from './components/Pricing';
 import AskPanel from './components/AskPanel';
 import HumanTranscription from './components/HumanTranscription';
 import HumanJobWorkspace from './components/HumanJobWorkspace';
+import CreditHistory from './components/CreditHistory';
 import TraineeDashboard from './components/TraineeDashboard';
 import TraineeSignup from './components/TraineeSignup';
 import DirectMessages from './components/DirectMessages';
@@ -1999,7 +2000,7 @@ return (
               {unreadMessageCount > 0 && <span className="tm-nav-badge" aria-label={`${unreadMessageCount} unread messages`}>{unreadMessageCount > 99 ? '99+' : unreadMessageCount}</span>}
             </button>}
 
-            {!isTrainee && <button
+            {!isTrainee && !isWorker && <button
               className={"tm-nav" + (currentView === 'human_transcripts' ? " tm-nav-on" : "")}
               onClick={() => setCurrentView('human_transcripts')}
             >
@@ -2024,6 +2025,16 @@ return (
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5V6.8A2.8 2.8 0 0 1 6.8 4h10.4A2.8 2.8 0 0 1 20 6.8v12.7"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20"/><path d="M8 8h8M8 12h6"/></svg>
                 Work Room
+              </button>
+            )}
+
+            {!isTrainee && !isWorker && (
+              <button
+                className={"tm-nav" + (currentView === 'credit_history' ? " tm-nav-on" : "")}
+                onClick={() => setCurrentView('credit_history')}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M5 6h14M5 12h14M5 18h9"/><circle cx="18" cy="18" r="2"/></svg>
+                Credit activity
               </button>
             )}
 
@@ -2058,6 +2069,13 @@ return (
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M12 3l7.5 3.5v5c0 4.6-3.1 8.4-7.5 9.5-4.4-1.1-7.5-4.9-7.5-9.5v-5z"/></svg>
                   Admin
+                </button>
+                <button
+                  className={"tm-nav" + (currentView === 'credit_admin' ? " tm-nav-on" : "")}
+                  onClick={() => setCurrentView('credit_admin')}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v18M5 8h14M5 16h14"/></svg>
+                  Credit tools
                 </button>
               </>
             )}
@@ -2201,8 +2219,12 @@ return (
             onBuy={(itemId, countryCode) => initializePayment(itemId, countryCode)}
             onGoTo={setCurrentView}
           />
+        ) : currentView === 'credit_history' ? (
+          <CreditHistory showMessage={showMessage} />
         ) : currentView === 'admin' ? (
           <AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} />
+        ) : currentView === 'credit_admin' ? (
+          <CreditHistory admin showMessage={showMessage} />
         ) : currentView === 'ai_assistant' ? (
           <AskTypeMyworDz
             userPlan={userProfile?.plan || 'free'}
