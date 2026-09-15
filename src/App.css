@@ -266,12 +266,17 @@ select:focus {
 
 /* Recorder microphone monitor */
 .tm-auto-pause-toggle {
-  display: inline-flex;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  margin: 0 auto 16px;
+  margin: 0 auto 18px;
   color: #555862;
   font-size: 13px;
+  line-height: 1.35;
+  text-align: center;
   cursor: pointer;
 }
 
