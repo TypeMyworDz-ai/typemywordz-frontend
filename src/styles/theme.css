@@ -3525,6 +3525,16 @@ body {
 .tm-credits-cta:hover{ background:var(--tm-green-dark); border-color:var(--tm-green-dark); }
 .tm-credits-cta:focus,
 .tm-credits-cta:focus-visible{ outline:2px solid var(--tm-ink); outline-offset:2px; }
+.tm-credits-link{
+  display:block; margin-top:9px; padding:0; border:0; background:none;
+  font:600 12px/1.35 var(--tm-font); text-align:left; cursor:pointer;
+  text-decoration:underline; text-underline-offset:2px;
+}
+.tm-credits-link-green{ color:var(--tm-green-dark); }
+.tm-credits-link-red{ color:var(--tm-danger); }
+.tm-credits-link:hover{ color:var(--tm-ink); }
+.tm-credits-link:focus,
+.tm-credits-link:focus-visible{ outline:2px solid var(--tm-ink); outline-offset:3px; border-radius:3px; }
 
 /* ---------------------------------------------------------------------------
    Clickable brand, volume control, and the second Copy button

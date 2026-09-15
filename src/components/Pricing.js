@@ -129,6 +129,7 @@ const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => 
   }
 
   const { plans, topups, custom_topup: customTopup, topup_valid_days: topupDays, free_trial_credits: freeCredits } = catalogue;
+  const customMinimum = Number(customTopup?.min_credits) || 50;
 
   const buyLabel = (id, fallback) =>
     !isSignedIn ? 'Sign in to buy' : busy === id ? 'Opening checkout\u2026' : fallback;
@@ -164,19 +165,18 @@ const Pricing = ({ mode = 'plans', isSignedIn, currentPlan, onBuy, onGoTo }) => 
           ))}
           {customTopup && (
             <div className="tm-pr-bundle tm-pr-bundle-custom">
-              <div className="tm-pr-custom-kicker">Flexible top-up</div>
-              <div className="tm-pr-custom-title">Set your exact amount</div>
-              <p className="tm-pr-custom-copy">No fixed bundle. Choose the number of credits that fits this project and pay only for that amount.</p>
+              <div className="tm-pr-custom-kicker">Custom top-up</div>
+              <div className="tm-pr-custom-title">Type the exact amount of credits you need.</div>
               <label className="tm-pr-custom-label">
                 <span>Credits</span>
-                <input type="number" min={customTopup.min_credits} max={customTopup.max_credits} value={customCredits} onChange={(event) => setCustomCredits(event.target.value)} aria-label="Custom credit amount" />
+                <input type="number" min={customMinimum} max={customTopup.max_credits} value={customCredits} onChange={(event) => setCustomCredits(event.target.value)} aria-label="Custom credit amount" />
               </label>
               <div className="tm-pr-custom-total">{money(Number(customCredits || 0) * Number(customTopup.price_per_credit || 0))}</div>
               <div className="tm-pr-bundle-rate">{money(Number(customTopup.price_per_credit || 0))} per credit</div>
               <button type="button" className="tm-pr-buy" disabled={!isSignedIn || busy === `topup-custom-${customCredits}`} onClick={() => buy(`topup-custom-${Math.round(Number(customCredits || 0))}`)}>
                 {buyLabel(`topup-custom-${customCredits}`, 'Buy this amount')}
               </button>
-              <small>Minimum {customTopup.min_credits} credits. Set the exact amount you need.</small>
+              <small>Minimum {customMinimum} credits.</small>
             </div>
           )}
         </div>
