@@ -1,0 +1,4241 @@
+/* ============================================================
+   TypeMyworDz — design tokens and shared UI styles
+   ------------------------------------------------------------
+   One place for colours, spacing and type. Change a value here
+   and it changes everywhere in the app.
+
+   Colour rule:
+     GREEN  = an action the user takes (buttons, active state)
+     PURPLE = anything to do with AI
+     Neutral greys carry everything else.
+   ============================================================ */
+
+:root {
+  /* Brand */
+  --tm-green: #28a745;
+  --tm-green-dark: #218838;
+  --tm-green-soft: #eaf7ee;
+  --tm-green-line: #b3e0c1;
+
+  --tm-purple: #5b44cf;
+  --tm-purple-light: #7a5cf0;
+  --tm-purple-soft: #f0edfd;
+  --tm-purple-line: #cec3f6;
+
+  /* Neutrals */
+  --tm-ink: #14161a;
+  --tm-body: #3f434c;
+  --tm-muted: #858a95;
+  --tm-faint: #a8acb5;
+  --tm-line: #e5e6ea;
+  --tm-surface: #f8f8f9;
+  --tm-white: #ffffff;
+
+  /* Status */
+  --tm-danger: #d63b3b;
+  --tm-danger-soft: #fdeeee;
+  --tm-warn: #9a6400;
+  --tm-warn-soft: #fdf5e3;
+
+  /* Shape and type */
+  --tm-radius: 7px;
+  --tm-radius-lg: 10px;
+  --tm-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto,
+             Helvetica, Arial, sans-serif;
+}
+
+/* ---------- base ---------- */
+
+html {
+  /* so in-page jumps clear the pinned bar */
+  scroll-padding-top: 57px;
+}
+
+body {
+  background: var(--tm-white);
+  color: var(--tm-body);
+  font-family: var(--tm-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+.tm-app {
+  background: var(--tm-white);
+}
+
+/* ---------- top bar ---------- */
+
+.tm-topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 56px;
+  padding: 0 20px;
+  background: var(--tm-white);
+  border-bottom: 1px solid var(--tm-line);
+  /* Stays in view while the page scrolls. The background is solid and the
+     stacking order is above the sidebar, so nothing shows through it. */
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
+
+.tm-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.tm-brand-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  display: block;
+}
+
+.tm-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 1px;
+}
+
+.tm-wordmark {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
+  margin: 0;
+}
+
+.tm-wordmark .tm-w-purple { color: var(--tm-purple); }
+.tm-wordmark .tm-w-green  { color: var(--tm-green); }
+
+.tm-slogan {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tm-faint);
+  font-weight: 500;
+  line-height: 1;
+  margin: 0;
+}
+
+.tm-spacer { flex: 1 1 auto; }
+
+/* ---------- account cluster ---------- */
+
+.tm-account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tm-username {
+  font-size: 13px;
+  color: var(--tm-body);
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-plan {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: var(--tm-green-soft);
+  color: var(--tm-green-dark);
+  border: 1px solid var(--tm-green-line);
+  white-space: nowrap;
+}
+
+.tm-plan.tm-plan-free {
+  background: var(--tm-surface);
+  color: var(--tm-muted);
+  border-color: var(--tm-line);
+}
+
+.tm-logout {
+  font-size: 12.5px;
+  color: var(--tm-muted);
+  background: none;
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius);
+  padding: 5px 11px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.tm-logout:hover {
+  color: var(--tm-danger);
+  border-color: #f0c6c6;
+  background: var(--tm-danger-soft);
+}
+
+/* ---------- tab navigation ---------- */
+
+.tm-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--tm-line);
+  background: var(--tm-white);
+}
+
+.tm-tab {
+  position: relative;
+  background: none;
+  border: 0;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--tm-muted);
+  padding: 12px 14px 11px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tm-tab:hover { color: var(--tm-ink); }
+
+.tm-tab.tm-tab-active {
+  color: var(--tm-green-dark);
+  border-bottom-color: var(--tm-green);
+  font-weight: 600;
+}
+
+.tm-tab.tm-tab-ai.tm-tab-active {
+  color: var(--tm-purple);
+  border-bottom-color: var(--tm-purple);
+}
+
+.tm-tab:disabled {
+  color: var(--tm-faint);
+  cursor: not-allowed;
+}
+
+.tm-tab-lock {
+  font-size: 10.5px;
+  border: 1px solid var(--tm-line);
+  border-radius: 20px;
+  padding: 1px 6px;
+  color: var(--tm-faint);
+}
+
+.tm-tab svg { width: 16px; height: 16px; }
+
+/* Primary action parked at the right-hand end of the tab bar */
+.tm-tabs-cta {
+  margin-left: auto;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--tm-green);
+  border: 0;
+  border-radius: var(--tm-radius);
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.tm-tabs-cta:hover { background: var(--tm-green-dark); }
+
+/* ---------- buttons ---------- */
+
+.tm-btn {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 550;
+  border: 0;
+  border-radius: var(--tm-radius);
+  padding: 9px 16px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  line-height: 1.2;
+}
+
+.tm-btn-primary { background: var(--tm-green); color: #fff; }
+.tm-btn-primary:hover { background: var(--tm-green-dark); }
+
+.tm-btn-ai { background: var(--tm-purple); color: #fff; }
+.tm-btn-ai:hover { background: #4c37b4; }
+
+.tm-btn-ghost {
+  background: #fff;
+  color: var(--tm-ink);
+  border: 1px solid #d2d5dc;
+}
+.tm-btn-ghost:hover { background: var(--tm-surface); }
+
+.tm-btn:disabled {
+  background: var(--tm-line);
+  color: var(--tm-faint);
+  cursor: not-allowed;
+}
+
+/* ---------- page canvas ---------- */
+
+.tm-page {
+  background: var(--tm-white);
+  min-height: 100vh;
+}
+
+.tm-card {
+  background: #fff;
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius-lg);
+  padding: 20px;
+}
+
+/* ---------- top-right site menu (Products / Pricing / Legal) ---------- */
+
+.tm-menu {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tm-menu .menu-item {
+  position: relative;
+  font-size: 13.5px;
+  color: var(--tm-body);
+  padding: 7px 11px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  background: none;
+  border: 0;
+  font-family: inherit;
+}
+
+.tm-menu .menu-item:hover {
+  background: var(--tm-surface);
+  color: var(--tm-ink);
+}
+
+.tm-menu .dropdown-arrow {
+  font-size: 8px;
+  opacity: 0.45;
+  transition: transform 0.15s ease;
+}
+
+.tm-menu .dropdown-arrow.rotated { transform: rotate(180deg); }
+
+.tm-menu .submenu {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  min-width: 200px;
+  background: #fff;
+  border: 1px solid var(--tm-line);
+  border-radius: 8px;
+  padding: 5px;
+  box-shadow: 0 8px 24px rgba(20, 22, 26, 0.09);
+  z-index: 300;
+  text-align: left;
+}
+
+.tm-menu .submenu-item {
+  display: block;
+  padding: 7px 10px;
+  border-radius: 5px;
+  font-size: 13px;
+  color: var(--tm-body);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tm-menu .submenu-item:hover {
+  background: var(--tm-surface);
+  color: var(--tm-ink);
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 860px) {
+  .tm-topbar { height: auto; flex-wrap: wrap; padding: 10px 14px; gap: 10px;
+               position: static; }
+  .tm-menu { order: 3; width: 100%; overflow-x: auto; }
+  .tm-username { display: none; }
+  .tm-tabs { padding: 0 10px; overflow-x: auto; }
+}
+
+@media (max-width: 720px) {
+  .tm-tabs-cta { margin-left: 8px; }
+}
+
+/* ---------- signed-out / login screen ---------- */
+
+.tm-login { background: var(--tm-white); }
+
+
+
+
+/* ------------------------------------------------------------------
+   Overrides for the legacy public/menu.css
+
+   menu.css was written for the old purple gradient background, so it
+   sets the menu text to white. On the new white canvas that made the
+   whole top menu invisible. These rules pull it back to the new
+   neutral styling. Scoped under .tm-menu so nothing else is affected.
+   ------------------------------------------------------------------ */
+
+.tm-menu .menu-item {
+  background-color: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.tm-menu .menu-item:hover {
+  background-color: var(--tm-surface);
+  box-shadow: none;
+  transform: none;
+}
+
+.tm-menu .menu-text,
+.tm-menu .submenu-text {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.tm-menu .dropdown-arrow {
+  color: inherit;
+  margin-left: 0;
+}
+
+.tm-menu .submenu {
+  background-color: var(--tm-white);
+}
+
+.tm-menu .submenu-item {
+  background-color: transparent;
+  color: var(--tm-body);
+}
+
+.tm-menu .submenu-item:hover {
+  background-color: var(--tm-surface);
+  color: var(--tm-ink);
+}
+
+/* ==================================================================
+   PHASE 2 — the workspace: sidebar on the left, content on the right
+   ================================================================== */
+
+.tm-shell {
+  display: flex;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.tm-side {
+  flex: 0 0 268px;
+  width: 268px;
+  border-right: 1px solid var(--tm-line);
+  background: var(--tm-white);
+  padding: 14px 12px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--tm-white);
+}
+
+/* ---------- the primary action ---------- */
+
+.tm-newbtn {
+  width: 100%;
+  height: 34px;
+  border: 0;
+  border-radius: var(--tm-radius);
+  background: var(--tm-green);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  margin-bottom: 18px;
+  transition: background-color 0.15s ease;
+}
+
+.tm-newbtn:hover { background: var(--tm-green-dark); }
+.tm-newbtn svg { width: 14px; height: 14px; }
+
+/* ---------- sidebar navigation ---------- */
+
+.tm-navlabel {
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tm-faint);
+  font-weight: 600;
+  padding: 0 8px;
+  margin: 14px 0 6px;
+}
+
+.tm-navlabel:first-of-type { margin-top: 0; }
+
+.tm-nav {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  background: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13.2px;
+  color: var(--tm-body);
+  text-align: left;
+  cursor: pointer;
+  margin-bottom: 1px;
+}
+
+.tm-nav svg { width: 15px; height: 15px; flex: 0 0 15px; }
+
+.tm-nav:hover { background: #eeeff1; }
+
+.tm-nav.tm-nav-on {
+  background: var(--tm-green-soft);
+  color: var(--tm-green-dark);
+  font-weight: 600;
+}
+
+.tm-nav.tm-nav-on svg { color: var(--tm-green); }
+
+/* AI is the one thing that is purple, never green */
+.tm-nav.tm-nav-ai.tm-nav-on {
+  background: var(--tm-purple-soft);
+  color: var(--tm-purple);
+}
+
+.tm-nav.tm-nav-ai.tm-nav-on svg { color: var(--tm-purple); }
+
+.tm-nav:disabled {
+  color: var(--tm-faint);
+  cursor: not-allowed;
+}
+
+.tm-nav:disabled:hover { background: none; }
+
+.tm-nav-lock {
+  margin-left: auto;
+  font-size: 10px;
+  border: 1px solid var(--tm-line);
+  border-radius: 20px;
+  padding: 1px 6px;
+  color: var(--tm-faint);
+}
+
+.tm-nav-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #c93446;
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.tm-unread-banner {
+  width: calc(100% - 40px);
+  margin: 16px 20px 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px;
+  border: 1px solid #efc7cd;
+  border-radius: 9px;
+  background: #fff7f8;
+  color: #6f2632;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tm-unread-banner:hover { background: #fff1f3; }
+.tm-unread-banner-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: #c93446; }
+.tm-unread-banner strong,.tm-unread-banner small { display: block; }
+.tm-unread-banner strong { font-size: 12px; }
+.tm-unread-banner small { margin-top: 2px; color: #8c5b63; font-size: 11px; }
+.tm-unread-banner-link { margin-left: auto; color: #9f2c3e; font-size: 11px; font-weight: 800; white-space: nowrap; }
+
+/* ---------- plan card, pinned to the bottom ---------- */
+
+.tm-plancard {
+  margin-top: auto;
+  border: 1px solid var(--tm-line);
+  background: var(--tm-surface);
+  border-radius: var(--tm-radius-lg);
+  padding: 11px 12px;
+}
+
+.tm-plancard-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--tm-ink);
+  margin-bottom: 3px;
+}
+
+.tm-plancard-sub {
+  font-size: 11.5px;
+  color: var(--tm-muted);
+}
+
+.tm-plancard-cta {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tm-green-dark);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------- account avatar and its menu ---------- */
+
+.tm-account { position: relative; }
+
+.tm-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--tm-purple);
+  color: #fff;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tm-avatar:hover { background: #4c37b4; }
+
+.tm-account-menu {
+  position: absolute;
+  top: 38px;
+  right: 0;
+  min-width: 232px;
+  background: #fff;
+  border: 1px solid var(--tm-line);
+  border-radius: 8px;
+  padding: 5px;
+  box-shadow: 0 8px 24px rgba(20, 22, 26, 0.09);
+  z-index: 400;
+  text-align: left;
+}
+
+.tm-account-head {
+  padding: 8px 10px 9px;
+  border-bottom: 1px solid var(--tm-line);
+  margin-bottom: 5px;
+}
+
+.tm-account-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tm-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-account-mail {
+  font-size: 11.5px;
+  color: var(--tm-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-account-plan {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 9px;
+  border-bottom: 1px solid var(--tm-line);
+  margin-bottom: 5px;
+}
+
+.tm-account-upgrade {
+  margin-left: auto;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tm-green-dark);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tm-account-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: 0;
+  background: none;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--tm-body);
+  cursor: pointer;
+}
+
+.tm-account-item:hover { background: var(--tm-surface); color: var(--tm-ink); }
+
+.tm-account-signout:hover { background: var(--tm-danger-soft); color: var(--tm-danger); }
+
+/* ---------- footer ---------- */
+
+.tm-footer {
+  text-align: center;
+  padding: 22px 20px;
+  color: var(--tm-faint);
+  font-size: 12.5px;
+  margin-top: auto;
+}
+
+/* ---------- responsive: sidebar becomes a scrolling strip ---------- */
+
+@media (max-width: 820px) {
+  .tm-shell { flex-direction: column; }
+
+  .tm-side {
+    flex: none;
+    width: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--tm-line);
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 8px 10px;
+  }
+
+  .tm-newbtn { width: auto; margin-bottom: 0; padding: 0 12px; white-space: nowrap; }
+  .tm-navlabel { display: none; }
+  .tm-nav { width: auto; white-space: nowrap; margin-bottom: 0; }
+  .tm-nav-lock { display: none; }
+  .tm-plancard { display: none; }
+}
+
+/* ==================================================================
+   Copy split button and Export menu
+   Copy sits LEFT of Export because clients use it constantly.
+   ================================================================== */
+
+.tm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.tm-split { position: relative; display: inline-flex; }
+
+/* --- the Copy body: one click, copies immediately --- */
+
+.tm-split-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: var(--tm-radius) 0 0 var(--tm-radius);
+  background: var(--tm-green);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.tm-split-main:hover { background: var(--tm-green-dark); }
+.tm-split-main svg { width: 16px; height: 16px; }
+
+/* --- the caret: opens the three modes --- */
+
+.tm-split-caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 38px;
+  border: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 0 var(--tm-radius) var(--tm-radius) 0;
+  background: var(--tm-green);
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.tm-split-caret:hover { background: var(--tm-green-dark); }
+.tm-split-caret svg { width: 13px; height: 13px; }
+
+/* --- Export: a quieter, secondary button --- */
+
+.tm-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 15px;
+  border: 1px solid #d2d5dc;
+  border-radius: var(--tm-radius);
+  background: #fff;
+  color: var(--tm-ink);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.tm-export-btn:hover { background: var(--tm-surface); }
+.tm-export-btn svg { width: 16px; height: 16px; }
+.tm-export-btn .tm-export-caret { width: 12px; height: 12px; opacity: 0.5; }
+
+/* --- the dropdown shared by both --- */
+
+.tm-split-menu {
+  position: absolute;
+  top: 43px;
+  left: 0;
+  min-width: 288px;
+  background: #fff;
+  border: 1px solid var(--tm-line);
+  border-radius: 9px;
+  padding: 5px;
+  box-shadow: 0 10px 28px rgba(20, 22, 26, 0.12);
+  z-index: 500;
+}
+
+.tm-split-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 9px;
+  border: 0;
+  background: none;
+  border-radius: 6px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.tm-split-item:hover { background: var(--tm-surface); }
+
+.tm-split-tick {
+  flex: 0 0 15px;
+  width: 15px;
+  height: 17px;
+  display: flex;
+  align-items: center;
+  color: var(--tm-green);
+}
+
+.tm-split-tick svg { width: 14px; height: 14px; }
+
+.tm-split-label {
+  display: block;
+  font-size: 13.5px;
+  color: var(--tm-ink);
+  line-height: 1.35;
+}
+
+.tm-split-item-on .tm-split-label { font-weight: 600; }
+
+.tm-split-hint {
+  display: block;
+  font-size: 11.5px;
+  color: var(--tm-muted);
+  margin-top: 1px;
+  line-height: 1.35;
+}
+
+.tm-split-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 9px 9px 7px;
+  border-top: 1px solid var(--tm-line);
+  font-size: 12.5px;
+  color: var(--tm-body);
+  cursor: pointer;
+}
+
+.tm-split-remember input { accent-color: var(--tm-green); margin: 0; }
+
+/* Keep the sidebar in view while the page scrolls */
+@media (min-width: 821px) {
+  .tm-side {
+    position: sticky;
+    /* 56px bar + its 1px bottom border */
+    top: 57px;
+    align-self: flex-start;
+    /* border-box matters here: the padding has to count towards the
+       height, otherwise the sidebar is taller than the space below the
+       bar, runs out of room inside .tm-shell, and gets pushed up
+       underneath the bar as the page scrolls. */
+    box-sizing: border-box;
+    height: calc(100vh - 57px);
+    overflow-y: auto;
+  }
+}
+
+/* ------------------------------------------------------------------
+   The file picker. Browsers render the default control differently on
+   every platform and it always looks unfinished, so the button part is
+   restyled to match the rest of the app.
+   ------------------------------------------------------------------ */
+
+.tm-file {
+  font-family: inherit;
+  font-size: 13.5px;
+  color: var(--tm-body);
+  max-width: 100%;
+}
+
+.tm-file::file-selector-button {
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--tm-ink);
+  background: #fff;
+  border: 1px solid #d2d5dc;
+  border-radius: var(--tm-radius);
+  padding: 8px 14px;
+  margin-right: 11px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.tm-file::file-selector-button:hover {
+  background: var(--tm-surface);
+}
+
+/* ---------- feature ticks ----------
+   These lists used a tick emoji as their bullet. The marker is now drawn in
+   CSS so it inherits the brand green and lines up on every platform. */
+.tm-tick {
+  position: relative;
+  padding-left: 24px;
+  list-style: none;
+}
+
+.tm-tick::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0.52em;
+  width: 10px;
+  height: 5px;
+  border-left: 2px solid var(--tm-green, #28a745);
+  border-bottom: 2px solid var(--tm-green, #28a745);
+  transform: translateY(-60%) rotate(-45deg);
+}
+
+/* ---------- announcements strip ----------
+   Was a centred slogan carousel on a timer. Now a labelled, controllable strip
+   whose messages can carry you somewhere useful. */
+.tm-ann {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 46px;
+  padding: 8px 12px 8px 14px;
+  box-sizing: border-box;
+  background: #fbfbfc;
+  border: 1px solid var(--tm-line, #e5e6ea);
+  border-radius: 10px;
+  text-align: left;
+  outline: none;
+}
+
+.tm-ann:focus-visible { border-color: #b9bcc4; }
+
+/* The category label. Text, not an icon, so it is unambiguous. */
+.tm-ann-kind {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
+.tm-ann-tip     { color: #4a5160; background: #eceef1; }
+.tm-ann-new     { color: #1c6b32; background: var(--tm-green-soft, #eaf7ee); }
+.tm-ann-feature { color: #4a37a8; background: var(--tm-purple-soft, #f0edfd); }
+
+.tm-ann-body {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.tm-ann-anim { animation: tm-ann-in 320ms ease-out; }
+
+@keyframes tm-ann-in {
+  from { opacity: 0; transform: translateX(9px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.tm-ann-logo { height: 17px; width: auto; flex: 0 0 auto; }
+
+.tm-ann-text {
+  font-size: 13.5px;
+  color: var(--tm-ink, #22252b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The action is the point of the strip, so it reads as a link, not a banner. */
+.tm-ann-action {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: none;
+  padding: 2px 2px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tm-green-dark, #218838);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tm-ann-action:hover { text-decoration: underline; }
+
+.tm-ann-nav {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.tm-ann-arrow {
+  width: 21px;
+  height: 21px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: #969ba6;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+/* Arrows stay out of the way until you show intent. */
+.tm-ann:hover .tm-ann-arrow,
+.tm-ann:focus-within .tm-ann-arrow { opacity: 1; }
+
+.tm-ann-arrow:hover { background: #eceef1; color: var(--tm-ink, #22252b); }
+
+.tm-ann-dots { display: flex; align-items: center; gap: 4px; padding: 0 3px; }
+
+.tm-ann-dot {
+  width: 5px;
+  height: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #d3d6dc;
+  cursor: pointer;
+  transition: background 140ms ease, width 140ms ease;
+}
+
+.tm-ann-dot-on { width: 14px; border-radius: 3px; background: #9aa0ab; }
+
+@media (max-width: 900px) {
+  .tm-ann-text { white-space: normal; }
+  .tm-ann-dots { display: none; }
+  .tm-ann-arrow { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-ann-anim { animation: none; }
+  .tm-ann-dot { transition: none; }
+}
+
+/* ============================================================
+   The proofreading editor
+   ------------------------------------------------------------
+   Built to be read for hours at a time. Generous line height,
+   a wide but bounded measure, and only two colours doing any
+   signalling: green for the line that is playing, amber for a
+   line the service was unsure about.
+   ============================================================ */
+
+.tm-ed {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #fff;
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius);
+}
+
+/* --- header: what this file is, and what you can do with it --- */
+
+.tm-ed-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 22px 16px;
+  border-bottom: 1px solid var(--tm-line);
+  flex-wrap: wrap;
+}
+
+.tm-ed-id { min-width: 0; flex: 1 1 320px; }
+
+.tm-ed-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 9px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--tm-green);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tm-ed-back:hover { color: var(--tm-green-dark); text-decoration: underline; }
+
+.tm-ed-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--tm-ink);
+  word-break: break-word;
+}
+
+.tm-ed-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--tm-muted);
+}
+/* A thin dot between the facts, drawn rather than typed. */
+.tm-ed-meta > span + span::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  margin-right: 12px;
+  border-radius: 50%;
+  background: var(--tm-faint);
+  vertical-align: middle;
+}
+
+.tm-ed-save { font-weight: 600; color: var(--tm-muted); }
+.tm-ed-save-ok { color: var(--tm-green-dark); }
+.tm-ed-save-bad { color: #b4232a; }
+
+.tm-ed-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Ask AI is the one purple thing on this screen. */
+.tm-ed-ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 15px;
+  border: 1px solid var(--tm-purple-line);
+  border-radius: var(--tm-radius);
+  background: var(--tm-purple-soft);
+  color: var(--tm-purple);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.tm-ed-ai:hover { background: #e7e2fb; }
+.tm-ed-ai-off { opacity: 0.55; }
+
+/* Shown in the Export menu when subtitles cannot be offered. */
+.tm-split-note {
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--tm-line);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--tm-muted);
+}
+
+.tm-split-name { display: block; font-weight: 550; color: var(--tm-ink); }
+
+/* --- the player strip --- */
+
+.tm-play {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 22px;
+  border-bottom: 1px solid var(--tm-line);
+  background: #fafbfc;
+  flex-wrap: wrap;
+}
+
+.tm-play-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tm-green);
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.tm-play-btn:hover { background: var(--tm-green-dark); }
+
+.tm-play-skip {
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid #d2d5dc;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--tm-body);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.tm-play-skip:hover { border-color: var(--tm-green); color: var(--tm-green-dark); }
+
+.tm-play-time {
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--tm-muted);
+  min-width: 42px;
+  text-align: center;
+}
+
+.tm-play-bar {
+  flex: 1 1 180px;
+  min-width: 120px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #dfe2e7;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.tm-play-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tm-green);
+  cursor: pointer;
+}
+.tm-play-bar::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tm-green);
+  cursor: pointer;
+}
+
+.tm-play-speed {
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid #d2d5dc;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--tm-body);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.tm-play-rewind,
+.tm-split-remember {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--tm-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.tm-play-rewind input { accent-color: var(--tm-green); cursor: pointer; }
+
+/* --- no audio yet --- */
+
+.tm-attach {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 15px 22px;
+  border-bottom: 1px solid var(--tm-line);
+  background: var(--tm-green-soft);
+  flex-wrap: wrap;
+}
+.tm-attach strong { font-size: 14px; color: var(--tm-ink); }
+.tm-attach p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--tm-body);
+  max-width: 62ch;
+}
+.tm-attach-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 15px;
+  border-radius: var(--tm-radius);
+  background: var(--tm-green);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tm-attach-btn:hover { background: var(--tm-green-dark); }
+/* Hidden from view but still a real, focusable control, so a screen reader
+   and the keyboard can both reach it. display:none would remove it entirely. */
+.tm-attach-btn input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.tm-attach-btn:focus-within { outline: 2px solid var(--tm-green-dark); outline-offset: 2px; }
+
+/* --- toolbar: speakers, things to check, find --- */
+
+.tm-ed-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 22px;
+  border-bottom: 1px solid var(--tm-line);
+  flex-wrap: wrap;
+}
+.tm-ed-sp { flex: 1 1 auto; }
+
+.tm-spk { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.tm-spk-label {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--tm-faint);
+}
+.tm-spk-chip {
+  height: 27px;
+  padding: 0 11px;
+  border: 1px solid var(--tm-line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--tm-body);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.tm-spk-chip:hover { border-color: var(--tm-green); color: var(--tm-green-dark); }
+.tm-spk-input {
+  height: 27px;
+  width: 140px;
+  padding: 0 9px;
+  border: 1px solid var(--tm-green);
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+
+.tm-ed-tool {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid #d2d5dc;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--tm-body);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.tm-ed-tool:hover { border-color: var(--tm-green); color: var(--tm-green-dark); }
+
+/* --- find and replace --- */
+
+.tm-find {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 22px;
+  border-bottom: 1px solid var(--tm-line);
+  background: #fafbfc;
+  flex-wrap: wrap;
+}
+.tm-find-in {
+  height: 32px;
+  width: 175px;
+  padding: 0 10px;
+  border: 1px solid #d2d5dc;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13.5px;
+  outline: none;
+}
+.tm-find-in:focus { border-color: var(--tm-green); }
+.tm-find-count { font-size: 12.5px; color: var(--tm-muted); }
+.tm-find-go {
+  height: 32px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--tm-green);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tm-find-go:hover:not(:disabled) { background: var(--tm-green-dark); }
+.tm-find-go:disabled { background: #c9ccd3; cursor: default; }
+
+/* --- the approximate-times notice --- */
+
+.tm-ed-warn {
+  margin: 0;
+  padding: 11px 22px;
+  border-bottom: 1px solid var(--tm-line);
+  background: var(--tm-warn-soft);
+  color: var(--tm-warn);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* --- the transcript itself --- */
+
+.tm-ed-list {
+  flex: 1 1 auto;
+  min-height: 320px;
+  max-height: 62vh;
+  overflow-y: auto;
+  padding: 10px 0 26px;
+  scroll-behavior: smooth;
+}
+
+.tm-ed-empty { padding: 34px 22px; color: var(--tm-muted); font-size: 14px; }
+.tm-ed-empty-start {
+  display: block;
+  width: 100%;
+  min-height: 140px;
+  margin: 18px 22px;
+  padding: 12px 14px;
+  border: 1px dashed var(--tm-border, #d7dae0);
+  border-radius: 8px;
+  background: #fbfbfc;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--tm-ink);
+  resize: vertical;
+}
+.tm-ed-empty-start:focus { outline: 2px solid var(--tm-green); outline-offset: 2px; border-style: solid; }
+
+.tm-seg {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 6px 22px 6px 18px;
+  border-left: 3px solid transparent;
+}
+.tm-seg:hover { background: #f7f8f9; }
+
+/* The line currently playing. Green, because it follows the audio the
+   user is driving. Kept as a left rule plus a tint so it never fights
+   with the text for attention. */
+.tm-seg-on {
+  background: var(--tm-green-soft);
+  border-left-color: var(--tm-green);
+}
+.tm-seg-on:hover { background: #e2f4e8; }
+
+.tm-seg-time {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  padding: 1px 5px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--tm-faint);
+  font-family: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  min-width: 46px;
+  text-align: right;
+}
+.tm-seg-time:hover { background: var(--tm-green); color: #fff; }
+.tm-seg-on .tm-seg-time { color: var(--tm-green-dark); font-weight: 600; }
+
+/* The tilde that marks an estimate. Small, but it is the difference
+   between a measurement and a guess. */
+.tm-approx { margin-left: 1px; opacity: 0.75; }
+
+.tm-seg-who {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--tm-ink);
+  white-space: nowrap;
+}
+
+.tm-seg-text {
+  flex: 1 1 auto;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--tm-body);
+  cursor: text;
+  border-radius: 4px;
+  max-width: 78ch;
+}
+.tm-seg-text:focus-visible { outline: 2px solid var(--tm-green); outline-offset: 2px; }
+
+.tm-seg-input {
+  flex: 1 1 auto;
+  max-width: 78ch;
+  padding: 2px 8px;
+  border: 1px solid var(--tm-green);
+  border-radius: 5px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--tm-ink);
+  resize: none;
+  overflow: hidden;
+  outline: none;
+}
+
+/* A line the service itself was unsure about. Amber, not red: it is a
+   prompt to listen again, not an error. */
+.tm-low-mark {
+  background: linear-gradient(transparent 68%, #ffe9b8 68%);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.tm-low-flag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--tm-warn-soft);
+  border: 1px solid #e8d6a8;
+  color: var(--tm-warn);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  vertical-align: 2px;
+}
+
+.tm-hit { background: #ffe9b8; color: var(--tm-ink); border-radius: 2px; }
+/* The one match the client is standing on, so it is obvious which of several
+   highlighted words Enter has just jumped to. Solid outline, no glow. */
+.tm-hit-on {
+  background: #ffc94d;
+  outline: 2px solid var(--tm-ink);
+  outline-offset: 0;
+}
+
+/* --- footer hints --- */
+
+.tm-ed-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 22px;
+  border-top: 1px solid var(--tm-line);
+  background: #fafbfc;
+  font-size: 12.5px;
+  color: var(--tm-muted);
+  flex-wrap: wrap;
+}
+.tm-ed-foot b { font-weight: 650; color: var(--tm-body); }
+
+.tm-ed-shortcuts {
+  align-items: center;
+  background: #f1fbf4;
+  border: 1px solid #bfe4c8;
+  border-left: 4px solid var(--tm-green);
+  border-radius: 9px;
+  color: var(--tm-body);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  line-height: 1.45;
+  padding: 10px 13px;
+}
+
+.tm-ed-shortcuts strong {
+  color: #1f6a32;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tm-ed-shortcuts kbd,
+.tm-ed-audio-shortcuts b {
+  background: #fff;
+  border: 1px solid #a8cdb0;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  color: #1f6a32;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+
+.tm-ed-audio-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .tm-ed-head { padding: 15px 16px 13px; }
+  .tm-play, .tm-ed-bar, .tm-find, .tm-ed-foot, .tm-ed-warn { padding-left: 16px; padding-right: 16px; }
+  .tm-seg { padding-left: 13px; padding-right: 16px; gap: 9px; }
+  .tm-seg-text, .tm-seg-input { font-size: 14.5px; }
+  .tm-ed-list { max-height: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-ed-list { scroll-behavior: auto; }
+}
+
+/* A section heading inside a split-button menu. */
+.tm-split-head {
+  padding: 9px 14px 6px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--tm-faint);
+}
+
+/* The line under a fresh transcript pointing at where it was saved. */
+.tm-result-note {
+  margin: 14px 0 0;
+  font-size: 13.5px;
+  color: var(--tm-muted);
+  text-align: center;
+}
+.tm-result-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--tm-green);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.tm-result-link:hover { color: var(--tm-green-dark); }
+
+/* --- the single-transcript page --- */
+
+.tm-detail {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 26px 20px 44px;
+}
+
+.tm-detail-msg {
+  padding: 46px 24px;
+  text-align: center;
+  color: var(--tm-body);
+  font-size: 15px;
+}
+.tm-detail-msg h2 { margin: 0 0 8px; font-size: 20px; color: var(--tm-ink); }
+.tm-detail-msg p { margin: 0 0 20px; color: var(--tm-muted); }
+
+.tm-detail-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--tm-muted);
+  flex-wrap: wrap;
+}
+.tm-detail-del {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #b4232a;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.tm-detail-del:hover { text-decoration: underline; }
+
+/* The banner on the sample-transcript page. */
+.tm-demo-note {
+  margin-bottom: 14px;
+  padding: 13px 16px;
+  border: 1px solid var(--tm-green-line);
+  border-radius: var(--tm-radius);
+  background: var(--tm-green-soft);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--tm-body);
+}
+.tm-demo-note strong { color: var(--tm-ink); }
+
+/* Menus in the editor header hang from the right edge of their button, so a
+   wide one cannot run off the side of the panel or the screen. */
+.tm-ed-actions .tm-split-menu { left: auto; right: 0; }
+
+/* The panel no longer clips its children, so the strips that sit at the top
+   and bottom keep the rounded corners themselves. */
+.tm-ed > .tm-ed-head { border-radius: var(--tm-radius) var(--tm-radius) 0 0; }
+.tm-ed-foot { border-radius: 0 0 var(--tm-radius) var(--tm-radius); }
+
+/* ============================================================
+   Page heading with an action beside it
+   ============================================================ */
+
+.tm-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+/* The standard green action button. Flat, square-ish, no glow, no bobbing. */
+.tm-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--tm-radius);
+  background: var(--tm-green);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease;
+}
+.tm-primary:hover { background: var(--tm-green-dark); }
+.tm-primary:focus-visible { outline: 2px solid var(--tm-green-dark); outline-offset: 2px; }
+
+/* ============================================================
+   Transcription progress
+   ------------------------------------------------------------
+   Three named stages, a bar that moves, and the cancel control
+   sitting beside the thing it cancels.
+   ============================================================ */
+
+.tm-prog {
+  margin: 4px 0 8px;
+  padding: 18px 20px 16px;
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius);
+  background: #fafbfc;
+  text-align: left;
+}
+
+/* --- the three stages --- */
+
+.tm-prog-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 0 0 15px;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-prog-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--tm-faint);
+  white-space: nowrap;
+}
+
+/* The connecting rule between stages. */
+.tm-prog-step + .tm-prog-step::before {
+  content: '';
+  width: 34px;
+  height: 1px;
+  margin: 0 11px;
+  background: var(--tm-line);
+}
+
+.tm-prog-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  border: 1.5px solid #d5d8de;
+  border-radius: 50%;
+  background: #fff;
+  color: #fff;
+}
+.tm-prog-dot svg { width: 10px; height: 10px; }
+
+.tm-prog-done { color: var(--tm-body); }
+.tm-prog-done .tm-prog-dot { border-color: var(--tm-green); background: var(--tm-green); }
+
+.tm-prog-now { color: var(--tm-ink); font-weight: 650; }
+.tm-prog-now .tm-prog-dot {
+  border-color: var(--tm-green);
+  /* A quiet ring rather than a glow, so it reads as "here" not "alarm". */
+  box-shadow: 0 0 0 3px var(--tm-green-soft);
+}
+
+/* --- the bar --- */
+
+.tm-prog-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #e6e8ec;
+  overflow: hidden;
+}
+
+.tm-prog-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--tm-green);
+  /* Long enough to look smooth between upload events, short enough that the
+     bar never lags visibly behind the truth. */
+  transition: width 0.45s ease-out;
+}
+
+/* --- what is happening, in words --- */
+
+.tm-prog-say {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.tm-prog-head { font-size: 13.5px; font-weight: 600; color: var(--tm-ink); }
+.tm-prog-detail { font-size: 13px; color: var(--tm-muted); font-variant-numeric: tabular-nums; }
+
+/* --- cancel --- */
+
+.tm-prog-cancel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  height: 32px;
+  padding: 0 13px;
+  border: 1px solid #d5d8de;
+  border-radius: var(--tm-radius);
+  background: #fff;
+  color: var(--tm-body);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+/* Stopping your own upload is not a disaster, so the button is quiet until
+   you reach for it, and only then turns red. */
+.tm-prog-cancel:hover {
+  border-color: #e0a3a7;
+  background: #fdf3f4;
+  color: #b4232a;
+}
+
+@media (max-width: 560px) {
+  .tm-prog-step + .tm-prog-step::before { width: 14px; margin: 0 7px; }
+  .tm-prog-step { font-size: 11.5px; }
+}
+
+/* ============================================================
+   Waiting on the AI
+   ------------------------------------------------------------
+   Unlike a transcription, there is no way to know how long a
+   model will take, so this stays indeterminate. It is honest
+   about that: a slim sliver that travels, rather than a thick
+   bar pretending to fill up.
+   ============================================================ */
+
+.tm-thinking {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 18px;
+  font-size: 13.5px;
+  color: var(--tm-purple);
+}
+
+.tm-thinking-track {
+  flex: 1 1 auto;
+  position: relative;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--tm-purple-soft);
+  overflow: hidden;
+}
+
+.tm-thinking-slide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 32%;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--tm-purple-light);
+  animation: tm-thinking-move 1.25s ease-in-out infinite;
+}
+
+@keyframes tm-thinking-move {
+  0%   { transform: translateX(-110%); }
+  100% { transform: translateX(420%); }
+}
+
+/* Movement is decoration here; the words carry the meaning. */
+@media (prefers-reduced-motion: reduce) {
+  .tm-thinking-slide { animation: none; width: 100%; opacity: 0.5; }
+}
+
+/* ============================================================
+   Notifications and confirmation dialogs
+   ============================================================ */
+
+.tm-toaster{
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+  pointer-events: none;
+  max-width: min(380px, calc(100vw - 40px));
+}
+
+.tm-toast{
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  background: var(--tm-white);
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius);
+  padding: 12px 12px 12px 14px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--tm-body);
+  animation: tm-toast-in 180ms ease-out;
+}
+
+@keyframes tm-toast-in{
+  from{ opacity: 0; transform: translateY(8px); }
+  to  { opacity: 1; transform: translateY(0); }
+}
+
+.tm-toast-out{
+  animation: tm-toast-fade 180ms ease-in forwards;
+}
+@keyframes tm-toast-fade{
+  from{ opacity: 1; transform: translateY(0); }
+  to  { opacity: 0; transform: translateY(6px); }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .tm-toast, .tm-toast-out{ animation: none; }
+}
+
+/* One small dot carries the meaning. No tinted panels, no coloured bars. */
+.tm-toast-dot{
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-top: 7px;
+  background: var(--tm-muted);
+}
+.tm-toast-success .tm-toast-dot{ background: var(--tm-green); }
+.tm-toast-warning .tm-toast-dot{ background: var(--tm-warn); }
+.tm-toast-error   .tm-toast-dot{ background: var(--tm-danger); }
+.tm-toast-info    .tm-toast-dot{ background: var(--tm-faint); }
+
+.tm-toast-text{ flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+.tm-toast-x{
+  flex: none;
+  background: none;
+  border: 0;
+  padding: 2px;
+  margin: -1px -2px 0 0;
+  color: var(--tm-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  line-height: 0;
+}
+.tm-toast-x:hover{ color: var(--tm-ink); background: rgba(16,18,22,.06); }
+.tm-toast-x:focus-visible{ outline: 2px solid var(--tm-green); outline-offset: 1px; }
+
+/* ---- Confirmation dialog ---- */
+
+.tm-dialog-back{
+  position: fixed;
+  inset: 0;
+  z-index: 3100;
+  background: rgba(16, 18, 22, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: tm-fade-in 140ms ease-out;
+}
+@keyframes tm-fade-in{ from{ opacity: 0 } to{ opacity: 1 } }
+
+.tm-dialog{
+  background: #fff;
+  border-radius: 12px;
+  padding: 22px 24px 18px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 12px 40px rgba(16, 18, 22, 0.18);
+  animation: tm-dialog-in 160ms ease-out;
+}
+@keyframes tm-dialog-in{
+  from{ opacity: 0; transform: translateY(10px) scale(.985); }
+  to  { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce){
+  .tm-dialog-back, .tm-dialog{ animation: none; }
+}
+
+.tm-dialog-title{
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--tm-ink);
+}
+.tm-dialog-body{
+  margin: 0 0 20px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--tm-body);
+}
+.tm-dialog-actions{
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.tm-dialog-cancel,
+.tm-dialog-go{
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid var(--tm-line);
+}
+.tm-dialog-cancel{ background: #fff; color: var(--tm-body); }
+.tm-dialog-cancel:hover:not(:disabled){ background: var(--tm-surface); color: var(--tm-ink); }
+
+.tm-dialog-go{ background: var(--tm-green); border-color: var(--tm-green); color: #fff; }
+.tm-dialog-go:hover:not(:disabled){ background: var(--tm-green-dark); border-color: var(--tm-green-dark); }
+
+.tm-dialog-danger{ background: var(--tm-danger); border-color: var(--tm-danger); }
+.tm-dialog-danger:hover:not(:disabled){ background: #b12f2f; border-color: #b12f2f; }
+
+.tm-dialog-cancel:disabled,
+.tm-dialog-go:disabled{ opacity: .6; cursor: default; }
+.tm-dialog-cancel:focus,
+.tm-dialog-go:focus,
+.tm-dialog-cancel:focus-visible,
+.tm-dialog-go:focus-visible{ outline: 2px solid var(--tm-ink); outline-offset: 2px; }
+
+/* Shown when a transcription is blocked by the client's plan. Replaces the
+   old behaviour of flashing a warning and then forcing them to the pricing
+   page two seconds later, losing the file they had chosen. */
+.tm-blocked{
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  background: var(--tm-warn-soft);
+  border: 1px solid #f0dfb4;
+  border-left: 3px solid var(--tm-warn);
+  border-radius: var(--tm-radius-lg);
+  padding: 15px 18px;
+  margin-bottom: 22px;
+}
+.tm-blocked-text{ display: flex; flex-direction: column; gap: 3px; min-width: 220px; flex: 1; }
+.tm-blocked-text strong{ color: var(--tm-ink); font-size: 15px; font-weight: 600; }
+.tm-blocked-text span{ color: var(--tm-body); font-size: 13.5px; }
+.tm-blocked-acts{ display: flex; gap: 9px; flex: none; }
+.tm-blocked-go,
+.tm-blocked-x{
+  font: inherit; font-size: 14px; font-weight: 500;
+  padding: 8px 15px; border-radius: var(--tm-radius); cursor: pointer;
+}
+.tm-blocked-go{ background: var(--tm-green); border: 1px solid var(--tm-green); color: #fff; }
+.tm-blocked-go:hover{ background: var(--tm-green-dark); border-color: var(--tm-green-dark); }
+.tm-blocked-x{ background: transparent; border: 1px solid #e0cf9f; color: var(--tm-body); }
+.tm-blocked-x:hover{ background: rgba(154,100,0,.07); color: var(--tm-ink); }
+
+/* ---- Flash: a few words over the middle of the page, then gone ---- */
+
+.tm-flash{
+  position: fixed;
+  left: 50%;
+  bottom: 34px;
+  transform: translateX(-50%);
+  z-index: 3200;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.tm-flash-text{
+  position: relative;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+  color: var(--tm-green);
+  white-space: nowrap;
+  /* A thin white halo so the words stay readable over any page content.
+     Not a glow: no colour, no spread. */
+  text-shadow: 0 1px 2px rgba(255,255,255,.95);
+  animation: tm-flash-rise 1600ms cubic-bezier(.16,1,.3,1) forwards;
+}
+
+/* Rises from below the edge of the screen, gives one small hop, then goes. */
+@keyframes tm-flash-rise{
+  0%   { opacity: 0; transform: translateY(26px) scale(.94); }
+  22%  { opacity: 1; transform: translateY(0) scale(1); }
+  32%  { opacity: 1; transform: translateY(-3px) scale(1.03); }
+  44%  { opacity: 1; transform: translateY(0) scale(1); }
+  78%  { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-8px) scale(1); }
+}
+
+/* A small burst of confetti above the words. Eight little pieces, one short
+   throw, gone in under a second. Kept deliberately small and quiet. */
+.tm-flash-pop{
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: 0;
+  height: 0;
+  margin-bottom: 3px;
+}
+.tm-flash-bit{
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+  background: var(--tm-green);
+  opacity: 0;
+  animation: tm-flash-bit 820ms cubic-bezier(.2,.7,.3,1) forwards;
+  animation-delay: 170ms;
+}
+/* Deliberately irregular: an even arc reads as a loading spinner, not as
+   confetti. Sizes, distances and timings are all slightly different. */
+.tm-flash-bit:nth-child(1){ --tm-dx:-52px; --tm-dy:-14px; --tm-rot:130deg; width:4px; height:6px; animation-delay:190ms; }
+.tm-flash-bit:nth-child(2){ --tm-dx:-27px; --tm-dy:-41px; --tm-rot:-95deg; background: var(--tm-green-dark); animation-delay:160ms; }
+.tm-flash-bit:nth-child(3){ --tm-dx:-13px; --tm-dy:-25px; --tm-rot:55deg;  width:3px; height:3px; animation-delay:215ms; }
+.tm-flash-bit:nth-child(4){ --tm-dx:4px;   --tm-dy:-47px; --tm-rot:-150deg; background: var(--tm-green-dark); width:5px; height:7px; animation-delay:150ms; }
+.tm-flash-bit:nth-child(5){ --tm-dx:23px;  --tm-dy:-22px; --tm-rot:100deg; width:3px; height:3px; animation-delay:205ms; }
+.tm-flash-bit:nth-child(6){ --tm-dx:44px;  --tm-dy:-33px; --tm-rot:-65deg; background: var(--tm-green-dark); animation-delay:172ms; }
+.tm-flash-bit:nth-child(7){ --tm-dx:-36px; --tm-dy:-3px;  --tm-rot:40deg;  width:4px; height:4px; animation-delay:230ms; }
+.tm-flash-bit:nth-child(8){ --tm-dx:33px;  --tm-dy:-6px;  --tm-rot:-40deg; width:3px; height:5px; animation-delay:198ms; }
+
+@keyframes tm-flash-bit{
+  0%   { opacity: 0; transform: translate(0,0) scale(.5) rotate(0deg); }
+  20%  { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--tm-dx), var(--tm-dy)) scale(1) rotate(var(--tm-rot)); }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .tm-flash-text{ animation: tm-flash-fade 1600ms ease-out forwards; }
+  .tm-flash-pop{ display: none; }
+  @keyframes tm-flash-fade{
+    0%{ opacity: 0 } 18%{ opacity: 1 } 70%{ opacity: 1 } 100%{ opacity: 0 }
+  }
+}
+
+/* Told once, plainly: the transcript is kept, the recording is not. */
+.tm-keepnote{
+  margin: 12px auto 0;
+  max-width: 60ch;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--tm-body);
+  font-weight: 400;
+}
+
+/* ---- The quiet moment before we know who is signed in ---- */
+
+.tm-boot{
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--tm-white);
+}
+.tm-boot-mark{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  animation: tm-boot-in 260ms ease-out;
+}
+.tm-boot-logo{
+  display: block;
+  width: 96px;
+  height: 96px;
+  animation: tm-boot-blink 1600ms ease-in-out infinite;
+}
+.tm-boot-word{
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.tm-boot-p{ color: var(--tm-purple); }
+.tm-boot-g{ color: var(--tm-green); }
+.tm-boot-sub{
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tm-muted);
+}
+@keyframes tm-boot-in{ from{ opacity: 0 } to{ opacity: 1 } }
+@keyframes tm-boot-blink{ 0%,100%{ opacity: 1 } 50%{ opacity: 0.32 } }
+@media (prefers-reduced-motion: reduce){
+  .tm-boot-mark{ animation: none; }
+  .tm-boot-logo{ animation: none; }
+}
+
+/* The plan chip while the profile is still on its way. */
+.tm-plan-pending{ color: var(--tm-muted); }
+
+/* ============================================================
+   Legal pages: Terms of Service, Privacy & Security
+   ============================================================ */
+
+.tm-legal{
+  min-height: 100vh;
+  background: var(--tm-white);
+  font-family: var(--tm-font);
+  color: var(--tm-body);
+}
+
+.tm-legal-bar{
+  border-bottom: 1px solid var(--tm-line);
+  background: var(--tm-white);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.tm-legal-bar-in{
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.tm-legal-home{
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--tm-font);
+}
+.tm-legal-home .tm-w-p{ color: var(--tm-purple); }
+.tm-legal-home .tm-w-g{ color: var(--tm-green); }
+
+.tm-legal-tabs{ display: flex; gap: 4px; }
+.tm-legal-tab{
+  font: inherit;
+  font-size: 0.86rem;
+  padding: 7px 13px;
+  border-radius: var(--tm-radius);
+  border: 1px solid transparent;
+  background: none;
+  color: var(--tm-muted);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.tm-legal-tab:hover{ color: var(--tm-ink); background: var(--tm-surface); }
+.tm-legal-tab[aria-current="page"]{
+  color: var(--tm-ink);
+  background: var(--tm-surface);
+  border-color: var(--tm-line);
+  font-weight: 600;
+}
+
+.tm-legal-body{
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 44px 24px 88px;
+}
+
+.tm-legal h1{
+  font-size: 2rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--tm-ink);
+  margin: 0 0 10px;
+  font-weight: 700;
+}
+.tm-legal-updated{
+  color: var(--tm-muted);
+  font-size: 0.85rem;
+  margin: 0 0 32px;
+}
+
+/* The plain-English summary that opens each document. */
+.tm-legal-gist{
+  border: 1px solid var(--tm-green-line);
+  background: var(--tm-green-soft);
+  border-radius: var(--tm-radius-lg);
+  padding: 22px 24px;
+  margin: 0 0 40px;
+}
+.tm-legal-gist h2{
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--tm-green-dark);
+  margin: 0 0 12px;
+  font-weight: 700;
+}
+.tm-legal-gist ul{ margin: 0; padding-left: 20px; }
+.tm-legal-gist li{ margin: 0 0 8px; line-height: 1.6; color: var(--tm-ink); }
+.tm-legal-gist li:last-child{ margin-bottom: 0; }
+
+.tm-legal h2{
+  font-size: 1.12rem;
+  color: var(--tm-ink);
+  margin: 40px 0 12px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.tm-legal h3{
+  font-size: 0.97rem;
+  color: var(--tm-ink);
+  margin: 26px 0 8px;
+  font-weight: 600;
+}
+.tm-legal p{ line-height: 1.72; margin: 0 0 14px; }
+.tm-legal ul, .tm-legal ol{ line-height: 1.72; margin: 0 0 14px; padding-left: 22px; }
+.tm-legal li{ margin: 0 0 7px; }
+.tm-legal strong{ color: var(--tm-ink); }
+.tm-legal a{ color: var(--tm-ink); text-decoration: underline; text-underline-offset: 2px; }
+/* The wordmark and the document tabs are navigation, not body links. */
+.tm-legal .tm-legal-home, .tm-legal .tm-legal-tab{ text-decoration: none; }
+
+.tm-legal-table{
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 20px;
+  font-size: 0.9rem;
+}
+.tm-legal-table th{
+  text-align: left;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--tm-muted);
+  font-weight: 700;
+  padding: 0 12px 8px 0;
+  border-bottom: 1px solid var(--tm-line);
+}
+.tm-legal-table td{
+  padding: 11px 12px 11px 0;
+  border-bottom: 1px solid var(--tm-line);
+  vertical-align: top;
+  line-height: 1.55;
+}
+.tm-legal-table td:first-child{ color: var(--tm-ink); font-weight: 600; width: 30%; }
+
+.tm-legal-note{
+  border-left: 3px solid var(--tm-line);
+  padding: 2px 0 2px 16px;
+  margin: 0 0 18px;
+  color: var(--tm-muted);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.tm-legal-contact{
+  border: 1px solid var(--tm-line);
+  background: var(--tm-surface);
+  border-radius: var(--tm-radius-lg);
+  padding: 20px 22px;
+  margin: 28px 0 0;
+}
+.tm-legal-contact p{ margin: 0 0 6px; }
+.tm-legal-contact p:last-child{ margin: 0; }
+
+.tm-legal-foot{
+  margin-top: 52px;
+  padding-top: 22px;
+  border-top: 1px solid var(--tm-line);
+  color: var(--tm-faint);
+  font-size: 0.82rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.tm-legal-foot a{ color: var(--tm-muted); text-decoration: none; }
+.tm-legal-foot a:hover{ color: var(--tm-ink); text-decoration: underline; }
+
+@media (max-width: 640px){
+  .tm-legal-body{ padding: 30px 18px 64px; }
+  .tm-legal h1{ font-size: 1.6rem; }
+  .tm-legal-bar-in{ padding: 12px 18px; }
+  .tm-legal-table td:first-child{ width: auto; }
+  .tm-legal-table, .tm-legal-table tbody, .tm-legal-table tr, .tm-legal-table td{ display: block; width: 100%; }
+  .tm-legal-table thead{ display: none; }
+  .tm-legal-table tr{ border-bottom: 1px solid var(--tm-line); padding: 10px 0; }
+  .tm-legal-table td{ border: 0; padding: 2px 0; }
+  .tm-legal-table td:first-child{ font-weight: 700; }
+}
+
+/* Site footer with the legal links, used signed-in and signed-out. */
+.tm-sitefoot{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 22px;
+  flex-wrap: wrap;
+  text-align: center;
+  padding: 20px;
+  color: var(--tm-faint);
+  font-size: 0.85rem;
+}
+.tm-sitefoot-links{ display: inline-flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+.tm-sitefoot-links a{ color: var(--tm-muted); text-decoration: none; }
+.tm-sitefoot-links a:hover{ color: var(--tm-ink); text-decoration: underline; }
+
+/* ============================================================
+   Landing page (signed out)
+   ============================================================ */
+
+.tm-lp{ display: block; background: var(--tm-white); }
+.tm-lp .tm-menu .menu-item{ text-decoration: none; }
+
+.tm-lp-inner{ max-width: 1060px; margin: 0 auto; padding: 0 28px; }
+.tm-lp-narrow{ max-width: 780px; }
+
+/* ---- Hero ---- */
+.tm-lp-hero{
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 68px 28px 76px;
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 60px;
+  align-items: start;
+}
+.tm-lp-hero h1{
+  font-size: 2.7rem;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  color: var(--tm-ink);
+  margin: 0 0 20px;
+  font-weight: 700;
+}
+.tm-lp-lede{
+  font-size: 1.06rem;
+  line-height: 1.68;
+  color: var(--tm-body);
+  margin: 0 0 26px;
+  max-width: 33em;
+}
+.tm-lp-ticks{ list-style: none; margin: 0; padding: 0; }
+.tm-lp-ticks li{
+  position: relative;
+  padding-left: 26px;
+  margin: 0 0 11px;
+  color: var(--tm-body);
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+/* A restrained check drawn in CSS rather than an icon font or an emoji. */
+.tm-lp-ticks li::before{
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 6px;
+  width: 5px;
+  height: 10px;
+  border: solid var(--tm-green);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.tm-lp-hero-card{
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius-lg);
+  background: var(--tm-white);
+  padding: 26px 24px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.tm-lp-hero-card > div{ border: 0 !important; padding: 0 !important; max-width: none !important; }
+.tm-lp-freenote{
+  margin: 18px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--tm-muted);
+  text-align: center;
+  border-top: 1px solid var(--tm-line);
+  padding-top: 16px;
+  width: 100%;
+}
+.tm-lp-freenote strong{ color: var(--tm-green-dark); }
+
+/* ---- Bands ---- */
+.tm-lp-band{
+  background: var(--tm-surface);
+  border-top: 1px solid var(--tm-line);
+  padding: 66px 0;
+}
+.tm-lp-band-plain{ background: var(--tm-white); }
+
+.tm-lp-band h2{
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+  color: var(--tm-ink);
+  margin: 0 0 10px;
+  font-weight: 700;
+}
+.tm-lp-sub{
+  color: var(--tm-muted);
+  margin: 0 0 34px;
+  line-height: 1.65;
+  max-width: 56em;
+}
+
+/* ---- What we transcribe ---- */
+.tm-lp-grid{
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+.tm-lp-card{
+  background: var(--tm-white);
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius-lg);
+  padding: 22px 22px 24px;
+}
+.tm-lp-band-plain .tm-lp-card{ background: var(--tm-surface); }
+.tm-lp-card h3{
+  font-size: 1rem;
+  color: var(--tm-ink);
+  margin: 0 0 8px;
+  font-weight: 650;
+}
+.tm-lp-card p{ margin: 0; color: var(--tm-body); line-height: 1.62; font-size: 0.92rem; }
+
+/* ---- How it works ---- */
+.tm-lp-steps{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px; }
+.tm-lp-step h3{ font-size: 1.02rem; color: var(--tm-ink); margin: 0 0 8px; font-weight: 650; }
+.tm-lp-step p{ margin: 0; color: var(--tm-body); line-height: 1.65; font-size: 0.94rem; }
+.tm-lp-stepnum{
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--tm-green-line);
+  background: var(--tm-green-soft);
+  color: var(--tm-green-dark);
+  font-weight: 700;
+  font-size: 0.85rem;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 0 14px;
+}
+
+/* ---- Privacy promises ---- */
+.tm-lp-promises{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px; }
+.tm-lp-promise h3{
+  font-size: 0.95rem; color: var(--tm-ink); margin: 0 0 8px; font-weight: 650;
+  padding-top: 13px; border-top: 2px solid var(--tm-green);
+}
+.tm-lp-promise p{ margin: 0; color: var(--tm-body); line-height: 1.62; font-size: 0.9rem; }
+.tm-lp-readmore{ margin: 30px 0 0; color: var(--tm-muted); font-size: 0.92rem; line-height: 1.65; }
+.tm-lp-readmore a{ color: var(--tm-ink); text-decoration: underline; text-underline-offset: 2px; }
+
+/* Cost calculator call-out on the landing page. Green: it is an action the
+   visitor takes. Sits under the plans table where the price question arises. */
+.tm-lp-calc{ margin: 18px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.tm-lp-calc-link{
+  align-self: flex-start;
+  display: inline-block;
+  padding: 10px 16px;
+  border: 1px solid var(--tm-green-line);
+  border-radius: var(--tm-radius);
+  background: var(--tm-green-soft);
+  color: var(--tm-green-dark);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+}
+.tm-lp-calc-link:hover{ background: var(--tm-green); color: var(--tm-white); border-color: var(--tm-green); }
+.tm-lp-calc-link:focus,
+.tm-lp-calc-link:focus-visible{ outline: 2px solid var(--tm-ink); outline-offset: 2px; }
+.tm-lp-calc-note{ color: var(--tm-muted); font-size: 0.88rem; line-height: 1.6; }
+
+/* ---- Plans ---- */
+.tm-lp-plans{ width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.tm-lp-plans td{
+  padding: 13px 12px 13px 0;
+  border-bottom: 1px solid var(--tm-line);
+  color: var(--tm-body);
+}
+.tm-lp-plans td:first-child{ color: var(--tm-ink); font-weight: 650; width: 40%; }
+.tm-lp-plans tr:first-child td{ border-top: 1px solid var(--tm-line); }
+
+/* ---- Closing call to action ---- */
+.tm-lp-cta{
+  border-top: 1px solid var(--tm-line);
+  background: var(--tm-white);
+  padding: 66px 0 74px;
+  text-align: center;
+}
+.tm-lp-cta h2{
+  font-size: 1.55rem; letter-spacing: -0.02em; color: var(--tm-ink);
+  margin: 0 0 10px; font-weight: 700;
+}
+.tm-lp-cta p{ color: var(--tm-body); margin: 0 auto 26px; max-width: 34em; line-height: 1.65; }
+.tm-lp-cta-btn{
+  font: inherit;
+  font-weight: 650;
+  font-size: 0.95rem;
+  color: var(--tm-white);
+  background: var(--tm-green);
+  border: 1px solid var(--tm-green);
+  border-radius: var(--tm-radius);
+  padding: 12px 30px;
+  cursor: pointer;
+}
+.tm-lp-cta-btn:hover{ background: var(--tm-green-dark); border-color: var(--tm-green-dark); }
+
+/* ---- Narrower screens ---- */
+@media (max-width: 940px){
+  .tm-lp-hero{ grid-template-columns: 1fr; gap: 40px; padding: 46px 24px 56px; }
+  .tm-lp-hero h1{ font-size: 2.1rem; }
+  .tm-lp-hero-card{ max-width: 420px; }
+  .tm-lp-grid, .tm-lp-steps, .tm-lp-promises{ grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px){
+  .tm-lp-hero h1{ font-size: 1.8rem; }
+  .tm-lp-inner{ padding: 0 20px; }
+  .tm-lp-band{ padding: 46px 0; }
+  .tm-lp-grid, .tm-lp-steps, .tm-lp-promises{ grid-template-columns: 1fr; gap: 20px; }
+  .tm-lp-plans td:first-child{ width: 50%; }
+}
+
+/* ============================================================
+   Sign in / create account card
+   Lives inside .tm-lp-hero-card on the landing page, which already
+   supplies the white panel, border and padding, so this block is
+   transparent and simply fills the width it is given.
+   ============================================================ */
+
+.tm-auth{
+  width: 100%;
+  text-align: center;
+  font-family: var(--tm-font);
+}
+
+.tm-auth-title{
+  color: var(--tm-ink);
+  margin: 0 0 4px;
+  font-size: 1.3rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+.tm-auth-blurb{
+  color: var(--tm-muted);
+  font-size: 13px;
+  margin: 0 0 20px;
+}
+
+.tm-auth-error,
+.tm-auth-notice{
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: var(--tm-radius);
+  border: 1px solid;
+}
+.tm-auth-error{
+  color: var(--tm-danger);
+  background: var(--tm-danger-soft);
+  border-color: var(--tm-danger);
+}
+.tm-auth-notice{
+  color: var(--tm-green-dark);
+  background: var(--tm-green-soft);
+  border-color: var(--tm-green-line);
+}
+
+.tm-auth-oauth{
+  width: 100%;
+  padding: 11px 18px;
+  background: var(--tm-white);
+  color: #3c4043;
+  border: 1px solid #d2d5dc;
+  border-radius: var(--tm-radius);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.tm-auth-oauth:hover:not(:disabled){ background: var(--tm-surface); }
+.tm-auth-oauth:disabled{ opacity: .6; cursor: not-allowed; }
+.tm-auth-oauth + .tm-auth-oauth{ margin-top: 9px; }
+
+.tm-auth-or{
+  position: relative;
+  margin: 18px 0 16px;
+  color: var(--tm-faint);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+.tm-auth-or::before{
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 50%;
+  border-top: 1px solid var(--tm-line);
+}
+.tm-auth-or span{
+  position: relative;
+  background: var(--tm-white);
+  padding: 0 10px;
+}
+
+.tm-auth-label{
+  display: block;
+  text-align: left;
+  color: var(--tm-body);
+  font-size: 12.5px;
+  font-weight: 550;
+  margin: 0 0 5px;
+}
+
+.tm-auth-input{
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  margin: 0 0 14px;
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius);
+  background: var(--tm-white);
+  color: var(--tm-ink);
+  font-family: inherit;
+  font-size: 14px;
+}
+.tm-auth-input:focus,
+.tm-auth-input:focus-visible{
+  outline: 2px solid var(--tm-ink);
+  outline-offset: 1px;
+  border-color: var(--tm-ink);
+}
+.tm-auth-input:disabled{ background: var(--tm-surface); }
+
+/* The password field and its Show/Hide control share one row. The input keeps
+   its own bottom margin, so the wrapper carries none. */
+.tm-auth-pwwrap{ position: relative; }
+.tm-auth-pwwrap .tm-auth-input{ padding-right: 62px; }
+.tm-auth-peek{
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: var(--tm-muted);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+}
+.tm-auth-peek:hover:not(:disabled){ color: var(--tm-ink); }
+
+.tm-auth-hint{
+  text-align: left;
+  color: var(--tm-faint);
+  font-size: 12px;
+  margin: -8px 0 14px;
+}
+
+.tm-auth-submit{
+  width: 100%;
+  padding: 11px 18px;
+  background: var(--tm-green);
+  color: var(--tm-white);
+  border: 0;
+  border-radius: var(--tm-radius);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.tm-auth-submit:hover:not(:disabled){ background: var(--tm-green-dark); }
+.tm-auth-submit:disabled{ opacity: .6; cursor: not-allowed; }
+
+.tm-auth-link{
+  display: block;
+  width: 100%;
+  margin: 12px 0 0;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: var(--tm-muted);
+  font-family: inherit;
+  font-size: 12.5px;
+  text-decoration: underline;
+}
+.tm-auth-link:hover{ color: var(--tm-ink); }
+
+.tm-auth-swap{
+  margin: 16px 0 0;
+  color: var(--tm-muted);
+  font-size: 12.5px;
+}
+.tm-auth-swapbtn{
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-left: 5px;
+  cursor: pointer;
+  color: var(--tm-green-dark);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: underline;
+}
+.tm-auth-swapbtn:hover{ color: var(--tm-ink); }
+
+.tm-auth-oauth:focus,
+.tm-auth-oauth:focus-visible,
+.tm-auth-submit:focus-visible,
+.tm-auth-peek:focus-visible,
+.tm-auth-link:focus-visible,
+.tm-auth-swapbtn:focus-visible{
+  outline: 2px solid var(--tm-ink);
+  outline-offset: 2px;
+}
+
+/* What a plan actually includes, said plainly under the price. */
+.tm-plan-included{
+  display: block;
+  margin-top: 8px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--tm-green);
+}
+
+/* ============================ Ask TypeMyworDz ============================ */
+/* Purple is the AI colour throughout, so the assistant's side of a
+   conversation and the Send button use it. Green stays for actions the client
+   takes elsewhere in the app. */
+
+.tm-askpage{ display:flex; flex-direction:column; min-height:calc(100vh - 210px); padding:0 26px; }
+
+/* ---- saved chats, in the sidebar under the Ask TypeMyworDz button ---- */
+.tm-asklist{
+  margin:2px 0 4px 10px; padding-left:10px;
+  border-left:2px solid var(--tm-purple-line);
+  display:flex; flex-direction:column; gap:2px;
+}
+.tm-asklist-new{
+  display:flex; align-items:center; gap:7px;
+  padding:6px 8px; margin-bottom:2px; border-radius:var(--tm-radius);
+  border:1px dashed var(--tm-purple-line); background:none; color:var(--tm-purple);
+  font:inherit; font-size:.82rem; font-weight:600; cursor:pointer; text-align:left;
+}
+.tm-asklist-new svg{ width:14px; height:14px; flex:0 0 14px; }
+.tm-asklist-new:hover{ background:var(--tm-purple-soft); border-style:solid; }
+.tm-asklist-new:focus, .tm-asklist-new:focus-visible{ outline:2px solid var(--tm-ink); }
+
+.tm-asklist-search{
+  display:flex; align-items:center; gap:6px; margin:2px 0 6px;
+  padding:5px 8px; border:1px solid var(--tm-line);
+  border-radius:var(--tm-radius); background:var(--tm-white);
+}
+.tm-asklist-search svg{ width:13px; height:13px; flex:0 0 13px; color:var(--tm-faint); }
+.tm-asklist-search input{
+  flex:1; min-width:0; border:0; background:none; font:inherit; font-size:.81rem;
+  color:var(--tm-ink); padding:1px 0;
+}
+.tm-asklist-search input:focus{ outline:none; }
+.tm-asklist-search:focus-within{ border-color:var(--tm-purple-line); }
+.tm-asklist-search input::-webkit-search-cancel-button{ cursor:pointer; }
+
+.tm-asklist-note{ font-size:.78rem; color:var(--tm-faint); line-height:1.5; padding:4px 8px 6px; }
+.tm-asklist-items{
+  list-style:none; margin:0; padding:0;
+  max-height:min(46vh, 420px); overflow-y:auto;
+}
+.tm-asklist-item{
+  position:relative; display:flex; align-items:center;
+  border-radius:var(--tm-radius);
+}
+.tm-asklist-item:hover{ background:var(--tm-surface); }
+.tm-asklist-on{ background:var(--tm-purple-soft); }
+.tm-asklist-on:hover{ background:var(--tm-purple-soft); }
+.tm-asklist-open{
+  flex:1; min-width:0; text-align:left; background:none; border:0; cursor:pointer;
+  padding:6px 4px 6px 8px; font:inherit; color:var(--tm-ink);
+}
+.tm-asklist-title{
+  display:block; font-size:.83rem; line-height:1.35;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.tm-asklist-when{ display:block; font-size:.71rem; color:var(--tm-muted); margin-top:1px; }
+.tm-asklist-open:focus, .tm-asklist-open:focus-visible{ outline:2px solid var(--tm-ink); }
+
+.tm-asklist-dots{
+  flex:0 0 24px; width:24px; height:26px; margin-right:3px;
+  background:none; border:0; cursor:pointer; padding:0; border-radius:5px;
+  color:var(--tm-muted); opacity:0;
+}
+.tm-asklist-dots svg{ width:15px; height:15px; }
+.tm-asklist-item:hover .tm-asklist-dots,
+.tm-asklist-menuopen .tm-asklist-dots,
+.tm-asklist-dots:focus{ opacity:1; }
+.tm-asklist-dots:hover{ background:var(--tm-white); color:var(--tm-ink); }
+.tm-asklist-dots:focus, .tm-asklist-dots:focus-visible{ outline:2px solid var(--tm-ink); }
+
+.tm-asklist-menu{
+  position:absolute; top:calc(100% - 2px); right:2px; z-index:40; min-width:150px;
+  background:var(--tm-white); border:1px solid var(--tm-line);
+  border-radius:var(--tm-radius); padding:4px;
+  box-shadow:0 6px 20px rgba(16,18,22,0.12);
+}
+.tm-asklist-ask{
+  font-size:.78rem; color:var(--tm-body); padding:6px 8px 4px; line-height:1.4;
+}
+.tm-asklist-mi{
+  display:block; width:100%; text-align:left; background:none; border:0;
+  cursor:pointer; font:inherit; font-size:.83rem; color:var(--tm-body);
+  padding:7px 9px; border-radius:5px;
+}
+.tm-asklist-mi:hover{ background:var(--tm-surface); color:var(--tm-ink); }
+.tm-asklist-mi-danger{ color:var(--tm-danger); }
+.tm-asklist-mi-danger:hover{ background:var(--tm-danger-soft); color:var(--tm-danger); }
+.tm-asklist-mi:focus, .tm-asklist-mi:focus-visible{ outline:2px solid var(--tm-ink); }
+
+.tm-asklist-rename{
+  flex:1; min-width:0; margin:3px 4px; padding:5px 7px; font:inherit; font-size:.83rem;
+  color:var(--tm-ink); background:var(--tm-white);
+  border:1px solid var(--tm-purple-line); border-radius:5px;
+}
+.tm-asklist-rename:focus, .tm-asklist-rename:focus-visible{ outline:2px solid var(--tm-ink); }
+
+/* ---- the conversation ---- */
+.tm-ask{ display:flex; flex-direction:column; flex:1; min-width:0; }
+.tm-ask-thread{ flex:1; overflow-y:auto; padding:4px 4px 16px; }
+.tm-ask-compact .tm-ask-thread{ min-height:120px; max-height:420px; }
+.tm-ask-compact .tm-ask-empty{ padding:24px 8px; }
+.tm-ask-compact .tm-ask-empty-title{ font-size:1rem; }
+
+.tm-ask-empty{ padding:56px 8px; text-align:center; }
+.tm-ask-empty-title{
+  font-size:1.15rem; font-weight:650; color:var(--tm-ink); margin-bottom:6px;
+}
+.tm-ask-empty-hint{
+  color:var(--tm-muted); font-size:.9rem; max-width:44ch; margin:0 auto; line-height:1.6;
+}
+
+.tm-ask-turn{ margin:0 0 20px; }
+/* The brand name is written the way it is written everywhere else. No caps. */
+.tm-ask-who{
+  font-size:.78rem; letter-spacing:0; text-transform:none;
+  font-weight:650; margin-bottom:6px; color:var(--tm-muted);
+  display:flex; align-items:center; min-height:22px;
+}
+.tm-ask-who-quiet{ margin-bottom:0; min-height:0; }
+.tm-ask-assistant .tm-ask-who{ color:var(--tm-purple); }
+.tm-ask-body{ font-size:.95rem; line-height:1.68; color:var(--tm-body); }
+.tm-ask-user .tm-ask-body{
+  background:var(--tm-surface); border:1px solid var(--tm-line);
+  border-radius:var(--tm-radius-lg); padding:10px 13px; white-space:pre-wrap;
+}
+.tm-ask-p{ margin:0 0 10px; }
+.tm-ask-p:last-child{ margin-bottom:0; }
+.tm-ask-h{ margin:14px 0 6px; font-weight:650; color:var(--tm-ink); }
+.tm-ask-h:first-child{ margin-top:0; }
+.tm-ask-ul, .tm-ask-ol{ margin:0 0 10px; padding-left:22px; }
+.tm-ask-ul li, .tm-ask-ol li{ margin:0 0 5px; }
+.tm-ask-ul li:last-child, .tm-ask-ol li:last-child{ margin-bottom:0; }
+.tm-ask-code{
+  font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size:.88em; background:var(--tm-surface); border:1px solid var(--tm-line);
+  border-radius:4px; padding:1px 5px;
+}
+
+/* While an answer is on its way, the logo turns. No words, no bouncing dots. */
+.tm-ask-working{ display:flex; align-items:center; min-height:30px; }
+.tm-ask-mark{ display:block; border-radius:5px; }
+.tm-ask-blink{ animation:tm-ask-breath 1.5s ease-in-out infinite; }
+@keyframes tm-ask-breath{
+  0%, 100%{ opacity:.28; }
+  50%{ opacity:1; }
+}
+@media (prefers-reduced-motion: reduce){
+  .tm-ask-blink{ animation-duration:4s; }
+}
+
+.tm-ask-problems{
+  margin:10px 0 0; padding:8px 12px 8px 26px; font-size:.85rem;
+  color:var(--tm-warn); background:var(--tm-warn-soft); border-radius:var(--tm-radius);
+}
+
+/* ---- the composer ---- */
+.tm-ask-composer{ border-top:1px solid var(--tm-line); padding-top:12px; }
+.tm-ask-error{
+  font-size:.86rem; color:var(--tm-danger); background:var(--tm-danger-soft);
+  border-radius:var(--tm-radius); padding:8px 11px; margin-bottom:9px;
+}
+.tm-ask-files{ list-style:none; margin:0 0 9px; padding:0; display:flex; flex-wrap:wrap; gap:6px; }
+.tm-ask-file{
+  display:flex; align-items:center; gap:8px; font-size:.8rem;
+  background:var(--tm-surface); border:1px solid var(--tm-line);
+  border-radius:var(--tm-radius); padding:5px 9px; max-width:100%;
+}
+.tm-ask-file-name{ max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tm-ask-file-size{ color:var(--tm-muted); }
+.tm-ask-file-x{
+  background:none; border:0; cursor:pointer; font:inherit; font-size:.76rem;
+  color:var(--tm-muted); padding:0;
+}
+.tm-ask-file-x:hover{ color:var(--tm-danger); }
+
+.tm-ask-row{ display:flex; align-items:flex-end; gap:8px; }
+.tm-ask-fileinput{ display:none; }
+.tm-ask-attach, .tm-ask-send{
+  flex:0 0 auto; width:40px; height:40px; padding:0; border-radius:var(--tm-radius);
+  display:flex; align-items:center; justify-content:center;
+  font:inherit; cursor:pointer;
+}
+.tm-ask-attach svg, .tm-ask-send svg{ width:18px; height:18px; }
+.tm-ask-attach{ background:var(--tm-white); border:1px solid var(--tm-line); color:var(--tm-body); }
+.tm-ask-attach:hover:not(:disabled){ border-color:var(--tm-purple-line); color:var(--tm-purple); }
+.tm-ask-send{ background:var(--tm-purple); border:1px solid var(--tm-purple); color:#fff; }
+.tm-ask-send:hover:not(:disabled){ background:var(--tm-purple-light); border-color:var(--tm-purple-light); }
+.tm-ask-attach:disabled, .tm-ask-send:disabled{ opacity:.45; cursor:not-allowed; }
+.tm-ask-attach:focus, .tm-ask-attach:focus-visible,
+.tm-ask-send:focus, .tm-ask-send:focus-visible{ outline:2px solid var(--tm-ink); }
+
+.tm-ask-input{
+  flex:1; min-width:0; resize:none; font:inherit; font-size:.95rem;
+  line-height:1.55; padding:10px 12px; color:var(--tm-ink);
+  border:1px solid var(--tm-line); border-radius:var(--tm-radius); background:var(--tm-white);
+}
+.tm-ask-input:focus, .tm-ask-input:focus-visible{ outline:2px solid var(--tm-ink); border-color:var(--tm-line); }
+.tm-ask-hint{ font-size:.75rem; color:var(--tm-faint); margin-top:7px; }
+
+/* ---- locked state ---- */
+.tm-askpage-locked{ max-width:52ch; margin:60px auto; text-align:center; color:var(--tm-body); }
+.tm-askpage-title{ font-size:1.3rem; color:var(--tm-ink); margin:0 0 10px; }
+.tm-btn-go{
+  margin-top:14px; padding:9px 18px; border-radius:var(--tm-radius);
+  border:1px solid var(--tm-green); background:var(--tm-green); color:#fff;
+  font:inherit; font-weight:600; cursor:pointer;
+}
+.tm-btn-go:hover{ background:var(--tm-green-dark); border-color:var(--tm-green-dark); }
+
+/* ---- the panel beside a transcript ---- */
+.tm-ask-panel{
+  margin:18px 0 0; border:1px solid var(--tm-purple-line);
+  border-radius:var(--tm-radius-lg); background:var(--tm-white); overflow:hidden;
+}
+.tm-ask-panel-toggle{
+  display:flex; align-items:center; gap:9px; width:100%;
+  padding:12px 15px; background:var(--tm-purple-soft); border:0;
+  font:inherit; font-size:.9rem; font-weight:650; color:var(--tm-purple);
+  cursor:pointer; text-align:left;
+}
+.tm-ask-panel-toggle:hover{ background:#e8e3fb; }
+.tm-ask-panel-toggle:focus, .tm-ask-panel-toggle:focus-visible{ outline:2px solid var(--tm-ink); }
+.tm-ask-panel-title{ flex:1; min-width:0; }
+.tm-ask-panel-chev{ display:flex; color:var(--tm-purple); }
+.tm-ask-panel-body{ padding:14px 15px 12px; display:flex; }
+.tm-ask-panel-head{
+  display:flex; align-items:center; gap:9px;
+  font-size:.9rem; letter-spacing:0; text-transform:none;
+  font-weight:650; color:var(--tm-purple); margin-bottom:9px;
+}
+.tm-ask-panel-locked{ padding:14px 16px; }
+.tm-ask-panel-lock{
+  font-size:.88rem; color:var(--tm-body); line-height:1.6; margin:0; max-width:62ch;
+}
+.tm-ask-panel-locked .tm-btn-go{ margin-top:12px; }
+
+/* ---- settings ---- */
+.tm-set{ max-width:660px; }
+.tm-set-title{ font-size:1.35rem; color:var(--tm-ink); margin:0 0 4px; font-weight:650; }
+.tm-set-section{ margin-top:26px; }
+.tm-set-h{ font-size:1rem; color:var(--tm-ink); margin:0 0 4px; font-weight:650; }
+.tm-set-sub{ font-size:.88rem; color:var(--tm-muted); margin:0 0 16px; line-height:1.6; max-width:56ch; }
+.tm-set-note{ font-size:.88rem; color:var(--tm-muted); }
+.tm-set-locked{ font-size:.9rem; color:var(--tm-body); }
+
+.tm-referrals{ max-width:640px; margin:0 auto; padding:32px 24px 60px; }
+.tm-referrals-head h1{ font:600 26px/1.25 Georgia,'Times New Roman',serif; color:var(--tm-ink); margin:0 0 8px; }
+.tm-referrals-head p{ color:var(--tm-muted); font-size:.95rem; line-height:1.6; margin:0 0 26px; max-width:52ch; }
+.tm-referrals-note{ color:var(--tm-muted); font-size:.9rem; }
+.tm-referrals-linkbox{ display:flex; gap:8px; margin:0 0 10px; }
+.tm-referrals-linkbox input{ flex:1; min-width:0; padding:11px 13px; border:1px solid var(--tm-border,#d9dbe1); border-radius:7px; font:inherit; font-size:.9rem; color:var(--tm-ink); background:#fff; }
+.tm-referrals-linkbox button{ border:0; background:var(--tm-green); color:#fff; font-weight:650; border-radius:7px; padding:0 18px; cursor:pointer; white-space:nowrap; }
+.tm-referrals-linkbox button:hover{ background:var(--tm-green-dark); }
+.tm-referrals-code{ color:var(--tm-muted); font-size:.85rem; margin:0 0 26px; }
+.tm-referrals-code strong{ color:var(--tm-ink); letter-spacing:.06em; }
+.tm-referrals-stats{ display:flex; gap:28px; padding:18px 20px; background:var(--tm-purple-soft); border-radius:10px; margin:0 0 28px; }
+.tm-referrals-stat-n{ font:600 28px/1 Georgia,'Times New Roman',serif; color:var(--tm-purple); }
+.tm-referrals-stat-label{ font-size:.78rem; color:var(--tm-muted); margin-top:3px; }
+.tm-referrals h2{ font-size:1rem; color:var(--tm-ink); margin:0 0 10px; }
+.tm-referrals ul{ margin:0; padding-left:20px; color:var(--tm-body); font-size:.9rem; line-height:1.7; }
+.tm-referrals ul li{ margin-bottom:7px; }
+
+.tm-set-group{ margin-bottom:22px; }
+.tm-set-grouphead{ display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; margin-bottom:9px; }
+.tm-set-grouptitle{ font-size:.82rem; font-weight:650; color:var(--tm-ink); }
+.tm-set-groupnote{ font-size:.78rem; color:var(--tm-muted); }
+.tm-set-models{ display:flex; flex-direction:column; gap:8px; }
+.tm-set-model{
+  display:flex; align-items:flex-start; gap:11px; cursor:pointer;
+  border:1px solid var(--tm-line); border-radius:var(--tm-radius-lg);
+  padding:12px 14px; background:var(--tm-white);
+}
+.tm-set-model:hover{ border-color:var(--tm-purple-line); }
+.tm-set-model-on{ border-color:var(--tm-purple); background:var(--tm-purple-soft); }
+.tm-set-model input{ margin-top:3px; flex:0 0 auto; accent-color:var(--tm-purple); }
+.tm-set-modelbody{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+.tm-set-modelname{ font-size:.92rem; font-weight:600; color:var(--tm-ink); }
+.tm-set-modelblurb{ font-size:.83rem; color:var(--tm-muted); line-height:1.5; }
+
+.tm-set-upsell{ font-size:.86rem; color:var(--tm-body); line-height:1.6; max-width:56ch; }
+.tm-set-link{
+  background:none; border:0; padding:0; font:inherit; font-size:inherit;
+  color:var(--tm-green); font-weight:600; cursor:pointer; text-decoration:underline;
+}
+.tm-set-link:hover{ color:var(--tm-green-dark); }
+.tm-set-link:focus,
+.tm-set-link:focus-visible{ outline:2px solid var(--tm-ink); outline-offset:2px; border-radius:3px; }
+.tm-set-saved{
+  font-size:.82rem; color:var(--tm-green); font-weight:600; min-height:1.2em;
+  opacity:0; transition:opacity .18s ease;
+}
+.tm-set-saved-on{ opacity:1; }
+
+@media (max-width: 900px){
+  .tm-asklist-items{ max-height:200px; }
+  .tm-asklist-dots{ opacity:1; }
+}
+
+/* ---- Ask TypeMyworDz on the landing page ---- */
+.tm-lp-ask{ display:flex; gap:44px; align-items:flex-start; }
+.tm-lp-ask-copy{ flex:1 1 52%; min-width:0; }
+.tm-lp-ask-badge{
+  display:inline-flex; align-items:center; gap:8px; margin-bottom:14px;
+  padding:5px 12px 5px 8px; border-radius:999px;
+  background:var(--tm-purple-soft); border:1px solid var(--tm-purple-line);
+  font-size:.78rem; font-weight:650; color:var(--tm-purple);
+}
+.tm-lp-ask-badge img{ display:block; border-radius:4px; }
+.tm-lp-ask .tm-lp-ticks{ margin-top:18px; }
+
+.tm-lp-ask-demo{
+  flex:1 1 48%; min-width:0; align-self:stretch;
+  border:1px solid var(--tm-line); border-radius:var(--tm-radius-lg);
+  background:var(--tm-white); padding:20px 22px;
+}
+.tm-lp-ask-turn{ margin-bottom:18px; }
+.tm-lp-ask-turn:last-child{ margin-bottom:0; }
+.tm-lp-ask-who{
+  font-size:.78rem; font-weight:650; color:var(--tm-muted); margin-bottom:6px;
+  display:flex; align-items:center; min-height:20px;
+}
+.tm-lp-ask-who-ai img{ display:block; border-radius:4px; }
+.tm-lp-ask-said{
+  background:var(--tm-surface); border:1px solid var(--tm-line);
+  border-radius:var(--tm-radius-lg); padding:10px 13px;
+  font-size:.92rem; color:var(--tm-body); line-height:1.6;
+}
+.tm-lp-ask-answer{ font-size:.92rem; color:var(--tm-body); line-height:1.68; }
+.tm-lp-ask-answer p{ margin:0 0 9px; }
+.tm-lp-ask-answer ul{ margin:0; padding-left:20px; }
+.tm-lp-ask-answer li{ margin-bottom:4px; }
+
+@media (max-width: 900px){
+  .tm-lp-ask{ flex-direction:column; gap:26px; }
+}
+
+/* ---------------------------------------------------------------------------
+   Ask: attachment badges, the copy button, and the mark in the box.
+   --------------------------------------------------------------------------- */
+
+.tm-ask-fileicon{
+  position:relative; display:inline-flex; align-items:center; justify-content:center;
+  width:26px; height:26px; flex:0 0 26px; color:var(--tm-muted);
+}
+.tm-ask-fileicon svg{ width:22px; height:22px; }
+.tm-ask-filekind{
+  position:absolute; left:0; right:0; bottom:3px; text-align:center;
+  font-size:.44rem; font-weight:700; letter-spacing:.03em; line-height:1;
+}
+.tm-ask-fileicon-pdf{ color:var(--tm-danger); }
+.tm-ask-fileicon-word{ color:#2a5699; }
+.tm-ask-fileicon-sheet{ color:#1c7a33; }
+.tm-ask-fileicon-image{ color:var(--tm-purple); }
+.tm-ask-fileicon-text{ color:var(--tm-muted); }
+
+.tm-ask-acts{ margin-top:8px; }
+.tm-ask-copy{
+  display:inline-flex; align-items:center; gap:5px;
+  background:var(--tm-white); border:1px solid var(--tm-line);
+  border-radius:var(--tm-radius); color:var(--tm-muted);
+  font:inherit; font-size:.74rem; padding:3px 9px; cursor:pointer;
+}
+.tm-ask-copy svg{ width:13px; height:13px; }
+.tm-ask-copy:hover{ border-color:var(--tm-green-line); color:var(--tm-green-dark); }
+.tm-ask-copy:focus, .tm-ask-copy:focus-visible{ outline:2px solid var(--tm-ink); }
+.tm-ask-copy-done{
+  border-color:var(--tm-green-line); background:var(--tm-green-soft); color:var(--tm-green-dark);
+}
+
+/* The row of things you can do with a finished answer. */
+.tm-ask-acts{ display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+
+/* ---- Code in an answer ----------------------------------------------------
+   Coders paste these straight into an editor, so the block is monospaced,
+   never reflowed, and horizontally scrollable rather than wrapped, because a
+   wrapped line of code reads as two lines and hides real line breaks.        */
+.tm-ask-codeblock{
+  margin:12px 0; border:1px solid var(--tm-line); border-radius:var(--tm-radius);
+  overflow:hidden; background:var(--tm-surface);
+}
+.tm-ask-codebar{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:5px 8px 5px 11px; border-bottom:1px solid var(--tm-line); background:var(--tm-white);
+}
+.tm-ask-codelang{
+  font-size:.7rem; letter-spacing:.04em; text-transform:uppercase; color:var(--tm-faint);
+}
+.tm-ask-codecopy{
+  background:var(--tm-white); border:1px solid var(--tm-line); border-radius:var(--tm-radius);
+  color:var(--tm-muted); font:inherit; font-size:.72rem; padding:2px 8px; cursor:pointer;
+}
+.tm-ask-codecopy:hover{ border-color:var(--tm-green-line); color:var(--tm-green-dark); }
+.tm-ask-codecopy:focus, .tm-ask-codecopy:focus-visible{ outline:2px solid var(--tm-ink); }
+.tm-ask-pre{
+  margin:0; padding:11px 12px; overflow-x:auto;
+  font-family:Consolas,'SF Mono',Menlo,'Courier New',monospace;
+  font-size:.82rem; line-height:1.55; color:var(--tm-ink);
+  white-space:pre; tab-size:4;
+}
+.tm-ask-pre code{ font:inherit; background:none; padding:0; }
+
+/* ---- Suggested things to ask ----------------------------------------------
+   A blank box is the hardest question to answer. These are real jobs, not
+   decoration, so they read as buttons and drop into the box when clicked.    */
+.tm-ask-sugs{
+  list-style:none; margin:14px 0 0; padding:0;
+  display:flex; flex-wrap:wrap; gap:7px; justify-content:center;
+}
+.tm-ask-sug{
+  background:var(--tm-green-soft); border:1px solid var(--tm-green-line);
+  border-radius:999px; color:var(--tm-green-dark);
+  font:inherit; font-size:.8rem; padding:6px 13px; cursor:pointer; text-align:left;
+}
+.tm-ask-sug:hover{ background:var(--tm-green); color:var(--tm-white); border-color:var(--tm-green); }
+.tm-ask-sug:focus, .tm-ask-sug:focus-visible{ outline:2px solid var(--tm-ink); outline-offset:2px; }
+
+/* ---- One answer, in a wider panel ---------------------------------------- */
+.tm-ans-wrap{ position:fixed; inset:0; z-index:70; display:flex; justify-content:flex-end; }
+.tm-ans-scrim{
+  position:absolute; inset:0; border:0; padding:0; cursor:pointer;
+  background:rgba(20,22,26,.34);
+}
+.tm-ans{
+  position:relative; display:flex; flex-direction:column;
+  width:min(680px,100%); height:100%; background:var(--tm-white);
+  border-left:1px solid var(--tm-line); box-shadow:-8px 0 26px rgba(20,22,26,.13);
+}
+.tm-ans-head{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 16px; border-bottom:1px solid var(--tm-line); flex:0 0 auto;
+}
+.tm-ans-title{ font-weight:600; color:var(--tm-ink); }
+.tm-ans-close{
+  background:none; border:0; padding:5px; cursor:pointer; color:var(--tm-muted); line-height:0;
+}
+.tm-ans-close svg{ width:17px; height:17px; }
+.tm-ans-close:hover{ color:var(--tm-ink); }
+.tm-ans-close:focus, .tm-ans-close:focus-visible{ outline:2px solid var(--tm-ink); }
+.tm-ans-body{ flex:1 1 auto; overflow-y:auto; padding:18px 20px; line-height:1.65; }
+.tm-ans-foot{
+  flex:0 0 auto; padding:11px 16px; border-top:1px solid var(--tm-line); background:var(--tm-surface);
+}
+.tm-ans-foot .tm-ask-acts{ margin-top:0; }
+@media (max-width:700px){
+  .tm-ans{ width:100%; border-left:0; }
+}
+
+/* The mark sits at the right-hand end of the box, facing the plus button. */
+.tm-ask-rowmark{
+  flex:0 0 auto; margin-bottom:9px; opacity:.32; pointer-events:none; user-select:none;
+}
+.tm-ask-compact .tm-ask-rowmark{ display:none; }
+
+/* Settings: which model is yours, and which we suggest. */
+.tm-set-badge{
+  display:inline-block; margin-left:8px; padding:1px 7px; border-radius:999px;
+  font-size:.63rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase;
+  vertical-align:middle;
+  background:var(--tm-surface); border:1px solid var(--tm-line); color:var(--tm-muted);
+}
+.tm-set-badge-on{
+  background:var(--tm-green-soft); border-color:var(--tm-green-line); color:var(--tm-green-dark);
+}
+.tm-set-badge-quiet{ text-transform:none; letter-spacing:0; font-weight:500; }
+
+/* The standalone Ask page ran flush to the window edge, which clipped the mark
+   at the right-hand end of the chat box. Give it breathing room on both sides. */
+@media (max-width: 700px){
+  .tm-askpage{ padding:0 14px; }
+}
+
+/* ---------------------------------------------------------------------------
+   Frequently asked questions.
+   Accordion rather than a wall of text: nine long answers open at once is
+   daunting, and a visitor deciding whether to sign up wants to scan the
+   questions first and open only the one that worries them.
+--------------------------------------------------------------------------- */
+.tm-faq{
+  margin: 22px 0 8px;
+  border-top: 1px solid var(--tm-line);
+}
+.tm-faq-item{
+  border-bottom: 1px solid var(--tm-line);
+}
+.tm-faq-q{
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 2px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--tm-font);
+  font-size: 15.5px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--tm-ink);
+}
+.tm-faq-q:hover{ color: var(--tm-green-dark); }
+.tm-faq-q:focus,
+.tm-faq-q:focus-visible{ outline: 2px solid var(--tm-ink); outline-offset: 2px; }
+.tm-faq-chev{
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  margin-top: 3px;
+  color: var(--tm-muted);
+  transition: transform .16s ease;
+}
+.tm-faq-open .tm-faq-chev{ transform: rotate(180deg); color: var(--tm-green-dark); }
+.tm-faq-a{ padding: 0 34px 18px 2px; }
+.tm-faq-a p{
+  margin: 0 0 10px;
+  font-size: 15px;
+  line-height: 1.62;
+  color: var(--tm-body);
+}
+.tm-faq-a p:last-child{ margin-bottom: 0; }
+
+@media (max-width: 700px){
+  .tm-faq-q{ font-size: 15px; }
+  .tm-faq-a{ padding-right: 8px; }
+}
+
+
+/* --- Credit balance in the sidebar --------------------------------------
+   One number the client can plan around. Quiet by default; it only raises
+   its voice when the balance is genuinely low, gone, or frozen. */
+.tm-credits{
+  margin-top:12px; padding-top:12px; border-top:1px solid var(--tm-line);
+  text-align:left;
+}
+.tm-credits-n{
+  font-size:15px; font-weight:700; color:var(--tm-ink); line-height:1.2;
+}
+.tm-credits-cap{
+  font-size:11px; color:var(--tm-faint); margin-top:3px; line-height:1.35;
+}
+.tm-credits-note{
+  font-size:12px; color:var(--tm-body); margin-top:7px; line-height:1.45;
+}
+.tm-credits-low .tm-credits-n{ color:var(--tm-warn); }
+.tm-credits-low .tm-credits-note{ color:var(--tm-warn); }
+.tm-credits-out .tm-credits-n{ color:var(--tm-danger); }
+.tm-credits-out .tm-credits-note{ color:var(--tm-danger); }
+.tm-credits-cta{
+  margin-top:9px; width:100%;
+  background:var(--tm-green); color:var(--tm-white);
+  border:1px solid var(--tm-green); border-radius:var(--tm-radius);
+  padding:7px 10px; font-size:12.5px; font-weight:600; cursor:pointer;
+  font-family:var(--tm-font);
+}
+.tm-credits-cta:hover{ background:var(--tm-green-dark); border-color:var(--tm-green-dark); }
+.tm-credits-cta:focus,
+.tm-credits-cta:focus-visible{ outline:2px solid var(--tm-ink); outline-offset:2px; }
+
+/* ---------------------------------------------------------------------------
+   Clickable brand, volume control, and the second Copy button
+   --------------------------------------------------------------------------- */
+
+/* The wordmark is now a button that takes you back to the workspace. It has to
+   look exactly as it did before, so everything the button element adds is
+   stripped back out. */
+.tm-brand-btn {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--tm-radius);
+}
+.tm-brand-btn:hover .tm-wordmark { opacity: 0.82; }
+.tm-brand-btn:focus,
+.tm-brand-btn:focus-visible { outline: 2px solid var(--tm-ink); outline-offset: 3px; }
+
+/* Volume. Sits with the other transport controls, so it is a client action
+   and therefore green. */
+.tm-play-vol {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tm-play-mute {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 2px;
+  color: var(--tm-body);
+  cursor: pointer;
+  display: inline-flex;
+  border-radius: var(--tm-radius);
+}
+.tm-play-mute:hover { color: var(--tm-green-dark); }
+.tm-play-mute:focus,
+.tm-play-mute:focus-visible { outline: 2px solid var(--tm-ink); outline-offset: 2px; }
+
+.tm-play-volbar {
+  appearance: none;
+  width: 72px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--tm-line);
+  cursor: pointer;
+}
+.tm-play-volbar::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--tm-green);
+  border: 0;
+  cursor: pointer;
+}
+.tm-play-volbar::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--tm-green);
+  border: 0;
+  cursor: pointer;
+}
+.tm-play-volbar:focus,
+.tm-play-volbar:focus-visible { outline: 2px solid var(--tm-ink); outline-offset: 3px; }
+
+/* The second Copy, below the transcript. */
+.tm-ed-copybelow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0 2px;
+  border-top: 1px solid var(--tm-line);
+  margin-top: 14px;
+}
+.tm-copybelow-btn { border-radius: var(--tm-radius); }
+.tm-ed-copybelow-note {
+  font-size: 12px;
+  color: var(--tm-muted);
+}
+
+/* ---- Models a plan is holding back -------------------------------------
+   Shown greyed out rather than hidden, so a client can see what a better
+   plan would give them. These are not controls: no pointer cursor, no hover
+   colour, nothing to click. The only clickable thing is the link to plans
+   underneath, which stays green because choosing a plan is the client's
+   action. The padlock is drawn, not a character, so it renders everywhere. */
+.tm-set-model-locked{
+  cursor:default;
+  background:var(--tm-surface);
+  border-color:var(--tm-line);
+}
+.tm-set-model-locked:hover{ border-color:var(--tm-line); }
+.tm-set-model-locked .tm-set-modelname{ color:var(--tm-body); font-weight:600; }
+.tm-set-model-locked .tm-set-modelblurb{ color:var(--tm-muted); }
+.tm-set-lock{
+  flex:0 0 auto; margin-top:2px; color:var(--tm-faint);
+  display:inline-flex; align-items:center; justify-content:center;
+}
+
+/* ---- Recording: shortcut hint, safety warning, three-way choice ----------
+   The warning is amber because it is about uncertainty, not danger: nothing
+   has gone wrong yet, but audio could still be lost. The three-way dialog
+   keeps Transcribe green, since that is the action being encouraged, and
+   leaves Save and Discard neutral so the client reads all three. */
+.tm-rec-hint{
+  margin-top:9px; font-size:.78rem; color:var(--tm-muted);
+}
+.tm-rec-warn{
+  margin-top:12px; padding:10px 12px;
+  background:var(--tm-warn-soft); color:var(--tm-warn);
+  border:1px solid #e8d4a8; border-radius:var(--tm-radius);
+  font-size:.83rem; line-height:1.45; max-width:52ch;
+}
+.tm-rec-actions{ flex-wrap:wrap; }
+
+/* ---------------------------------------------------------------------------
+   Pricing page.
+
+   One set of prices, side by side, so a client can compare them at a glance.
+   Green is the action, as everywhere else; purple only marks the assistant.
+   Nothing here says which price list is being shown, and nothing names who
+   handles the payment until the client has actually chosen to pay.
+   ------------------------------------------------------------------------ */
+.tm-pr{
+  max-width: 1420px;
+  margin: 0 auto;
+  padding: 44px 20px 72px;
+}
+.tm-pr-title{
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--tm-ink);
+  margin: 0 0 10px;
+  text-align: center;
+}
+.tm-pr-lede{
+  max-width: 620px;
+  margin: 0 auto 34px;
+  text-align: center;
+  color: var(--tm-body);
+  font-size: 15px;
+  line-height: 1.65;
+}
+.tm-pr-lede-tight{ margin-bottom: 24px; }
+
+.tm-pr-grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(212px, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+.tm-pr-card{
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--tm-white);
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius-lg);
+  padding: 24px 20px 20px;
+}
+.tm-pr-card-lead{
+  border-color: var(--tm-green-line);
+  box-shadow: 0 0 0 1px var(--tm-green-line);
+}
+.tm-pr-flag{
+  position: absolute;
+  top: -10px;
+  left: 20px;
+  background: var(--tm-green-soft);
+  color: var(--tm-green-dark);
+  border: 1px solid var(--tm-green-line);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+}
+.tm-pr-name{
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--tm-ink);
+  margin: 0 0 8px;
+}
+.tm-pr-price{
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--tm-ink);
+  line-height: 1.05;
+}
+.tm-pr-per{
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--tm-muted);
+  letter-spacing: 0;
+}
+.tm-pr-rate{
+  font-size: 12px;
+  color: var(--tm-muted);
+  margin-top: 4px;
+}
+.tm-pr-blurb{
+  font-size: 13px;
+  color: var(--tm-body);
+  line-height: 1.55;
+  margin: 12px 0 16px;
+  min-height: 40px;
+}
+.tm-pr-lines{
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  flex: 1 1 auto;
+}
+.tm-pr-line{
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--tm-body);
+  padding: 5px 0;
+}
+.tm-pr-line strong{ font-weight: 700; color: var(--tm-ink); }
+.tm-pr-line-off{ color: var(--tm-faint); }
+.tm-pr-line-off strong{ color: var(--tm-faint); }
+.tm-pr-icon{
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  margin-top: 3px;
+  color: var(--tm-green);
+}
+.tm-pr-line-off .tm-pr-icon{ color: var(--tm-faint); }
+
+.tm-pr-buy{
+  display: block;
+  width: 100%;
+  background: var(--tm-green);
+  color: var(--tm-white);
+  border: 1px solid var(--tm-green);
+  border-radius: var(--tm-radius);
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tm-pr-buy:hover:not(:disabled){ background: var(--tm-green-dark); border-color: var(--tm-green-dark); }
+.tm-pr-buy:focus,
+.tm-pr-buy:focus-visible{ outline: 2px solid var(--tm-ink); outline-offset: 2px; }
+.tm-pr-buy:disabled{
+  background: var(--tm-surface);
+  border-color: var(--tm-line);
+  color: var(--tm-muted);
+  cursor: default;
+}
+.tm-pr-buy-quiet{
+  background: var(--tm-white);
+  color: var(--tm-green-dark);
+  border-color: var(--tm-green-line);
+}
+.tm-pr-buy-quiet:hover:not(:disabled){
+  background: var(--tm-green-soft);
+  border-color: var(--tm-green);
+  color: var(--tm-green-dark);
+}
+
+.tm-pr-topups{
+  margin-top: 56px;
+  padding-top: 40px;
+  border-top: 1px solid var(--tm-line);
+}
+.tm-pr-h2{
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--tm-ink);
+  margin: 0 0 10px;
+  text-align: center;
+}
+.tm-pr-bundles{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(212px, 1fr));
+  gap: 16px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+.tm-pr-bundle{
+  background: var(--tm-white);
+  border: 1px solid var(--tm-line);
+  border-radius: var(--tm-radius-lg);
+  padding: 22px 20px 20px;
+  text-align: center;
+}
+.tm-pr-bundle-cr{
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--tm-ink);
+  line-height: 1.05;
+}
+.tm-pr-bundle-lbl{
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tm-muted);
+  margin-bottom: 14px;
+}
+.tm-pr-bundle-price{
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--tm-ink);
+}
+.tm-pr-bundle-rate{
+  font-size: 12px;
+  color: var(--tm-muted);
+  margin: 2px 0 16px;
+}
+.tm-pr-bundle-custom{
+  grid-column: span 2;
+  text-align: left;
+  padding: 26px 26px 24px;
+  border: 1px solid rgba(91,68,207,.28);
+  border-top: 4px solid var(--tm-purple);
+  background: linear-gradient(135deg, #faf9ff 0%, var(--tm-white) 72%);
+  box-shadow: 0 12px 28px rgba(91,68,207,.10);
+}
+.tm-pr-custom-kicker{
+  color: var(--tm-purple);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+.tm-pr-custom-title{
+  color: var(--tm-ink);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 26px;
+  line-height: 1.15;
+  margin: 6px 0 8px;
+}
+.tm-pr-custom-copy{
+  max-width: 540px;
+  margin: 0 0 17px;
+  color: var(--tm-body);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.tm-pr-custom-label{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  color: var(--tm-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+.tm-pr-custom-label input{
+  width: 170px;
+  border: 1px solid var(--tm-line);
+  border-radius: 8px;
+  padding: 11px 12px;
+  color: var(--tm-ink);
+  background: var(--tm-white);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.tm-pr-custom-label input:focus{
+  outline: 2px solid rgba(91,68,207,.25);
+  border-color: var(--tm-purple);
+}
+.tm-pr-custom-total{
+  color: var(--tm-ink);
+  font-size: 28px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  margin-top: 7px;
+}
+.tm-pr-bundle-custom .tm-pr-buy{
+  margin-top: 2px;
+}
+.tm-pr-bundle-custom small{
+  display: block;
+  margin-top: 10px;
+  color: var(--tm-muted);
+  font-size: 12px;
+}
+
+.tm-pr-foot{
+  max-width: 620px;
+  margin: 40px auto 0;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--tm-muted);
+}
+
+@media (max-width: 760px){
+  .tm-pr{ padding: 28px 14px 56px; }
+  .tm-pr-title{ font-size: 24px; }
+  .tm-pr-blurb{ min-height: 0; }
+  .tm-pr-bundle-custom{ grid-column: auto; }
+}
+
+
+/* Six plan cards across, filling the page, as asked. They only stack when
+   there is genuinely not enough room. */
+/* The column count comes from the page, because the number of plan cards
+   depends on which price list the visitor is shown. Six is only the
+   fallback if nothing sets it. */
+.tm-pr-grid-six{
+  grid-template-columns: repeat(var(--tm-pr-cols, 6), minmax(0, 1fr));
+  gap: 12px;
+}
+.tm-pr-grid-six .tm-pr-card{ padding: 22px 15px 18px; }
+.tm-pr-grid-six .tm-pr-price{ font-size: 27px; }
+.tm-pr-grid-six .tm-pr-line{ font-size: 12px; }
+.tm-pr-grid-six .tm-pr-blurb{ font-size: 12.5px; }
+.tm-pr-grid-six .tm-pr-buy{ font-size: 12.5px; padding: 9px 8px; }
+
+@media (max-width: 1150px){
+  .tm-pr-grid-six{ grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+}
+@media (max-width: 820px){
+  .tm-pr-grid-six{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px){
+  .tm-pr-grid-six{ grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The link between the plans page and the credits page. Green, because it is
+   something the client does. */
+.tm-pr-switch{
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--tm-body);
+  margin: 26px 0 0;
+}
+.tm-pr-switch-top{ margin: -18px 0 28px; }
+.tm-pr-switch-link{
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--tm-green-dark);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.tm-pr-switch-link:hover{ color: var(--tm-green); }
+.tm-pr-switch-link:focus,
+.tm-pr-switch-link:focus-visible{ outline: 2px solid var(--tm-ink); outline-offset: 2px; }
+
+/* The credits page shows its three bundles wider, since it has the page to
+   itself now. */
+.tm-pr-bundles{ max-width: 880px; }
+
+/* A prompt that offers both roads: a plan, or credits. Nobody should be
+   pushed down one road when the other suits them better. */
+.tm-need{
+  border: 1px solid var(--tm-warn-soft);
+  border-left: 3px solid var(--tm-warn);
+  background: var(--tm-warn-soft);
+  border-radius: var(--tm-radius);
+  padding: 14px 16px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+.tm-need-text{
+  flex: 1 1 260px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--tm-warn);
+}
+.tm-need-text strong{ display: block; color: var(--tm-ink); font-size: 14px; }
+.tm-need-acts{ display: flex; gap: 8px; flex-wrap: wrap; }
+.tm-need-go,
+.tm-need-alt{
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--tm-radius);
+  padding: 8px 14px;
+  cursor: pointer;
+  border: 1px solid var(--tm-green);
+}
+.tm-need-go{ background: var(--tm-green); color: var(--tm-white); }
+.tm-need-go:hover{ background: var(--tm-green-dark); border-color: var(--tm-green-dark); }
+.tm-need-alt{ background: var(--tm-white); color: var(--tm-green-dark); border-color: var(--tm-green-line); }
+.tm-need-alt:hover{ background: var(--tm-green-soft); border-color: var(--tm-green); }
+.tm-need-go:focus, .tm-need-go:focus-visible,
+.tm-need-alt:focus, .tm-need-alt:focus-visible{ outline: 2px solid var(--tm-ink); outline-offset: 2px; }
+
+/* Try again, after a job fails. */
+.tm-retry{
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  background: var(--tm-green);
+  color: var(--tm-white);
+  border: 1px solid var(--tm-green);
+  border-radius: var(--tm-radius);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 9px 16px;
+  cursor: pointer;
+}
+.tm-retry:hover{ background: var(--tm-green-dark); border-color: var(--tm-green-dark); }
+.tm-retry:focus, .tm-retry:focus-visible{ outline: 2px solid var(--tm-ink); outline-offset: 2px; }
+
+
+/* A quiet label above each product heading, so the page reads as one company
+   with two products rather than a transcription service with an add-on. */
+.tm-lp-eyebrow{
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--tm-purple);
+  margin: 0 0 6px;
+}
+
+
+/* ---- "your transcript is still open" -------------------------------------
+   Shown on every page except the workspace itself, so a client who navigated
+   away can get back to unfinished work in one click instead of starting a new
+   job and thinking the old one disappeared. */
+.tm-resume {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 14px 20px 0;
+  padding: 11px 14px;
+  background: var(--tm-green-soft);
+  border: 1px solid var(--tm-green-line);
+  border-radius: var(--tm-radius);
+}
+.tm-resume-text {
+  flex: 1 1 auto;
+  font-size: 14px;
+  color: var(--tm-ink);
+}
+.tm-resume-btn {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tm-white);
+  background: var(--tm-green);
+  border: 0;
+  border-radius: var(--tm-radius);
+  padding: 7px 14px;
+  cursor: pointer;
+}
+.tm-resume-btn:hover { background: var(--tm-green-dark); }
+.tm-resume-btn:focus,
+.tm-resume-btn:focus-visible { outline: 2px solid var(--tm-ink); outline-offset: 1px; }
+
+/* The same signal in the sidebar, so the marker and the page agree. */
+.tm-nav-open {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--tm-green);
+  background: var(--tm-green-soft);
+  border: 1px solid var(--tm-green-line);
+  border-radius: 20px;
+  padding: 1px 7px;
+}
+
+
+/* Public pricing page used by visitors and payment reviewers. */
+.tm-public-pricing {
+  min-height: 100vh;
+  background: #fbfbfc;
+  color: #1a1b1f;
+}
+.tm-public-pricing-head {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 22px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 1px solid #ececf0;
+}
+.tm-public-pricing-brand {
+  display: inline-block;
+  color: inherit;
+  text-decoration: none;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+.tm-public-pricing-brand small {
+  display: block;
+  margin-top: 3px;
+  color: #7a7d86;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.tm-public-pricing-head nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+.tm-public-pricing-head nav a,
+.tm-public-pricing-note a,
+.tm-public-pricing-foot a {
+  color: #5140b9;
+  text-decoration: none;
+  font-weight: 600;
+}
+.tm-public-pricing-head nav a:hover,
+.tm-public-pricing-note a:hover,
+.tm-public-pricing-foot a:hover { text-decoration: underline; }
+.tm-public-pricing-main {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 34px 24px 60px;
+}
+.tm-public-pricing-main .tm-pr { max-width: none; }
+.tm-public-pricing-note {
+  margin: 32px 0 0;
+  color: #676b75;
+  text-align: center;
+}
+.tm-public-pricing-foot {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 18px 28px 28px;
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  color: #858892;
+  font-size: 13px;
+  border-top: 1px solid #ececf0;
+}
+.tm-human-result-gateway {
+  max-width: 720px;
+  margin: 18px auto 0;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  color: #656872;
+  font-size: 13px;
+  text-align: center;
+}
+.tm-human-result-gateway button {
+  border: 1px solid #2fa451;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: #fff;
+  color: #237e3d;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tm-human-result-gateway button:hover { background: #effaf2; }
+@media (max-width: 640px) {
+  .tm-public-pricing-head,
+  .tm-public-pricing-foot { align-items: flex-start; flex-direction: column; }
+  .tm-public-pricing-main { padding: 24px 14px 44px; }
+}
+
+/* Paid trainee enrollment */
+.tm-trainee-page{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:48px 20px;background:#fafbf8;color:#202522}
+.tm-trainee-card{width:min(100%,560px);background:#fff;border:1px solid #e5ebe4;border-radius:24px;padding:34px;box-shadow:0 18px 60px rgba(25,50,35,.08)}
+.tm-trainee-back{border:0;background:transparent;color:#3b7e53;padding:0;margin-bottom:28px;cursor:pointer;font:inherit}
+.tm-trainee-mark img{width:42px;height:42px;display:block;margin-bottom:22px}
+.tm-trainee-card h1{font-family:Georgia,serif;font-size:clamp(30px,5vw,46px);line-height:1.05;margin:6px 0 14px;color:#242b27}
+.tm-trainee-lede{color:#5e6961;line-height:1.65;margin:0 0 16px}
+.tm-trainee-illustration{display:block;width:100%;height:180px;object-fit:cover;object-position:center 42%;border-radius:16px;margin:0 0 20px;border:1px solid #e5ebe4}
+.tm-trainee-price{display:flex;align-items:baseline;gap:12px;padding:16px 0;border-top:1px solid #ebf0eb;border-bottom:1px solid #ebf0eb;margin:18px 0 22px}.tm-trainee-price strong{font-size:24px;color:#3b7e53}.tm-trainee-price span{color:#69746c;font-size:13px}
+.tm-trainee-check{display:flex;gap:9px;align-items:flex-start;margin:18px 0;color:#4e5d52;font-size:14px;line-height:1.45}.tm-trainee-check input{margin-top:3px;accent-color:#3b7e53}
+.tm-trainee-actions{display:grid;gap:10px;margin-top:18px}.tm-trainee-kora{width:100%;border:1px solid #c9d8cc;background:#fff;color:#316944;border-radius:10px;padding:12px 16px;font:inherit;cursor:pointer}.tm-trainee-kora:disabled,.tm-auth-submit:disabled{opacity:.6;cursor:wait}
+.tm-trainee-promise{font-size:13px;line-height:1.55;color:#69746c;margin:22px 0 0}.tm-trainee-signed{font-size:13px;color:#69746c;margin:16px 0 0}
+.tm-lp-trainee-link{display:block;margin:18px 0 0;padding:15px 16px;border:1px solid #d8e6d9;border-radius:12px;color:#315e3b;text-decoration:none;background:#f7fbf7}.tm-lp-trainee-link strong,.tm-lp-trainee-link span{display:block}.tm-lp-trainee-link span{font-size:13px;color:#66756a;margin-top:4px}
+.tm-direct-messages{max-width:980px;margin:0 auto;padding:42px 42px 70px;color:#202522}.tm-direct-messages-compact{padding:0}.tm-direct-head{display:flex;justify-content:space-between;gap:24px;align-items:flex-end;border-bottom:1px solid #e7ebe7;padding-bottom:20px;margin-bottom:18px}.tm-direct-head h2{font:400 32px/1.1 Georgia,serif;margin:6px 0}.tm-direct-head p{color:#6a756e;margin:0;line-height:1.55}.tm-direct-contact{display:grid;gap:6px;min-width:240px;color:#68756c;font-size:12px;font-weight:700}.tm-direct-contact select{border:1px solid #d5dfd6;border-radius:8px;padding:10px;background:#fff;font:inherit;color:#27332b}.tm-direct-list{display:grid;gap:10px;max-height:440px;overflow:auto;padding:6px 0 18px}.tm-direct-message{max-width:78%;padding:12px 14px;border:1px solid #e4ebe5;border-radius:12px;background:#fbfcfb}.tm-direct-message-own{justify-self:end;background:#eef8ef;border-color:#d4e9d6}.tm-direct-message>div{display:flex;justify-content:space-between;gap:14px;font-size:12px;color:#304037}.tm-direct-message time{color:#8a958d;font-weight:400}.tm-direct-message p{white-space:pre-wrap;line-height:1.5;margin:8px 0 0}.tm-direct-attachment{display:block;color:#3b7e53;font-size:12px;margin-top:8px}.tm-direct-form{border-top:1px solid #e7ebe7;padding-top:16px}.tm-direct-form textarea{display:block;width:100%;box-sizing:border-box;resize:vertical;border:1px solid #d5dfd6;border-radius:10px;padding:12px;font:inherit}.tm-direct-form-actions{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:10px}.tm-direct-hint{margin-right:auto;color:#8a958d;font-size:11px}.tm-direct-form button{border:0;border-radius:8px;background:#2da653;color:#fff;padding:11px 16px;font:700 13px inherit;cursor:pointer}.tm-direct-form button:disabled{opacity:.55;cursor:wait}.tm-direct-file{color:#3b7e53;font-size:12px;font-weight:700;cursor:pointer}.tm-direct-file input{display:none}.tm-direct-empty{padding:28px 8px;color:#7a877e;text-align:center}@media(max-width:760px){.tm-direct-messages{padding:28px 18px 50px}.tm-direct-head{display:block}.tm-direct-contact{margin-top:16px}.tm-direct-message{max-width:92%}.tm-direct-form-actions{flex-wrap:wrap}.tm-direct-hint{width:100%;order:3}}
+
+@media (max-width: 640px) {
+  .tm-unread-banner { width: calc(100% - 28px); margin: 12px 14px 0; align-items: flex-start; }
+  .tm-unread-banner-link { display: none; }
+}
+
+/* Unified Messages inbox */
+.tm-inbox{max-width:1180px;margin:0 auto;padding:38px 42px 70px;color:#202522}.tm-inbox-compact{padding:0}.tm-inbox-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;border-bottom:1px solid #e7ebe7;padding-bottom:20px;margin-bottom:18px}.tm-inbox-head h2{font:400 34px/1.1 Georgia,serif;margin:6px 0}.tm-inbox-head p{color:#6a756e;line-height:1.55;margin:0}.tm-inbox-new{border:1px solid #2da653;background:#fff;color:#267b40;border-radius:8px;padding:10px 14px;font:700 13px inherit;cursor:pointer}.tm-inbox-new:hover{background:#f2fbf3}.tm-inbox-start{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid #dfe9e0;border-radius:9px;background:#f8fbf8;margin-bottom:16px;color:#5f6c62;font-size:13px}.tm-inbox-start select{border:1px solid #d5dfd6;border-radius:7px;background:#fff;padding:8px 10px;font:inherit}.tm-inbox-layout{display:grid;grid-template-columns:310px minmax(0,1fr);min-height:610px;border:1px solid #e1e8e2;border-radius:13px;overflow:hidden;background:#fff}.tm-inbox-sidebar{background:#f8faf8;border-right:1px solid #e1e8e2;padding:14px;overflow:auto}.tm-inbox-search{display:block;margin-bottom:10px}.tm-inbox-search input{width:100%;box-sizing:border-box;border:1px solid #d5dfd6;border-radius:8px;padding:10px 11px;background:#fff;font:inherit}.tm-inbox-thread{display:block;width:100%;text-align:left;border:1px solid transparent;border-radius:9px;background:transparent;padding:12px 11px;margin-bottom:5px;cursor:pointer;color:#28342c}.tm-inbox-thread:hover{background:#f0f7f1}.tm-inbox-thread.is-active{background:#fff;border-color:#b9d8bd;box-shadow:0 3px 12px rgba(37,76,45,.06)}.tm-inbox-thread-top{display:flex;align-items:center;justify-content:space-between;gap:8px}.tm-inbox-thread-top strong{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tm-inbox-thread-meta{display:block;color:#3c8151;font-size:11px;margin-top:5px;text-transform:capitalize}.tm-inbox-thread-preview{display:block;color:#6e7a71;font-size:12px;line-height:1.35;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tm-inbox-thread time{display:block;color:#98a29a;font-size:10px;margin-top:7px}.tm-inbox-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:999px;background:#ba2b35;color:#fff;font-size:10px;font-weight:800;padding:0 5px}.tm-inbox-conversation{min-width:0;display:flex;flex-direction:column}.tm-inbox-conversation-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:20px 22px;border-bottom:1px solid #e7ebe7}.tm-inbox-conversation-head h3{font:400 24px/1.15 Georgia,serif;margin:6px 0 5px;color:#202522}.tm-inbox-role{display:inline-block;color:#3c8151;font-size:11px;text-transform:capitalize}.tm-inbox-job-status{color:#637067;background:#f0f4f1;border-radius:999px;padding:6px 10px;font-size:11px;text-transform:capitalize}.tm-inbox-messages{flex:1;min-height:350px;max-height:520px;overflow:auto;padding:20px 22px;display:grid;align-content:start;gap:11px;background:#fcfdfc}.tm-inbox-message{max-width:82%;padding:12px 14px;border:1px solid #e0e9e1;border-radius:11px;background:#fff}.tm-inbox-message.is-own{justify-self:end;background:#eef8ef;border-color:#cde4d0}.tm-inbox-message>div{display:flex;align-items:center;gap:9px;font-size:12px}.tm-inbox-message>div span{color:#708077;text-transform:capitalize;font-size:10px}.tm-inbox-message time{margin-left:auto;color:#97a19a;font-size:10px}.tm-inbox-message p{white-space:pre-wrap;line-height:1.55;margin:8px 0 0;color:#2e3831}.tm-inbox-attachment{border:0;background:transparent;color:#267b40;padding:7px 0 0;font:700 12px inherit;cursor:pointer}.tm-inbox-form{border-top:1px solid #e1e8e2;padding:15px 18px;background:#fff}.tm-inbox-form textarea{width:100%;box-sizing:border-box;resize:vertical;border:1px solid #d5dfd6;border-radius:9px;padding:11px;font:inherit;min-height:64px}.tm-inbox-form-actions{display:flex;align-items:center;gap:12px;margin-top:9px}.tm-inbox-form-actions span{color:#8a958d;font-size:10px;margin-right:auto}.tm-inbox-file{border:1px solid #d5dfd6;border-radius:7px;padding:8px 10px;color:#3b7e53;font-size:11px;font-weight:700;cursor:pointer;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tm-inbox-file input{display:none}.tm-inbox-form button{border:0;border-radius:8px;background:#2da653;color:#fff;padding:10px 15px;font:700 13px inherit;cursor:pointer}.tm-inbox-form button:disabled{opacity:.55;cursor:wait}.tm-inbox-empty{padding:26px 8px;color:#7a877e;text-align:center;font-size:13px}.tm-inbox-empty-large{margin:auto}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}@media(max-width:820px){.tm-inbox{padding:28px 18px 50px}.tm-inbox-head{display:block}.tm-inbox-new{margin-top:16px}.tm-inbox-layout{grid-template-columns:1fr}.tm-inbox-sidebar{border-right:0;border-bottom:1px solid #e1e8e2;max-height:260px}.tm-inbox-message{max-width:94%}.tm-inbox-form-actions{flex-wrap:wrap}.tm-inbox-form-actions span{width:100%;order:3}.tm-inbox-form button{margin-left:auto}}
+
+/* Training Room: the editor's desk */
+.tm-training-room{background:linear-gradient(180deg,#fbfcfa 0%,#fff 42%)}.tm-training-hero{align-items:stretch}.tm-training-hero h1{max-width:700px}.tm-training-progress-card{min-width:190px;align-self:stretch;border-left:3px solid #5b44cf;padding:10px 0 10px 20px;display:flex;flex-direction:column;justify-content:center}.tm-training-progress-card strong{font:600 42px/1 Georgia,serif;color:#5b44cf}.tm-training-progress-card span,.tm-training-progress-card small{color:#68756c;font-size:12px}.tm-training-progress-bar{height:7px;background:#e9ece8;border-radius:9px;margin:13px 0 8px;overflow:hidden}.tm-training-progress-bar i{display:block;height:100%;background:#2da653;border-radius:9px;transition:width .35s ease}.tm-training-access{display:flex;align-items:center;justify-content:space-between;gap:20px}.tm-training-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.tm-training-badge{display:inline-flex;align-items:center;border:1px solid #d6e7d8;border-radius:999px;padding:6px 10px;color:#317947;background:#f5fbf5;font-size:11px;font-weight:700}.tm-training-module-list{display:grid;gap:8px;margin-top:18px}.tm-training-module{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 15px;border:1px solid #edf0ed;border-radius:9px;background:#fbfcfb;opacity:.58}.tm-training-module-open{opacity:1}.tm-training-module-current{border-color:#c8bff0;background:#faf8ff;box-shadow:inset 3px 0 #5b44cf}.tm-training-module>div{display:flex;align-items:flex-start;gap:13px}.tm-training-module-number{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:#edf8ef;color:#2d8650;font:700 11px/1 Arial,sans-serif}.tm-training-module-current .tm-training-module-number{background:#ece8fb;color:#5b44cf}.tm-training-module h3{margin:0 0 4px;font-size:15px;color:#27332b}.tm-training-module p{margin:0;color:#728078;font-size:12px;line-height:1.45}.tm-training-module-status{white-space:nowrap;color:#6e7b72;font-size:11px;text-transform:capitalize}.tm-training-module-current .tm-training-module-status{color:#5b44cf;font-weight:700}.tm-training-lead{font-size:17px;line-height:1.65;color:#3d4a42;max-width:820px}.tm-training-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,420px);gap:22px;margin-top:22px}.tm-training-columns>div:first-child{padding-right:8px}.tm-training-columns h3{margin:0 0 9px;color:#26342b}.tm-training-columns p{color:#68756c;line-height:1.6}.tm-training-activity{border:1px solid #dfe9e0;border-radius:11px;background:#f8fbf8;padding:17px}.tm-training-activity>label{display:flex;align-items:flex-start;gap:9px;margin:12px 0;color:#4b5b50;font-size:13px;line-height:1.45}.tm-training-activity input{accent-color:#2da653;margin-top:3px}.tm-training-activity h3:not(:first-child){border-top:1px solid #e1e9e2;padding-top:16px;margin-top:18px}.tm-training-option{display:flex!important}.tm-training-activity-note{font-size:12px!important;border-top:1px solid #e1e9e2;padding-top:14px;margin-top:16px}.tm-training-spot-error{border-left:3px solid #5b44cf;background:#faf8ff;padding:13px 16px;margin:18px 0;color:#4f467d}.tm-training-spot-error strong{color:#5b44cf}.tm-training-spot-error p{margin:5px 0 0;color:#5e6072;line-height:1.55}.tm-training-lesson-section{border-top:1px solid #edf1ed;padding-top:13px;margin-top:15px}.tm-training-lesson-section h4{margin:0 0 5px;color:#2b3a30;font-size:14px}.tm-training-lesson-section p{margin:0}.tm-training-practical{max-width:920px}.tm-training-guidelines{margin-top:18px;padding:16px;border:1px solid #e5ebe5;border-radius:9px;background:#fbfcfb}.tm-training-guidelines article{border-top:1px solid #e9eee9;padding-top:11px;margin-top:11px}.tm-training-guidelines article p{margin:4px 0 0}.tm-training-guidelines-featured{margin-top:20px;padding:22px}.tm-training-guidelines-featured h2{margin:5px 0 7px}.tm-training-guidelines-featured>p{max-width:900px}.tm-training-guideline-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 24px;margin-top:18px}.tm-training-guideline-grid article{border-top:1px solid #e9eee9;padding-top:11px;margin-top:0}.tm-training-guideline-grid article strong{color:#2f7544;font-size:13px}.tm-training-guideline-grid article p{margin:5px 0 0;color:#68756c;line-height:1.55;font-size:12px}.tm-training-note{color:#748178;font-size:12px;line-height:1.55}.tm-training-access h2{margin:5px 0 7px}@media(max-width:820px){.tm-training-hero,.tm-training-access{display:block}.tm-training-progress-card{border-left:0;border-top:3px solid #5b44cf;margin-top:20px;padding:16px 0 0}.tm-training-columns{grid-template-columns:1fr}.tm-training-module{align-items:flex-start}.tm-training-module-status{padding-top:8px}.tm-training-guideline-grid{grid-template-columns:1fr}}
