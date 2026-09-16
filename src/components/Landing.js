@@ -145,11 +145,8 @@ const Landing = () => {
       {/* ---- Hero ---- */}
       <section className="tm-lp-hero" id="top">
         <div className="tm-lp-hero-copy">
-          <h1>
-            Two AI tools that do<br />the work you were dreading.
-          </h1>
           <p className="tm-lp-lede">
-            TypeMyworDz turns interviews, meetings, research recordings and everyday audio into clean, speaker-separated text, then lets you ask AI what matters. Use one tool or both—the same credits cover the workflow.
+            <strong>TypeMyworDz AI</strong> turns interviews, meetings, research recordings and everyday audio into clean, speaker-separated text, then lets you ask AI what matters. Use one tool or both—the same credits cover the workflow.
           </p>
           <p className="tm-lp-audience">Built for researchers, legal teams, journalists, podcasters and busy professionals.</p>
 
