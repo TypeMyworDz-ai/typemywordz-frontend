@@ -113,6 +113,23 @@ const Landing = () => {
 
       {/* ---- Hero ---- */}
       <section className="tm-lp-hero" id="top">
+        <div className="tm-lp-hero-banner" aria-label="TypeMyworDz privacy promise">
+          <video
+            className="tm-lp-privacy-video"
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="metadata"
+          >
+            <source src="/privacy-promise-animation.mp4" type="video/mp4" />
+            <p className="sr-only">TypeMyworDz privacy promise: your recordings are never used to train AI.</p>
+          </video>
+          <div className="tm-lp-hero-banner-caption">
+            <strong>Private by design.</strong> Your recordings and questions are never used to train AI.
+          </div>
+        </div>
+
         <div className="tm-lp-hero-copy">
           <h1>
             Two AI tools that do<br />the work you were dreading.
@@ -142,20 +159,6 @@ const Landing = () => {
               No account needed.
             </span>
           </p>
-        </div>
-
-        <div className="tm-lp-hero-animation" aria-label="TypeMyworDz privacy promise">
-          <video
-            className="tm-lp-privacy-video"
-            autoPlay
-            loop
-            muted
-            playsInline
-            preload="metadata"
-          >
-            <source src="/privacy-promise-animation.mp4" type="video/mp4" />
-            <p className="sr-only">TypeMyworDz privacy promise: your recordings are never used to train AI.</p>
-          </video>
         </div>
 
         <div className="tm-lp-hero-card">

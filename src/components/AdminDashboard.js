@@ -376,11 +376,19 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
       const response = await fetch(`${BACKEND_URL}/api/admin/delete-user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ email: confirmingDelete.email, uid: confirmingDelete.uid || confirmingDelete.id }),
+        body: JSON.stringify({ email: confirmingDelete.email || '', uid: confirmingDelete.uid || confirmingDelete.id }),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.detail || 'The account could not be deleted.');
-      showMessage?.(`${confirmingDelete.email} was removed.`, 'success');
+      if (!response.ok) {
+        // FastAPI validation errors come back as a list of {loc, msg} objects
+        // rather than a plain string, so stringifying one directly used to
+        // show the client a useless "[object Object]".
+        const detail = Array.isArray(result.detail)
+          ? result.detail.map((item) => item?.msg || JSON.stringify(item)).join(' ')
+          : result.detail;
+        throw new Error(detail || 'The account could not be deleted.');
+      }
+      showMessage?.(`${confirmingDelete.email || confirmingDelete.name || 'The account'} was removed.`, 'success');
       setConfirmingDelete(null);
       await fetchAdminData();
     } catch (error) {
@@ -485,7 +493,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
           <section className="tm-admin-panel"><div className="tm-admin-panel-head"><div><h2 className="tm-admin-panel-title">Support and feedback</h2><p className="tm-admin-panel-note">Feedback is saved in Firestore and also emailed to info@typemywordz.ai.</p></div></div>{feedback.length ? <div className="tm-admin-feedback">{feedback.map((item) => <article className={`tm-admin-feedback-card ${item.readAt ? '' : 'unread'}`} key={item.id}><div className="tm-admin-feedback-meta"><div><strong>{safeText(item.name, 'Anonymous')}</strong><span>{safeText(item.email, 'No email supplied')}</span></div><span>{formatDate(item.createdAt, true)}</span></div><div className="tm-admin-feedback-body">{safeText(item.feedback, 'No message supplied.')}</div><div className="tm-admin-feedback-actions"><a className="tm-admin-btn" href={`mailto:${encodeURIComponent(safeText(item.email, ''))}?subject=${encodeURIComponent('Re: TypeMyworDz feedback')}`}>Reply by email</a>{!item.readAt && <button type="button" className="tm-admin-btn" onClick={() => handleReadFeedback(item)}>Mark as read</button>}</div></article>)}</div> : <div className="tm-admin-empty">No feedback has been submitted yet.</div>}</section>
         )}
       </div>
-      <ConfirmDialog open={Boolean(confirmingDelete)} title="Remove this account?" body={confirmingDelete ? `${confirmingDelete.email} will lose access, its profile will be removed, and its saved transcripts and Ask chats will be deleted. This cannot be undone.` : ''} confirmLabel="Remove account" cancelLabel="Keep account" tone="danger" busy={deleteBusy} onCancel={() => setConfirmingDelete(null)} onConfirm={handleDeleteUser} />
+      <ConfirmDialog open={Boolean(confirmingDelete)} title="Remove this account?" body={confirmingDelete ? `${confirmingDelete.email || confirmingDelete.name || 'This account'} will lose access, its profile will be removed, and its saved transcripts and Ask chats will be deleted. This cannot be undone.` : ''} confirmLabel="Remove account" cancelLabel="Keep account" tone="danger" busy={deleteBusy} onCancel={() => setConfirmingDelete(null)} onConfirm={handleDeleteUser} />
       {chatUser && <UserChatDialog currentUser={currentUser} target={chatUser} showMessage={showMessage} onClose={() => setChatUser(null)} />}
     </div>
   );
