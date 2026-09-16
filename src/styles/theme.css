@@ -2552,7 +2552,10 @@ body {
   margin: 0 auto;
   padding: 68px 28px 76px;
   display: grid;
-  grid-template-columns: minmax(0, 1.18fr) minmax(150px, 0.56fr) minmax(290px, 0.92fr);
+  grid-template-columns: minmax(0, 1.3fr) minmax(290px, 0.92fr);
+  grid-template-areas:
+    "banner banner"
+    "copy   card";
   gap: 32px;
   align-items: start;
 }
@@ -2593,27 +2596,44 @@ body {
   transform: rotate(45deg);
 }
 
-.tm-lp-hero-animation{
-  align-self: center;
-  justify-self: center;
-  width: min(100%, 220px);
-  margin-top: 34px;
-  padding: 10px;
-  border: 1px solid rgba(91, 68, 207, 0.14);
-  border-radius: 22px;
-  background: linear-gradient(155deg, rgba(91, 68, 207, 0.06), rgba(40, 167, 69, 0.035));
-  box-shadow: 0 16px 34px rgba(63, 49, 134, 0.08);
+.tm-lp-hero-banner{
+  grid-area: banner;
+  position: relative;
+  width: 100%;
+  height: clamp(220px, 26vw, 340px);
+  border-radius: 24px;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(91, 68, 207, 0.12), rgba(40, 167, 69, 0.10));
+  box-shadow: 0 20px 44px rgba(63, 49, 134, 0.12);
+  margin-bottom: 4px;
 }
 .tm-lp-privacy-video{
-  display: block;
+  position: absolute;
+  inset: 0;
   width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: contain;
-  border-radius: 15px;
-  background: radial-gradient(circle at 50% 48%, #fff, #f7f5ff 72%);
+  height: 100%;
+  object-fit: cover;
 }
+.tm-lp-hero-banner-caption{
+  position: absolute;
+  left: 22px;
+  bottom: 20px;
+  max-width: min(440px, 82%);
+  padding: 11px 18px;
+  border-radius: 999px;
+  background: rgba(18, 14, 38, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+.tm-lp-hero-banner-caption strong{ color: #fff; }
+
+.tm-lp-hero-copy{ grid-area: copy; }
 
 .tm-lp-hero-card{
+  grid-area: card;
   border: 1px solid var(--tm-line);
   border-radius: var(--tm-radius-lg);
   background: var(--tm-white);
@@ -2761,13 +2781,19 @@ body {
 
 /* ---- Narrower screens ---- */
 @media (max-width: 940px){
-  .tm-lp-hero{ grid-template-columns: 1fr; gap: 40px; padding: 46px 24px 56px; }
-  .tm-lp-hero h1{ font-size: 2.1rem; }
-  .tm-lp-hero-animation{
-    width: min(100%, 260px);
-    margin: 0 auto;
+  .tm-lp-hero{
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "banner"
+      "copy"
+      "card";
+    gap: 28px;
+    padding: 46px 24px 56px;
   }
-  .tm-lp-hero-card{ max-width: 420px; }
+  .tm-lp-hero h1{ font-size: 2.1rem; }
+  .tm-lp-hero-banner{ height: clamp(190px, 52vw, 260px); }
+  .tm-lp-hero-banner-caption{ font-size: 0.8rem; max-width: 88%; }
+  .tm-lp-hero-card{ max-width: 420px; margin: 0 auto; width: 100%; }
   .tm-lp-grid, .tm-lp-steps, .tm-lp-promises{ grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 640px){
