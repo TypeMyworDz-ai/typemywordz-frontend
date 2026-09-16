@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Login from './Login';
 import FloatingWhatsApp from './FloatingWhatsApp';
@@ -60,9 +60,40 @@ const STEPS = [
   },
 ];
 
+// Three slides: two short privacy-promise clips and a still photo, cycling
+// automatically so the hero spot does not depend on a single asset. Videos
+// stay muted/looping in the background; only opacity changes between slides,
+// so nothing restarts or stutters when the active one changes.
+const HERO_SLIDES = [
+  {
+    type: 'video',
+    src: '/privacy-promise-animation.mp4',
+    caption: <><strong>Private by design.</strong> Never used to train AI.</>
+  },
+  {
+    type: 'video',
+    src: '/privacy-promise-animation-2.mp4',
+    caption: <><strong>Zero model training.</strong> Your audio stays yours.</>
+  },
+  {
+    type: 'image',
+    src: '/hero-confidential-audio.jpg',
+    caption: <><strong>Protect confidential audio.</strong> 100% data privacy, zero auto-renewals.</>
+  }
+];
+
 const Landing = () => {
   useEffect(() => {
     recordPageView(`${window.location.pathname}#landing`);
+  }, []);
+
+  const [activeSlide, setActiveSlide] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveSlide((current) => (current + 1) % HERO_SLIDES.length);
+    }, 5000);
+    return () => clearInterval(timer);
   }, []);
 
   const go = (id) => (e) => {
@@ -145,20 +176,41 @@ const Landing = () => {
         </div>
 
         <div className="tm-lp-hero-animation" aria-label="TypeMyworDz privacy promise">
-          <video
-            className="tm-lp-privacy-video"
-            autoPlay
-            loop
-            muted
-            playsInline
-            preload="metadata"
-          >
-            <source src="/privacy-promise-animation.mp4" type="video/mp4" />
-            <p className="sr-only">TypeMyworDz privacy promise: your recordings are never used to train AI.</p>
-          </video>
+          <div className="tm-lp-hero-slideshow">
+            {HERO_SLIDES.map((slide, index) => (
+              <div
+                key={slide.src}
+                className={`tm-lp-hero-slide${index === activeSlide ? ' tm-lp-hero-slide-active' : ''}`}
+              >
+                {slide.type === 'video' ? (
+                  <video
+                    className="tm-lp-privacy-video"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    preload="metadata"
+                  >
+                    <source src={slide.src} type="video/mp4" />
+                    <p className="sr-only">TypeMyworDz privacy promise: your recordings are never used to train AI.</p>
+                  </video>
+                ) : (
+                  <img className="tm-lp-privacy-video" src={slide.src} alt="Protect confidential audio" />
+                )}
+              </div>
+            ))}
+          </div>
           <p className="tm-lp-hero-animation-caption">
-            <strong>Private by design.</strong> Never used to train AI.
+            {HERO_SLIDES[activeSlide].caption}
           </p>
+          <div className="tm-lp-hero-slide-dots">
+            {HERO_SLIDES.map((slide, index) => (
+              <span
+                key={slide.src}
+                className={`tm-lp-hero-slide-dot${index === activeSlide ? ' tm-lp-hero-slide-dot-active' : ''}`}
+              />
+            ))}
+          </div>
         </div>
 
         <div className="tm-lp-hero-card">
