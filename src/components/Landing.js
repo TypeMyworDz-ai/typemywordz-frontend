@@ -144,6 +144,20 @@ const Landing = () => {
           </p>
         </div>
 
+        <div className="tm-lp-hero-animation" aria-label="TypeMyworDz privacy promise">
+          <video
+            className="tm-lp-privacy-video"
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="metadata"
+          >
+            <source src="/privacy-promise-animation.mp4" type="video/mp4" />
+            <p className="sr-only">TypeMyworDz privacy promise: your recordings are never used to train AI.</p>
+          </video>
+        </div>
+
         <div className="tm-lp-hero-card">
           <Login />
           <Link className="tm-lp-trainee-link" to="/trainee-signup">
