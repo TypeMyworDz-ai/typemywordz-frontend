@@ -2601,10 +2601,24 @@ body {
   width: 100%;
   max-width: 260px;
 }
+.tm-lp-hero-slideshow{
+  position: relative;
+  width: 100%;
+  aspect-ratio: 9 / 17;
+}
+.tm-lp-hero-slide{
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+}
+.tm-lp-hero-slide-active{
+  opacity: 1;
+}
 .tm-lp-privacy-video{
   display: block;
   width: 100%;
-  aspect-ratio: 9 / 17;
+  height: 100%;
   object-fit: cover;
   border-radius: 32px;
   background: transparent;
@@ -2616,8 +2630,25 @@ body {
   color: var(--tm-muted);
   font-size: 0.83rem;
   line-height: 1.5;
+  min-height: 2.6em;
 }
 .tm-lp-hero-animation-caption strong{ color: var(--tm-ink); }
+.tm-lp-hero-slide-dots{
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.tm-lp-hero-slide-dot{
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tm-line);
+  transition: background 0.3s ease, transform 0.3s ease;
+}
+.tm-lp-hero-slide-dot-active{
+  background: var(--tm-purple, #5b44cf);
+  transform: scale(1.25);
+}
 
 .tm-lp-hero-card{
   border: 1px solid var(--tm-line);
