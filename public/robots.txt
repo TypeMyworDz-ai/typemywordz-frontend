@@ -13,3 +13,5 @@ Disallow: /transcription-editor
 Disallow: /editor-demo
 
 Sitemap: https://typemywordz.ai/sitemap.xml
+
+Host: https://typemywordz.ai
