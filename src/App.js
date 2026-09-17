@@ -1952,7 +1952,7 @@ return (
     <Route path="/admin" element={isAdmin ? <><AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} /><FloatingWhatsApp /></> : <Navigate to="/" />} />
     
     <Route path="/" element={
-      <div className="tm-app tm-app-with-sitefoot" style={{ 
+      <div className="tm-app" style={{ 
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
@@ -2884,21 +2884,12 @@ return (
             </main>
           </div>
         )}
-        <footer className="tm-footer tm-sitefoot">
+        <footer className="tm-footer">
           <span>© {new Date().getFullYear()} TypeMyworDz</span>
-          <span className="tm-sitefoot-links">
+          <span className="tm-footer-links">
             <Link to="/privacy-policy">Privacy &amp; Security</Link>
             <Link to="/terms">Terms of Service</Link>
           </span>
-          <a
-            className="tm-sitefoot-badge"
-            href="https://www.saashub.com/typemywordz-ai?utm_source=badge&utm_campaign=badge&utm_content=typemywordz-ai&badge_variant=color&badge_kind=approved"
-            target="_blank"
-            rel="noreferrer"
-            aria-label="TypeMyworDz approved on SaaSHub"
-          >
-            <img src="https://cdn-b.saashub.com/img/badges/approved-color.png?v=1" alt="Approved on SaaSHub" />
-          </a>
         </footer>
 
           </main>
