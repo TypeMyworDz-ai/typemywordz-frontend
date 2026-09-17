@@ -2535,6 +2535,9 @@ body {
 .tm-sitefoot-links{ display: inline-flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
 .tm-sitefoot-links a{ color: var(--tm-muted); text-decoration: none; }
 .tm-sitefoot-links a:hover{ color: var(--tm-ink); text-decoration: underline; }
+.tm-sitefoot-badge{ display: inline-flex; align-items: center; opacity: 0.88; transition: opacity 0.2s ease; }
+.tm-sitefoot-badge:hover{ opacity: 1; }
+.tm-sitefoot-badge img{ display: block; width: 130px; max-width: 100%; height: auto; }
 
 /* ============================================================
    Landing page (signed out)
