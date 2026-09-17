@@ -406,6 +406,14 @@ const Landing = () => {
           <Link to="/terms">Terms of Service</Link>
           <Link to="/refund-policy">Refund Policy</Link>
         </span>
+        <a
+          className="tm-sitefoot-badge"
+          href="https://www.saashub.com/typemywordz-ai?utm_source=badge&amp;utm_campaign=badge&amp;utm_content=typemywordz-ai&amp;badge_variant=color&amp;badge_kind=approved"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <img src="https://cdn-b.saashub.com/img/badges/approved-color.png?v=1" alt="Approved on SaaSHub" />
+        </a>
       </footer>
     </div>
   );
