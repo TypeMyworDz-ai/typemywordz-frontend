@@ -1952,7 +1952,7 @@ return (
     <Route path="/admin" element={isAdmin ? <><AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} /><FloatingWhatsApp /></> : <Navigate to="/" />} />
     
     <Route path="/" element={
-      <div className="tm-app" style={{ 
+      <div className="tm-app tm-app-with-sitefoot" style={{ 
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
@@ -2890,6 +2890,15 @@ return (
             <Link to="/privacy-policy">Privacy &amp; Security</Link>
             <Link to="/terms">Terms of Service</Link>
           </span>
+          <a
+            className="tm-sitefoot-badge"
+            href="https://www.saashub.com/typemywordz-ai?utm_source=badge&utm_campaign=badge&utm_content=typemywordz-ai&badge_variant=color&badge_kind=approved"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="TypeMyworDz approved on SaaSHub"
+          >
+            <img src="https://cdn-b.saashub.com/img/badges/approved-color.png?v=1" alt="Approved on SaaSHub" />
+          </a>
         </footer>
 
           </main>
