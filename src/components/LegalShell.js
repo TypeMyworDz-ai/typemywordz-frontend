@@ -76,6 +76,15 @@ const LegalShell = ({ title, updated, children }) => {
             {'  '}&middot;{'  '}
             <Link to="/">Back to the app</Link>
           </span>
+          <a
+            className="tm-sitefoot-badge"
+            href="https://www.saashub.com/typemywordz-ai?utm_source=badge&utm_campaign=badge&utm_content=typemywordz-ai&badge_variant=color&badge_kind=approved"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="TypeMyworDz approved on SaaSHub"
+          >
+            <img src="https://cdn-b.saashub.com/img/badges/approved-color.png?v=1" alt="Approved on SaaSHub" />
+          </a>
         </div>
       </div>
     </div>

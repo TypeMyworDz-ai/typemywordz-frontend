@@ -103,7 +103,7 @@ const Landing = () => {
   };
 
   return (
-    <div className="tm-app tm-login tm-lp">
+    <div className="tm-app tm-login tm-lp tm-app-with-sitefoot">
       <FloatingWhatsApp />
 
       {/* ---- Signed-out top bar ---- */}
