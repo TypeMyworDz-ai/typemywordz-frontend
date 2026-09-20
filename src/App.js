@@ -49,7 +49,7 @@ import DirectMessages from './components/DirectMessages';
 import { isPaidAIUser } from './aiAccess';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { isAdminEmail, hasFreeAccess } from './adminEmails';
+import { isAdminEmail, hasFreeAccess, isHumanJobAdminEmail } from './adminEmails';
 import { recordPageView } from './analyticsService';
 
 
@@ -290,6 +290,11 @@ function AppContent() {
 
   // Admin list lives in src/adminEmails.js so it cannot drift from the backend.
   const isAdmin = isAdminEmail(currentUser?.email);
+  // A narrower role than isAdmin: this account (or a real admin) can run the
+  // human-transcription job queue solo, but gets none of the rest of the
+  // admin dashboard and no exemption from paying for AI transcription or
+  // Ask TypeMyworDz -- see HUMAN_JOB_ADMIN_EMAILS in adminEmails.js.
+  const isHumanJobAdmin = isHumanJobAdminEmail(currentUser?.email);
   const profileRole = String(userProfile?.role || userProfile?.user_type || '').toLowerCase();
   const isTrainee = !isAdmin && profileRole === 'trainee' && userProfile?.trainingRoomAccess === true && userProfile?.workerApproved !== true;
   const isWorker = !isAdmin && (['worker', 'transcriber'].includes(profileRole) || userProfile?.workerApproved === true);
@@ -2171,6 +2176,16 @@ return (
               </button>
             )}
 
+            {isHumanJobAdmin && !isAdmin && (
+              <button
+                className={"tm-nav" + (currentView === 'human_ops' ? " tm-nav-on" : "")}
+                onClick={() => setCurrentView('human_ops')}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M12 3l7.5 3.5v5c0 4.6-3.1 8.4-7.5 9.5-4.4-1.1-7.5-4.9-7.5-9.5v-5z"/></svg>
+                Human Job Admin
+              </button>
+            )}
+
             <button
               className={"tm-nav tm-nav-ai" + (currentView === 'ai_assistant' ? " tm-nav-on" : "")}
               onClick={() => {
@@ -2337,6 +2352,8 @@ return (
           />
         ) : currentView === 'human_worker' ? (
           <HumanJobWorkspace mode="worker" onBack={() => setCurrentView('transcribe')} showMessage={showMessage} />
+        ) : currentView === 'human_ops' ? (
+          <HumanJobWorkspace mode="admin" restricted={!isAdmin} onBack={() => setCurrentView('transcribe')} showMessage={showMessage} />
         ) : currentView === 'human_job' ? (
           <HumanJobWorkspace mode="client" initialJobId={selectedHumanJobId} onBack={() => setCurrentView('dashboard')} showMessage={showMessage} />
         ) : currentView === 'pricing' ? (

@@ -21,6 +21,22 @@ export const isAdminEmail = (email) => {
   return ADMIN_EMAILS.some((a) => a.toLowerCase() === needle);
 };
 
+// Extra accounts that can run the human-transcription job queue solo --
+// approve a request, assign it to a worker, and sign off finished work on a
+// client's behalf -- without being a full admin anywhere else in the app.
+// Must stay in step with HUMAN_JOB_ADMIN_EMAILS in the backend (main.py).
+export const HUMAN_JOB_ADMIN_EMAILS = [
+  ...ADMIN_EMAILS,
+  'info@typemywordz.ai',
+];
+
+// Case-insensitive, whitespace-tolerant check, matching the backend's behaviour.
+export const isHumanJobAdminEmail = (email) => {
+  if (!email || typeof email !== 'string') return false;
+  const needle = email.trim().toLowerCase();
+  return HUMAN_JOB_ADMIN_EMAILS.some((a) => a.toLowerCase() === needle);
+};
+
 // Case-insensitive, whitespace-tolerant check, matching the backend's behaviour.
 export const isCompAccessEmail = (email) => {
   if (!email || typeof email !== 'string') return false;
