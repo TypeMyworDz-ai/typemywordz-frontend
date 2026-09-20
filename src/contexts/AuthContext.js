@@ -1,6 +1,6 @@
 // src/contexts/AuthContext.js
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { auth, googleProvider, microsoftProvider } from '../firebase'; // Removed db import
+import { auth, googleProvider } from '../firebase'; // Removed db import
 import {
   onAuthStateChanged,
   getRedirectResult,
@@ -111,16 +111,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const signInWithMicrosoft = async () => {
-    try {
-      await signInWithPopup(auth, microsoftProvider);
-    } catch (error) {
-      console.error('Microsoft sign-in error:', error);
-      showMessage(`Microsoft sign-in failed: ${error.message}`,'error');
-      throw error;
-    }
-  };
-
   const signUpWithEmail = async (email, password, name) => {
     const result = await createUserWithEmailAndPassword(auth, email, password);
 
@@ -210,7 +200,6 @@ export const AuthProvider = ({ children }) => {
     loading,
     profileLoading,
     signInWithGoogle,
-    signInWithMicrosoft,
     signUpWithEmail,
     signInWithEmail,
     sendPasswordReset,

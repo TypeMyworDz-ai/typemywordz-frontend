@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, OAuthProvider } from 'firebase/auth'; // Import OAuthProvider
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -22,13 +22,10 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // Providers
+// Microsoft sign-in was removed (2026-09-20) until the app is verified with
+// Microsoft; showing an "unverified" warning to clients mid-signup was
+// undermining trust. Google and email/password remain the two sign-in
+// options. See googleProvider below.
 const googleProvider = new GoogleAuthProvider();
-const microsoftProvider = new OAuthProvider('microsoft.com'); // Initialize Microsoft provider
 
-// Configure Microsoft provider (optional, for specific tenants or custom parameters)
-// microsoftProvider.setCustomParameters({
-//   prompt: 'consent',
-//   tenant: 'YOUR_TENANT_ID_OR_NAME' // If you need to restrict to a specific Azure AD tenant
-// });
-
-export { auth, db, googleProvider, microsoftProvider }; // Export microsoftProvider
+export { auth, db, googleProvider };
