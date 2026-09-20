@@ -37,7 +37,7 @@ const formatCountdown = (totalSeconds) => {
 
 const PAYOUT_STATUS_LABELS = { accruing: 'Accruing this half', invoiced: 'Pending payout', paid: 'Paid', all: 'All' };
 
-export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '' }) {
+export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', restricted = false }) {
   const { currentUser } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [workers, setWorkers] = useState([]);
@@ -45,6 +45,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [messages, setMessages] = useState([]);
   const [messageText, setMessageText] = useState('');
   const [messageFile, setMessageFile] = useState(null);
+  const [finalAttachment, setFinalAttachment] = useState(null);
   const [editorText, setEditorText] = useState('');
   const [feedback, setFeedback] = useState('');
   const [rating, setRating] = useState('5');
@@ -145,6 +146,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     if (selectedJob) {
       setEditorText(selectedJob.transcript || '');
       setSelectedWorker(selectedJob.worker_uid || '');
+      setFinalAttachment(null);
     }
   }, [initialJobId, jobs, selectedId, selectedJob]);
   useEffect(() => {
@@ -239,10 +241,16 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     if (!busy && (messageText.trim() || messageFile)) event.currentTarget.form?.requestSubmit();
   };
 
-  const submitWorker = () => act(`/human-transcription/jobs/${selectedJob.id}/submit`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ transcript: editorText, notes: feedback }),
-  });
+  const submitWorker = () => {
+    const form = new FormData();
+    form.append('transcript', editorText);
+    form.append('notes', feedback);
+    // Some jobs only need the finished file handed back -- nothing to type
+    // into the shared editor. The server accepts either real transcript
+    // text or this attachment, as long as at least one is present.
+    if (finalAttachment) form.append('attachment', finalAttachment);
+    return act(`/human-transcription/jobs/${selectedJob.id}/submit`, { method: 'POST', body: form });
+  };
 
   const downloadProtectedFile = async (path, filename, unavailableMessage) => {
     try {
@@ -291,7 +299,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         </div>
       )}
 
-      {mode === 'admin' && (
+      {mode === 'admin' && !restricted && (
         <div className="tm-human-thread-tabs tm-worker-room-tabs" role="tablist" aria-label="Admin dashboard sections">
           <button type="button" role="tab" aria-selected={adminTab === 'queue'} className={adminTab === 'queue' ? 'active' : ''} onClick={() => setAdminTab('queue')}>Job Queue</button>
           <button type="button" role="tab" aria-selected={adminTab === 'payouts'} className={adminTab === 'payouts' ? 'active' : ''} onClick={() => setAdminTab('payouts')}>Worker Payments · KES</button>
@@ -313,7 +321,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             <h3>Paid</h3>{!(paymentHistory.paid || []).length && <p className="tm-human-empty">No payments have been marked paid yet.</p>}{(paymentHistory.paid || []).map((item) => <div className="tm-worker-payment-row" key={item.job_id}><span>Job {item.job_id.slice(0, 8)}</span><strong>KES {item.amount_kes}</strong><small>{item.minutes} min · {moneylessDate(item.paid_at)}</small></div>)}
           </>}
         </div>
-      ) : mode === 'admin' && adminTab === 'payouts' ? (
+      ) : mode === 'admin' && !restricted && adminTab === 'payouts' ? (
         <AdminPayoutsPanel request={request} showMessage={showMessage} workers={workers} />
       ) : (
       <div className="tm-human-workspace-grid">
@@ -336,13 +344,26 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <div className="tm-human-detail-actions">
                 {mode === 'admin' && selectedJob.status === 'pending_admin' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/approve`, { method: 'POST' })}>Approve request</button>}
                 {mode === 'worker' && ['assigned', 'in_progress'].includes(selectedJob.status) && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/start`, { method: 'POST' })}>Start work</button>}
-                {mode === 'worker' && ['assigned', 'in_progress'].includes(selectedJob.status) && <button type="button" onClick={submitWorker} disabled={busy}>Submit for review</button>}
+                {mode === 'worker' && ['assigned', 'in_progress'].includes(selectedJob.status) && <button type="button" onClick={submitWorker} disabled={busy || (!editorText.trim() && !finalAttachment && !selectedJob.final_attachment)}>Submit for review</button>}
                 {mode === 'client' && selectedJob.status === 'client_review' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/client-approve`, { method: 'POST' })}>Approve completed work</button>}
-                {mode === 'admin' && selectedJob.status === 'client_approved' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/release`, { method: 'POST' })}>Release and deduct credits</button>}
-                {mode === 'admin' && <button type="button" onClick={deleteJob}>Delete job</button>}
-                {mode === 'client' && selectedJob.status === 'released' && <button type="button" onClick={async () => { const idToken = await token(); const response = await fetch(`${BACKEND_URL}/human-transcription/jobs/${selectedJob.id}/download`, { headers: { Authorization: `Bearer ${idToken}` } }); if (!response.ok) { showMessage?.('The completed transcript is not ready to download.', 'error'); return; } const url = URL.createObjectURL(await response.blob()); const link = document.createElement('a'); link.href = url; link.download = `human-${selectedJob.id}.txt`; link.click(); URL.revokeObjectURL(url); }}>Download transcript</button>}
+                {mode === 'admin' && selectedJob.status === 'client_review' && <button type="button" title="Some clients are fully hands-off and trust an admin's review instead of logging in to approve it themselves." onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/client-approve`, { method: 'POST' })}>Approve on client's behalf</button>}
+                {mode === 'admin' && selectedJob.status === 'client_approved' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/release`, { method: 'POST' })}>Release completed work</button>}
+                {mode === 'admin' && !restricted && <button type="button" onClick={deleteJob}>Delete job</button>}
+                {mode === 'client' && selectedJob.status === 'released' && selectedJob.transcript && <button type="button" onClick={async () => { const idToken = await token(); const response = await fetch(`${BACKEND_URL}/human-transcription/jobs/${selectedJob.id}/download`, { headers: { Authorization: `Bearer ${idToken}` } }); if (!response.ok) { showMessage?.('The completed transcript is not ready to download.', 'error'); return; } const url = URL.createObjectURL(await response.blob()); const link = document.createElement('a'); link.href = url; link.download = `human-${selectedJob.id}.txt`; link.click(); URL.revokeObjectURL(url); }}>Download transcript</button>}
               </div>
             </div>
+
+            {mode === 'worker' && ['assigned', 'in_progress'].includes(selectedJob.status) && (
+              <div className="tm-human-final-attach">
+                <label className="tm-human-attach" title="Attach the finished file instead of typing it" aria-label="Attach the finished file">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 3.5h8l3 3V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M15 3.5V7h3M9 11h6M9 15h6"/></svg>
+                  <span>{finalAttachment ? 'Change finished file' : 'Attach finished file'}</span>
+                  <input type="file" onChange={(event) => setFinalAttachment(event.target.files?.[0] || null)} />
+                </label>
+                {finalAttachment && <span className="tm-human-attachment-preview"><strong>{finalAttachment.name}</strong>{formatAttachmentSize(finalAttachment.size) ? ` · ${formatAttachmentSize(finalAttachment.size)}` : ''}<button type="button" onClick={() => setFinalAttachment(null)} aria-label="Remove attachment">Remove</button></span>}
+                <p className="tm-human-editor-note">Nothing to type for this job? Attach the finished file and submit -- the editor can stay empty.</p>
+              </div>
+            )}
 
             {['assigned', 'in_progress'].includes(selectedJob.status) && typeof selectedJob.time_remaining_seconds === 'number' && (() => {
               const remaining = remainingSecondsFor(selectedJob);
@@ -369,6 +390,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
             {audioUrl && <div className="tm-human-audio-card"><strong>Source recording</strong><span>Available to the client, admin and assigned worker.</span><audio controls src={audioUrl} /></div>}
             {selectedJob.instruction_attachments?.length > 0 && <div className="tm-human-reference-card"><strong>Reference files from the client</strong><span>Use these notes, spellings, and supporting documents while working.</span><div className="tm-human-reference-list">{selectedJob.instruction_attachments.map((item, index) => <button type="button" key={`${item.name}-${index}`} onClick={() => downloadProtectedFile(`/human-transcription/jobs/${selectedJob.id}/instruction/${index}`, item.name, 'The reference file could not be downloaded.')}>Download: {item.name}</button>)}</div></div>}
+            {selectedJob.final_attachment && <div className="tm-human-reference-card"><strong>Finished file from the worker</strong><span>Submitted instead of, or alongside, the shared editor text.</span><div className="tm-human-reference-list"><button type="button" onClick={() => downloadProtectedFile(`/human-transcription/jobs/${selectedJob.id}/final-attachment`, selectedJob.final_attachment.name, 'The finished file could not be downloaded.')}>Download: {selectedJob.final_attachment.name}</button></div></div>}
 
             <div className="tm-human-editor-card">
               <div className="tm-human-editor-head"><div><strong>Shared proofreading editor</strong><span>The same working area is used by the worker, admin and client.</span></div><div className="tm-human-editor-ad">Need a first draft or a quick answer? <button type="button" onClick={() => showMessage?.('Ask TypeMyworDz opens from the left navigation.', 'success')}>Use Ask TypeMyworDz</button></div></div>
