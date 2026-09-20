@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import TranscriptEditor from './TranscriptEditor';
 import './HumanJobWorkspace.css';
@@ -64,6 +64,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [adminTab, setAdminTab] = useState('queue');
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [jobsFetchedAt, setJobsFetchedAt] = useState(() => Date.now());
+  const draftJobIdRef = useRef('');
 
   // The server tells us how many seconds are left as of the last refresh;
   // this just ticks the display down between refreshes so it never looks
@@ -143,7 +144,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   useEffect(() => {
     if (initialJobId && jobs.some((job) => job.id === initialJobId)) setSelectedId(initialJobId);
     else if (!selectedId && jobs[0]?.id) setSelectedId(jobs[0].id);
-    if (selectedJob) {
+    if (selectedJob && draftJobIdRef.current !== selectedJob.id) {
+      draftJobIdRef.current = selectedJob.id;
       setEditorText(selectedJob.transcript || '');
       setSelectedWorker(selectedJob.worker_uid || '');
       setFinalAttachment(null);
