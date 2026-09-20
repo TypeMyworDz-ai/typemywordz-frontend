@@ -4,6 +4,7 @@ import { fetchUserTranscriptions, deleteTranscription, updateTranscription } fro
 import { useNavigate } from 'react-router-dom';
 import ConfirmDialog from './ConfirmDialog';
 import { htmlToText } from '../lib/transcript';
+import { isAdminEmail, isHumanJobAdminEmail } from '../adminEmails';
 import './Dashboard.css';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
@@ -65,6 +66,7 @@ const normalizeHumanItem = (job) => ({
 const Dashboard = ({ setCurrentView, onOpenHumanJob, standalone = false }) => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  const canOpenHumanJobAdmin = isHumanJobAdminEmail(currentUser?.email) && !isAdminEmail(currentUser?.email);
   const [transcriptions, setTranscriptions] = useState([]);
   const [humanJobs, setHumanJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -214,6 +216,7 @@ const Dashboard = ({ setCurrentView, onOpenHumanJob, standalone = false }) => {
             <p className="tm-files-intro">AI transcripts and proofreading work, together in one place.</p>
           </div>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {canOpenHumanJobAdmin && setCurrentView && !standalone && <button type="button" className="tm-files-secondary" onClick={() => setCurrentView('human_ops')}>Human Job Admin</button>}
             {setCurrentView && <button type="button" className="tm-files-secondary" onClick={() => setCurrentView('credit_history')}>Credit activity</button>}
             <button type="button" className="tm-files-primary" onClick={openNewTranscription}>
               <span aria-hidden="true">+</span> New transcription
