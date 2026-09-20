@@ -18,15 +18,6 @@ const GoogleMark = () => (
   </svg>
 );
 
-const MicrosoftMark = () => (
-  <svg width="18" height="18" viewBox="0 0 23 23" aria-hidden="true">
-    <path fill="#F25022" d="M1 1h10v10H1z" />
-    <path fill="#7FBA00" d="M12 1h10v10H12z" />
-    <path fill="#00A4EF" d="M1 12h10v10H1z" />
-    <path fill="#FFB900" d="M12 12h10v10H12z" />
-  </svg>
-);
-
 const PasswordEye = ({ hidden }) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M2.2 12s3.5-6 9.8-6 9.8 6 9.8 6-3.5 6-9.8 6-9.8-6-9.8-6Z" />
@@ -47,7 +38,7 @@ const Login = () => {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');   // a calm, non-error confirmation
 
-  const { signInWithGoogle, signInWithMicrosoft, signInWithEmail, signUpWithEmail, sendPasswordReset, showMessage } = useAuth();
+  const { signInWithGoogle, signInWithEmail, signUpWithEmail, sendPasswordReset, showMessage } = useAuth();
   const navigate = useNavigate();
 
   const switchTo = (next) => {
@@ -63,20 +54,6 @@ const Login = () => {
     setNotice('');
     try {
       await signInWithGoogle();
-      navigate('/');
-    } catch (err) {
-      setError(friendlyAuthError(err));
-    } finally {
-      setBusy('');
-    }
-  };
-
-  const handleMicrosoft = async () => {
-    setBusy('microsoft');
-    setError('');
-    setNotice('');
-    try {
-      await signInWithMicrosoft();
       navigate('/');
     } catch (err) {
       setError(friendlyAuthError(err));
@@ -222,16 +199,6 @@ const Login = () => {
           >
             <GoogleMark />
             {busy === 'google' ? 'Signing in...' : 'Continue with Google'}
-          </button>
-
-          <button
-            type="button"
-            className="tm-auth-oauth tm-auth-microsoft"
-            onClick={handleMicrosoft}
-            disabled={working}
-          >
-            <MicrosoftMark />
-            {busy === 'microsoft' ? 'Signing in...' : 'Continue with Microsoft'}
           </button>
 
           <div className="tm-auth-or"><span>or</span></div>
