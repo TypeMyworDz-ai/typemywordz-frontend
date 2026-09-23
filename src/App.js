@@ -139,6 +139,8 @@ function AppContent() {
   const [currentView, setCurrentView] = useState('transcribe');
   const [selectedHumanJobId, setSelectedHumanJobId] = useState('');
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [assignedWorkerJobs, setAssignedWorkerJobs] = useState([]);
+  const [seenWorkerJobIds, setSeenWorkerJobIds] = useState([]);
 
   // A referral link looks like typemywordz.ai/?ref=CODE. Whoever clicked it
   // might not sign up for several minutes, so the code is stashed until a
@@ -293,6 +295,58 @@ function AppContent() {
   const profileRole = String(userProfile?.role || userProfile?.user_type || '').toLowerCase();
   const isTrainee = !isAdmin && profileRole === 'trainee' && userProfile?.trainingRoomAccess === true && userProfile?.workerApproved !== true;
   const isWorker = !isAdmin && (['worker', 'transcriber'].includes(profileRole) || userProfile?.workerApproved === true);
+
+  useEffect(() => {
+    if (!currentUser || !isWorker) {
+      setAssignedWorkerJobs([]);
+      setSeenWorkerJobIds([]);
+      return;
+    }
+    const storageKey = `tmwd_seen_worker_jobs_${currentUser.uid}`;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(storageKey) || '[]');
+      setSeenWorkerJobIds(Array.isArray(saved) ? saved : []);
+    } catch {
+      setSeenWorkerJobIds([]);
+    }
+  }, [currentUser?.uid, isWorker]);
+
+  const refreshAssignedWorkerJobs = useCallback(async () => {
+    if (!currentUser || !isWorker) return;
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${RAILWAY_BACKEND_URL}/human-transcription/jobs?scope=assigned`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+      const payload = await response.json().catch(() => ({}));
+      setAssignedWorkerJobs(payload.jobs || []);
+    } catch {
+      // The notice is helpful, but it must never interrupt the worker's page.
+    }
+  }, [currentUser, isWorker]);
+
+  useEffect(() => {
+    if (!currentUser || !isWorker) return undefined;
+    refreshAssignedWorkerJobs();
+    const interval = window.setInterval(refreshAssignedWorkerJobs, 10000);
+    return () => window.clearInterval(interval);
+  }, [currentUser, isWorker, refreshAssignedWorkerJobs]);
+
+  const markWorkerJobsSeen = useCallback((jobIds) => {
+    if (!currentUser?.uid || !jobIds?.length) return;
+    setSeenWorkerJobIds((previous) => {
+      const next = Array.from(new Set([...previous, ...jobIds]));
+      try {
+        window.localStorage.setItem(`tmwd_seen_worker_jobs_${currentUser.uid}`, JSON.stringify(next));
+      } catch {
+        // Local storage is only a convenience; the banner still works in memory.
+      }
+      return next;
+    });
+  }, [currentUser?.uid]);
+
+  const newAssignedWorkerJobs = assignedWorkerJobs.filter((job) => !seenWorkerJobIds.includes(job.id));
   // A trainee registration is not a normal client account. Until the
   // provider confirms payment, keep the account on the payment screen only.
   const traineePaymentPending = Boolean(
@@ -2266,6 +2320,26 @@ return (
           </aside>
 
           <main className="tm-main">
+
+        {isWorker && newAssignedWorkerJobs.length > 0 && (
+          <div className="tm-worker-assignment-banner" role="status">
+            <span className="tm-worker-assignment-mark" aria-hidden="true">+</span>
+            <span className="tm-worker-assignment-copy">
+              <strong>{newAssignedWorkerJobs.length === 1 ? 'New job assigned' : `${newAssignedWorkerJobs.length} new jobs assigned`}</strong>
+              <small>Open Work Room to see the latest assignment and deadline.</small>
+            </span>
+            <button
+              type="button"
+              className="tm-worker-assignment-action"
+              onClick={() => {
+                markWorkerJobsSeen(newAssignedWorkerJobs.map((job) => job.id));
+                setCurrentView('human_worker');
+              }}
+            >
+              Open Work Room
+            </button>
+          </div>
+        )}
 
         {unreadMessageCount > 0 && currentView !== 'messages' && (
           <button type="button" className="tm-unread-banner" onClick={() => setCurrentView('messages')}>
