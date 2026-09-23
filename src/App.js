@@ -309,7 +309,7 @@ function AppContent() {
     } catch {
       setSeenWorkerJobIds([]);
     }
-  }, [currentUser?.uid, isWorker]);
+  }, [currentUser, isWorker]);
 
   const refreshAssignedWorkerJobs = useCallback(async () => {
     if (!currentUser || !isWorker) return;
@@ -347,6 +347,13 @@ function AppContent() {
   }, [currentUser?.uid]);
 
   const newAssignedWorkerJobs = assignedWorkerJobs.filter((job) => !seenWorkerJobIds.includes(job.id));
+
+  useEffect(() => {
+    if (currentView === 'human_worker' && newAssignedWorkerJobs.length > 0) {
+      markWorkerJobsSeen(newAssignedWorkerJobs.map((job) => job.id));
+    }
+  }, [currentView, newAssignedWorkerJobs, markWorkerJobsSeen]);
+
   // A trainee registration is not a normal client account. Until the
   // provider confirms payment, keep the account on the payment screen only.
   const traineePaymentPending = Boolean(
