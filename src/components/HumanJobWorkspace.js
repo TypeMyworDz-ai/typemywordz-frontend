@@ -23,9 +23,9 @@ const formatAttachmentSize = (bytes) => {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-// A worker gets 3 minutes of turnaround time per 1 minute of assigned
-// audio. This only formats what the server already computed and counts it
-// down locally between refreshes, so the number on screen never freezes.
+// The server computes the worker's TAT, including the six-minute minimum for
+// short jobs. This only formats the server value and counts it down locally
+// between refreshes, so the number on screen never freezes.
 const formatCountdown = (totalSeconds) => {
   const seconds = Math.max(0, Math.floor(totalSeconds || 0));
   const h = Math.floor(seconds / 3600);
@@ -64,6 +64,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [adminTab, setAdminTab] = useState('queue');
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [jobsFetchedAt, setJobsFetchedAt] = useState(() => Date.now());
+  const [workerRatingSummary, setWorkerRatingSummary] = useState({ average: null, count: 0 });
   const draftJobIdRef = useRef('');
 
   // The server tells us how many seconds are left as of the last refresh;
@@ -100,6 +101,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       const scope = mode === 'admin' ? 'admin' : mode === 'worker' ? (workerTab === 'finished' ? 'finished' : 'assigned') : 'mine';
       const payload = await request(`/human-transcription/jobs?scope=${scope}`);
       setJobs(payload.jobs || []);
+      if (mode === 'worker') setWorkerRatingSummary(payload.worker_rating_summary || { average: null, count: 0 });
       setJobsFetchedAt(Date.now());
     } catch (error) {
       showMessage?.(error.message, 'error');
@@ -292,6 +294,20 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         </div>
         <button className="tm-human-refresh" type="button" onClick={() => { loadJobs(); loadWorkers(); loadPayments(); }}>Refresh</button>
       </div>
+
+      {mode === 'worker' && (
+        <div className="tm-worker-rating-card" aria-label="Your average transcriber rating">
+          <div className="tm-worker-rating-score">
+            <span className="tm-worker-rating-kicker">Your rating</span>
+            <strong>{workerRatingSummary.average == null ? '—' : workerRatingSummary.average.toFixed(2)}</strong>
+            <span className="tm-worker-rating-out-of">/ 5</span>
+          </div>
+          <div className="tm-worker-rating-copy">
+            <span>{workerRatingSummary.count ? `${workerRatingSummary.count} rating${workerRatingSummary.count === 1 ? '' : 's'} submitted` : 'No ratings submitted yet'}</span>
+            <small>{workerRatingSummary.count ? 'Average across every rating recorded for your completed work.' : 'Your average will appear here after an admin rates completed work.'}</small>
+          </div>
+        </div>
+      )}
 
       {mode === 'worker' && (
         <div className="tm-human-thread-tabs tm-worker-room-tabs" role="tablist" aria-label="Worker room sections">
