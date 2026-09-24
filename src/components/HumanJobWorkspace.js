@@ -441,6 +441,13 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               </div>
             </div>
 
+            {String(selectedJob.instructions || '').trim() && (
+              <div className="tm-human-instructions" role="note">
+                <strong>Notes for the transcriber</strong>
+                <p>{selectedJob.instructions}</p>
+              </div>
+            )}
+
             {mode === 'worker' && workerAssignmentActive && (
               <div className="tm-human-final-attach">
                 <label className="tm-human-attach" title="Attach the finished file instead of typing it" aria-label="Attach the finished file">
