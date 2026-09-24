@@ -254,6 +254,7 @@ function AppContent() {
   const silenceStartedAtRef = useRef(null);
   const speechStartedAtRef = useRef(null); 
   const abortControllerRef = useRef(null);
+  const humanAlertCursorRef = useRef({ uid: '', timestamp: 0, seen: new Set() });
   const transcriptionIntervalRef = useRef(null);
   const statusCheckTimeoutRef = useRef(null);
   const isCancelledRef = useRef(false);
@@ -297,6 +298,80 @@ function AppContent() {
   const isWorker = !isAdmin && (['worker', 'transcriber'].includes(profileRole) || userProfile?.workerApproved === true);
 
   useEffect(() => {
+    const uid = currentUser?.uid;
+    const tracker = humanAlertCursorRef.current;
+    if (!uid) {
+      tracker.uid = '';
+      tracker.timestamp = 0;
+      tracker.seen.clear();
+      return undefined;
+    }
+    if (tracker.uid !== uid) {
+      tracker.uid = uid;
+      tracker.timestamp = Date.now() - 5000;
+      tracker.seen.clear();
+    }
+    let stopped = false;
+    const pollHumanAlerts = async () => {
+      if (stopped || document.visibilityState !== 'visible') return;
+      const requestStartedAt = Date.now();
+      try {
+        const idToken = await currentUser.getIdToken();
+        const since = new Date(Math.max(0, tracker.timestamp - 6000)).toISOString();
+        const response = await fetch(`${RAILWAY_BACKEND_URL}/human-transcription/notifications?since=${encodeURIComponent(since)}`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        if (!response.ok || stopped) return;
+        const payload = await response.json().catch(() => ({}));
+        const serverTime = Date.parse(payload.server_time || '');
+        tracker.timestamp = Math.max(tracker.timestamp, Number.isFinite(serverTime) ? serverTime : requestStartedAt);
+        const notices = [];
+        for (const event of payload.events || []) {
+          // The worker's persistent assignment banner is already refreshed on
+          // every page; skip a second, competing toast for the same assignment.
+          if (event.type === 'assignment') continue;
+          const identity = event.message_id || event.event_id || event.updated_at || '';
+          const key = `${event.type}:${event.job_id || ''}:${identity}`;
+          if (tracker.seen.has(key)) continue;
+          tracker.seen.add(key);
+          let notice = '';
+          if (event.type === 'message') {
+            const sender = event.sender_role === 'worker' ? 'A worker' : event.sender_role === 'client' ? 'A client' : 'The human-work team';
+            notice = `${sender} sent a new message about a human job.`;
+          } else if (event.type === 'submission') {
+            notice = `A worker submitted ${String(event.label || 'work').toLowerCase()} for review.`;
+          } else if (event.type === 'new_request') {
+            notice = 'A new human-work request needs admin review.';
+          } else if (event.type === 'returned_to_queue') {
+            notice = 'A missed deadline returned work to the admin queue.';
+          } else if (event.type === 'review') {
+            notice = 'Your human transcript is ready for review.';
+          } else if (event.type === 'released') {
+            notice = 'Your finished human transcript is ready.';
+          }
+          if (notice) notices.push(notice);
+        }
+        if (notices.length === 1) showMessage?.(notices[0], 'info', 6000);
+        else if (notices.length > 1) showMessage?.(`${notices.length} new human-work updates. ${notices[0]}`, 'info', 6000);
+        if (tracker.seen.size > 300) tracker.seen = new Set(Array.from(tracker.seen).slice(-200));
+      } catch {
+        // Alerts are best-effort and must never interrupt the current task.
+      }
+    };
+    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') pollHumanAlerts(); };
+    pollHumanAlerts();
+    const interval = window.setInterval(refreshWhenVisible, 5000);
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [currentUser, showMessage]);
+
+  useEffect(() => {
     if (!currentUser || !isWorker) {
       setAssignedWorkerJobs([]);
       setSeenWorkerJobIds([]);
@@ -327,11 +402,18 @@ function AppContent() {
   }, [currentUser, isWorker]);
 
   useEffect(() => {
-    if (!currentUser || !isWorker) return undefined;
-    refreshAssignedWorkerJobs();
-    const interval = window.setInterval(refreshAssignedWorkerJobs, 10000);
-    return () => window.clearInterval(interval);
-  }, [currentUser, isWorker, refreshAssignedWorkerJobs]);
+    if (!currentUser || !isWorker || currentView === 'human_worker') return undefined;
+    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') refreshAssignedWorkerJobs(); };
+    refreshWhenVisible();
+    const interval = window.setInterval(refreshWhenVisible, 3000);
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [currentUser, isWorker, currentView, refreshAssignedWorkerJobs]);
 
   const markWorkerJobsSeen = useCallback((jobIds) => {
     if (!currentUser?.uid || !jobIds?.length) return;

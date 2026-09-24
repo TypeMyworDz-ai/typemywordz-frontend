@@ -70,7 +70,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [jobsFetchedAt, setJobsFetchedAt] = useState(() => Date.now());
   const [workerRatingSummary, setWorkerRatingSummary] = useState({ average: null, count: 0 });
-  const draftJobIdRef = useRef('');
+  const draftAssignmentKeyRef = useRef('');
+  const lastSyncErrorAtRef = useRef(0);
 
   // The server tells us how many seconds are left as of the last refresh;
   // this just ticks the display down between refreshes so it never looks
@@ -85,6 +86,9 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const workerAssignment = selectedJob?.worker_assignment || null;
   const workerAssignmentActive = mode === 'worker' && ['assigned', 'in_progress'].includes(workerAssignment?.status);
   const splitJob = selectedJob?.split_mode === 'dual';
+  const draftAssignmentKey = selectedJob?.id
+    ? `${selectedJob.id}:${mode === 'worker' ? `${workerAssignment?.role || 'unassigned'}:${workerAssignment?.id || ''}` : 'admin'}`
+    : '';
 
   const request = useCallback(async (path, options = {}) => {
     const idToken = await token();
@@ -108,11 +112,16 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     try {
       const scope = mode === 'admin' ? 'admin' : mode === 'worker' ? (workerTab === 'finished' ? 'finished' : 'assigned') : 'mine';
       const payload = await request(`/human-transcription/jobs?scope=${scope}`);
-      setJobs(payload.jobs || []);
+      const nextJobs = payload.jobs || [];
+      setJobs(nextJobs);
       if (mode === 'worker') setWorkerRatingSummary(payload.worker_rating_summary || { average: null, count: 0 });
       setJobsFetchedAt(Date.now());
+      lastSyncErrorAtRef.current = 0;
     } catch (error) {
-      showMessage?.(error.message, 'error');
+      if (Date.now() - lastSyncErrorAtRef.current > 30000) {
+        lastSyncErrorAtRef.current = Date.now();
+        showMessage?.(error.message, 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -154,8 +163,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   useEffect(() => {
     if (initialJobId && jobs.some((job) => job.id === initialJobId)) setSelectedId(initialJobId);
     else if (!selectedId && jobs[0]?.id) setSelectedId(jobs[0].id);
-    if (selectedJob && draftJobIdRef.current !== selectedJob.id) {
-      draftJobIdRef.current = selectedJob.id;
+    if (selectedJob && draftAssignmentKeyRef.current !== draftAssignmentKey) {
+      draftAssignmentKeyRef.current = draftAssignmentKey;
       setEditorText(selectedJob.transcript || '');
       setSelectedWorker(selectedJob.worker_uid || '');
       setSecondWorker('');
@@ -164,7 +173,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       setSelectedSegmentId((selectedJob.segments || []).find((part) => ['available', 'approved'].includes(part.status))?.id || '');
       setFinalAttachment(null);
     }
-  }, [initialJobId, jobs, selectedId, selectedJob]);
+  }, [initialJobId, jobs, selectedId, selectedJob, draftAssignmentKey]);
   useEffect(() => {
     if (mode !== 'admin' || !selectedJob || selectedJob.split_mode !== 'dual') return;
     const available = (selectedJob.segments || []).find((part) => ['available', 'approved'].includes(part.status));
@@ -189,35 +198,36 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [selectedJob?.id, selectedJob?.audio, token, mode, workerAssignment?.role, workerAssignment?.id]);
 
-  // Messages come from the backend's REST endpoint, never straight from
-  // Firestore. The server is the only thing that knows which of the two
-  // separate conversations (client<->admin or worker<->admin) this actor is
-  // allowed to see, so a direct Firestore listener here could only either
-  // be blocked outright or, worse, end up reading both threads unfiltered.
-  // Polling every few seconds is a deliberate trade of a little latency for
-  // that guarantee.
+  // Keep using the server-filtered REST conversation endpoint: the backend
+  // controls who can read the client and worker threads. Refresh promptly,
+  // and also refresh as soon as the user returns to this tab.
   useEffect(() => {
     if (!selectedJob?.id) return undefined;
+    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') loadMessages(); };
     loadMessages();
-    const interval = window.setInterval(loadMessages, 3000);
-    return () => window.clearInterval(interval);
+    const interval = window.setInterval(refreshWhenVisible, 3000);
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
   }, [loadMessages, selectedJob?.id]);
 
-  // While any job on screen is running against its TAT deadline, re-sync
-  // from the server every 20 seconds. This is what actually notices a job
-  // that expired and was auto-returned to the admin queue, and keeps the
-  // countdown accurate rather than drifting from clock skew alone.
-  const hasActiveTimer = jobs.some((job) =>
-    (['assigned', 'in_progress'].includes(job.status) && typeof job.time_remaining_seconds === 'number') ||
-    (job.worker_assignment && ['assigned', 'in_progress'].includes(job.worker_assignment.status)) ||
-    (job.proofreader_status && ['assigned', 'in_progress'].includes(job.proofreader_status)) ||
-    (job.segments || []).some((part) => ['assigned', 'in_progress'].includes(part.status))
-  );
+  // Short visible-tab polling keeps assignments, deadlines, submissions and
+  // client review states in sync without asking anyone to refresh manually.
   useEffect(() => {
-    if (!hasActiveTimer) return undefined;
-    const interval = window.setInterval(loadJobs, 20000);
-    return () => window.clearInterval(interval);
-  }, [hasActiveTimer, loadJobs]);
+    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') loadJobs(); };
+    const interval = window.setInterval(refreshWhenVisible, 3000);
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [loadJobs]);
 
   const remainingSecondsFor = (job) => {
     if (!job || typeof job.time_remaining_seconds !== 'number') return null;
@@ -239,7 +249,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
   const deleteJob = async () => {
     if (!selectedJob || mode !== 'admin') return;
-    if (!window.confirm('Delete this human-work job and its conversation? This cannot be undone.')) return;
+    if (!window.confirm('Delete this human-work job, its stored files, and its conversation? Worker earnings and payment history will be kept. This cannot be undone.')) return;
     await act(`/human-transcription/jobs/${selectedJob.id}`, { method: 'DELETE' });
     setSelectedId('');
   };
@@ -377,7 +387,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       {mode === 'admin' && (
         <div className="tm-human-thread-tabs tm-worker-room-tabs" role="tablist" aria-label="Admin dashboard sections">
           <button type="button" role="tab" aria-selected={adminTab === 'queue'} className={adminTab === 'queue' ? 'active' : ''} onClick={() => setAdminTab('queue')}>Job Queue</button>
-          <button type="button" role="tab" aria-selected={adminTab === 'payouts'} className={adminTab === 'payouts' ? 'active' : ''} onClick={() => setAdminTab('payouts')}>Worker Payments · KES</button>
+          {!restricted && <button type="button" role="tab" aria-selected={adminTab === 'payouts'} className={adminTab === 'payouts' ? 'active' : ''} onClick={() => setAdminTab('payouts')}>Worker Payments · KES</button>}
+          {!restricted && <button type="button" role="tab" aria-selected={adminTab === 'cleanup'} className={adminTab === 'cleanup' ? 'active' : ''} onClick={() => setAdminTab('cleanup')}>Job cleanup</button>}
         </div>
       )}
 
@@ -392,12 +403,14 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             </div>
             <h3>Pending payouts (already invoiced, awaiting admin payment)</h3>
             {!(paymentHistory.pending_payouts || []).length && <p className="tm-human-empty">No half-month invoice is waiting on admin payment right now.</p>}
-            {(paymentHistory.pending_payouts || []).map((item) => <div className="tm-worker-payment-row" key={item.payout_id}><span>Period {item.period_label}</span><strong>KES {item.total_amount_kes}</strong><small>{item.total_minutes} min · pays out on {item.period_label?.endsWith('-A') ? 'the 15th' : 'month end'} · Transcription KES {item.transcription_amount_kes || 0} · Proofreading KES {item.proofreading_amount_kes || 0}</small></div>)}
-            <h3>Paid</h3>{!(paymentHistory.paid || []).length && <p className="tm-human-empty">No payments have been marked paid yet.</p>}{(paymentHistory.paid || []).map((item) => <div className="tm-worker-payment-row" key={`${item.job_id}-${item.role}`}><span>{item.role} · Job {item.job_id.slice(0, 8)}</span><strong>KES {item.amount_kes}</strong><small>{item.minutes} min · {moneylessDate(item.paid_at)}</small></div>)}
+            {(paymentHistory.pending_payouts || []).map((item) => <div className="tm-worker-payment-row" key={item.payout_id}><span>Period {item.period_label}</span><strong>KES {item.total_amount_kes}</strong><small>{item.total_minutes} min · pays out on {item.period_label?.endsWith('-A') ? 'the 15th' : 'month end'} · Transcription KES {item.transcription_amount_kes || 0} · Proofreading KES {item.proofreading_amount_kes || 0}{item.total_deduction_kes > 0 ? ` · KES ${item.total_deduction_kes} in deductions` : ''}</small></div>)}
+            <h3>Paid</h3>{!(paymentHistory.paid || []).length && <p className="tm-human-empty">No payments have been marked paid yet.</p>}{(paymentHistory.paid || []).map((item) => <div className="tm-worker-payment-row" key={`${item.job_id}-${item.role}-${item.payout_period_id || ''}`}><span>{item.role} · Job {item.job_id.slice(0, 8)}</span><strong>KES {item.amount_kes}</strong><small>{item.minutes} min · {moneylessDate(item.paid_at)}{item.deduction_kes > 0 ? ` · KES ${item.deduction_kes} deducted: ${item.deduction_reason}` : ''}</small></div>)}
           </>}
         </div>
-      ) : mode === 'admin' && adminTab === 'payouts' ? (
+      ) : mode === 'admin' && adminTab === 'payouts' && !restricted ? (
         <AdminPayoutsPanel request={request} showMessage={showMessage} workers={workers} />
+      ) : mode === 'admin' && adminTab === 'cleanup' && !restricted ? (
+        <AdminJobCleanupPanel request={request} showMessage={showMessage} />
       ) : (
       <div className="tm-human-workspace-grid">
         <aside className="tm-human-job-list">
@@ -405,7 +418,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           {jobs.map((job) => (
             <button type="button" key={job.id} className={`tm-human-job-row ${selectedJob?.id === job.id ? 'selected' : ''}`} onClick={() => setSelectedId(job.id)}>
               <strong>{job.audio?.name || `Human job ${job.id.slice(0, 6)}`}</strong>
-              <span>{STATUS_LABELS[job.status] || job.status}{typeof job.time_remaining_seconds === 'number' && ['assigned', 'in_progress'].includes(job.status) ? ` · ${formatCountdown(remainingSecondsFor(job))} left` : ''}</span>
+              <span>{mode === 'worker' && job.worker_assignment?.role === 'proofreader' ? 'Proofreading · In progress' : (STATUS_LABELS[job.status] || job.status)}{typeof job.time_remaining_seconds === 'number' && ['assigned', 'in_progress'].includes(job.worker_assignment?.status || job.status) ? ` · ${formatCountdown(remainingSecondsFor(job))} left` : ''}</span>
               <small>{mode === 'worker' ? moneylessDate(job.createdAt) : `${job.quote_credits || 0} credits · ${moneylessDate(job.createdAt)}`}</small>
             </button>
           ))}
@@ -432,7 +445,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <div className="tm-human-final-attach">
                 <label className="tm-human-attach" title="Attach the finished file instead of typing it" aria-label="Attach the finished file">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 3.5h8l3 3V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M15 3.5V7h3M9 11h6M9 15h6"/></svg>
-                  <span>{finalAttachment ? 'Change finished file' : 'Attach finished file'}</span>
+                  <span>{workerAssignment?.role === 'proofreader' ? (finalAttachment ? 'Change final proofread file' : 'Attach final proofread file') : (finalAttachment ? 'Change finished file' : 'Attach finished file')}</span>
                   <input type="file" onChange={(event) => setFinalAttachment(event.target.files?.[0] || null)} />
                 </label>
                 {finalAttachment && <span className="tm-human-attachment-preview"><strong>{finalAttachment.name}</strong>{formatAttachmentSize(finalAttachment.size) ? ` · ${formatAttachmentSize(finalAttachment.size)}` : ''}<button type="button" onClick={() => setFinalAttachment(null)} aria-label="Remove attachment">Remove</button></span>}
@@ -471,7 +484,23 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
             {audioUrl && <div className="tm-human-audio-card"><strong>Source recording</strong><span>Available to the client, admin and assigned worker.</span><audio controls src={audioUrl} /></div>}
             {selectedJob.instruction_attachments?.length > 0 && <div className="tm-human-reference-card"><strong>Reference files from the client</strong><span>Use these notes, spellings, and supporting documents while working.</span><div className="tm-human-reference-list">{selectedJob.instruction_attachments.map((item, index) => <button type="button" key={`${item.name}-${index}`} onClick={() => downloadProtectedFile(`/human-transcription/jobs/${selectedJob.id}/instruction/${index}`, item.name, 'The reference file could not be downloaded.')}>Download: {item.name}</button>)}</div></div>}
-            {selectedJob.final_attachment && <div className="tm-human-reference-card"><strong>Finished file from the worker</strong><span>Submitted instead of, or alongside, the shared editor text.</span><div className="tm-human-reference-list"><button type="button" onClick={() => downloadProtectedFile(`/human-transcription/jobs/${selectedJob.id}/final-attachment`, selectedJob.final_attachment.name, 'The finished file could not be downloaded.')}>Download: {selectedJob.final_attachment.name}</button></div></div>}
+            {mode === 'worker' && workerAssignment?.role === 'proofreader' && (selectedJob.proofreader_parts || []).length > 0 && (
+              <div className="tm-human-reference-card tm-proofreader-source-parts">
+                <strong>Both submitted parts</strong>
+                <span>Download each part, combine them in Word, then submit one final proofread transcript.</span>
+                <div className="tm-human-reference-list">
+                  {selectedJob.proofreader_parts.map((part) => (
+                    <div className="tm-proofreader-source-part" key={part.id}>
+                      <strong>{part.label}</strong>
+                      {part.transcript?.trim() && <button type="button" onClick={() => downloadProtectedFile(`/human-transcription/jobs/${selectedJob.id}/segments/${encodeURIComponent(part.id)}/transcript-download`, `${part.id}-transcript.txt`, `${part.label} transcript could not be downloaded.`)}>Download transcript (.txt)</button>}
+                      {part.final_attachment && <button type="button" onClick={() => downloadProtectedFile(`/human-transcription/jobs/${selectedJob.id}/segments/${encodeURIComponent(part.id)}/attachment`, part.final_attachment.name, `${part.label} finished file could not be downloaded.`)}>Download finished file: {part.final_attachment.name}</button>}
+                      {!part.transcript?.trim() && !part.final_attachment && <small>No transcript text or attachment was saved for this part.</small>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {selectedJob.final_attachment && workerAssignment?.role !== 'proofreader' && <div className="tm-human-reference-card"><strong>Finished file from the worker</strong><span>Submitted instead of, or alongside, the shared editor text.</span><div className="tm-human-reference-list"><button type="button" onClick={() => downloadProtectedFile(`/human-transcription/jobs/${selectedJob.id}/final-attachment`, selectedJob.final_attachment.name, 'The finished file could not be downloaded.')}>Download: {selectedJob.final_attachment.name}</button></div></div>}
 
             <div className="tm-human-editor-card">
               <div className="tm-human-editor-head"><div><strong>Shared proofreading editor</strong><span>The same working area is used by the worker, admin and client.</span></div><div className="tm-human-editor-ad">Need a first draft or a quick answer? <button type="button" onClick={() => showMessage?.('Ask TypeMyworDz opens from the left navigation.', 'success')}>Use Ask TypeMyworDz</button></div></div>
@@ -517,6 +546,98 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   );
 }
 
+function AdminJobCleanupPanel({ request, showMessage }) {
+  const [range, setRange] = useState({ start_date: '', end_date: '' });
+  const [jobs, setJobs] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [failures, setFailures] = useState([]);
+
+  const loadCandidates = async () => {
+    if (!range.start_date || !range.end_date) {
+      showMessage?.('Choose both dates to review completed jobs.', 'error');
+      return;
+    }
+    setLoading(true);
+    setFailures([]);
+    try {
+      const params = new URLSearchParams(range);
+      const payload = await request(`/api/admin/human-jobs/cleanup-candidates?${params.toString()}`);
+      setJobs(payload.jobs || []);
+      setSelectedIds(new Set());
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleJob = (jobId) => setSelectedIds((previous) => {
+    const next = new Set(previous);
+    if (next.has(jobId)) next.delete(jobId); else next.add(jobId);
+    return next;
+  });
+
+  const toggleAll = () => setSelectedIds((previous) => previous.size === jobs.length ? new Set() : new Set(jobs.map((job) => job.job_id)));
+
+  const deleteSelected = async () => {
+    const jobIds = [...selectedIds];
+    if (!jobIds.length) return;
+    const confirmed = window.confirm(`Permanently delete ${jobIds.length} selected released/cancelled job${jobIds.length === 1 ? '' : 's'} and their stored files and messages? Worker earnings and payment history will be kept. This cannot be undone.`);
+    if (!confirmed) return;
+    setDeleting(true);
+    try {
+      const payload = await request('/api/admin/human-jobs/bulk-cleanup', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...range, job_ids: jobIds }),
+      });
+      setFailures(payload.failures || []);
+      setSelectedIds(new Set());
+      showMessage?.(`${payload.deleted_count || 0} job${payload.deleted_count === 1 ? '' : 's'} deleted; payment history preserved.${payload.failure_count ? ` ${payload.failure_count} need review.` : ''}`, payload.failure_count ? 'error' : 'success');
+      await loadCandidates();
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const allSelected = jobs.length > 0 && selectedIds.size === jobs.length;
+
+  return (
+    <div className="tm-admin-job-cleanup">
+      <div className="tm-human-chat-card">
+        <div className="tm-human-chat-head"><div><strong>Remove old job files</strong><span>Choose a date range, review eligible work, then select only what you want to remove.</span></div></div>
+        <p className="tm-human-cleanup-note">Only released or cancelled jobs appear here. Their job records, messages, and stored files are deleted; worker earnings, deductions, invoices, and payment history stay available.</p>
+        <div className="tm-admin-payout-filters tm-admin-cleanup-filters">
+          <label>From<input type="date" value={range.start_date} onChange={(event) => { setRange((previous) => ({ ...previous, start_date: event.target.value })); setJobs([]); setSelectedIds(new Set()); }} /></label>
+          <label>To<input type="date" value={range.end_date} onChange={(event) => { setRange((previous) => ({ ...previous, end_date: event.target.value })); setJobs([]); setSelectedIds(new Set()); }} /></label>
+          <button type="button" className="tm-admin-payout-search-btn" onClick={loadCandidates} disabled={loading || deleting}>{loading ? 'Checking…' : 'Find eligible jobs'}</button>
+        </div>
+        {jobs.length > 0 && <>
+          <div className="tm-admin-cleanup-toolbar">
+            <label><input type="checkbox" checked={allSelected} onChange={toggleAll} /> Select all {jobs.length} eligible jobs</label>
+            <span>{selectedIds.size} selected</span>
+            <button type="button" onClick={deleteSelected} disabled={!selectedIds.size || deleting}>{deleting ? 'Deleting…' : selectedIds.size ? `Delete ${selectedIds.size} selected` : 'Delete selected'}</button>
+          </div>
+          <div className="tm-admin-cleanup-table-wrap">
+            <table className="tm-admin-payout-table tm-admin-cleanup-table">
+              <thead><tr><th>Select</th><th>Job</th><th>Last updated</th><th>Status</th><th>Worker earnings kept</th></tr></thead>
+              <tbody>{jobs.map((job) => <tr key={job.job_id}>
+                <td><input type="checkbox" aria-label={`Select job ${job.job_number}`} checked={selectedIds.has(job.job_id)} onChange={() => toggleJob(job.job_id)} /></td>
+                <td>{job.job_number}</td><td>{moneylessDate(job.cleanup_date)}</td><td>{job.status}</td><td>{job.earnings_preserved}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+        </>}
+        {!loading && range.start_date && range.end_date && jobs.length === 0 && <p className="tm-human-empty">No released or cancelled jobs were found in that date range.</p>}
+        {failures.length > 0 && <div className="tm-admin-cleanup-failures" role="status"><strong>Some jobs need review</strong>{failures.map((failure) => <p key={failure.job_id}>{failure.job_id}: {failure.error}</p>)}</div>}
+      </div>
+    </div>
+  );
+}
+
 // Admin-only searchable payment dashboard: find a worker's earnings by day,
 // week, or any custom range, and separately manage the bi-monthly payout
 // invoices (mark a half-month invoice as paid once it has actually gone out).
@@ -530,6 +651,10 @@ function AdminPayoutsPanel({ request, showMessage, workers }) {
   const [busyPayoutId, setBusyPayoutId] = useState('');
   const [workerPaymentProfile, setWorkerPaymentProfile] = useState(null);
   const [loadingWorkerProfile, setLoadingWorkerProfile] = useState(false);
+  const [deductionTarget, setDeductionTarget] = useState('');
+  const [deductionAmount, setDeductionAmount] = useState('');
+  const [deductionReason, setDeductionReason] = useState('');
+  const [savingDeduction, setSavingDeduction] = useState(false);
 
   const loadInvoices = useCallback(async (status = invoiceStatus, workerUid = invoiceWorker) => {
     try {
@@ -601,6 +726,38 @@ function AdminPayoutsPanel({ request, showMessage, workers }) {
     }
   };
 
+  const paymentRowKey = (row) => `${row.job_id}:${row.source}:${row.segment_id || ''}`;
+  const beginDeduction = (row) => {
+    setDeductionTarget(paymentRowKey(row));
+    setDeductionAmount('');
+    setDeductionReason('');
+  };
+  const recordDeduction = async (event, row) => {
+    event.preventDefault();
+    const amount = Number(deductionAmount);
+    if (!Number.isInteger(amount) || amount <= 0 || !deductionReason.trim()) {
+      showMessage?.('Enter a whole-number amount and a reason for the adjustment.', 'error');
+      return;
+    }
+    if (!window.confirm(`Record a KES ${amount} deduction from ${row.worker_name || row.worker_email} for this job? The reason will be saved in the payment audit.`)) return;
+    setSavingDeduction(true);
+    try {
+      const result = await request(`/api/admin/human-jobs/${encodeURIComponent(row.job_id)}/payment-deduction`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: row.source, segment_id: row.segment_id, amount_kes: amount, reason: deductionReason.trim() }),
+      });
+      showMessage?.(`Deduction recorded. Remaining job pay: KES ${result.amount_kes}.`, 'success');
+      setDeductionTarget('');
+      setDeductionAmount('');
+      setDeductionReason('');
+      await Promise.all([runSearch(), loadInvoices()]);
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+    } finally {
+      setSavingDeduction(false);
+    }
+  };
+
   return (
     <div className="tm-admin-payouts">
       <div className="tm-human-chat-card tm-admin-payout-search">
@@ -635,23 +792,34 @@ function AdminPayoutsPanel({ request, showMessage, workers }) {
             <div className="tm-worker-payment-totals">
               <div><small>Jobs found</small><strong>{searchResult.job_count || 0}</strong></div>
               <div><small>Total minutes</small><strong>{searchResult.total_minutes || 0}</strong></div>
-              <div><small>Total earned</small><strong>KES {searchResult.total_amount_kes || 0}</strong><span className="tm-worker-payment-breakdown">Transcription KES {searchResult.transcription_amount_kes || 0} · Proofreading KES {searchResult.proofreading_amount_kes || 0}</span></div>
+              <div><small>Total net pay</small><strong>KES {searchResult.total_amount_kes || 0}</strong><span className="tm-worker-payment-breakdown">Transcription KES {searchResult.transcription_amount_kes || 0} · Proofreading KES {searchResult.proofreading_amount_kes || 0}{searchResult.total_deduction_kes > 0 ? ` · KES ${searchResult.total_deduction_kes} deducted` : ''}</span></div>
             </div>
             {!(searchResult.jobs || []).length ? <p className="tm-human-empty">No completed jobs match that search.</p> : (
               <table className="tm-admin-payout-table">
-                <thead><tr><th>Worker</th><th>Work</th><th>Job</th><th>Minutes</th><th>Amount</th><th>Status</th><th>Completed</th></tr></thead>
+                <thead><tr><th>Worker</th><th>Work</th><th>Job</th><th>Minutes</th><th>Amount</th><th>Status</th><th>Completed</th><th>Adjustment</th></tr></thead>
                 <tbody>
-                  {searchResult.jobs.map((row) => (
-                    <tr key={row.job_id}>
-                      <td>{row.worker_name || row.worker_email}</td>
-                      <td>{row.role}</td>
-                      <td>{row.job_id.slice(0, 8)}</td>
-                      <td>{row.minutes}</td>
-                      <td>KES {row.amount_kes}</td>
-                      <td>{PAYOUT_STATUS_LABELS[row.payout_status] || row.payout_status}</td>
-                      <td>{moneylessDate(row.completed_at)}</td>
-                    </tr>
-                  ))}
+                  {searchResult.jobs.map((row) => {
+                    const rowKey = paymentRowKey(row);
+                    return <React.Fragment key={rowKey}>
+                      <tr>
+                        <td>{row.worker_name || row.worker_email}</td>
+                        <td>{row.role}</td>
+                        <td>{row.job_id.slice(0, 8)}</td>
+                        <td>{row.minutes}</td>
+                        <td>KES {row.amount_kes}{row.deduction_kes > 0 && <small className="tm-admin-deduction-note">KES {row.deduction_kes} deducted · {row.deduction_reason}</small>}</td>
+                        <td>{PAYOUT_STATUS_LABELS[row.payout_status] || row.payout_status}</td>
+                        <td>{moneylessDate(row.completed_at)}</td>
+                        <td>{row.payout_status !== 'paid' && row.amount_kes > 0 && <button type="button" onClick={() => deductionTarget === rowKey ? setDeductionTarget('') : beginDeduction(row)}>{deductionTarget === rowKey ? 'Cancel' : 'Deduct'}</button>}</td>
+                      </tr>
+                      {deductionTarget === rowKey && <tr className="tm-admin-deduction-row"><td colSpan="8"><form onSubmit={(event) => recordDeduction(event, row)}>
+                        <strong>Record an unpaid-job deduction</strong>
+                        <span>Gross KES {row.gross_amount_kes || row.amount_kes}; already deducted KES {row.deduction_kes || 0}; remaining KES {Math.max(0, (row.gross_amount_kes || row.amount_kes) - (row.deduction_kes || 0))}.</span>
+                        <label>Amount (KES)<input type="number" min="1" max={Math.max(1, (row.gross_amount_kes || row.amount_kes) - (row.deduction_kes || 0))} step="1" required value={deductionAmount} onChange={(event) => setDeductionAmount(event.target.value)} /></label>
+                        <label>Reason<input type="text" maxLength="500" required value={deductionReason} onChange={(event) => setDeductionReason(event.target.value)} placeholder="For example, quality adjustment" /></label>
+                        <button type="submit" disabled={savingDeduction || !deductionAmount || !deductionReason.trim()}>{savingDeduction ? 'Saving…' : 'Save deduction'}</button>
+                      </form></td></tr>}
+                    </React.Fragment>;
+                  })}
                 </tbody>
               </table>
             )}
@@ -691,7 +859,7 @@ function AdminPayoutsPanel({ request, showMessage, workers }) {
                   <td>{payout.total_minutes}</td>
                   <td>KES {payout.transcription_amount_kes || 0}<small>{payout.transcription_minutes || 0} min</small></td>
                   <td>KES {payout.proofreading_amount_kes || 0}<small>{payout.proofreading_minutes || 0} min</small></td>
-                  <td>KES {payout.total_amount_kes}</td>
+                  <td>KES {payout.total_amount_kes}{payout.total_deduction_kes > 0 && <small>KES {payout.total_deduction_kes} deducted</small>}</td>
                   <td>{payout.status === 'paid' ? `Paid ${moneylessDate(payout.paid_at)}` : 'Pending'}</td>
                   <td><button type="button" onClick={() => viewWorkerPaymentProfile(payout.worker_uid)} disabled={loadingWorkerProfile}>View M-Pesa details</button></td>
                   <td>{payout.status !== 'paid' && <button type="button" onClick={() => markPaid(payout.payout_id)} disabled={busyPayoutId === payout.payout_id}>Mark as paid</button>}</td>
