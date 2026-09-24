@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { useAsk } from './AskContext';
 import { isCompAccessEmail } from '../adminEmails';
 
@@ -13,11 +14,23 @@ const RAILWAY_BACKEND_URL =
 
 const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgrade }) => {
   const { model, setModel } = useAsk();
+  const { currentUser, userProfile, refreshUserProfile } = useAuth();
   const [models, setModels] = useState([]);
   const [lockedModels, setLockedModels] = useState([]);
   const [state, setState] = useState('loading');
   const [saved, setSaved] = useState(false);
   const [serverDefault, setServerDefault] = useState('');
+  const [workerProfile, setWorkerProfile] = useState(null);
+  const [workerProfileLoading, setWorkerProfileLoading] = useState(false);
+  const [editingWorkerProfile, setEditingWorkerProfile] = useState(false);
+  const [mpesaRegisteredName, setMpesaRegisteredName] = useState('');
+  const [mpesaNumber, setMpesaNumber] = useState('');
+  const [workerProfileSaving, setWorkerProfileSaving] = useState(false);
+  const [workerProfileMessage, setWorkerProfileMessage] = useState('');
+  const [workerProfileError, setWorkerProfileError] = useState('');
+
+  const profileRole = String(userProfile?.role || userProfile?.user_type || '').toLowerCase();
+  const isApprovedWorker = Boolean(userProfile?.workerApproved) || ['worker', 'transcriber'].includes(profileRole);
 
   useEffect(() => {
     let alive = true;
@@ -52,6 +65,63 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canUseAI, userPlan, userEmail]);
+
+  useEffect(() => {
+    if (!isApprovedWorker || !currentUser) return undefined;
+    let alive = true;
+    const loadWorkerProfile = async () => {
+      setWorkerProfileLoading(true);
+      try {
+        const idToken = await currentUser.getIdToken();
+        const response = await fetch(`${RAILWAY_BACKEND_URL}/human-transcription/worker/payment-profile`, { headers: { Authorization: `Bearer ${idToken}` } });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.detail || 'Worker profile could not be loaded.');
+        if (!alive) return;
+        setWorkerProfile(data);
+        setMpesaRegisteredName(data.mpesa_registered_name || '');
+        setMpesaNumber(data.mpesa_number || '');
+      } catch (error) {
+        if (alive) setWorkerProfileError(error.message);
+      } finally {
+        if (alive) setWorkerProfileLoading(false);
+      }
+    };
+    loadWorkerProfile();
+    return () => { alive = false; };
+  }, [isApprovedWorker, currentUser]);
+
+  const saveWorkerProfile = async () => {
+    setWorkerProfileSaving(true);
+    setWorkerProfileMessage('');
+    setWorkerProfileError('');
+    try {
+      const idToken = await currentUser.getIdToken();
+      const response = await fetch(`${RAILWAY_BACKEND_URL}/human-transcription/worker/payment-profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ mpesa_registered_name: mpesaRegisteredName, mpesa_number: mpesaNumber }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || 'M-Pesa details could not be saved.');
+      setWorkerProfile(data);
+      setMpesaRegisteredName(data.mpesa_registered_name || '');
+      setMpesaNumber(data.mpesa_number || '');
+      setEditingWorkerProfile(false);
+      setWorkerProfileMessage('Payout details saved.');
+      await refreshUserProfile();
+    } catch (error) {
+      setWorkerProfileError(error.message);
+    } finally {
+      setWorkerProfileSaving(false);
+    }
+  };
+
+  const cancelWorkerProfileEdit = () => {
+    setMpesaRegisteredName(workerProfile?.mpesa_registered_name || '');
+    setMpesaNumber(workerProfile?.mpesa_number || '');
+    setWorkerProfileError('');
+    setEditingWorkerProfile(false);
+  };
 
   const choose = (id) => {
     setModel(id);
@@ -137,6 +207,23 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
   return (
     <div className="tm-set">
       <h2 className="tm-set-title">Settings</h2>
+
+      {isApprovedWorker && (
+        <section className="tm-set-section tm-worker-profile-section">
+          <div className="tm-worker-profile-heading"><div><h3 className="tm-set-h">Worker payout profile</h3><p className="tm-set-sub">Keep your M-Pesa details current so approved payouts can reach you.</p></div>{!editingWorkerProfile && <button type="button" className="tm-worker-profile-edit" onClick={() => { setWorkerProfileMessage(''); setWorkerProfileError(''); setEditingWorkerProfile(true); }}>Edit profile</button>}</div>
+          {workerProfileLoading ? <div className="tm-set-note">Loading your payout profile…</div> : (
+            <div className="tm-worker-profile-fields">
+              <label><span>Official name from trainee registration</span><input value={workerProfile?.official_id_name || userProfile?.officialIdName || userProfile?.name || ''} readOnly aria-readonly="true" /><small>This name is fixed from registration and cannot be edited here.</small></label>
+              <label><span>M-Pesa registered name</span><input value={mpesaRegisteredName} onChange={(event) => setMpesaRegisteredName(event.target.value)} readOnly={!editingWorkerProfile} autoComplete="name" placeholder="Name shown in your M-Pesa account" /></label>
+              <label><span>M-Pesa number</span><input value={mpesaNumber} onChange={(event) => setMpesaNumber(event.target.value)} readOnly={!editingWorkerProfile} inputMode="tel" autoComplete="tel" placeholder="0712 345 678" /></label>
+              {editingWorkerProfile && <p className="tm-worker-profile-note">Enter both M-Pesa fields, or leave both blank. Use the account holder’s registered name and Kenyan M-Pesa number.</p>}
+              {workerProfileError && <p className="tm-worker-profile-error" role="alert">{workerProfileError}</p>}
+              {workerProfileMessage && <p className="tm-worker-profile-success" role="status">{workerProfileMessage}</p>}
+              {editingWorkerProfile && <div className="tm-worker-profile-actions"><button type="button" className="tm-worker-profile-save" onClick={saveWorkerProfile} disabled={workerProfileSaving}>{workerProfileSaving ? 'Saving…' : 'Save payout details'}</button><button type="button" className="tm-worker-profile-cancel" onClick={cancelWorkerProfileEdit} disabled={workerProfileSaving}>Cancel</button></div>}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="tm-set-section">
         <h3 className="tm-set-h">Assistant model</h3>
