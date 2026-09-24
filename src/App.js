@@ -255,6 +255,7 @@ function AppContent() {
   const speechStartedAtRef = useRef(null); 
   const abortControllerRef = useRef(null);
   const humanAlertCursorRef = useRef({ uid: '', timestamp: 0, seen: new Set() });
+  const refreshAssignedWorkerJobsRef = useRef(null);
   const transcriptionIntervalRef = useRef(null);
   const statusCheckTimeoutRef = useRef(null);
   const isCancelledRef = useRef(false);
@@ -326,14 +327,16 @@ function AppContent() {
         const serverTime = Date.parse(payload.server_time || '');
         tracker.timestamp = Math.max(tracker.timestamp, Number.isFinite(serverTime) ? serverTime : requestStartedAt);
         const notices = [];
+        const assignmentEvents = [];
         for (const event of payload.events || []) {
-          // The worker's persistent assignment banner is already refreshed on
-          // every page; skip a second, competing toast for the same assignment.
-          if (event.type === 'assignment') continue;
           const identity = event.message_id || event.event_id || event.updated_at || '';
           const key = `${event.type}:${event.job_id || ''}:${identity}`;
           if (tracker.seen.has(key)) continue;
           tracker.seen.add(key);
+          if (event.type === 'assignment') {
+            assignmentEvents.push(event);
+            continue;
+          }
           let notice = '';
           if (event.type === 'message') {
             const sender = event.sender_role === 'worker' ? 'A worker' : event.sender_role === 'client' ? 'A client' : 'The human-work team';
@@ -350,6 +353,26 @@ function AppContent() {
             notice = 'Your finished human transcript is ready.';
           }
           if (notice) notices.push(notice);
+        }
+        if (assignmentEvents.length) {
+          const assignedJobIds = Array.from(new Set(assignmentEvents.map((event) => event.job_id).filter(Boolean)));
+          if (assignedJobIds.length) {
+            setSeenWorkerJobIds((previous) => {
+              const next = previous.filter((id) => !assignedJobIds.includes(id));
+              try {
+                window.localStorage.setItem(`tmwd_seen_worker_jobs_${currentUser.uid}`, JSON.stringify(next));
+              } catch {
+                // Local storage is a convenience; the live assignment still shows in memory.
+              }
+              return next;
+            });
+          }
+          const refreshAssignments = refreshAssignedWorkerJobsRef.current;
+          if (typeof refreshAssignments === 'function') void refreshAssignments();
+          const assignmentNotice = assignmentEvents.length === 1
+            ? 'A new human-work job was assigned to you. Open Work Room to get started.'
+            : `${assignmentEvents.length} new human-work jobs were assigned to you. Open Work Room to get started.`;
+          showMessage?.(assignmentNotice, 'info', 10000);
         }
         if (notices.length === 1) showMessage?.(notices[0], 'info', 6000);
         else if (notices.length > 1) showMessage?.(`${notices.length} new human-work updates. ${notices[0]}`, 'info', 6000);
@@ -402,6 +425,10 @@ function AppContent() {
   }, [currentUser, isWorker]);
 
   useEffect(() => {
+    refreshAssignedWorkerJobsRef.current = refreshAssignedWorkerJobs;
+  }, [refreshAssignedWorkerJobs]);
+
+  useEffect(() => {
     if (!currentUser || !isWorker || currentView === 'human_worker') return undefined;
     const refreshWhenVisible = () => { if (document.visibilityState === 'visible') refreshAssignedWorkerJobs(); };
     refreshWhenVisible();
@@ -429,12 +456,6 @@ function AppContent() {
   }, [currentUser?.uid]);
 
   const newAssignedWorkerJobs = assignedWorkerJobs.filter((job) => !seenWorkerJobIds.includes(job.id));
-
-  useEffect(() => {
-    if (currentView === 'human_worker' && newAssignedWorkerJobs.length > 0) {
-      markWorkerJobsSeen(newAssignedWorkerJobs.map((job) => job.id));
-    }
-  }, [currentView, newAssignedWorkerJobs, markWorkerJobsSeen]);
 
   // A trainee registration is not a normal client account. Until the
   // provider confirms payment, keep the account on the payment screen only.
