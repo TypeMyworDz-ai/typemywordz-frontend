@@ -60,6 +60,13 @@ const PADDLE_CONFIG_URL = `${RAILWAY_BACKEND_URL}/paddle-config`;
 const AFRICA_PAYMENT_COUNTRIES = new Set(['KE', 'NG', 'GH', 'ZA', 'OTHER_AFRICA']);
 // REMOVED: const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com/'; // This URL is for TypeMyworDz2 (Render)
 
+const workerAssignmentKeyFor = (job) => {
+  const assignment = job?.worker_assignment || {};
+  const partId = assignment.id || assignment.role || 'assignment';
+  const assignedAt = assignment.assignedAt || assignment.deadlineAt || job?.assignedAt || job?.deadlineAt || '';
+  return `${job?.id || ''}:${partId}:${assignedAt}`;
+};
+
 // Helper function to determine if a user has access to AI features
 const initialsOf = (nameOrEmail) => {
   if (!nameOrEmail) return '?';
@@ -140,7 +147,7 @@ function AppContent() {
   const [selectedHumanJobId, setSelectedHumanJobId] = useState('');
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [assignedWorkerJobs, setAssignedWorkerJobs] = useState([]);
-  const [seenWorkerJobIds, setSeenWorkerJobIds] = useState([]);
+  const [seenWorkerAssignmentKeys, setSeenWorkerAssignmentKeys] = useState([]);
 
   // A referral link looks like typemywordz.ai/?ref=CODE. Whoever clicked it
   // might not sign up for several minutes, so the code is stashed until a
@@ -255,6 +262,7 @@ function AppContent() {
   const speechStartedAtRef = useRef(null); 
   const abortControllerRef = useRef(null);
   const humanAlertCursorRef = useRef({ uid: '', timestamp: 0, seen: new Set() });
+  const workerAssignmentSnapshotRef = useRef({ uid: '', keys: null });
   const refreshAssignedWorkerJobsRef = useRef(null);
   const transcriptionIntervalRef = useRef(null);
   const statusCheckTimeoutRef = useRef(null);
@@ -320,6 +328,7 @@ function AppContent() {
         const idToken = await currentUser.getIdToken();
         const since = new Date(Math.max(0, tracker.timestamp - 6000)).toISOString();
         const response = await fetch(`${RAILWAY_BACKEND_URL}/human-transcription/notifications?since=${encodeURIComponent(since)}`, {
+          cache: 'no-store',
           headers: { Authorization: `Bearer ${idToken}` },
         });
         if (!response.ok || stopped) return;
@@ -355,24 +364,11 @@ function AppContent() {
           if (notice) notices.push(notice);
         }
         if (assignmentEvents.length) {
-          const assignedJobIds = Array.from(new Set(assignmentEvents.map((event) => event.job_id).filter(Boolean)));
-          if (assignedJobIds.length) {
-            setSeenWorkerJobIds((previous) => {
-              const next = previous.filter((id) => !assignedJobIds.includes(id));
-              try {
-                window.localStorage.setItem(`tmwd_seen_worker_jobs_${currentUser.uid}`, JSON.stringify(next));
-              } catch {
-                // Local storage is a convenience; the live assignment still shows in memory.
-              }
-              return next;
-            });
-          }
+          // The assigned-job list is the source of truth for both the banner
+          // and the assignment toast. The event feed only prompts an immediate
+          // refresh so an event and a list poll cannot create duplicate alerts.
           const refreshAssignments = refreshAssignedWorkerJobsRef.current;
           if (typeof refreshAssignments === 'function') void refreshAssignments();
-          const assignmentNotice = assignmentEvents.length === 1
-            ? 'A new human-work job was assigned to you. Open Work Room to get started.'
-            : `${assignmentEvents.length} new human-work jobs were assigned to you. Open Work Room to get started.`;
-          showMessage?.(assignmentNotice, 'info', 10000);
         }
         if (notices.length === 1) showMessage?.(notices[0], 'info', 6000);
         else if (notices.length > 1) showMessage?.(`${notices.length} new human-work updates. ${notices[0]}`, 'info', 6000);
@@ -397,16 +393,18 @@ function AppContent() {
   useEffect(() => {
     if (!currentUser || !isWorker) {
       setAssignedWorkerJobs([]);
-      setSeenWorkerJobIds([]);
+      setSeenWorkerAssignmentKeys([]);
+      workerAssignmentSnapshotRef.current = { uid: '', keys: null };
       return;
     }
-    const storageKey = `tmwd_seen_worker_jobs_${currentUser.uid}`;
+    const storageKey = `tmwd_seen_worker_assignments_${currentUser.uid}`;
     try {
       const saved = JSON.parse(window.localStorage.getItem(storageKey) || '[]');
-      setSeenWorkerJobIds(Array.isArray(saved) ? saved : []);
+      setSeenWorkerAssignmentKeys(Array.isArray(saved) ? saved : []);
     } catch {
-      setSeenWorkerJobIds([]);
+      setSeenWorkerAssignmentKeys([]);
     }
+    workerAssignmentSnapshotRef.current = { uid: currentUser.uid, keys: null };
   }, [currentUser, isWorker]);
 
   const refreshAssignedWorkerJobs = useCallback(async () => {
@@ -414,22 +412,56 @@ function AppContent() {
     try {
       const token = await currentUser.getIdToken();
       const response = await fetch(`${RAILWAY_BACKEND_URL}/human-transcription/jobs?scope=assigned`, {
+        cache: 'no-store',
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) return;
       const payload = await response.json().catch(() => ({}));
-      setAssignedWorkerJobs(payload.jobs || []);
+      const nextJobs = Array.isArray(payload.jobs) ? payload.jobs : [];
+      const snapshot = workerAssignmentSnapshotRef.current;
+      if (snapshot.uid !== currentUser.uid) {
+        snapshot.uid = currentUser.uid;
+        snapshot.keys = null;
+      }
+      const previousKeys = snapshot.keys;
+      const nextKeys = new Map(nextJobs.map((job) => [job.id, workerAssignmentKeyFor(job)]));
+      let savedSeen = [];
+      try {
+        savedSeen = JSON.parse(window.localStorage.getItem(`tmwd_seen_worker_assignments_${currentUser.uid}`) || '[]');
+        if (!Array.isArray(savedSeen)) savedSeen = [];
+      } catch {
+        savedSeen = [];
+      }
+      const newlyAssigned = nextJobs.filter((job) => {
+        const key = workerAssignmentKeyFor(job);
+        if (savedSeen.includes(key)) return false;
+        return previousKeys === null || previousKeys.get(job.id) !== key;
+      });
+      snapshot.keys = nextKeys;
+      setAssignedWorkerJobs(nextJobs);
+      if (newlyAssigned.length === 1) {
+        const isAnotherPart = previousKeys?.has(newlyAssigned[0].id);
+        showMessage?.(
+          isAnotherPart
+            ? 'Another part of a human-work job is assigned to you. Open Work Room to continue.'
+            : 'A new human-work job was assigned to you. Open Work Room to get started.',
+          'info',
+          10000,
+        );
+      } else if (newlyAssigned.length > 1) {
+        showMessage?.(`${newlyAssigned.length} new human-work assignments are ready. Open Work Room to get started.`, 'info', 10000);
+      }
     } catch {
-      // The notice is helpful, but it must never interrupt the worker's page.
+      // The app-wide assignment check is best-effort and must not interrupt work.
     }
-  }, [currentUser, isWorker]);
+  }, [currentUser, isWorker, showMessage]);
 
   useEffect(() => {
     refreshAssignedWorkerJobsRef.current = refreshAssignedWorkerJobs;
   }, [refreshAssignedWorkerJobs]);
 
   useEffect(() => {
-    if (!currentUser || !isWorker || currentView === 'human_worker') return undefined;
+    if (!currentUser || !isWorker) return undefined;
     const refreshWhenVisible = () => { if (document.visibilityState === 'visible') refreshAssignedWorkerJobs(); };
     refreshWhenVisible();
     const interval = window.setInterval(refreshWhenVisible, 3000);
@@ -440,14 +472,15 @@ function AppContent() {
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
-  }, [currentUser, isWorker, currentView, refreshAssignedWorkerJobs]);
+  }, [currentUser, isWorker, refreshAssignedWorkerJobs]);
 
-  const markWorkerJobsSeen = useCallback((jobIds) => {
-    if (!currentUser?.uid || !jobIds?.length) return;
-    setSeenWorkerJobIds((previous) => {
-      const next = Array.from(new Set([...previous, ...jobIds]));
+  const markWorkerJobsSeen = useCallback((jobs) => {
+    if (!currentUser?.uid || !jobs?.length) return;
+    const keys = jobs.map(workerAssignmentKeyFor).filter(Boolean);
+    setSeenWorkerAssignmentKeys((previous) => {
+      const next = Array.from(new Set([...previous, ...keys]));
       try {
-        window.localStorage.setItem(`tmwd_seen_worker_jobs_${currentUser.uid}`, JSON.stringify(next));
+        window.localStorage.setItem(`tmwd_seen_worker_assignments_${currentUser.uid}`, JSON.stringify(next));
       } catch {
         // Local storage is only a convenience; the banner still works in memory.
       }
@@ -455,7 +488,7 @@ function AppContent() {
     });
   }, [currentUser?.uid]);
 
-  const newAssignedWorkerJobs = assignedWorkerJobs.filter((job) => !seenWorkerJobIds.includes(job.id));
+  const newAssignedWorkerJobs = assignedWorkerJobs.filter((job) => !seenWorkerAssignmentKeys.includes(workerAssignmentKeyFor(job)));
 
   // A trainee registration is not a normal client account. Until the
   // provider confirms payment, keep the account on the payment screen only.
@@ -2442,7 +2475,7 @@ return (
               type="button"
               className="tm-worker-assignment-action"
               onClick={() => {
-                markWorkerJobsSeen(newAssignedWorkerJobs.map((job) => job.id));
+                markWorkerJobsSeen(newAssignedWorkerJobs);
                 setCurrentView('human_worker');
               }}
             >
