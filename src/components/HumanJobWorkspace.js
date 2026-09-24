@@ -166,6 +166,14 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     }
   }, [initialJobId, jobs, selectedId, selectedJob]);
   useEffect(() => {
+    if (mode !== 'admin' || !selectedJob || selectedJob.split_mode !== 'dual') return;
+    const available = (selectedJob.segments || []).find((part) => ['available', 'approved'].includes(part.status));
+    const selectedStillAvailable = (selectedJob.segments || []).some((part) => part.id === selectedSegmentId && ['available', 'approved'].includes(part.status));
+    if (available && !selectedStillAvailable) setSelectedSegmentId(available.id);
+    if (!available && selectedSegmentId) setSelectedSegmentId('');
+  }, [mode, selectedJob, selectedSegmentId]);
+
+  useEffect(() => {
     let objectUrl = '';
     (async () => {
       if (!selectedJob?.id || !selectedJob.audio) { setAudioUrl(''); return; }
@@ -199,7 +207,12 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   // from the server every 20 seconds. This is what actually notices a job
   // that expired and was auto-returned to the admin queue, and keeps the
   // countdown accurate rather than drifting from clock skew alone.
-  const hasActiveTimer = jobs.some((job) => ['assigned', 'in_progress'].includes(job.status) && typeof job.time_remaining_seconds === 'number');
+  const hasActiveTimer = jobs.some((job) =>
+    (['assigned', 'in_progress'].includes(job.status) && typeof job.time_remaining_seconds === 'number') ||
+    (job.worker_assignment && ['assigned', 'in_progress'].includes(job.worker_assignment.status)) ||
+    (job.proofreader_status && ['assigned', 'in_progress'].includes(job.proofreader_status)) ||
+    (job.segments || []).some((part) => ['assigned', 'in_progress'].includes(part.status))
+  );
   useEffect(() => {
     if (!hasActiveTimer) return undefined;
     const interval = window.setInterval(loadJobs, 20000);
@@ -361,7 +374,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         </div>
       )}
 
-      {mode === 'admin' && !restricted && (
+      {mode === 'admin' && (
         <div className="tm-human-thread-tabs tm-worker-room-tabs" role="tablist" aria-label="Admin dashboard sections">
           <button type="button" role="tab" aria-selected={adminTab === 'queue'} className={adminTab === 'queue' ? 'active' : ''} onClick={() => setAdminTab('queue')}>Job Queue</button>
           <button type="button" role="tab" aria-selected={adminTab === 'payouts'} className={adminTab === 'payouts' ? 'active' : ''} onClick={() => setAdminTab('payouts')}>Worker Payments · KES</button>
@@ -375,15 +388,15 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             <div className="tm-worker-payment-totals">
               <div><small>Paid</small><strong>KES {paymentHistory.totals?.paid_kes || 0}</strong></div>
               <div><small>Pending payout</small><strong>KES {(paymentHistory.pending_payouts || []).reduce((sum, item) => sum + (item.total_amount_kes || 0), 0)}</strong></div>
-              <div><small>Accruing this half ({paymentHistory.current_period?.label})</small><strong>KES {paymentHistory.current_period?.accrued_kes || 0}</strong></div>
+              <div><small>Accruing this half ({paymentHistory.current_period?.label})</small><strong>KES {paymentHistory.current_period?.accrued_kes || 0}</strong><span className="tm-worker-payment-breakdown">Transcription KES {paymentHistory.current_period?.transcription_kes || 0} · Proofreading KES {paymentHistory.current_period?.proofreading_kes || 0}</span></div>
             </div>
             <h3>Pending payouts (already invoiced, awaiting admin payment)</h3>
             {!(paymentHistory.pending_payouts || []).length && <p className="tm-human-empty">No half-month invoice is waiting on admin payment right now.</p>}
-            {(paymentHistory.pending_payouts || []).map((item) => <div className="tm-worker-payment-row" key={item.payout_id}><span>Period {item.period_label}</span><strong>KES {item.total_amount_kes}</strong><small>{item.total_minutes} min · pays out on {item.period_label?.endsWith('-A') ? 'the 15th' : 'month end'}</small></div>)}
-            <h3>Paid</h3>{!(paymentHistory.paid || []).length && <p className="tm-human-empty">No payments have been marked paid yet.</p>}{(paymentHistory.paid || []).map((item) => <div className="tm-worker-payment-row" key={item.job_id}><span>Job {item.job_id.slice(0, 8)}</span><strong>KES {item.amount_kes}</strong><small>{item.minutes} min · {moneylessDate(item.paid_at)}</small></div>)}
+            {(paymentHistory.pending_payouts || []).map((item) => <div className="tm-worker-payment-row" key={item.payout_id}><span>Period {item.period_label}</span><strong>KES {item.total_amount_kes}</strong><small>{item.total_minutes} min · pays out on {item.period_label?.endsWith('-A') ? 'the 15th' : 'month end'} · Transcription KES {item.transcription_amount_kes || 0} · Proofreading KES {item.proofreading_amount_kes || 0}</small></div>)}
+            <h3>Paid</h3>{!(paymentHistory.paid || []).length && <p className="tm-human-empty">No payments have been marked paid yet.</p>}{(paymentHistory.paid || []).map((item) => <div className="tm-worker-payment-row" key={`${item.job_id}-${item.role}`}><span>{item.role} · Job {item.job_id.slice(0, 8)}</span><strong>KES {item.amount_kes}</strong><small>{item.minutes} min · {moneylessDate(item.paid_at)}</small></div>)}
           </>}
         </div>
-      ) : mode === 'admin' && !restricted && adminTab === 'payouts' ? (
+      ) : mode === 'admin' && adminTab === 'payouts' ? (
         <AdminPayoutsPanel request={request} showMessage={showMessage} workers={workers} />
       ) : (
       <div className="tm-human-workspace-grid">
@@ -447,7 +460,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <p className="tm-tat-reassigned-note">This job was automatically returned from {selectedJob.last_auto_reassigned_worker_name} after the turnaround deadline passed. Assign it to a worker again below.</p>
             )}
 
-            {mode === 'admin' && !splitJob && selectedJob.status === 'approved' && <div className="tm-human-assign"><label>Assignment type<select value={assignmentMode} onChange={(event) => setAssignmentMode(event.target.value)}><option value="single">One worker</option><option value="dual">Split between two workers</option></select></label><label>First worker<select value={selectedWorker} onChange={(event) => setSelectedWorker(event.target.value)}><option value="">Choose worker</option>{workers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}</select></label>{assignmentMode === 'dual' && <label>Second worker<select value={secondWorker} onChange={(event) => setSecondWorker(event.target.value)}><option value="">Choose second worker</option>{workers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}</select></label>}<button type="button" disabled={busy || !selectedWorker || (assignmentMode === 'dual' && !secondWorker)} onClick={assignWork}>{assignmentMode === 'dual' ? 'Assign two parts' : 'Assign work'}</button>{assignmentMode === 'dual' && <p className="tm-tat-hint">Each worker receives a clearly labelled half. After both submit, you can assign one worker to combine and proofread the final transcript.</p>}</div>}
+            {mode === 'admin' && !splitJob && selectedJob.status === 'approved' && <div className="tm-human-assign"><label>Assignment type<select value={assignmentMode} onChange={(event) => setAssignmentMode(event.target.value)}><option value="single">One worker</option><option value="dual">Split between two workers</option></select></label><label>First worker<select value={selectedWorker} onChange={(event) => setSelectedWorker(event.target.value)}><option value="">Choose worker</option>{workers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}</select></label>{assignmentMode === 'dual' && <label>Second worker<select value={secondWorker} onChange={(event) => setSecondWorker(event.target.value)}><option value="">Choose second worker</option>{workers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}</select></label>}<button type="button" disabled={busy || !selectedWorker || (assignmentMode === 'dual' && !secondWorker)} onClick={assignWork}>{assignmentMode === 'dual' ? 'Assign two parts' : (selectedJob.auto_reassigned_count ? 'Reassign work' : 'Assign work')}</button>{assignmentMode === 'dual' && <p className="tm-tat-hint">Each worker receives a clearly labelled half. After both submit, you can assign one worker to combine and proofread the final transcript.</p>}</div>}
 
             {mode === 'admin' && splitJob && (selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status)) && <div className="tm-human-assign"><label>Reassign this part<select value={selectedSegmentId} onChange={(event) => setSelectedSegmentId(event.target.value)}>{(selectedJob.segments || []).filter((part) => ['available', 'approved'].includes(part.status)).map((part) => <option key={part.id} value={part.id}>{part.label}</option>)}</select></label><label>New worker<select value={selectedWorker} onChange={(event) => setSelectedWorker(event.target.value)}><option value="">Choose worker</option>{workers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !selectedWorker || !selectedSegmentId} onClick={reassignPart}>Reassign part</button></div>}
 
@@ -515,6 +528,8 @@ function AdminPayoutsPanel({ request, showMessage, workers }) {
   const [invoiceStatus, setInvoiceStatus] = useState('pending');
   const [invoiceWorker, setInvoiceWorker] = useState('');
   const [busyPayoutId, setBusyPayoutId] = useState('');
+  const [workerPaymentProfile, setWorkerPaymentProfile] = useState(null);
+  const [loadingWorkerProfile, setLoadingWorkerProfile] = useState(false);
 
   const loadInvoices = useCallback(async (status = invoiceStatus, workerUid = invoiceWorker) => {
     try {
@@ -559,6 +574,19 @@ function AdminPayoutsPanel({ request, showMessage, workers }) {
     }
   };
 
+  const viewWorkerPaymentProfile = async (workerUid) => {
+    if (!workerUid) return;
+    setLoadingWorkerProfile(true);
+    try {
+      const payload = await request(`/human-transcription/admin/workers/${encodeURIComponent(workerUid)}/payment-profile`);
+      setWorkerPaymentProfile(payload);
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+    } finally {
+      setLoadingWorkerProfile(false);
+    }
+  };
+
   const markPaid = async (payoutId) => {
     if (!window.confirm('Mark this half-month payout as paid? Only do this once the money has actually gone out to the worker.')) return;
     setBusyPayoutId(payoutId);
@@ -599,6 +627,7 @@ function AdminPayoutsPanel({ request, showMessage, workers }) {
             <button type="button" onClick={() => quickRange('week')}>Last 7 days</button>
             <button type="button" onClick={() => quickRange('month')}>This month</button>
           </div>
+          <button type="button" className="tm-admin-payout-search-btn" onClick={() => viewWorkerPaymentProfile(filters.worker_uid)} disabled={!filters.worker_uid || loadingWorkerProfile}>{loadingWorkerProfile ? 'Loading details…' : 'View M-Pesa details'}</button>
           <button type="button" className="tm-admin-payout-search-btn" onClick={runSearch} disabled={searching}>{searching ? 'Searching…' : 'Search'}</button>
         </div>
         {searchResult && (
@@ -606,15 +635,16 @@ function AdminPayoutsPanel({ request, showMessage, workers }) {
             <div className="tm-worker-payment-totals">
               <div><small>Jobs found</small><strong>{searchResult.job_count || 0}</strong></div>
               <div><small>Total minutes</small><strong>{searchResult.total_minutes || 0}</strong></div>
-              <div><small>Total earned</small><strong>KES {searchResult.total_amount_kes || 0}</strong></div>
+              <div><small>Total earned</small><strong>KES {searchResult.total_amount_kes || 0}</strong><span className="tm-worker-payment-breakdown">Transcription KES {searchResult.transcription_amount_kes || 0} · Proofreading KES {searchResult.proofreading_amount_kes || 0}</span></div>
             </div>
             {!(searchResult.jobs || []).length ? <p className="tm-human-empty">No completed jobs match that search.</p> : (
               <table className="tm-admin-payout-table">
-                <thead><tr><th>Worker</th><th>Job</th><th>Minutes</th><th>Amount</th><th>Status</th><th>Completed</th></tr></thead>
+                <thead><tr><th>Worker</th><th>Work</th><th>Job</th><th>Minutes</th><th>Amount</th><th>Status</th><th>Completed</th></tr></thead>
                 <tbody>
                   {searchResult.jobs.map((row) => (
                     <tr key={row.job_id}>
                       <td>{row.worker_name || row.worker_email}</td>
+                      <td>{row.role}</td>
                       <td>{row.job_id.slice(0, 8)}</td>
                       <td>{row.minutes}</td>
                       <td>KES {row.amount_kes}</td>
@@ -652,15 +682,18 @@ function AdminPayoutsPanel({ request, showMessage, workers }) {
         )}
         {!invoices ? <div className="tm-human-empty">Loading payout invoices…</div> : !(invoices.payouts || []).length ? <p className="tm-human-empty">No payout invoices in this view yet.</p> : (
           <table className="tm-admin-payout-table">
-            <thead><tr><th>Worker</th><th>Period</th><th>Minutes</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Worker</th><th>Period</th><th>Minutes</th><th>Transcription</th><th>Proofreading</th><th>Total</th><th>Status</th><th>Payment details</th><th></th></tr></thead>
             <tbody>
               {invoices.payouts.map((payout) => (
                 <tr key={payout.payout_id}>
                   <td>{payout.worker_name || payout.worker_email}</td>
                   <td>{payout.period_label} <small>({payout.period_label?.endsWith('-A') ? 'pays on the 15th' : 'pays at month end'})</small></td>
                   <td>{payout.total_minutes}</td>
+                  <td>KES {payout.transcription_amount_kes || 0}<small>{payout.transcription_minutes || 0} min</small></td>
+                  <td>KES {payout.proofreading_amount_kes || 0}<small>{payout.proofreading_minutes || 0} min</small></td>
                   <td>KES {payout.total_amount_kes}</td>
                   <td>{payout.status === 'paid' ? `Paid ${moneylessDate(payout.paid_at)}` : 'Pending'}</td>
+                  <td><button type="button" onClick={() => viewWorkerPaymentProfile(payout.worker_uid)} disabled={loadingWorkerProfile}>View M-Pesa details</button></td>
                   <td>{payout.status !== 'paid' && <button type="button" onClick={() => markPaid(payout.payout_id)} disabled={busyPayoutId === payout.payout_id}>Mark as paid</button>}</td>
                 </tr>
               ))}
@@ -668,6 +701,13 @@ function AdminPayoutsPanel({ request, showMessage, workers }) {
           </table>
         )}
       </div>
+      {loadingWorkerProfile && <div className="tm-human-chat-card tm-admin-worker-payout-details">Loading worker payment details…</div>}
+      {workerPaymentProfile && !loadingWorkerProfile && (
+        <div className="tm-human-chat-card tm-admin-worker-payout-details" role="region" aria-label="Worker payment details">
+          <div className="tm-human-chat-head"><div><strong>{workerPaymentProfile.worker_name || workerPaymentProfile.worker_email || 'Worker'} · M-Pesa details</strong><span>Use only to make the worker’s approved payout.</span></div><button type="button" onClick={() => setWorkerPaymentProfile(null)}>Close</button></div>
+          <dl><div><dt>Official name from trainee registration</dt><dd>{workerPaymentProfile.official_id_name || 'Not recorded'}</dd></div><div><dt>M-Pesa account name</dt><dd>{workerPaymentProfile.mpesa_registered_name || 'Not provided'}</dd></div><div><dt>M-Pesa number</dt><dd>{workerPaymentProfile.mpesa_number || 'Not provided'}</dd></div></dl>
+        </div>
+      )}
     </div>
   );
 }
