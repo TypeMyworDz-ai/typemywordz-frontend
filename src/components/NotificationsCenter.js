@@ -18,6 +18,31 @@ const actionLabel = (item) => {
   return 'Open';
 };
 
+export function NotificationAlert({ item, onOpenNotification }) {
+  const needsAction = Boolean(item.requires_action && !item.action_completed_at);
+  const label = actionLabel(item);
+  const open = () => onOpenNotification?.(item);
+  return (
+    <article
+      className={`tm-notification-alert${needsAction ? ' needs-action' : ''}`}
+      role="button"
+      tabIndex={0}
+      aria-label={`${label}: ${item.title}`}
+      onClick={open}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          open();
+        }
+      }}
+    >
+      <span className="tm-notification-alert-bar" aria-hidden="true" />
+      <div className="tm-notification-alert-copy"><strong>{item.title}</strong><span>{item.body}</span></div>
+      <span className="tm-notification-alert-actions"><span className="tm-notification-alert-action">{label}</span></span>
+    </article>
+  );
+}
+
 export default function NotificationsCenter({
   notifications = [],
   unreadCount = 0,
@@ -25,7 +50,6 @@ export default function NotificationsCenter({
   activeTab = 'all',
   onTabChange,
   onOpenNotification,
-  onSnoozeNotification,
   selectedThreadId = '',
   onMessagesRead,
   showMessage,
@@ -83,7 +107,6 @@ export default function NotificationsCenter({
                 </div>
                 <div className="tm-notification-actions">
                   <button type="button" className="tm-notification-open" onClick={() => onOpenNotification?.(item)}>{actionLabel(item)}</button>
-                  {(unread || needsAction) && <button type="button" className="tm-notification-snooze" onClick={() => onSnoozeNotification?.(item)}>Snooze 5 min</button>}
                   {message && Number(item.unread_count) > 1 && <span className="tm-notification-message-count">{item.unread_count} unread</span>}
                 </div>
               </article>
