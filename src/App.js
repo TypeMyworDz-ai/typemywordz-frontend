@@ -45,7 +45,7 @@ import HumanJobWorkspace from './components/HumanJobWorkspace';
 import CreditHistory from './components/CreditHistory';
 import TraineeDashboard from './components/TraineeDashboard';
 import TraineeSignup from './components/TraineeSignup';
-import NotificationsCenter from './components/NotificationsCenter';
+import NotificationsCenter, { NotificationAlert } from './components/NotificationsCenter';
 import { isPaidAIUser } from './aiAccess';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -59,7 +59,7 @@ const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https:
 const PADDLE_CONFIG_URL = `${RAILWAY_BACKEND_URL}/paddle-config`;
 const AFRICA_PAYMENT_COUNTRIES = new Set(['KE', 'NG', 'GH', 'ZA', 'OTHER_AFRICA']);
 const NOTIFICATION_SOUND_PREFERENCE_KEY = 'tmwd_notification_sounds';
-const NOTIFICATION_SOUND_URL = `${(process.env.PUBLIC_URL || '').replace(/\/$/, '')}/notification.wav`;
+const NOTIFICATION_SOUND_URL = `${(process.env.PUBLIC_URL || '').replace(/\/$/, '')}/notification.mp3`;
 let notificationAudioContext = null;
 let notificationAudioBuffer = null;
 let notificationAudioBufferPromise = null;
@@ -264,6 +264,7 @@ function AppContent() {
   const [notificationTab, setNotificationTab] = useState('all');
   const [notificationThreadId, setNotificationThreadId] = useState('');
   const notificationRungLocalRef = useRef(new Map());
+  const notificationDismissedLocalRef = useRef(new Set());
   const notificationPollInFlightRef = useRef(false);
   const notificationUidRef = useRef('');
 
@@ -310,6 +311,7 @@ function AppContent() {
     if (!currentUser) {
       notificationUidRef.current = '';
       notificationRungLocalRef.current.clear();
+      notificationDismissedLocalRef.current.clear();
       setUnreadMessageCount(0);
       setNotifications([]);
       setNotificationsLoading(false);
@@ -320,6 +322,7 @@ function AppContent() {
     if (notificationUidRef.current !== currentUser.uid) {
       notificationUidRef.current = currentUser.uid;
       notificationRungLocalRef.current.clear();
+      notificationDismissedLocalRef.current.clear();
       setNotifications([]);
       setUnreadMessageCount(0);
       setNotificationsLoading(true);
@@ -333,17 +336,34 @@ function AppContent() {
       });
       if (!response.ok) return;
       const data = await response.json().catch(() => ({}));
-      const items = Array.isArray(data.notifications) ? data.notifications : [];
+      const serverItems = Array.isArray(data.notifications) ? data.notifications : [];
+      const serverNow = Date.parse(data.server_time || '') || Date.now();
+      const dismissedIds = notificationDismissedLocalRef.current;
+      const serverIds = new Set(serverItems.map((item) => item.id));
+      dismissedIds.forEach((id) => { if (!serverIds.has(id)) dismissedIds.delete(id); });
+      const localReadAt = new Date(serverNow).toISOString();
+      const items = serverItems.map((item) => {
+        if (item.read_at) {
+          dismissedIds.delete(item.id);
+          return item;
+        }
+        if (!dismissedIds.has(item.id)) return item;
+        fetch(`${RAILWAY_BACKEND_URL}/api/notifications/${encodeURIComponent(item.id)}/read`, {
+          method: 'POST', headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => {});
+        return { ...item, read_at: localReadAt };
+      });
+      const locallyDismissedUnread = serverItems.reduce((total, item) => {
+        if (!dismissedIds.has(item.id) || item.read_at) return total;
+        const isMessage = item.kind === 'direct_message' || item.kind === 'job_message';
+        return total + (isMessage ? Math.max(1, Number(item.unread_count) || 1) : 1);
+      }, 0);
       setNotifications(items);
-      setUnreadMessageCount(Math.max(0, Number(data.unread_count) || 0));
+      setUnreadMessageCount(Math.max(0, (Number(data.unread_count) || 0) - locallyDismissedUnread));
       setNotificationsLoading(false);
 
-      const serverNow = Date.parse(data.server_time || '') || Date.now();
       const dueToRing = items.filter((item) => {
-        const needsAction = Boolean(item.requires_action && !item.action_completed_at);
-        if (item.action_completed_at || (item.read_at && !needsAction)) return false;
-        const snoozedUntil = Date.parse(item.snoozed_until || '');
-        if (Number.isFinite(snoozedUntil) && snoozedUntil > serverNow) return false;
+        if (item.read_at || item.action_completed_at || dismissedIds.has(item.id)) return false;
         const serverLastRung = Date.parse(item.last_rung_at || '') || 0;
         const localLastRung = notificationRungLocalRef.current.get(item.id) || 0;
         const lastRung = Math.max(serverLastRung, localLastRung);
@@ -512,12 +532,19 @@ function AppContent() {
 
   const openNotification = useCallback((item) => {
     stopNotificationSound();
+    const notificationId = item?.id;
     const isMessage = item?.kind === 'direct_message' || item?.kind === 'job_message';
-    const opensConversation = isMessage || item?.route === 'messages';
-    if (currentUser && item?.id && !opensConversation) {
-      currentUser.getIdToken().then((token) => fetch(`${RAILWAY_BACKEND_URL}/api/notifications/${encodeURIComponent(item.id)}/read`, {
-        method: 'POST', headers: { Authorization: `Bearer ${token}` },
-      })).then(() => refreshUnreadMessageCount()).catch(() => {});
+    if (notificationId) {
+      notificationDismissedLocalRef.current.add(notificationId);
+      const readAt = new Date().toISOString();
+      setNotifications((previous) => previous.map((entry) => entry.id === notificationId ? { ...entry, read_at: readAt } : entry));
+      const unreadToClear = isMessage ? Math.max(1, Number(item.unread_count) || 1) : 1;
+      setUnreadMessageCount((previous) => Math.max(0, previous - unreadToClear));
+      if (currentUser) {
+        currentUser.getIdToken().then((token) => fetch(`${RAILWAY_BACKEND_URL}/api/notifications/${encodeURIComponent(notificationId)}/read`, {
+          method: 'POST', headers: { Authorization: `Bearer ${token}` },
+        })).then(() => refreshUnreadMessageCount()).catch(() => {});
+      }
     }
     if (isMessage || item?.route === 'messages') {
       setNotificationTab(isMessage ? 'messages' : 'all');
@@ -533,16 +560,8 @@ function AppContent() {
     else setCurrentView('messages');
   }, [currentUser, refreshUnreadMessageCount]);
 
-  const snoozeNotification = useCallback((item) => {
-    stopNotificationSound();
-    if (!currentUser || !item?.id) return;
-    currentUser.getIdToken().then((token) => fetch(`${RAILWAY_BACKEND_URL}/api/notifications/${encodeURIComponent(item.id)}/snooze`, {
-      method: 'POST', headers: { Authorization: `Bearer ${token}` },
-    })).then(() => refreshUnreadMessageCount()).catch(() => {});
-  }, [currentUser, refreshUnreadMessageCount]);
-
   const activeNotificationAlerts = notifications
-    .filter((item) => !item.read_at || (item.requires_action && !item.action_completed_at))
+    .filter((item) => !item.read_at)
     .sort((left, right) => String(right.created_at || '').localeCompare(String(left.created_at || '')));
 
   // A paid trainee should land directly in Training Room after account creation,
@@ -2508,22 +2527,9 @@ return (
               <strong>{activeNotificationAlerts.length === 1 ? 'Important update' : `${activeNotificationAlerts.length} important updates`}</strong>
               <button type="button" onClick={() => { setNotificationTab('all'); setNotificationThreadId(''); setCurrentView('messages'); }}>View Notifications</button>
             </div>
-            {activeNotificationAlerts.slice(0, 3).map((item) => {
-              const needsAction = Boolean(item.requires_action && !item.action_completed_at);
-              const openLabel = item.kind === 'direct_message' || item.kind === 'job_message'
-                ? 'Open conversation'
-                : item.route === 'human_worker' ? 'Open Work Room' : item.route === 'human_ops' ? 'Open job queue' : 'Open';
-              return (
-                <article className={`tm-notification-alert${needsAction ? ' needs-action' : ''}`} key={item.id}>
-                  <span className="tm-notification-alert-bar" aria-hidden="true" />
-                  <div className="tm-notification-alert-copy"><strong>{item.title}</strong><span>{item.body}</span></div>
-                  <div className="tm-notification-alert-actions">
-                    <button type="button" onClick={() => openNotification(item)}>{openLabel}</button>
-                    <button type="button" className="tm-alert-snooze" onClick={() => snoozeNotification(item)}>Snooze 5 min</button>
-                  </div>
-                </article>
-              );
-            })}
+            {activeNotificationAlerts.slice(0, 3).map((item) => (
+              <NotificationAlert key={item.id} item={item} onOpenNotification={openNotification} />
+            ))}
             {activeNotificationAlerts.length > 3 && <button type="button" className="tm-notification-rail-more" onClick={() => { setNotificationTab('all'); setNotificationThreadId(''); setCurrentView('messages'); }}>See all {activeNotificationAlerts.length} updates</button>}
           </section>
         )}
@@ -2585,7 +2591,6 @@ return (
             activeTab={notificationTab}
             onTabChange={setNotificationTab}
             onOpenNotification={openNotification}
-            onSnoozeNotification={snoozeNotification}
             selectedThreadId={notificationThreadId}
             onMessagesRead={refreshUnreadMessageCount}
             showMessage={showMessage}
