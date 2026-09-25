@@ -50,7 +50,7 @@ const adminQueueLaneFor = (job) => {
   return 'needs_action';
 };
 
-export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', restricted = false }) {
+export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', initialSegmentId = '', restricted = false }) {
   const { currentUser } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [workers, setWorkers] = useState([]);
@@ -186,8 +186,12 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
   useEffect(() => { loadJobs(); loadWorkers(); loadPayments(); }, [loadJobs, loadWorkers, loadPayments]);
   useEffect(() => {
-    if (initialJobId && jobs.some((job) => job.id === initialJobId)) setSelectedId(initialJobId);
-    else if (!selectedId && jobs[0]?.id) setSelectedId(jobs[0].id);
+    const requestedJob = initialJobId ? jobs.find((job) => job.id === initialJobId) : null;
+    if (requestedJob) {
+      setSelectedId(requestedJob.id);
+      if (mode === 'admin') setAdminQueueLane(adminQueueLaneFor(requestedJob));
+      if (initialSegmentId && (requestedJob.segments || []).some((part) => part.id === initialSegmentId)) setSelectedSegmentId(initialSegmentId);
+    } else if (!selectedId && jobs[0]?.id) setSelectedId(jobs[0].id);
     if (selectedJob && draftAssignmentKeyRef.current !== draftAssignmentKey) {
       draftAssignmentKeyRef.current = draftAssignmentKey;
       setEditorText(selectedJob.transcript || '');
@@ -195,10 +199,14 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       setSecondWorker('');
       setProofreaderWorker(selectedJob.proofreader_uid || '');
       setAssignmentMode(selectedJob.split_mode === 'dual' ? 'dual' : 'single');
-      setSelectedSegmentId((selectedJob.segments || []).find((part) => ['available', 'approved'].includes(part.status))?.id || '');
+      setSelectedSegmentId(
+        initialSegmentId && (selectedJob.segments || []).some((part) => part.id === initialSegmentId)
+          ? initialSegmentId
+          : (selectedJob.segments || []).find((part) => ['available', 'approved'].includes(part.status))?.id || ''
+      );
       setFinalAttachment(null);
     }
-  }, [initialJobId, jobs, selectedId, selectedJob, draftAssignmentKey]);
+  }, [initialJobId, initialSegmentId, jobs, mode, selectedId, selectedJob, draftAssignmentKey]);
   useEffect(() => {
     if (mode !== 'admin' || !selectedJob || selectedJob.split_mode !== 'dual') return;
     const available = (selectedJob.segments || []).find((part) => ['available', 'approved'].includes(part.status));

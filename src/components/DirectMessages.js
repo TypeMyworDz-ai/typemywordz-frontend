@@ -17,9 +17,9 @@ const roleLabel = (role) => {
   return 'client';
 };
 
-const threadKey = (thread) => `${thread.kind}:${thread.kind === 'job' ? thread.job?.id : thread.user?.uid}`;
+const threadKey = (thread) => thread.id || `${thread.kind}:${thread.kind === 'job' ? thread.job?.id : thread.user?.uid}`;
 
-export default function DirectMessages({ showMessage, compact = false, onMessagesRead, onIncomingMessage }) {
+export default function DirectMessages({ showMessage, compact = false, onMessagesRead, onIncomingMessage, initialThreadId = '' }) {
   const { currentUser } = useAuth();
   const [threads, setThreads] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -43,6 +43,10 @@ export default function DirectMessages({ showMessage, compact = false, onMessage
   useEffect(() => {
     threadsRef.current = threads;
   }, [threads]);
+
+  useEffect(() => {
+    if (initialThreadId) setSelectedId(initialThreadId);
+  }, [initialThreadId]);
 
   const request = useCallback(async (path, options = {}) => {
     const token = await currentUser.getIdToken();
@@ -72,7 +76,8 @@ export default function DirectMessages({ showMessage, compact = false, onMessage
         const activeLocalThread = current.find((thread) => thread.id === activeId && !serverIds.has(thread.id));
         return activeLocalThread ? [activeLocalThread, ...next] : next;
       });
-      setSelectedId((current) => current || next[0]?.id || '');
+      // Do not open the first thread automatically: entering Notifications
+      // must never mark an unrelated conversation as read.
     } catch (error) {
       if (!silent) showMessage?.(error.message, 'error');
     } finally {
@@ -110,7 +115,7 @@ export default function DirectMessages({ showMessage, compact = false, onMessage
       return;
     }
     const path = thread.kind === 'job'
-      ? `/human-transcription/jobs/${encodeURIComponent(thread.job.id)}/messages`
+      ? `/human-transcription/jobs/${encodeURIComponent(thread.job.id)}/messages?thread=${encodeURIComponent(thread.thread || thread.job.thread || 'client')}`
       : `/api/user-chats/${encodeURIComponent(thread.user.uid)}/messages`;
     try {
       const payload = await request(path);
@@ -132,7 +137,9 @@ export default function DirectMessages({ showMessage, compact = false, onMessage
 
   useEffect(() => { loadInbox(); loadContacts(); }, [loadContacts, loadInbox]);
   useEffect(() => {
-    loadMessages();
+    if (selectedThread?.id) loadMessages();
+  }, [loadMessages, selectedThread?.id]);
+  useEffect(() => {
     const interval = window.setInterval(() => { loadInbox(true); loadMessages(true); }, 5000);
     return () => window.clearInterval(interval);
   }, [loadInbox, loadMessages]);
@@ -167,6 +174,7 @@ export default function DirectMessages({ showMessage, compact = false, onMessage
     try {
       const form = new FormData();
       form.append('message', draft.trim());
+      if (threadToSend.kind === 'job') form.append('thread', threadToSend.thread || threadToSend.job.thread || 'client');
       if (file) form.append('attachment', file);
       const payload = await request(path, { method: 'POST', body: form });
       if (payload.message) setMessages((current) => current.concat(payload.message));
@@ -216,7 +224,7 @@ export default function DirectMessages({ showMessage, compact = false, onMessage
   return (
     <section className={`tm-inbox${compact ? ' tm-inbox-compact' : ''}`} aria-labelledby="direct-messages-title">
       <header className="tm-inbox-head">
-        <div><p className="tm-human-eyebrow">Communication</p><h2 id="direct-messages-title">Messages</h2><p>Every person and job has its own conversation, so updates do not get lost.</p></div>
+        <div><p className="tm-human-eyebrow">Communication</p><h2 id="direct-messages-title">Conversations</h2><p>Each person and Human Work job has its own private conversation.</p></div>
         <button type="button" className="tm-inbox-new" onClick={() => setStarting((value) => !value)}>New conversation</button>
       </header>
       {starting && <div className="tm-inbox-start"><label htmlFor="new-message-contact">Start with</label><select id="new-message-contact" defaultValue="" onChange={startConversation}><option value="">Choose a contact</option>{contacts.map((contact) => <option key={contact.uid} value={contact.uid}>{contact.name || contact.email} · {roleLabel(contact.role)}</option>)}</select></div>}
