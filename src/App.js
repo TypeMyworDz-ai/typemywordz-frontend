@@ -59,20 +59,47 @@ const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https:
 const PADDLE_CONFIG_URL = `${RAILWAY_BACKEND_URL}/paddle-config`;
 const AFRICA_PAYMENT_COUNTRIES = new Set(['KE', 'NG', 'GH', 'ZA', 'OTHER_AFRICA']);
 const NOTIFICATION_SOUND_PREFERENCE_KEY = 'tmwd_notification_sounds';
+const NOTIFICATION_SOUND_URL = `${(process.env.PUBLIC_URL || '').replace(/\/$/, '')}/notification.wav`;
 let notificationAudioContext = null;
+let notificationAudioBuffer = null;
+let notificationAudioBufferPromise = null;
 let notificationSoundUntil = 0;
-let notificationOscillators = [];
+let notificationSources = [];
+let notificationSoundPending = false;
 
 const notificationSoundsEnabled = () => {
   try { return window.localStorage.getItem(NOTIFICATION_SOUND_PREFERENCE_KEY) !== 'off'; } catch { return true; }
 };
 
 const stopNotificationSound = () => {
-  notificationOscillators.forEach((oscillator) => {
-    try { oscillator.stop(); } catch { /* It may already have ended. */ }
-  });
-  notificationOscillators = [];
   notificationSoundUntil = 0;
+  notificationSoundPending = false;
+  notificationSources.forEach((source) => {
+    try { source.stop(); } catch { /* It may already have ended. */ }
+  });
+  notificationSources = [];
+};
+
+const loadNotificationAudioBuffer = () => {
+  if (!notificationAudioContext) return Promise.resolve(null);
+  if (notificationAudioBuffer) return Promise.resolve(notificationAudioBuffer);
+  if (!notificationAudioBufferPromise) {
+    notificationAudioBufferPromise = fetch(NOTIFICATION_SOUND_URL, { cache: 'force-cache' })
+      .then((response) => {
+        if (!response.ok) throw new Error('Notification sound could not be loaded.');
+        return response.arrayBuffer();
+      })
+      .then((bytes) => notificationAudioContext.decodeAudioData(bytes))
+      .then((buffer) => {
+        notificationAudioBuffer = buffer;
+        return buffer;
+      })
+      .catch(() => {
+        notificationAudioBufferPromise = null;
+        return null;
+      });
+  }
+  return notificationAudioBufferPromise;
 };
 
 const unlockNotificationSounds = () => {
@@ -81,41 +108,74 @@ const unlockNotificationSounds = () => {
   if (!AudioContextClass) return;
   try {
     notificationAudioContext = notificationAudioContext || new AudioContextClass();
-    if (notificationAudioContext.state === 'suspended') notificationAudioContext.resume().catch(() => {});
+    const context = notificationAudioContext;
+    const resume = context.state === 'suspended' ? context.resume() : Promise.resolve();
+    resume.then(() => {
+      if (notificationSoundPending && context.state === 'running' && notificationSoundsEnabled()) {
+        notificationSoundPending = false;
+        void playNotificationSound();
+      }
+    }).catch(() => {});
+    void loadNotificationAudioBuffer();
   } catch { /* Sound is optional; in-app alerts remain available. */ }
 };
 
-const playNotificationSound = (kind = 'activity') => {
-  if (!notificationSoundsEnabled() || !notificationAudioContext || notificationAudioContext.state !== 'running') return;
-  const now = notificationAudioContext.currentTime;
-  // Coalesce a burst of related alerts into one ring; never stack loops.
-  if (now < notificationSoundUntil) return;
-  try {
-    const notes = kind === 'assignment' ? [740, 988] : kind === 'message' ? [587, 784] : [659, 880];
-    const start = now + 0.04;
-    notificationSoundUntil = start + 30;
-    notificationOscillators = [];
-    // Schedule the full chime in Web Audio so browser timer throttling in a
-    // background tab cannot cut the sequence short.
-    for (let cycle = 0; cycle < 14; cycle += 1) {
-      for (let index = 0; index < notes.length; index += 1) {
-        const frequency = notes[index];
-        const oscillator = notificationAudioContext.createOscillator();
-        const gain = notificationAudioContext.createGain();
-        const beginsAt = start + cycle * 2.25 + index * 0.22;
-        oscillator.type = 'triangle';
-        oscillator.frequency.setValueAtTime(frequency, beginsAt);
-        gain.gain.setValueAtTime(0.0001, beginsAt);
-        gain.gain.exponentialRampToValueAtTime(0.055, beginsAt + 0.025);
-        gain.gain.exponentialRampToValueAtTime(0.0001, beginsAt + 0.19);
-        oscillator.connect(gain);
-        gain.connect(notificationAudioContext.destination);
-        oscillator.start(beginsAt);
-        oscillator.stop(beginsAt + 0.2);
-        notificationOscillators.push(oscillator);
+const playNotificationSound = async () => {
+  if (!notificationSoundsEnabled()) return;
+  const context = notificationAudioContext;
+  if (!context) {
+    notificationSoundPending = true;
+    return;
+  }
+  if (context.state === 'suspended') {
+    notificationSoundPending = true;
+    context.resume().then(() => {
+      if (notificationSoundPending && context.state === 'running' && notificationSoundsEnabled()) {
+        notificationSoundPending = false;
+        void playNotificationSound();
       }
+    }).catch(() => {});
+    return;
+  }
+  if (context.state !== 'running') {
+    notificationSoundPending = true;
+    return;
+  }
+  try {
+    const buffer = await loadNotificationAudioBuffer();
+    if (!buffer || !notificationSoundsEnabled() || context.state !== 'running') {
+      notificationSoundPending = false;
+      return;
     }
-  } catch { /* Audio can fail silently without blocking work. */ }
+    const start = context.currentTime + 0.04;
+    // All alert types share one 30-second WAV ring; never stack overlapping loops.
+    if (context.currentTime < notificationSoundUntil) {
+      notificationSoundPending = false;
+      return;
+    }
+    const source = context.createBufferSource();
+    const gain = context.createGain();
+    source.buffer = buffer;
+    source.loop = true;
+    source.loopStart = 0;
+    source.loopEnd = buffer.duration;
+    gain.gain.setValueAtTime(0.72, start);
+    gain.gain.setValueAtTime(0.72, start + 29.7);
+    gain.gain.linearRampToValueAtTime(0, start + 30);
+    source.connect(gain);
+    gain.connect(context.destination);
+    notificationSoundUntil = start + 30;
+    notificationSoundPending = false;
+    notificationSources = [source];
+    source.onended = () => {
+      notificationSources = notificationSources.filter((item) => item !== source);
+      if (context.currentTime >= notificationSoundUntil - 0.1) notificationSoundUntil = 0;
+    };
+    source.start(start);
+    source.stop(start + 30.02);
+  } catch {
+    notificationSoundPending = true;
+  }
 };
 
 const workerAssignmentKeyFor = (job) => {
@@ -206,6 +266,7 @@ function AppContent() {
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [assignedWorkerJobs, setAssignedWorkerJobs] = useState([]);
   const [seenWorkerAssignmentKeys, setSeenWorkerAssignmentKeys] = useState([]);
+  const directMessageCursorRef = useRef({ uid: '', timestamp: 0, seen: new Set() });
 
   // A referral link looks like typemywordz.ai/?ref=CODE. Whoever clicked it
   // might not sign up for several minutes, so the code is stashed until a
@@ -229,9 +290,17 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    const unlock = () => unlockNotificationSounds();
-    window.addEventListener('pointerdown', unlock, { once: true, capture: true });
-    window.addEventListener('keydown', unlock, { once: true, capture: true });
+    const unlock = () => {
+      unlockNotificationSounds();
+      if (notificationAudioContext?.state === 'running') {
+        window.removeEventListener('pointerdown', unlock, true);
+        window.removeEventListener('keydown', unlock, true);
+      }
+    };
+    // Keep retrying until the browser accepts the first user-gesture unlock;
+    // removing the only listener after a rejected resume made sound fail silently.
+    window.addEventListener('pointerdown', unlock, true);
+    window.addEventListener('keydown', unlock, true);
     return () => {
       window.removeEventListener('pointerdown', unlock, true);
       window.removeEventListener('keydown', unlock, true);
@@ -243,24 +312,16 @@ function AppContent() {
   const refreshUnreadMessageCount = useCallback(async () => {
     if (!currentUser) {
       setUnreadMessageCount(0);
-      directUnreadCountRef.current = { uid: '', count: null };
       return;
     }
     try {
       const token = await currentUser.getIdToken();
       const response = await fetch(`${RAILWAY_BACKEND_URL}/api/messaging/unread-count`, {
+        cache: 'no-store',
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) return;
       const data = await response.json().catch(() => ({}));
-      const directCount = Math.max(0, Number(data.direct_count) || 0);
-      const tracker = directUnreadCountRef.current;
-      if (tracker.uid !== currentUser.uid) {
-        directUnreadCountRef.current = { uid: currentUser.uid, count: directCount };
-      } else {
-        if (tracker.count !== null && directCount > tracker.count) playNotificationSound('message');
-        tracker.count = directCount;
-      }
       setUnreadMessageCount(Math.max(0, Number(data.count) || 0));
     } catch {
       // A badge should never interrupt the workspace if the count is briefly unavailable.
@@ -272,6 +333,70 @@ function AppContent() {
     const interval = window.setInterval(refreshUnreadMessageCount, 10000);
     return () => window.clearInterval(interval);
   }, [refreshUnreadMessageCount]);
+
+  useEffect(() => {
+    const tracker = directMessageCursorRef.current;
+    if (!currentUser) {
+      tracker.uid = '';
+      tracker.timestamp = 0;
+      tracker.seen.clear();
+      return undefined;
+    }
+    if (tracker.uid !== currentUser.uid) {
+      tracker.uid = currentUser.uid;
+      tracker.timestamp = Date.now() - 5000;
+      tracker.seen.clear();
+    }
+    let stopped = false;
+    let pollInFlight = false;
+    const pollDirectMessages = async () => {
+      if (stopped || pollInFlight) return;
+      pollInFlight = true;
+      const requestStartedAt = Date.now();
+      try {
+        const token = await currentUser.getIdToken();
+        const since = new Date(Math.max(0, tracker.timestamp - 10000)).toISOString();
+        const response = await fetch(`${RAILWAY_BACKEND_URL}/api/messaging/notifications?since=${encodeURIComponent(since)}`, {
+          cache: 'no-store',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok || stopped) return;
+        const payload = await response.json().catch(() => ({}));
+        const serverTime = Date.parse(payload.server_time || '');
+        tracker.timestamp = Math.max(tracker.timestamp, Number.isFinite(serverTime) ? serverTime : requestStartedAt);
+        const incoming = [];
+        for (const event of payload.events || []) {
+          const identity = event.message_id || event.created_at || '';
+          if (!identity) continue;
+          const key = `${event.thread_id || ''}:${identity}`;
+          if (tracker.seen.has(key)) continue;
+          tracker.seen.add(key);
+          incoming.push(event);
+        }
+        if (incoming.length) {
+          playNotificationSound('message');
+          showMessage?.(incoming.length === 1 ? 'New message received.' : `${incoming.length} new messages received.`, 'info', 8000);
+          void refreshUnreadMessageCount();
+        }
+        if (tracker.seen.size > 500) tracker.seen = new Set(Array.from(tracker.seen).slice(-300));
+      } catch {
+        // Keep the current workspace usable; the next poll retries from an overlapping cursor.
+      } finally {
+        pollInFlight = false;
+      }
+    };
+    const refresh = () => { void pollDirectMessages(); };
+    void pollDirectMessages();
+    const interval = window.setInterval(refresh, 5000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [currentUser, refreshUnreadMessageCount, showMessage]);
 
   useEffect(() => {
     recordPageView(`${window.location.pathname}#${currentView}`);
@@ -348,7 +473,6 @@ function AppContent() {
   const abortControllerRef = useRef(null);
   const humanAlertCursorRef = useRef({ uid: '', timestamp: 0, seen: new Set() });
   const workerAssignmentSnapshotRef = useRef({ uid: '', keys: null });
-  const directUnreadCountRef = useRef({ uid: '', count: null });
   const refreshAssignedWorkerJobsRef = useRef(null);
   const transcriptionIntervalRef = useRef(null);
   const statusCheckTimeoutRef = useRef(null);
@@ -454,9 +578,9 @@ function AppContent() {
           if (notice) notices.push(notice);
         }
         if (assignmentEvents.length) {
-          // The assigned-job list is the source of truth for both the banner
-          // and the assignment toast. The event feed only prompts an immediate
-          // refresh so an event and a list poll cannot create duplicate alerts.
+          // The event is the reliable sound trigger; the assigned-job list is
+          // still the source of truth for the persistent banner and job data.
+          playNotificationSound('assignment');
           const refreshAssignments = refreshAssignedWorkerJobsRef.current;
           if (typeof refreshAssignments === 'function') void refreshAssignments();
         }
