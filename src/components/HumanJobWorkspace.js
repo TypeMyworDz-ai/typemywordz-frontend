@@ -36,6 +36,19 @@ const formatCountdown = (totalSeconds) => {
 };
 
 const PAYOUT_STATUS_LABELS = { accruing: 'Accruing this half', invoiced: 'Pending payout', paid: 'Paid', all: 'All' };
+const ADMIN_QUEUE_LANES = [
+  { id: 'needs_action', label: 'Needs action' },
+  { id: 'in_progress', label: 'In progress' },
+  { id: 'submitted', label: 'Submitted' },
+  { id: 'finished', label: 'Finished' },
+];
+const adminQueueLaneFor = (job) => {
+  const status = String(job?.status || '').toLowerCase();
+  if (['submitted', 'client_review'].includes(status)) return 'submitted';
+  if (['released', 'cancelled'].includes(status)) return 'finished';
+  if (['assigned', 'in_progress', 'split_assigned', 'split_in_progress', 'proofreading_assigned', 'proofreading_in_progress'].includes(status)) return 'in_progress';
+  return 'needs_action';
+};
 
 export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', restricted = false }) {
   const { currentUser } = useAuth();
@@ -67,6 +80,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [workerTab, setWorkerTab] = useState('in_progress');
   const [paymentHistory, setPaymentHistory] = useState(null);
   const [adminTab, setAdminTab] = useState('queue');
+  const [adminQueueLane, setAdminQueueLane] = useState('needs_action');
+  const [adminQueueType, setAdminQueueType] = useState('all');
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [jobsFetchedAt, setJobsFetchedAt] = useState(() => Date.now());
   const [workerRatingSummary, setWorkerRatingSummary] = useState({ average: null, count: 0 });
@@ -82,7 +97,17 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   }, []);
 
   const token = useCallback(() => currentUser?.getIdToken(), [currentUser]);
-  const selectedJob = useMemo(() => jobs.find((job) => job.id === selectedId) || jobs[0] || null, [jobs, selectedId]);
+  const adminQueueCounts = useMemo(() => jobs.reduce((counts, job) => {
+    const matchesType = adminQueueType === 'all' || (job.source_type || 'human_transcription') === adminQueueType;
+    if (matchesType) counts[adminQueueLaneFor(job)] += 1;
+    return counts;
+  }, { needs_action: 0, in_progress: 0, submitted: 0, finished: 0 }), [adminQueueType, jobs]);
+  const adminQueueJobs = useMemo(() => jobs.filter((job) =>
+    (adminQueueType === 'all' || (job.source_type || 'human_transcription') === adminQueueType)
+    && adminQueueLaneFor(job) === adminQueueLane
+  ), [adminQueueLane, adminQueueType, jobs]);
+  const jobsForCurrentView = mode === 'admin' && adminTab === 'queue' ? adminQueueJobs : jobs;
+  const selectedJob = useMemo(() => jobsForCurrentView.find((job) => job.id === selectedId) || jobsForCurrentView[0] || null, [jobsForCurrentView, selectedId]);
   const workerAssignment = selectedJob?.worker_assignment || null;
   const workerAssignmentActive = mode === 'worker' && ['assigned', 'in_progress'].includes(workerAssignment?.status);
   const splitJob = selectedJob?.split_mode === 'dual';
@@ -412,17 +437,36 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       ) : mode === 'admin' && adminTab === 'cleanup' && !restricted ? (
         <AdminJobCleanupPanel request={request} showMessage={showMessage} />
       ) : (
+      <>
+      {mode === 'admin' && adminTab === 'queue' && (
+        <div className="tm-admin-queue-controls" aria-label="Filter human-work jobs">
+          <div className="tm-admin-queue-lanes" role="tablist" aria-label="Job status">
+            {ADMIN_QUEUE_LANES.map((lane) => (
+              <button type="button" key={lane.id} role="tab" aria-selected={adminQueueLane === lane.id} className={adminQueueLane === lane.id ? 'active' : ''} onClick={() => setAdminQueueLane(lane.id)}>
+                <span>{lane.label}</span><b>{adminQueueCounts[lane.id] || 0}</b>
+              </button>
+            ))}
+          </div>
+          <label className="tm-admin-queue-type">Job type
+            <select value={adminQueueType} onChange={(event) => setAdminQueueType(event.target.value)}>
+              <option value="all">All job types</option>
+              <option value="human_transcription">Human transcription</option>
+              <option value="ai_proofreading">AI transcript proofreading</option>
+            </select>
+          </label>
+        </div>
+      )}
       <div className="tm-human-workspace-grid">
         <aside className="tm-human-job-list">
-          <div className="tm-human-list-head"><strong>{jobs.length} job{jobs.length === 1 ? '' : 's'}</strong><span>Live updates</span></div>
-          {jobs.map((job) => (
+          <div className="tm-human-list-head"><strong>{jobsForCurrentView.length} job{jobsForCurrentView.length === 1 ? '' : 's'}</strong><span>Live updates</span></div>
+          {jobsForCurrentView.map((job) => (
             <button type="button" key={job.id} className={`tm-human-job-row ${selectedJob?.id === job.id ? 'selected' : ''}`} onClick={() => setSelectedId(job.id)}>
               <strong>{job.audio?.name || `Human job ${job.id.slice(0, 6)}`}</strong>
               <span>{mode === 'worker' && job.worker_assignment?.role === 'proofreader' ? 'Proofreading · In progress' : (STATUS_LABELS[job.status] || job.status)}{typeof job.time_remaining_seconds === 'number' && ['assigned', 'in_progress'].includes(job.worker_assignment?.status || job.status) ? ` · ${formatCountdown(remainingSecondsFor(job))} left` : ''}</span>
               <small>{mode === 'worker' ? moneylessDate(job.createdAt) : `${job.quote_credits || 0} credits · ${moneylessDate(job.createdAt)}`}</small>
             </button>
           ))}
-          {!jobs.length && <div className="tm-human-empty">No human work is waiting here.</div>}
+          {!jobsForCurrentView.length && <div className="tm-human-empty">{mode === 'admin' ? 'No jobs match this status and type.' : 'No human work is waiting here.'}</div>}
         </aside>
 
         <div className="tm-human-job-detail">
@@ -544,7 +588,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <div className="tm-human-messages">{messages.map((item) => {
                 const isMine = item.sender_uid === currentUser?.uid;
                 const label = item.sender_role === 'admin' ? 'TypeMyworDz admin' : isMine ? 'You' : item.sender_role === 'worker' ? 'Worker' : 'Client';
-                return <article key={item.id} className="tm-human-message"><div><strong>{label}</strong><time>{moneylessDate(item.createdAt)}</time></div>{item.message && <p>{item.message}</p>}{item.attachment && <button type="button" className="tm-human-attachment-link" onClick={() => downloadAttachment(item)}>Download: {item.attachment.name}</button>}</article>;
+                return <article key={item.id} className="tm-human-message"><div><strong>{label}</strong><time>{moneylessDate(item.createdAt)}</time></div>{isMine && <span className={`tm-human-message-receipt${item.read_by_role ? ' is-read' : ''}`}>{item.read_by_role ? `Read by ${item.read_by_role}` : 'Not read yet'}</span>}{item.message && <p>{item.message}</p>}{item.attachment && <button type="button" className="tm-human-attachment-link" onClick={() => downloadAttachment(item)}>Download: {item.attachment.name}</button>}</article>;
               })}{!messages.length && <div className="tm-human-empty">No messages yet. Keep the job conversation here so nobody has to move to another app.</div>}</div>
               <form className="tm-human-message-form" onSubmit={sendMessage}>
                 <textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} onKeyDown={handleMessageKeyDown} placeholder="Write to the people on this job" rows={2} aria-label="Job conversation message" />
@@ -555,6 +599,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           </>}
         </div>
       </div>
+      </>
       )}
     </section>
   );

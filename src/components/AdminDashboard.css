@@ -46,3 +46,4 @@
 .tm-user-chat-attach { color: #3f7b55; font-size: .86rem; cursor: pointer; }
 .tm-user-chat-attach input { display: none; }
 .tm-admin-link-button { border: 0; padding: 0; background: transparent; color: #32774a; cursor: pointer; font: inherit; font-size: .86rem; }
+.tm-admin-usage-cell{min-width:112px;font-variant-numeric:tabular-nums}.tm-admin-usage-cell strong,.tm-admin-usage-cell small{display:block;white-space:nowrap}.tm-admin-usage-cell strong{font-size:12px;color:#314238}.tm-admin-usage-cell small{margin-top:3px;color:#7c877e;font-size:10px}
