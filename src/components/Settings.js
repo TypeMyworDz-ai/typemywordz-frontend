@@ -230,11 +230,13 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
 
       <section className="tm-set-section tm-notification-sound-section">
         <h3 className="tm-set-h">Notification sounds</h3>
-        <p className="tm-set-sub">A short, quiet cue for new messages, job assignments, submissions, and other human-work updates.</p>
+        <p className="tm-set-sub">Choose whether new messages and Human Work updates play a sound. On-screen alerts and unread counts stay available either way.</p>
         <label className="tm-set-sound-choice">
-          <span><strong>Play sounds for new activity</strong><small>Turn this off any time. Unread badges and on-screen alerts remain available.</small></span>
+          <span><strong>Notification sounds</strong><small>{notificationSoundsEnabled ? 'On. Click to turn them off.' : 'Off. Click to turn them on.'}</small></span>
           <input
             type="checkbox"
+            role="switch"
+            aria-label="Notification sounds"
             checked={notificationSoundsEnabled}
             onChange={(event) => {
               const enabled = event.target.checked;

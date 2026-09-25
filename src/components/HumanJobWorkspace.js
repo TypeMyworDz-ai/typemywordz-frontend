@@ -450,6 +450,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <div className="tm-human-thread-tabs tm-worker-room-tabs" role="tablist" aria-label="Admin dashboard sections">
           <button type="button" role="tab" aria-selected={adminTab === 'queue'} className={adminTab === 'queue' ? 'active' : ''} onClick={() => setAdminTab('queue')}>Job Queue</button>
           {!restricted && <button type="button" role="tab" aria-selected={adminTab === 'payouts'} className={adminTab === 'payouts' ? 'active' : ''} onClick={() => setAdminTab('payouts')}>Worker Payments · KES</button>}
+          {!restricted && <button type="button" role="tab" aria-selected={adminTab === 'rates'} className={adminTab === 'rates' ? 'active' : ''} onClick={() => setAdminTab('rates')}>Worker rates</button>}
           {!restricted && <button type="button" role="tab" aria-selected={adminTab === 'cleanup'} className={adminTab === 'cleanup' ? 'active' : ''} onClick={() => setAdminTab('cleanup')}>Job cleanup</button>}
         </div>
       )}
@@ -471,6 +472,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         </div>
       ) : mode === 'admin' && adminTab === 'payouts' && !restricted ? (
         <AdminPayoutsPanel request={request} showMessage={showMessage} workers={workers} />
+      ) : mode === 'admin' && adminTab === 'rates' && !restricted ? (
+        <AdminTranscriberRatePanel request={request} showMessage={showMessage} />
       ) : mode === 'admin' && adminTab === 'cleanup' && !restricted ? (
         <AdminJobCleanupPanel request={request} showMessage={showMessage} />
       ) : (
@@ -640,6 +643,86 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       </>
       )}
     </section>
+  );
+}
+
+function AdminTranscriberRatePanel({ request, showMessage }) {
+  const [rate, setRate] = useState('30');
+  const [policy, setPolicy] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const loadRate = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await request('/human-transcription/admin/rates');
+      setRate(String(data.transcriber_rate_kes_per_minute || 30));
+      setPolicy(data);
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [request, showMessage]);
+
+  useEffect(() => { loadRate(); }, [loadRate]);
+
+  const saveRate = async (event) => {
+    event.preventDefault();
+    const value = Number(rate);
+    const minimum = Number(policy?.minimum_rate_kes_per_minute || 1);
+    const maximum = Number(policy?.maximum_rate_kes_per_minute || 500);
+    if (!Number.isInteger(value) || value < minimum || value > maximum) {
+      showMessage?.(`Enter a whole-number rate from KES ${minimum} to KES ${maximum} per minute.`, 'error');
+      return;
+    }
+    if (value === Number(policy?.transcriber_rate_kes_per_minute)) return;
+    if (!window.confirm(`Change standard transcription pay to KES ${value} per audio minute? This applies to new jobs only; existing job quotes will not change.`)) return;
+
+    setSaving(true);
+    try {
+      const data = await request('/human-transcription/admin/rates', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ transcriber_rate_kes: String(value) }),
+      });
+      setRate(String(data.transcriber_rate_kes_per_minute));
+      setPolicy((previous) => ({ ...previous, ...data }));
+      showMessage?.(`Standard transcription pay is now KES ${data.transcriber_rate_kes_per_minute} per audio minute for new jobs.`, 'success');
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="tm-admin-rate-panel">
+      <div className="tm-human-chat-card">
+        <div className="tm-human-chat-head"><div><strong>Worker rates</strong><span>Set standard transcription pay without a code change.</span></div><span className="tm-human-live-dot">KES</span></div>
+        {loading ? <div className="tm-human-empty">Loading current rates…</div> : (
+          <form className="tm-admin-rate-form" onSubmit={saveRate}>
+            <div className="tm-admin-rate-main">
+              <label htmlFor="tm-standard-transcriber-rate">Standard transcription</label>
+              <div className="tm-admin-rate-input-row">
+                <span>KES</span>
+                <input id="tm-standard-transcriber-rate" type="number" min={policy?.minimum_rate_kes_per_minute || 1} max={policy?.maximum_rate_kes_per_minute || 500} step="1" value={rate} disabled={!policy} onChange={(event) => setRate(event.target.value)} />
+                <span>per audio minute</span>
+              </div>
+              <small>Applies to new Human Work requests. Existing jobs keep the rate saved in their quote.</small>
+            </div>
+            <div className="tm-admin-rate-reference">
+              <div><span>Rush or difficult transcription</span><strong>KES {policy?.rush_rate_kes_per_minute ?? 38} / min</strong></div>
+              <div><span>Proofreading</span><strong>KES {policy?.proofreading_rate_kes_per_minute ?? 10} / min</strong></div>
+            </div>
+            <div className="tm-admin-rate-actions">
+              <button type="submit" disabled={saving || loading || !policy}>{saving ? 'Saving…' : 'Save rate'}</button>
+              <button type="button" onClick={loadRate} disabled={saving || loading}>Reload</button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
   );
 }
 
