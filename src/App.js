@@ -45,7 +45,7 @@ import HumanJobWorkspace from './components/HumanJobWorkspace';
 import CreditHistory from './components/CreditHistory';
 import TraineeDashboard from './components/TraineeDashboard';
 import TraineeSignup from './components/TraineeSignup';
-import DirectMessages from './components/DirectMessages';
+import NotificationsCenter from './components/NotificationsCenter';
 import { isPaidAIUser } from './aiAccess';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -178,13 +178,7 @@ const playNotificationSound = async () => {
   }
 };
 
-const workerAssignmentKeyFor = (job) => {
-  const assignment = job?.worker_assignment || {};
-  const partId = assignment.id || assignment.role || 'assignment';
-  const assignedAt = assignment.assignedAt || assignment.deadlineAt || job?.assignedAt || job?.deadlineAt || '';
-  return `${job?.id || ''}:${partId}:${assignedAt}`;
-};
-
+// Persistent work alerts are sourced from the authenticated notification feed.
 // Helper function to determine if a user has access to AI features
 const initialsOf = (nameOrEmail) => {
   if (!nameOrEmail) return '?';
@@ -263,10 +257,15 @@ function AppContent() {
   // Removed transcriptionProgress state and its setter
   const [currentView, setCurrentView] = useState('transcribe');
   const [selectedHumanJobId, setSelectedHumanJobId] = useState('');
+  const [selectedHumanSegmentId, setSelectedHumanSegmentId] = useState('');
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
-  const [assignedWorkerJobs, setAssignedWorkerJobs] = useState([]);
-  const [seenWorkerAssignmentKeys, setSeenWorkerAssignmentKeys] = useState([]);
-  const directMessageCursorRef = useRef({ uid: '', timestamp: 0, seen: new Set() });
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
+  const [notificationTab, setNotificationTab] = useState('all');
+  const [notificationThreadId, setNotificationThreadId] = useState('');
+  const notificationRungLocalRef = useRef(new Map());
+  const notificationPollInFlightRef = useRef(false);
+  const notificationUidRef = useRef('');
 
   // A referral link looks like typemywordz.ai/?ref=CODE. Whoever clicked it
   // might not sign up for several minutes, so the code is stashed until a
@@ -307,96 +306,78 @@ function AppContent() {
     };
   }, []);
 
-  const notifyIncomingDirectMessage = useCallback(() => playNotificationSound('message'), []);
-
   const refreshUnreadMessageCount = useCallback(async () => {
     if (!currentUser) {
+      notificationUidRef.current = '';
+      notificationRungLocalRef.current.clear();
       setUnreadMessageCount(0);
+      setNotifications([]);
+      setNotificationsLoading(false);
+      stopNotificationSound();
       return;
     }
+    if (notificationPollInFlightRef.current) return;
+    if (notificationUidRef.current !== currentUser.uid) {
+      notificationUidRef.current = currentUser.uid;
+      notificationRungLocalRef.current.clear();
+      setNotifications([]);
+      setUnreadMessageCount(0);
+      setNotificationsLoading(true);
+    }
+    notificationPollInFlightRef.current = true;
     try {
       const token = await currentUser.getIdToken();
-      const response = await fetch(`${RAILWAY_BACKEND_URL}/api/messaging/unread-count`, {
+      const response = await fetch(`${RAILWAY_BACKEND_URL}/api/notifications`, {
         cache: 'no-store',
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) return;
       const data = await response.json().catch(() => ({}));
-      setUnreadMessageCount(Math.max(0, Number(data.count) || 0));
+      const items = Array.isArray(data.notifications) ? data.notifications : [];
+      setNotifications(items);
+      setUnreadMessageCount(Math.max(0, Number(data.unread_count) || 0));
+      setNotificationsLoading(false);
+
+      const serverNow = Date.parse(data.server_time || '') || Date.now();
+      const dueToRing = items.filter((item) => {
+        const needsAction = Boolean(item.requires_action && !item.action_completed_at);
+        if (item.action_completed_at || (item.read_at && !needsAction)) return false;
+        const snoozedUntil = Date.parse(item.snoozed_until || '');
+        if (Number.isFinite(snoozedUntil) && snoozedUntil > serverNow) return false;
+        const serverLastRung = Date.parse(item.last_rung_at || '') || 0;
+        const localLastRung = notificationRungLocalRef.current.get(item.id) || 0;
+        const lastRung = Math.max(serverLastRung, localLastRung);
+        return !lastRung || serverNow - lastRung >= 5 * 60 * 1000;
+      });
+      if (dueToRing.length && notificationSoundsEnabled()) {
+        playNotificationSound();
+        dueToRing.forEach((item) => {
+          notificationRungLocalRef.current.set(item.id, serverNow);
+          fetch(`${RAILWAY_BACKEND_URL}/api/notifications/${encodeURIComponent(item.id)}/ringed`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+          }).catch(() => {});
+        });
+      }
     } catch {
-      // A badge should never interrupt the workspace if the count is briefly unavailable.
+      // A quiet refresh failure must not interrupt work. The next poll retries.
+    } finally {
+      notificationPollInFlightRef.current = false;
     }
   }, [currentUser]);
 
   useEffect(() => {
     refreshUnreadMessageCount();
-    const interval = window.setInterval(refreshUnreadMessageCount, 10000);
-    return () => window.clearInterval(interval);
-  }, [refreshUnreadMessageCount]);
-
-  useEffect(() => {
-    const tracker = directMessageCursorRef.current;
-    if (!currentUser) {
-      tracker.uid = '';
-      tracker.timestamp = 0;
-      tracker.seen.clear();
-      return undefined;
-    }
-    if (tracker.uid !== currentUser.uid) {
-      tracker.uid = currentUser.uid;
-      tracker.timestamp = Date.now() - 5000;
-      tracker.seen.clear();
-    }
-    let stopped = false;
-    let pollInFlight = false;
-    const pollDirectMessages = async () => {
-      if (stopped || pollInFlight) return;
-      pollInFlight = true;
-      const requestStartedAt = Date.now();
-      try {
-        const token = await currentUser.getIdToken();
-        const since = new Date(Math.max(0, tracker.timestamp - 10000)).toISOString();
-        const response = await fetch(`${RAILWAY_BACKEND_URL}/api/messaging/notifications?since=${encodeURIComponent(since)}`, {
-          cache: 'no-store',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!response.ok || stopped) return;
-        const payload = await response.json().catch(() => ({}));
-        const serverTime = Date.parse(payload.server_time || '');
-        tracker.timestamp = Math.max(tracker.timestamp, Number.isFinite(serverTime) ? serverTime : requestStartedAt);
-        const incoming = [];
-        for (const event of payload.events || []) {
-          const identity = event.message_id || event.created_at || '';
-          if (!identity) continue;
-          const key = `${event.thread_id || ''}:${identity}`;
-          if (tracker.seen.has(key)) continue;
-          tracker.seen.add(key);
-          incoming.push(event);
-        }
-        if (incoming.length) {
-          playNotificationSound('message');
-          showMessage?.(incoming.length === 1 ? 'New message received.' : `${incoming.length} new messages received.`, 'info', 8000);
-          void refreshUnreadMessageCount();
-        }
-        if (tracker.seen.size > 500) tracker.seen = new Set(Array.from(tracker.seen).slice(-300));
-      } catch {
-        // Keep the current workspace usable; the next poll retries from an overlapping cursor.
-      } finally {
-        pollInFlight = false;
-      }
-    };
-    const refresh = () => { void pollDirectMessages(); };
-    void pollDirectMessages();
+    const refresh = () => refreshUnreadMessageCount();
     const interval = window.setInterval(refresh, 5000);
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
     return () => {
-      stopped = true;
       window.clearInterval(interval);
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', refresh);
     };
-  }, [currentUser, refreshUnreadMessageCount, showMessage]);
+  }, [refreshUnreadMessageCount]);
 
   useEffect(() => {
     recordPageView(`${window.location.pathname}#${currentView}`);
@@ -471,9 +452,7 @@ function AppContent() {
   const silenceStartedAtRef = useRef(null);
   const speechStartedAtRef = useRef(null); 
   const abortControllerRef = useRef(null);
-  const humanAlertCursorRef = useRef({ uid: '', timestamp: 0, seen: new Set() });
-  const workerAssignmentSnapshotRef = useRef({ uid: '', keys: null });
-  const refreshAssignedWorkerJobsRef = useRef(null);
+  // Notification state is sourced from the persistent feed above.
   const transcriptionIntervalRef = useRef(null);
   const statusCheckTimeoutRef = useRef(null);
   const isCancelledRef = useRef(false);
@@ -516,197 +495,7 @@ function AppContent() {
   const isTrainee = !isAdmin && profileRole === 'trainee' && userProfile?.trainingRoomAccess === true && userProfile?.workerApproved !== true;
   const isWorker = !isAdmin && (['worker', 'transcriber'].includes(profileRole) || userProfile?.workerApproved === true);
 
-  useEffect(() => {
-    const uid = currentUser?.uid;
-    const tracker = humanAlertCursorRef.current;
-    if (!uid) {
-      tracker.uid = '';
-      tracker.timestamp = 0;
-      tracker.seen.clear();
-      return undefined;
-    }
-    if (tracker.uid !== uid) {
-      tracker.uid = uid;
-      tracker.timestamp = Date.now() - 5000;
-      tracker.seen.clear();
-    }
-    let stopped = false;
-    let pollInFlight = false;
-    const pollHumanAlerts = async () => {
-      if (stopped || pollInFlight) return;
-      pollInFlight = true;
-      const requestStartedAt = Date.now();
-      try {
-        const idToken = await currentUser.getIdToken();
-        const since = new Date(Math.max(0, tracker.timestamp - 6000)).toISOString();
-        const response = await fetch(`${RAILWAY_BACKEND_URL}/human-transcription/notifications?since=${encodeURIComponent(since)}`, {
-          cache: 'no-store',
-          headers: { Authorization: `Bearer ${idToken}` },
-        });
-        if (!response.ok || stopped) return;
-        const payload = await response.json().catch(() => ({}));
-        const serverTime = Date.parse(payload.server_time || '');
-        tracker.timestamp = Math.max(tracker.timestamp, Number.isFinite(serverTime) ? serverTime : requestStartedAt);
-        const notices = [];
-        const assignmentEvents = [];
-        for (const event of payload.events || []) {
-          const identity = event.message_id || event.event_id || event.updated_at || '';
-          const key = `${event.type}:${event.job_id || ''}:${identity}`;
-          if (tracker.seen.has(key)) continue;
-          tracker.seen.add(key);
-          if (event.type === 'assignment') {
-            assignmentEvents.push(event);
-            continue;
-          }
-          let notice = '';
-          if (event.type === 'message') {
-            const sender = event.sender_role === 'worker' ? 'A worker' : event.sender_role === 'client' ? 'A client' : 'The human-work team';
-            notice = `${sender} sent a new message about a human job.`;
-          } else if (event.type === 'submission') {
-            notice = `A worker submitted ${String(event.label || 'work').toLowerCase()} for review.`;
-          } else if (event.type === 'new_request') {
-            notice = 'A new human-work request needs admin review.';
-          } else if (event.type === 'returned_to_queue') {
-            notice = 'A missed deadline returned work to the admin queue.';
-          } else if (event.type === 'review') {
-            notice = 'Your human transcript is ready for review.';
-          } else if (event.type === 'released') {
-            notice = 'Your finished human transcript is ready.';
-          } else if (event.type === 'assignment_taken_back') {
-            notice = `An admin returned ${String(event.label || 'your assignment').toLowerCase()} to the work queue.`;
-          }
-          if (notice) notices.push(notice);
-        }
-        if (assignmentEvents.length) {
-          // The event is the reliable sound trigger; the assigned-job list is
-          // still the source of truth for the persistent banner and job data.
-          playNotificationSound('assignment');
-          const refreshAssignments = refreshAssignedWorkerJobsRef.current;
-          if (typeof refreshAssignments === 'function') void refreshAssignments();
-        }
-        if (notices.length === 1) showMessage?.(notices[0], 'info', 6000);
-        else if (notices.length > 1) showMessage?.(`${notices.length} new human-work updates. ${notices[0]}`, 'info', 6000);
-        if (notices.length) playNotificationSound('activity');
-        if (tracker.seen.size > 300) tracker.seen = new Set(Array.from(tracker.seen).slice(-200));
-      } catch {
-        // Alerts are best-effort and must never interrupt the current task.
-      } finally {
-        pollInFlight = false;
-      }
-    };
-    const refreshAlerts = () => pollHumanAlerts();
-    pollHumanAlerts();
-    const interval = window.setInterval(refreshAlerts, 5000);
-    window.addEventListener('focus', refreshAlerts);
-    document.addEventListener('visibilitychange', refreshAlerts);
-    return () => {
-      stopped = true;
-      window.clearInterval(interval);
-      window.removeEventListener('focus', refreshAlerts);
-      document.removeEventListener('visibilitychange', refreshAlerts);
-    };
-  }, [currentUser, showMessage]);
-
-  useEffect(() => {
-    if (!currentUser || !isWorker) {
-      setAssignedWorkerJobs([]);
-      setSeenWorkerAssignmentKeys([]);
-      workerAssignmentSnapshotRef.current = { uid: '', keys: null };
-      return;
-    }
-    const storageKey = `tmwd_seen_worker_assignments_${currentUser.uid}`;
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(storageKey) || '[]');
-      setSeenWorkerAssignmentKeys(Array.isArray(saved) ? saved : []);
-    } catch {
-      setSeenWorkerAssignmentKeys([]);
-    }
-    workerAssignmentSnapshotRef.current = { uid: currentUser.uid, keys: null };
-  }, [currentUser, isWorker]);
-
-  const refreshAssignedWorkerJobs = useCallback(async () => {
-    if (!currentUser || !isWorker) return;
-    try {
-      const token = await currentUser.getIdToken();
-      const response = await fetch(`${RAILWAY_BACKEND_URL}/human-transcription/jobs?scope=assigned`, {
-        cache: 'no-store',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) return;
-      const payload = await response.json().catch(() => ({}));
-      const nextJobs = Array.isArray(payload.jobs) ? payload.jobs : [];
-      const snapshot = workerAssignmentSnapshotRef.current;
-      if (snapshot.uid !== currentUser.uid) {
-        snapshot.uid = currentUser.uid;
-        snapshot.keys = null;
-      }
-      const previousKeys = snapshot.keys;
-      const nextKeys = new Map(nextJobs.map((job) => [job.id, workerAssignmentKeyFor(job)]));
-      let savedSeen = [];
-      try {
-        savedSeen = JSON.parse(window.localStorage.getItem(`tmwd_seen_worker_assignments_${currentUser.uid}`) || '[]');
-        if (!Array.isArray(savedSeen)) savedSeen = [];
-      } catch {
-        savedSeen = [];
-      }
-      const newlyAssigned = nextJobs.filter((job) => {
-        const key = workerAssignmentKeyFor(job);
-        if (savedSeen.includes(key)) return false;
-        return previousKeys === null || previousKeys.get(job.id) !== key;
-      });
-      snapshot.keys = nextKeys;
-      setAssignedWorkerJobs(nextJobs);
-      if (newlyAssigned.length && previousKeys !== null) playNotificationSound('assignment');
-      if (newlyAssigned.length === 1) {
-        const isAnotherPart = previousKeys?.has(newlyAssigned[0].id);
-        showMessage?.(
-          isAnotherPart
-            ? 'Another part of a human-work job is assigned to you. Open Work Room to continue.'
-            : 'A new human-work job was assigned to you. Open Work Room to get started.',
-          'info',
-          10000,
-        );
-      } else if (newlyAssigned.length > 1) {
-        showMessage?.(`${newlyAssigned.length} new human-work assignments are ready. Open Work Room to get started.`, 'info', 10000);
-      }
-    } catch {
-      // The app-wide assignment check is best-effort and must not interrupt work.
-    }
-  }, [currentUser, isWorker, showMessage]);
-
-  useEffect(() => {
-    refreshAssignedWorkerJobsRef.current = refreshAssignedWorkerJobs;
-  }, [refreshAssignedWorkerJobs]);
-
-  useEffect(() => {
-    if (!currentUser || !isWorker) return undefined;
-    const refreshAssignments = () => refreshAssignedWorkerJobs();
-    refreshAssignedWorkerJobs();
-    const interval = window.setInterval(refreshAssignments, 5000);
-    window.addEventListener('focus', refreshAssignments);
-    document.addEventListener('visibilitychange', refreshAssignments);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener('focus', refreshAssignments);
-      document.removeEventListener('visibilitychange', refreshAssignments);
-    };
-  }, [currentUser, isWorker, refreshAssignedWorkerJobs]);
-
-  const markWorkerJobsSeen = useCallback((jobs) => {
-    if (!currentUser?.uid || !jobs?.length) return;
-    const keys = jobs.map(workerAssignmentKeyFor).filter(Boolean);
-    setSeenWorkerAssignmentKeys((previous) => {
-      const next = Array.from(new Set([...previous, ...keys]));
-      try {
-        window.localStorage.setItem(`tmwd_seen_worker_assignments_${currentUser.uid}`, JSON.stringify(next));
-      } catch {
-        // Local storage is only a convenience; the banner still works in memory.
-      }
-      return next;
-    });
-  }, [currentUser?.uid]);
-
-  const newAssignedWorkerJobs = assignedWorkerJobs.filter((job) => !seenWorkerAssignmentKeys.includes(workerAssignmentKeyFor(job)));
+  // The unified notification feed now owns job, message, and assignment alerts.
 
   // A trainee registration is not a normal client account. Until the
   // provider confirms payment, keep the account on the payment screen only.
@@ -720,6 +509,41 @@ function AppContent() {
   // asks a client to pay must check this, not isAdmin, or a complimentary
   // account starts seeing Upgrade and See plans.
   const hasComplimentaryAccess = hasFreeAccess(currentUser?.email);
+
+  const openNotification = useCallback((item) => {
+    stopNotificationSound();
+    const isMessage = item?.kind === 'direct_message' || item?.kind === 'job_message';
+    const opensConversation = isMessage || item?.route === 'messages';
+    if (currentUser && item?.id && !opensConversation) {
+      currentUser.getIdToken().then((token) => fetch(`${RAILWAY_BACKEND_URL}/api/notifications/${encodeURIComponent(item.id)}/read`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      })).then(() => refreshUnreadMessageCount()).catch(() => {});
+    }
+    if (isMessage || item?.route === 'messages') {
+      setNotificationTab(isMessage ? 'messages' : 'all');
+      setNotificationThreadId(item?.thread_id || '');
+      setCurrentView('messages');
+      return;
+    }
+    if (item?.job_id) setSelectedHumanJobId(item.job_id);
+    if (item?.route === 'human_worker' || item?.route === 'human_ops' || item?.route === 'human_job') setSelectedHumanSegmentId(item?.target_id || '');
+    if (item?.route === 'human_worker') setCurrentView('human_worker');
+    else if (item?.route === 'human_ops') setCurrentView('human_ops');
+    else if (item?.route === 'human_job') setCurrentView('human_job');
+    else setCurrentView('messages');
+  }, [currentUser, refreshUnreadMessageCount]);
+
+  const snoozeNotification = useCallback((item) => {
+    stopNotificationSound();
+    if (!currentUser || !item?.id) return;
+    currentUser.getIdToken().then((token) => fetch(`${RAILWAY_BACKEND_URL}/api/notifications/${encodeURIComponent(item.id)}/snooze`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}` },
+    })).then(() => refreshUnreadMessageCount()).catch(() => {});
+  }, [currentUser, refreshUnreadMessageCount]);
+
+  const activeNotificationAlerts = notifications
+    .filter((item) => !item.read_at || (item.requires_action && !item.action_completed_at))
+    .sort((left, right) => String(right.created_at || '').localeCompare(String(left.created_at || '')));
 
   // A paid trainee should land directly in Training Room after account creation,
   // and must never be routed through the ordinary client workspace first.
@@ -2541,22 +2365,18 @@ return (
               Dashboard
             </button>
 
-            {!isTrainee && <button
+            <button
               className={"tm-nav" + (currentView === 'messages' ? " tm-nav-on" : "")}
-              onClick={() => setCurrentView('messages')}
+              onClick={() => {
+                setNotificationThreadId('');
+                setNotificationTab('all');
+                setCurrentView('messages');
+              }}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/><path d="M8 9h8M8 13h5"/></svg>
-              <span>Messages</span>
-              {unreadMessageCount > 0 && <span className="tm-nav-badge" aria-label={`${unreadMessageCount} unread messages`}>{unreadMessageCount > 99 ? '99+' : unreadMessageCount}</span>}
-            </button>}
-            {isTrainee && <button
-              className={"tm-nav" + (currentView === 'messages' ? " tm-nav-on" : "")}
-              onClick={() => setCurrentView('messages')}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/><path d="M8 9h8M8 13h5"/></svg>
-              <span>Messages</span>
-              {unreadMessageCount > 0 && <span className="tm-nav-badge" aria-label={`${unreadMessageCount} unread messages`}>{unreadMessageCount > 99 ? '99+' : unreadMessageCount}</span>}
-            </button>}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+              <span>Notifications</span>
+              {unreadMessageCount > 0 && <span className="tm-nav-badge" aria-label={`${unreadMessageCount} unread notifications`}>{unreadMessageCount > 99 ? '99+' : unreadMessageCount}</span>}
+            </button>
 
             {!isTrainee && !isWorker && <button
               className={"tm-nav" + (currentView === 'human_transcripts' ? " tm-nav-on" : "")}
@@ -2682,32 +2502,30 @@ return (
 
           <main className="tm-main">
 
-        {isWorker && newAssignedWorkerJobs.length > 0 && (
-          <div className="tm-worker-assignment-banner" role="status">
-            <span className="tm-worker-assignment-mark" aria-hidden="true">+</span>
-            <span className="tm-worker-assignment-copy">
-              <strong>{newAssignedWorkerJobs.length === 1 ? 'New job assigned' : `${newAssignedWorkerJobs.length} new jobs assigned`}</strong>
-              <small>Open Work Room to see the latest assignment and deadline.</small>
-            </span>
-            <button
-              type="button"
-              className="tm-worker-assignment-action"
-              onClick={() => {
-                markWorkerJobsSeen(newAssignedWorkerJobs);
-                setCurrentView('human_worker');
-              }}
-            >
-              Open Work Room
-            </button>
-          </div>
-        )}
-
-        {unreadMessageCount > 0 && currentView !== 'messages' && (
-          <button type="button" className="tm-unread-banner" onClick={() => setCurrentView('messages')}>
-            <span className="tm-unread-banner-dot" aria-hidden="true" />
-            <span><strong>{unreadMessageCount > 99 ? '99+' : unreadMessageCount} unread message{unreadMessageCount === 1 ? '' : 's'}</strong><small>Open Messages to read the latest client, admin, worker or job update.</small></span>
-            <span className="tm-unread-banner-link">Open Messages</span>
-          </button>
+        {activeNotificationAlerts.length > 0 && (
+          <section className="tm-notification-rail" aria-label="Important notifications" aria-live="polite">
+            <div className="tm-notification-rail-head">
+              <strong>{activeNotificationAlerts.length === 1 ? 'Important update' : `${activeNotificationAlerts.length} important updates`}</strong>
+              <button type="button" onClick={() => { setNotificationTab('all'); setNotificationThreadId(''); setCurrentView('messages'); }}>View Notifications</button>
+            </div>
+            {activeNotificationAlerts.slice(0, 3).map((item) => {
+              const needsAction = Boolean(item.requires_action && !item.action_completed_at);
+              const openLabel = item.kind === 'direct_message' || item.kind === 'job_message'
+                ? 'Open conversation'
+                : item.route === 'human_worker' ? 'Open Work Room' : item.route === 'human_ops' ? 'Open job queue' : 'Open';
+              return (
+                <article className={`tm-notification-alert${needsAction ? ' needs-action' : ''}`} key={item.id}>
+                  <span className="tm-notification-alert-bar" aria-hidden="true" />
+                  <div className="tm-notification-alert-copy"><strong>{item.title}</strong><span>{item.body}</span></div>
+                  <div className="tm-notification-alert-actions">
+                    <button type="button" onClick={() => openNotification(item)}>{openLabel}</button>
+                    <button type="button" className="tm-alert-snooze" onClick={() => snoozeNotification(item)}>Snooze 5 min</button>
+                  </div>
+                </article>
+              );
+            })}
+            {activeNotificationAlerts.length > 3 && <button type="button" className="tm-notification-rail-more" onClick={() => { setNotificationTab('all'); setNotificationThreadId(''); setCurrentView('messages'); }}>See all {activeNotificationAlerts.length} updates</button>}
+          </section>
         )}
 
         {/* A client who walks away from a finished transcript and then comes
@@ -2760,7 +2578,18 @@ return (
         )}
         {/* Conditional Rendering for different views */}
         {currentView === 'messages' ? (
-          <DirectMessages showMessage={showMessage} onMessagesRead={refreshUnreadMessageCount} onIncomingMessage={notifyIncomingDirectMessage} />
+          <NotificationsCenter
+            notifications={notifications}
+            unreadCount={unreadMessageCount}
+            loading={notificationsLoading}
+            activeTab={notificationTab}
+            onTabChange={setNotificationTab}
+            onOpenNotification={openNotification}
+            onSnoozeNotification={snoozeNotification}
+            selectedThreadId={notificationThreadId}
+            onMessagesRead={refreshUnreadMessageCount}
+            showMessage={showMessage}
+          />
         ) : currentView === 'trainee' ? (
           <TraineeDashboard onBack={() => setCurrentView('transcribe')} onOpenWork={() => setCurrentView('human_worker')} showMessage={showMessage} />
         ) : currentView === 'human_transcripts' ? (
@@ -2771,11 +2600,11 @@ return (
             showMessage={showMessage}
           />
         ) : currentView === 'human_worker' ? (
-          <HumanJobWorkspace mode="worker" onBack={() => setCurrentView('transcribe')} showMessage={showMessage} />
+          <HumanJobWorkspace mode="worker" initialJobId={selectedHumanJobId} initialSegmentId={selectedHumanSegmentId} onBack={() => setCurrentView('transcribe')} showMessage={showMessage} />
         ) : currentView === 'human_ops' ? (
-          <HumanJobWorkspace mode="admin" restricted={!isAdmin} onBack={() => setCurrentView('transcribe')} showMessage={showMessage} />
+          <HumanJobWorkspace mode="admin" initialJobId={selectedHumanJobId} initialSegmentId={selectedHumanSegmentId} restricted={!isAdmin} onBack={() => setCurrentView('transcribe')} showMessage={showMessage} />
         ) : currentView === 'human_job' ? (
-          <HumanJobWorkspace mode="client" initialJobId={selectedHumanJobId} onBack={() => setCurrentView('dashboard')} showMessage={showMessage} />
+          <HumanJobWorkspace mode="client" initialJobId={selectedHumanJobId} initialSegmentId={selectedHumanSegmentId} onBack={() => setCurrentView('dashboard')} showMessage={showMessage} />
         ) : currentView === 'pricing' ? (
           <Pricing
             mode="plans"
