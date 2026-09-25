@@ -240,6 +240,7 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
               const enabled = event.target.checked;
               setNotificationSoundsEnabled(enabled);
               try { window.localStorage.setItem('tmwd_notification_sounds', enabled ? 'on' : 'off'); } catch { /* The in-memory setting still applies for this visit. */ }
+              window.dispatchEvent(new Event('tmwd-notification-sounds-changed'));
             }}
           />
         </label>
