@@ -58,7 +58,44 @@ import { recordPageView } from './analyticsService';
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 const PADDLE_CONFIG_URL = `${RAILWAY_BACKEND_URL}/paddle-config`;
 const AFRICA_PAYMENT_COUNTRIES = new Set(['KE', 'NG', 'GH', 'ZA', 'OTHER_AFRICA']);
-// REMOVED: const RENDER_WHISPER_URL = process.env.REACT_APP_RENDER_WHISPER_URL || 'https://whisper-backend-render.onrender.com/'; // This URL is for TypeMyworDz2 (Render)
+const NOTIFICATION_SOUND_PREFERENCE_KEY = 'tmwd_notification_sounds';
+let notificationAudioContext = null;
+
+const notificationSoundsEnabled = () => {
+  try { return window.localStorage.getItem(NOTIFICATION_SOUND_PREFERENCE_KEY) !== 'off'; } catch { return true; }
+};
+
+const unlockNotificationSounds = () => {
+  if (typeof window === 'undefined') return;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+  try {
+    notificationAudioContext = notificationAudioContext || new AudioContextClass();
+    if (notificationAudioContext.state === 'suspended') notificationAudioContext.resume().catch(() => {});
+  } catch { /* Sound is optional; in-app alerts remain available. */ }
+};
+
+const playNotificationSound = (kind = 'activity') => {
+  if (!notificationSoundsEnabled() || !notificationAudioContext || notificationAudioContext.state !== 'running') return;
+  try {
+    const notes = kind === 'assignment' ? [740, 988] : kind === 'message' ? [587, 784] : [659, 880];
+    const start = notificationAudioContext.currentTime;
+    notes.forEach((frequency, index) => {
+      const oscillator = notificationAudioContext.createOscillator();
+      const gain = notificationAudioContext.createGain();
+      const beginsAt = start + index * 0.12;
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(frequency, beginsAt);
+      gain.gain.setValueAtTime(0.0001, beginsAt);
+      gain.gain.exponentialRampToValueAtTime(0.045, beginsAt + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001, beginsAt + 0.17);
+      oscillator.connect(gain);
+      gain.connect(notificationAudioContext.destination);
+      oscillator.start(beginsAt);
+      oscillator.stop(beginsAt + 0.18);
+    });
+  } catch { /* Audio can fail silently without blocking work. */ }
+};
 
 const workerAssignmentKeyFor = (job) => {
   const assignment = job?.worker_assignment || {};
@@ -164,9 +201,22 @@ function AppContent() {
     }
   }, []);
 
+  useEffect(() => {
+    const unlock = () => unlockNotificationSounds();
+    window.addEventListener('pointerdown', unlock, { once: true, capture: true });
+    window.addEventListener('keydown', unlock, { once: true, capture: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock, true);
+      window.removeEventListener('keydown', unlock, true);
+    };
+  }, []);
+
+  const notifyIncomingDirectMessage = useCallback(() => playNotificationSound('message'), []);
+
   const refreshUnreadMessageCount = useCallback(async () => {
     if (!currentUser) {
       setUnreadMessageCount(0);
+      directUnreadCountRef.current = { uid: '', count: null };
       return;
     }
     try {
@@ -176,6 +226,14 @@ function AppContent() {
       });
       if (!response.ok) return;
       const data = await response.json().catch(() => ({}));
+      const directCount = Math.max(0, Number(data.direct_count) || 0);
+      const tracker = directUnreadCountRef.current;
+      if (tracker.uid !== currentUser.uid) {
+        directUnreadCountRef.current = { uid: currentUser.uid, count: directCount };
+      } else {
+        if (tracker.count !== null && directCount > tracker.count) playNotificationSound('message');
+        tracker.count = directCount;
+      }
       setUnreadMessageCount(Math.max(0, Number(data.count) || 0));
     } catch {
       // A badge should never interrupt the workspace if the count is briefly unavailable.
@@ -263,6 +321,7 @@ function AppContent() {
   const abortControllerRef = useRef(null);
   const humanAlertCursorRef = useRef({ uid: '', timestamp: 0, seen: new Set() });
   const workerAssignmentSnapshotRef = useRef({ uid: '', keys: null });
+  const directUnreadCountRef = useRef({ uid: '', count: null });
   const refreshAssignedWorkerJobsRef = useRef(null);
   const transcriptionIntervalRef = useRef(null);
   const statusCheckTimeoutRef = useRef(null);
@@ -372,6 +431,7 @@ function AppContent() {
         }
         if (notices.length === 1) showMessage?.(notices[0], 'info', 6000);
         else if (notices.length > 1) showMessage?.(`${notices.length} new human-work updates. ${notices[0]}`, 'info', 6000);
+        if (notices.length) playNotificationSound('activity');
         if (tracker.seen.size > 300) tracker.seen = new Set(Array.from(tracker.seen).slice(-200));
       } catch {
         // Alerts are best-effort and must never interrupt the current task.
@@ -439,6 +499,7 @@ function AppContent() {
       });
       snapshot.keys = nextKeys;
       setAssignedWorkerJobs(nextJobs);
+      if (newlyAssigned.length && previousKeys !== null) playNotificationSound('assignment');
       if (newlyAssigned.length === 1) {
         const isAnotherPart = previousKeys?.has(newlyAssigned[0].id);
         showMessage?.(
@@ -2542,7 +2603,7 @@ return (
         )}
         {/* Conditional Rendering for different views */}
         {currentView === 'messages' ? (
-          <DirectMessages showMessage={showMessage} onMessagesRead={refreshUnreadMessageCount} />
+          <DirectMessages showMessage={showMessage} onMessagesRead={refreshUnreadMessageCount} onIncomingMessage={notifyIncomingDirectMessage} />
         ) : currentView === 'trainee' ? (
           <TraineeDashboard onBack={() => setCurrentView('transcribe')} onOpenWork={() => setCurrentView('human_worker')} showMessage={showMessage} />
         ) : currentView === 'human_transcripts' ? (

@@ -28,6 +28,9 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
   const [workerProfileSaving, setWorkerProfileSaving] = useState(false);
   const [workerProfileMessage, setWorkerProfileMessage] = useState('');
   const [workerProfileError, setWorkerProfileError] = useState('');
+  const [notificationSoundsEnabled, setNotificationSoundsEnabled] = useState(() => {
+    try { return window.localStorage.getItem('tmwd_notification_sounds') !== 'off'; } catch { return true; }
+  });
 
   const profileRole = String(userProfile?.role || userProfile?.user_type || '').toLowerCase();
   const isApprovedWorker = Boolean(userProfile?.workerApproved) || ['worker', 'transcriber'].includes(profileRole);
@@ -224,6 +227,24 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
           )}
         </section>
       )}
+
+      <section className="tm-set-section tm-notification-sound-section">
+        <h3 className="tm-set-h">Notification sounds</h3>
+        <p className="tm-set-sub">A short, quiet cue for new messages, job assignments, submissions, and other human-work updates.</p>
+        <label className="tm-set-sound-choice">
+          <span><strong>Play sounds for new activity</strong><small>Turn this off any time. Unread badges and on-screen alerts remain available.</small></span>
+          <input
+            type="checkbox"
+            checked={notificationSoundsEnabled}
+            onChange={(event) => {
+              const enabled = event.target.checked;
+              setNotificationSoundsEnabled(enabled);
+              try { window.localStorage.setItem('tmwd_notification_sounds', enabled ? 'on' : 'off'); } catch { /* The in-memory setting still applies for this visit. */ }
+            }}
+          />
+        </label>
+        <p className="tm-set-note">Some browsers require one click or key press before they allow app sounds.</p>
+      </section>
 
       <section className="tm-set-section">
         <h3 className="tm-set-h">Assistant model</h3>

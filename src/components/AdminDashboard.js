@@ -345,7 +345,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
 
   const exportUserData = () => {
     const rows = [
-      ['Email', 'Access', 'Credits available', 'Credits held', 'Plan expiry', 'Total minutes', 'Transcripts', 'Joined', 'Last active'],
+      ['Email', 'Access', 'Credits available', 'Credits held', 'Plan expiry', 'Total minutes', 'Transcripts', 'Ask TypeMyworDz credits since rollout', 'Ask TypeMyworDz queries since rollout', 'Transcript AI credits since rollout', 'Transcript AI queries since rollout', 'Joined', 'Last active'],
       ...users.map((user) => [
         user.email,
         accessLabel(user).text,
@@ -354,6 +354,10 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
         formatDate(planExpiry(user)),
         Number.isFinite(Number(user.totalMinutesTranscribedByUser)) ? user.totalMinutesTranscribedByUser : '',
         user.totalTranscriptsByUser || 0,
+        user.askTypeMyworDzCreditsUsed || 0,
+        user.askTypeMyworDzQueries || 0,
+        user.transcriptAiCreditsUsed || 0,
+        user.transcriptAiQueries || 0,
         formatDate(user.createdAt),
         formatDate(user.lastAccessed),
       ]),
@@ -473,8 +477,8 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
 
         {activeTab === 'users' && (
           <section className="tm-admin-panel tm-admin-table-panel">
-            <div className="tm-admin-table-toolbar"><div><h2 className="tm-admin-panel-title">Users and access</h2><p className="tm-admin-panel-note">Credits come from the server ledger; they are not guessed from the plan label.</p></div><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input className="tm-admin-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search email or access" aria-label="Search users" /><button type="button" className="tm-admin-btn" onClick={exportUserData}>Export CSV</button></div></div>
-            <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Account</th><th>Access</th><th>Credits</th><th>Plan expiry</th><th>Minutes</th><th>Transcripts</th><th>Joined</th><th>Last active</th><th>Action</th></tr></thead><tbody>{filteredUsers.map((user) => { const access = accessLabel(user); const minutes = Number(user.totalMinutesTranscribedByUser); return <tr key={user.id}><td><div className="tm-admin-email">{user.email}{ADMIN_EMAILS.includes(user.email) && <span className="tm-admin-badge ai" style={{ marginLeft: 7 }}>Admin</span>}</div>{user.name && <div className="tm-admin-name">{user.name}</div>}</td><td><span className={`tm-admin-badge ${access.tone}`}>{access.text}</span></td><td>{creditLabel(user)}</td><td>{formatDate(planExpiry(user))}</td><td>{Number.isFinite(minutes) ? formatNumber(minutes) : 'Not measured'}</td><td>{formatNumber(user.totalTranscriptsByUser || 0)}</td><td>{formatDate(user.createdAt)}</td><td>{formatDate(user.lastAccessed)}</td><td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><button type="button" className="tm-admin-btn" onClick={() => setChatUser(user)}>Chat</button>{isAdminEmail(user.email) ? <span className="tm-admin-small">Protected</span> : <button type="button" className="tm-admin-btn tm-admin-btn-danger" onClick={() => setConfirmingDelete(user)}>Remove</button>}</div></td></tr>; })}</tbody></table>{!filteredUsers.length && <div className="tm-admin-empty">No accounts match that search.</div>}</div>
+            <div className="tm-admin-table-toolbar"><div><h2 className="tm-admin-panel-title">Users and access</h2><p className="tm-admin-panel-note">Credits come from the server ledger. AI usage counters begin with this release; earlier credit use was not categorized.</p></div><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input className="tm-admin-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search email or access" aria-label="Search users" /><button type="button" className="tm-admin-btn" onClick={exportUserData}>Export CSV</button></div></div>
+            <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Account</th><th>Access</th><th>Credits</th><th>Plan expiry</th><th>Minutes</th><th>Transcripts</th><th>Ask TypeMyworDz</th><th>Transcript AI</th><th>Joined</th><th>Last active</th><th>Action</th></tr></thead><tbody>{filteredUsers.map((user) => { const access = accessLabel(user); const minutes = Number(user.totalMinutesTranscribedByUser); return <tr key={user.id}><td><div className="tm-admin-email">{user.email}{ADMIN_EMAILS.includes(user.email) && <span className="tm-admin-badge ai" style={{ marginLeft: 7 }}>Admin</span>}</div>{user.name && <div className="tm-admin-name">{user.name}</div>}</td><td><span className={`tm-admin-badge ${access.tone}`}>{access.text}</span></td><td>{creditLabel(user)}</td><td>{formatDate(planExpiry(user))}</td><td>{Number.isFinite(minutes) ? formatNumber(minutes) : 'Not measured'}</td><td>{formatNumber(user.totalTranscriptsByUser || 0)}</td><td className="tm-admin-usage-cell"><strong>{formatNumber(user.askTypeMyworDzCreditsUsed || 0)} credits</strong><small>{formatNumber(user.askTypeMyworDzQueries || 0)} queries</small></td><td className="tm-admin-usage-cell"><strong>{formatNumber(user.transcriptAiCreditsUsed || 0)} credits</strong><small>{formatNumber(user.transcriptAiQueries || 0)} queries</small></td><td>{formatDate(user.createdAt)}</td><td>{formatDate(user.lastAccessed)}</td><td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><button type="button" className="tm-admin-btn" onClick={() => setChatUser(user)}>Chat</button>{isAdminEmail(user.email) ? <span className="tm-admin-small">Protected</span> : <button type="button" className="tm-admin-btn tm-admin-btn-danger" onClick={() => setConfirmingDelete(user)}>Remove</button>}</div></td></tr>; })}</tbody></table>{!filteredUsers.length && <div className="tm-admin-empty">No accounts match that search.</div>}</div>
           </section>
         )}
 

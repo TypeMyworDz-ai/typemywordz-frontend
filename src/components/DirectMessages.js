@@ -19,7 +19,7 @@ const roleLabel = (role) => {
 
 const threadKey = (thread) => `${thread.kind}:${thread.kind === 'job' ? thread.job?.id : thread.user?.uid}`;
 
-export default function DirectMessages({ showMessage, compact = false, onMessagesRead }) {
+export default function DirectMessages({ showMessage, compact = false, onMessagesRead, onIncomingMessage }) {
   const { currentUser } = useAuth();
   const [threads, setThreads] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -34,6 +34,7 @@ export default function DirectMessages({ showMessage, compact = false, onMessage
   const selectedIdRef = useRef('');
   const threadsRef = useRef([]);
   const messageRequestRef = useRef(0);
+  const knownIncomingMessageIdsRef = useRef(new Map());
 
   useEffect(() => {
     selectedIdRef.current = selectedId;
@@ -114,13 +115,20 @@ export default function DirectMessages({ showMessage, compact = false, onMessage
     try {
       const payload = await request(path);
       if (requestId !== messageRequestRef.current || selectedIdRef.current !== thread.id) return;
-      setMessages(payload.messages || []);
+      const loadedMessages = payload.messages || [];
+      const knownIds = knownIncomingMessageIdsRef.current.get(thread.id);
+      if (knownIds) {
+        const hasNewIncoming = loadedMessages.some((item) => item.id && item.sender_uid !== currentUser?.uid && !knownIds.has(item.id));
+        if (hasNewIncoming) onIncomingMessage?.();
+      }
+      knownIncomingMessageIdsRef.current.set(thread.id, new Set(loadedMessages.map((item) => item.id).filter(Boolean)));
+      setMessages(loadedMessages);
       onMessagesRead?.();
       setThreads((current) => current.map((item) => item.id === thread.id ? { ...item, unreadCount: 0 } : item));
     } catch (error) {
       if (!silent && requestId === messageRequestRef.current) showMessage?.(error.message, 'error');
     }
-  }, [onMessagesRead, request, showMessage]);
+  }, [currentUser, onIncomingMessage, onMessagesRead, request, showMessage]);
 
   useEffect(() => { loadInbox(); loadContacts(); }, [loadContacts, loadInbox]);
   useEffect(() => {
@@ -202,6 +210,8 @@ export default function DirectMessages({ showMessage, compact = false, onMessage
 
   const selectedTitle = selectedThread?.title || selectedThread?.user?.name || selectedThread?.user?.email || 'Select a conversation';
   const selectedRole = roleLabel(selectedThread?.role || selectedThread?.user?.role);
+  const readByRole = roleLabel(selectedThread?.role || selectedThread?.user?.role);
+  const readByRoleLabel = readByRole === 'team' ? 'admin' : readByRole;
 
   return (
     <section className={`tm-inbox${compact ? ' tm-inbox-compact' : ''}`} aria-labelledby="direct-messages-title">
@@ -221,7 +231,7 @@ export default function DirectMessages({ showMessage, compact = false, onMessage
         <div className="tm-inbox-conversation">
           {!selectedThread ? <div className="tm-inbox-empty tm-inbox-empty-large">Choose a conversation to read the latest updates.</div> : <>
             <div className="tm-inbox-conversation-head"><div><p className="tm-human-eyebrow">{selectedThread.job ? selectedThread.job.title : 'Direct conversation'}</p><h3>{selectedTitle}</h3><span className="tm-inbox-role">{selectedRole}</span></div>{selectedThread.job && <span className="tm-inbox-job-status">{selectedThread.job.status.replaceAll('_', ' ')}</span>}</div>
-            <div className="tm-inbox-messages">{messages.length ? messages.map((item) => { const own = item.sender_uid === currentUser?.uid; const sender = own ? 'You' : (item.sender_role === 'admin' ? 'TypeMyworDz admin' : item.sender_email || selectedTitle); return <article className={`tm-inbox-message${own ? ' is-own' : ''}`} key={item.id}><div><strong>{sender}</strong><span>{item.sender_role ? roleLabel(item.sender_role) : ''}</span><time>{formatDate(item.createdAt)}</time></div>{item.message && <p>{item.message}</p>}{item.attachment && <button type="button" className="tm-inbox-attachment" onClick={() => downloadAttachment(item)}>Download {item.attachment.name}</button>}</article>; }) : <div className="tm-inbox-empty">No messages in this conversation yet.</div>}</div>
+            <div className="tm-inbox-messages">{messages.length ? messages.map((item) => { const own = item.sender_uid === currentUser?.uid; const sender = own ? 'You' : (item.sender_role === 'admin' ? 'TypeMyworDz admin' : item.sender_email || selectedTitle); return <article className={`tm-inbox-message${own ? ' is-own' : ''}`} key={item.id}><div><strong>{sender}</strong><span>{item.sender_role ? roleLabel(item.sender_role) : ''}</span><time>{formatDate(item.createdAt)}</time></div>{own && <span className={`tm-inbox-read-status${item.readAt || item.read_by_role ? ' is-read' : ''}`} aria-label={item.readAt || item.read_by_role ? `Read by ${item.read_by_role || readByRoleLabel}` : 'Not read yet'}>{item.readAt || item.read_by_role ? `Read by ${item.read_by_role || readByRoleLabel}` : 'Not read yet'}</span>}{item.message && <p>{item.message}</p>}{item.attachment && <button type="button" className="tm-inbox-attachment" onClick={() => downloadAttachment(item)}>Download {item.attachment.name}</button>}</article>; }) : <div className="tm-inbox-empty">No messages in this conversation yet.</div>}</div>
             <form className="tm-inbox-form" onSubmit={send}><textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleComposerKeyDown} placeholder="Write a message" rows={3} aria-label="Message" /><div className="tm-inbox-form-actions"><label className="tm-inbox-file">{file ? file.name : 'Attach a file'}<input type="file" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label><span>Enter to send · Shift+Enter for a new line</span><button type="submit" disabled={busy || (!draft.trim() && !file)}>{busy ? 'Sending…' : 'Send message'}</button></div></form>
           </>}
         </div>
