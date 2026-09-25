@@ -60,9 +60,19 @@ const PADDLE_CONFIG_URL = `${RAILWAY_BACKEND_URL}/paddle-config`;
 const AFRICA_PAYMENT_COUNTRIES = new Set(['KE', 'NG', 'GH', 'ZA', 'OTHER_AFRICA']);
 const NOTIFICATION_SOUND_PREFERENCE_KEY = 'tmwd_notification_sounds';
 let notificationAudioContext = null;
+let notificationSoundUntil = 0;
+let notificationOscillators = [];
 
 const notificationSoundsEnabled = () => {
   try { return window.localStorage.getItem(NOTIFICATION_SOUND_PREFERENCE_KEY) !== 'off'; } catch { return true; }
+};
+
+const stopNotificationSound = () => {
+  notificationOscillators.forEach((oscillator) => {
+    try { oscillator.stop(); } catch { /* It may already have ended. */ }
+  });
+  notificationOscillators = [];
+  notificationSoundUntil = 0;
 };
 
 const unlockNotificationSounds = () => {
@@ -77,23 +87,34 @@ const unlockNotificationSounds = () => {
 
 const playNotificationSound = (kind = 'activity') => {
   if (!notificationSoundsEnabled() || !notificationAudioContext || notificationAudioContext.state !== 'running') return;
+  const now = notificationAudioContext.currentTime;
+  // Coalesce a burst of related alerts into one ring; never stack loops.
+  if (now < notificationSoundUntil) return;
   try {
     const notes = kind === 'assignment' ? [740, 988] : kind === 'message' ? [587, 784] : [659, 880];
-    const start = notificationAudioContext.currentTime;
-    notes.forEach((frequency, index) => {
-      const oscillator = notificationAudioContext.createOscillator();
-      const gain = notificationAudioContext.createGain();
-      const beginsAt = start + index * 0.12;
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(frequency, beginsAt);
-      gain.gain.setValueAtTime(0.0001, beginsAt);
-      gain.gain.exponentialRampToValueAtTime(0.045, beginsAt + 0.025);
-      gain.gain.exponentialRampToValueAtTime(0.0001, beginsAt + 0.17);
-      oscillator.connect(gain);
-      gain.connect(notificationAudioContext.destination);
-      oscillator.start(beginsAt);
-      oscillator.stop(beginsAt + 0.18);
-    });
+    const start = now + 0.04;
+    notificationSoundUntil = start + 30;
+    notificationOscillators = [];
+    // Schedule the full chime in Web Audio so browser timer throttling in a
+    // background tab cannot cut the sequence short.
+    for (let cycle = 0; cycle < 14; cycle += 1) {
+      for (let index = 0; index < notes.length; index += 1) {
+        const frequency = notes[index];
+        const oscillator = notificationAudioContext.createOscillator();
+        const gain = notificationAudioContext.createGain();
+        const beginsAt = start + cycle * 2.25 + index * 0.22;
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(frequency, beginsAt);
+        gain.gain.setValueAtTime(0.0001, beginsAt);
+        gain.gain.exponentialRampToValueAtTime(0.055, beginsAt + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.0001, beginsAt + 0.19);
+        oscillator.connect(gain);
+        gain.connect(notificationAudioContext.destination);
+        oscillator.start(beginsAt);
+        oscillator.stop(beginsAt + 0.2);
+        notificationOscillators.push(oscillator);
+      }
+    }
   } catch { /* Audio can fail silently without blocking work. */ }
 };
 
@@ -199,6 +220,12 @@ function AppContent() {
     } catch {
       // Referral capture is best-effort only; it must never block the app loading.
     }
+  }, []);
+
+  useEffect(() => {
+    const stopWhenMuted = () => { if (!notificationSoundsEnabled()) stopNotificationSound(); };
+    window.addEventListener('tmwd-notification-sounds-changed', stopWhenMuted);
+    return () => window.removeEventListener('tmwd-notification-sounds-changed', stopWhenMuted);
   }, []);
 
   useEffect(() => {
@@ -380,8 +407,10 @@ function AppContent() {
       tracker.seen.clear();
     }
     let stopped = false;
+    let pollInFlight = false;
     const pollHumanAlerts = async () => {
-      if (stopped || document.visibilityState !== 'visible') return;
+      if (stopped || pollInFlight) return;
+      pollInFlight = true;
       const requestStartedAt = Date.now();
       try {
         const idToken = await currentUser.getIdToken();
@@ -419,6 +448,8 @@ function AppContent() {
             notice = 'Your human transcript is ready for review.';
           } else if (event.type === 'released') {
             notice = 'Your finished human transcript is ready.';
+          } else if (event.type === 'assignment_taken_back') {
+            notice = `An admin returned ${String(event.label || 'your assignment').toLowerCase()} to the work queue.`;
           }
           if (notice) notices.push(notice);
         }
@@ -435,18 +466,20 @@ function AppContent() {
         if (tracker.seen.size > 300) tracker.seen = new Set(Array.from(tracker.seen).slice(-200));
       } catch {
         // Alerts are best-effort and must never interrupt the current task.
+      } finally {
+        pollInFlight = false;
       }
     };
-    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') pollHumanAlerts(); };
+    const refreshAlerts = () => pollHumanAlerts();
     pollHumanAlerts();
-    const interval = window.setInterval(refreshWhenVisible, 5000);
-    window.addEventListener('focus', refreshWhenVisible);
-    document.addEventListener('visibilitychange', refreshWhenVisible);
+    const interval = window.setInterval(refreshAlerts, 5000);
+    window.addEventListener('focus', refreshAlerts);
+    document.addEventListener('visibilitychange', refreshAlerts);
     return () => {
       stopped = true;
       window.clearInterval(interval);
-      window.removeEventListener('focus', refreshWhenVisible);
-      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('focus', refreshAlerts);
+      document.removeEventListener('visibilitychange', refreshAlerts);
     };
   }, [currentUser, showMessage]);
 
@@ -523,15 +556,15 @@ function AppContent() {
 
   useEffect(() => {
     if (!currentUser || !isWorker) return undefined;
-    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') refreshAssignedWorkerJobs(); };
-    refreshWhenVisible();
-    const interval = window.setInterval(refreshWhenVisible, 3000);
-    window.addEventListener('focus', refreshWhenVisible);
-    document.addEventListener('visibilitychange', refreshWhenVisible);
+    const refreshAssignments = () => refreshAssignedWorkerJobs();
+    refreshAssignedWorkerJobs();
+    const interval = window.setInterval(refreshAssignments, 5000);
+    window.addEventListener('focus', refreshAssignments);
+    document.addEventListener('visibilitychange', refreshAssignments);
     return () => {
       window.clearInterval(interval);
-      window.removeEventListener('focus', refreshWhenVisible);
-      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('focus', refreshAssignments);
+      document.removeEventListener('visibilitychange', refreshAssignments);
     };
   }, [currentUser, isWorker, refreshAssignedWorkerJobs]);
 
