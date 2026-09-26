@@ -45,6 +45,7 @@ import HumanJobWorkspace from './components/HumanJobWorkspace';
 import CreditHistory from './components/CreditHistory';
 import TraineeDashboard from './components/TraineeDashboard';
 import TraineeSignup from './components/TraineeSignup';
+import TypingPractice from './components/TypingPractice';
 import NotificationsCenter, { NotificationAlert } from './components/NotificationsCenter';
 import { isPaidAIUser } from './aiAccess';
 import { db } from './firebase';
@@ -852,9 +853,9 @@ function AppContent() {
     const isKoraCallback = koraState !== '';
     const isTraineeCallback = urlParams.get('trainee') === '1';
 
-    // A new trainee has no Firebase account yet. TraineeSignup verifies the
-    // public payment callback and only creates the account afterward.
-    if (isTraineeCallback && !currentUser) return;
+    // TraineeSignup owns the paid enrollment flow for new and existing users,
+    // including the required M-Pesa details before Training Room access.
+    if (isTraineeCallback) return;
     
     // Only proceed if there's a reference/success status AND we're not already verifying
     if ((reference || ['success', 'failed', 'cancelled'].includes(paymentStatus) || isKoraCallback) && !isVerifyingPayment) {
@@ -2180,6 +2181,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/refund-policy" element={<RefundPolicy />} />
         <Route path="/faq" element={<Faq />} />
+        <Route path="/typing-practice" element={<TypingPractice />} />
         <Route path="/trainee-signup" element={<TraineeSignup />} />
         <Route path="*" element={<Landing />} />
       </Routes>
@@ -2192,6 +2194,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   if (traineePaymentPending) {
     return (
       <Routes>
+        <Route path="/typing-practice" element={<TypingPractice />} />
         <Route path="*" element={<TraineeSignup />} />
       </Routes>
     );
@@ -2205,6 +2208,7 @@ return (
     <Route path="/terms" element={<TermsOfService />} />
     <Route path="/refund-policy" element={<RefundPolicy />} />
     <Route path="/faq" element={<Faq />} />
+    <Route path="/typing-practice" element={<TypingPractice />} />
     <Route path="/trainee-signup" element={<TraineeSignup />} />
     <Route path="/dashboard" element={<><Dashboard setCurrentView={setCurrentView} standalone /><FloatingWhatsApp /></>} />
     <Route path="/admin" element={isAdmin ? <><AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} /><FloatingWhatsApp /></> : <Navigate to="/" />} />
