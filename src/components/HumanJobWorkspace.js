@@ -50,7 +50,7 @@ const adminQueueLaneFor = (job) => {
   return 'needs_action';
 };
 
-export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', restricted = false }) {
+export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', onInitialJobHandled, restricted = false }) {
   const { currentUser } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [workers, setWorkers] = useState([]);
@@ -69,13 +69,12 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [audioUrl, setAudioUrl] = useState('');
-  // Admin is the only role that can see both sides of a job, and even admin
-  // sees them as two separate conversations, never merged: one with the
-  // client, one with the assigned worker. A client or worker never chooses
-  // this; the server decides their thread from their role regardless of
-  // what this is set to.
-  const [adminThread, setAdminThread] = useState('client');
+  // Job-specific conversation access is admin/worker only. Client questions
+  // use the separate direct-message channel.
   const [workerTab, setWorkerTab] = useState('available');
+  const [workerBoardInfo, setWorkerBoardInfo] = useState({ canView: true, canClaim: true, activeAssignment: false, blockReason: '' });
+  const [starterWorker, setStarterWorker] = useState('');
+  const [starterSegment, setStarterSegment] = useState('');
   const [paymentHistory, setPaymentHistory] = useState(null);
   const [adminTab, setAdminTab] = useState('queue');
   const [adminQueueLane, setAdminQueueLane] = useState('needs_action');
@@ -85,6 +84,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [workerRatingSummary, setWorkerRatingSummary] = useState({ average: null, count: 0 });
   const draftAssignmentKeyRef = useRef('');
   const lastSyncErrorAtRef = useRef(0);
+  const jobsRequestIdRef = useRef(0);
+  const handledInitialJobIdRef = useRef('');
 
   // The server tells us how many seconds are left as of the last refresh;
   // this just ticks the display down between refreshes so it never looks
@@ -108,6 +109,10 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const selectedJob = useMemo(() => jobsForCurrentView.find((job) => job.id === selectedId) || jobsForCurrentView[0] || null, [jobsForCurrentView, selectedId]);
   const workerAssignment = selectedJob?.worker_assignment || null;
   const workerAssignmentActive = mode === 'worker' && ['assigned', 'in_progress'].includes(workerAssignment?.status);
+  const jobHasAssignedWorker = Boolean(selectedJob && (
+    selectedJob.worker_uid || selectedJob.proofreader_uid || (selectedJob.assigned_worker_uids || []).length
+    || (selectedJob.segments || []).some((part) => part?.worker_uid)
+  ));
   const splitJob = ['dual', 'multi'].includes(String(selectedJob?.split_mode || '').toLowerCase());
   const draftAssignmentKey = selectedJob?.id
     ? `${selectedJob.id}:${mode === 'worker' ? `${workerAssignment?.role || 'unassigned'}:${workerAssignment?.id || ''}` : 'admin'}`
@@ -132,21 +137,31 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   }, [token]);
 
   const loadJobs = useCallback(async () => {
+    const requestId = jobsRequestIdRef.current + 1;
+    jobsRequestIdRef.current = requestId;
     try {
       const scope = mode === 'admin' ? 'admin' : mode === 'worker' ? (workerTab === 'available' ? 'available' : workerTab === 'finished' ? 'finished' : 'assigned') : 'mine';
       const payload = await request(`/human-transcription/jobs?scope=${scope}`);
-      const nextJobs = payload.jobs || [];
-      setJobs(nextJobs);
-      if (mode === 'worker' && payload.worker_rating_summary) setWorkerRatingSummary(payload.worker_rating_summary);
+      if (requestId !== jobsRequestIdRef.current) return;
+      setJobs(payload.jobs || []);
+      if (mode === 'worker') {
+        if (payload.worker_rating_summary) setWorkerRatingSummary(payload.worker_rating_summary);
+        setWorkerBoardInfo({
+          canView: payload.worker_can_view_available !== false,
+          canClaim: payload.worker_can_claim === true,
+          activeAssignment: payload.worker_active_assignment === true,
+          blockReason: payload.worker_claim_block_reason || '',
+        });
+      }
       setJobsFetchedAt(Date.now());
       lastSyncErrorAtRef.current = 0;
     } catch (error) {
-      if (Date.now() - lastSyncErrorAtRef.current > 30000) {
+      if (requestId === jobsRequestIdRef.current && Date.now() - lastSyncErrorAtRef.current > 30000) {
         lastSyncErrorAtRef.current = Date.now();
         showMessage?.(error.message, 'error');
       }
     } finally {
-      setLoading(false);
+      if (requestId === jobsRequestIdRef.current) setLoading(false);
     }
   }, [mode, request, showMessage, workerTab]);
 
@@ -199,32 +214,54 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   };
 
   const loadMessages = useCallback(async () => {
-    if (!selectedJob?.id || (mode === 'worker' && workerTab === 'available')) return;
+    if (mode === 'client' || !selectedJob?.id || (mode === 'worker' && workerTab === 'available')) {
+      setMessages([]);
+      return;
+    }
+    if (mode === 'admin' && !jobHasAssignedWorker) {
+      setMessages([]);
+      return;
+    }
     try {
-      const query = mode === 'admin' ? `?thread=${adminThread}` : '';
+      const query = mode === 'admin' ? '?thread=worker' : '';
       const payload = await request(`/human-transcription/jobs/${selectedJob.id}/messages${query}`);
       setMessages(payload.messages || []);
     } catch (error) {
       // A quiet refresh failure should not interrupt editing.
       console.warn('Human chat refresh failed:', error);
     }
-  }, [request, selectedJob?.id, mode, adminThread, workerTab]);
+  }, [request, selectedJob?.id, mode, workerTab, jobHasAssignedWorker]);
 
   useEffect(() => { loadJobs(); loadWorkers(); loadPayments(); loadAvailability(); }, [loadJobs, loadWorkers, loadPayments, loadAvailability]);
   useEffect(() => {
-    if (mode === 'worker' && initialJobId) setWorkerTab('in_progress');
-    const requestedJob = initialJobId ? jobs.find((job) => job.id === initialJobId) : null;
-    if (requestedJob) {
-      setSelectedId(requestedJob.id);
-      if (mode === 'admin') setAdminQueueLane(adminQueueLaneFor(requestedJob));
-    } else if (!selectedId && jobs[0]?.id) setSelectedId(jobs[0].id);
+    if (!initialJobId) {
+      handledInitialJobIdRef.current = '';
+    } else if (handledInitialJobIdRef.current !== initialJobId) {
+      if (mode === 'worker') {
+        handledInitialJobIdRef.current = initialJobId;
+        setWorkerTab('in_progress');
+        setSelectedId(initialJobId);
+        onInitialJobHandled?.();
+      } else {
+        const requestedJob = jobs.find((job) => job.id === initialJobId);
+        if (requestedJob) {
+          handledInitialJobIdRef.current = initialJobId;
+          setSelectedId(requestedJob.id);
+          if (mode === 'admin') setAdminQueueLane(adminQueueLaneFor(requestedJob));
+          onInitialJobHandled?.();
+        }
+      }
+    }
+    if (!initialJobId && !selectedId && jobs[0]?.id) setSelectedId(jobs[0].id);
     if (selectedJob && draftAssignmentKeyRef.current !== draftAssignmentKey) {
       draftAssignmentKeyRef.current = draftAssignmentKey;
       setEditorText(selectedJob.transcript || '');
       setProofreaderWorker(selectedJob.proofreader_uid || '');
+      setStarterWorker('');
+      setStarterSegment('');
       setFinalAttachment(null);
     }
-  }, [initialJobId, jobs, mode, selectedId, selectedJob, draftAssignmentKey]);
+  }, [initialJobId, jobs, mode, selectedId, selectedJob, draftAssignmentKey, onInitialJobHandled]);
 
   useEffect(() => {
     let objectUrl = '';
@@ -279,15 +316,17 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     return Math.max(0, job.time_remaining_seconds - elapsed);
   };
 
-  const act = async (path, options = {}) => {
+  const act = async (path, options = {}, successMessage = 'Saved.') => {
     setBusy(true);
     try {
       await request(path, options);
       await loadJobs();
       await loadMessages();
-      showMessage?.('Saved.', 'success');
+      showMessage?.(successMessage, 'success');
+      return true;
     } catch (error) {
       showMessage?.(error.message, 'error');
+      return false;
     } finally { setBusy(false); }
   };
 
@@ -312,7 +351,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     if (!selectedJob || busy || (!messageText.trim() && !messageFile)) return;
     const form = new FormData();
     form.append('message', messageText.trim());
-    if (mode === 'admin') form.append('thread', adminThread);
+    if (mode === 'admin') form.append('thread', 'worker');
     if (messageFile) form.append('attachment', messageFile);
     setBusy(true);
     try {
@@ -334,7 +373,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     if (!busy && (messageText.trim() || messageFile)) event.currentTarget.form?.requestSubmit();
   };
 
-  const submitWorker = () => {
+  const submitWorker = async () => {
     const form = new FormData();
     form.append('transcript', editorText);
     form.append('notes', feedback);
@@ -342,7 +381,12 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     // into the shared editor. The server accepts either real transcript
     // text or this attachment, as long as at least one is present.
     if (finalAttachment) form.append('attachment', finalAttachment);
-    return act(`/human-transcription/jobs/${selectedJob.id}/submit`, { method: 'POST', body: form });
+    const saved = await act(
+      `/human-transcription/jobs/${selectedJob.id}/submit`,
+      { method: 'POST', body: form },
+      'Submitted for review. Loading the Available Jobs board…',
+    );
+    if (saved) setWorkerTab('available');
   };
 
   const claimWork = async (segmentId = '') => {
@@ -366,6 +410,26 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const workerPayload = (uid) => {
     const worker = workers.find((item) => item.uid === uid);
     return worker ? { worker_uid: worker.uid, worker_email: worker.email, worker_name: worker.name } : null;
+  };
+
+  const assignSupervisedStarter = async () => {
+    const worker = workerPayload(starterWorker);
+    if (!worker) return showMessage?.('Choose an approved worker for the supervised starter assignment.', 'error');
+    if (splitJob && !starterSegment) return showMessage?.('Choose an available part for the supervised starter assignment.', 'error');
+    const saved = await act(
+      `/human-transcription/jobs/${selectedJob.id}/assign`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...worker, supervised_starter: true, segment_id: starterSegment }),
+      },
+      'Supervised starter assignment created.',
+    );
+    if (saved) {
+      setStarterWorker('');
+      setStarterSegment('');
+      setAdminQueueLane('in_progress');
+    }
   };
 
   const assignProofreader = () => {
@@ -445,8 +509,15 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           </div>
           <div className="tm-worker-rating-copy">
             <span>{workerRatingSummary.count ? `${workerRatingSummary.count} rating${workerRatingSummary.count === 1 ? '' : 's'} submitted` : 'No ratings submitted yet'}</span>
-            <small>{workerRatingSummary.count ? 'Average across every rating recorded for your completed work.' : 'Your average will appear here after an admin rates completed work.'}</small>
+            <small>{workerRatingSummary.count ? 'Ratings reflect completed jobs or periodic reviews. A 3.5/5 average is required to see Available Jobs.' : 'An admin must assign your supervised starter assessment. A 3.5/5 average is required before the public job board opens.'}</small>
           </div>
+        </div>
+      )}
+
+      {mode === 'worker' && (
+        <div className="tm-worker-policy-note" role="note">
+          <strong>How hired work must be prepared</strong>
+          <span>Once hired, keep enough TypeMyworDz credits to create each AI draft in the app. Edit it in Microsoft Word, then attach the finished Word document to your submission. Work without an in-app AI draft may be declined.</span>
         </div>
       )}
 
@@ -507,6 +578,12 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <option value="ai_proofreading">AI transcript proofreading</option>
             </select>
           </label>
+        </div>
+      )}
+      {mode === 'worker' && workerTab === 'available' && workerBoardInfo.blockReason && (
+        <div className="tm-worker-board-notice" role="status">
+          <strong>{workerBoardInfo.canView ? 'New claims are paused' : 'Available Jobs are not open yet'}</strong>
+          <span>{workerBoardInfo.blockReason} Payment History and Finished Jobs remain available.</span>
         </div>
       )}
       <div className="tm-human-workspace-grid">
@@ -583,7 +660,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               return (
                 <div className={`tm-tat-timer${urgent ? ' tm-tat-timer-urgent' : ''}`}>
                   <div><strong>{remaining <= 0 ? 'Time is up' : formatCountdown(remaining)}</strong><span>{workerAssignment.role === 'proofreader' ? 'left to finish proofreading' : 'left to submit your part'}</span></div>
-                  <p className="tm-tat-hint">Tip: a quicker typing pace means faster turnarounds and more jobs you can take on. <a href="/typing-practice">Practice touch typing</a></p>
+                  <p className="tm-tat-hint">Tip: a quicker typing pace means faster turnarounds and more jobs you can take on. <a href="/typing-practice" target="_blank" rel="noopener noreferrer">Practice touch typing</a></p>
                 </div>
               );
             })()}
@@ -597,12 +674,37 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <p className="tm-tat-reassigned-note">This job was automatically returned from {selectedJob.last_auto_reassigned_worker_name} after the deadline passed. It is available on the workers’ claim board again; the next deadline starts when claimed.</p>
             )}
 
-            {mode === 'admin' && !splitJob && selectedJob.status === 'approved' && <div className="tm-human-assign"><strong>Available to workers</strong><p>Approved workers who are marked available can claim this job from the Available Jobs board. The deadline starts when a worker claims it. You can still take back active work or extend its deadline if needed.</p></div>}
+            {mode === 'admin' && !splitJob && selectedJob.status === 'approved' && <div className="tm-human-assign">
+              <strong>Available to workers</strong>
+              <p>Approved workers who meet the 3.5/5 rating standard can claim this job from the Available Jobs board. The deadline starts when they claim it.</p>
+              <label>Supervised starter assessment
+                <select value={starterWorker} onChange={(event) => setStarterWorker(event.target.value)}>
+                  <option value="">Choose an unrated or below-threshold worker</option>
+                  {workers.filter((worker) => worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}
+                </select>
+              </label>
+              <button type="button" disabled={busy || !starterWorker} onClick={assignSupervisedStarter}>Assign supervised starter</button>
+              <p className="tm-tat-hint">Use this admin-supervised exception to assess a new hire or review a worker below 3.5. The public claim board remains restricted.</p>
+            </div>}
 
             {mode === 'admin' && splitJob && (selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status)) && (
               <div className="tm-human-assign">
                 <strong>Parts are open to claim</strong>
-                <p>These slices are listed on the workers’ Available Jobs board. A worker’s deadline begins when they claim a slice; you can take back an active part or add time below.</p>
+                <p>Workers who meet the 3.5/5 rating standard can claim these slices from the Available Jobs board. A worker’s deadline begins when they claim a slice; you can take back active work or add time below.</p>
+                <label>Supervised starter part
+                  <select value={starterSegment} onChange={(event) => setStarterSegment(event.target.value)}>
+                    <option value="">Choose an available part</option>
+                    {(selectedJob.segments || []).filter((part) => ['available', 'approved'].includes(part.status)).map((part) => <option key={part.id} value={part.id}>{part.label || 'Available part'}</option>)}
+                  </select>
+                </label>
+                <label>Worker
+                  <select value={starterWorker} onChange={(event) => setStarterWorker(event.target.value)}>
+                    <option value="">Choose an unrated or below-threshold worker</option>
+                    {workers.filter((worker) => worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}
+                  </select>
+                </label>
+                <button type="button" disabled={busy || !starterWorker || !starterSegment} onClick={assignSupervisedStarter}>Assign supervised starter part</button>
+                <p className="tm-tat-hint">Use this admin-supervised exception to assess a new hire or review a worker below 3.5. Rated workers should use the public claim board.</p>
               </div>
             )}
 
@@ -647,27 +749,29 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             </div>
             )}
 
-            {!(mode === 'worker' && workerTab === 'available') && <div className="tm-human-chat-card">
+            {mode === 'client' && <div className="tm-human-chat-card tm-human-client-conversation-note" role="note">
+              <strong>Need help with this job?</strong>
+              <p>Job conversations are reserved for the TypeMyworDz team and assigned workers. To contact us about your request, send a direct message from Notifications.</p>
+            </div>}
+            {mode !== 'client' && !(mode === 'worker' && workerTab === 'available') && <div className="tm-human-chat-card">
               <div className="tm-human-chat-head">
-                <div><strong>Conversation</strong><span>{mode === 'admin' ? 'Two separate threads: the worker never sees the client, and the client never sees the worker.' : mode === 'worker' ? 'You and TypeMyworDz admin only. The client is never part of this thread.' : 'You and TypeMyworDz admin only. The worker is never part of this thread.'}</span></div>
+                <div><strong>Worker conversation</strong><span>{mode === 'admin' ? 'Admins and assigned workers only. Contact clients separately.' : 'You and the TypeMyworDz admin team. Clients are never part of this thread.'}</span></div>
                 <span className="tm-human-live-dot">Live</span>
               </div>
-              {mode === 'admin' && (
-                <div className="tm-human-thread-tabs" role="tablist" aria-label="Choose which conversation to view">
-                  <button type="button" role="tab" aria-selected={adminThread === 'client'} className={adminThread === 'client' ? 'active' : ''} onClick={() => setAdminThread('client')}>Message client</button>
-                  <button type="button" role="tab" aria-selected={adminThread === 'worker'} className={adminThread === 'worker' ? 'active' : ''} disabled={!selectedJob.worker_uid} title={selectedJob.worker_uid ? '' : 'Assign a worker first'} onClick={() => setAdminThread('worker')}>Message worker</button>
-                </div>
-              )}
-              <div className="tm-human-messages">{messages.map((item) => {
-                const isMine = item.sender_uid === currentUser?.uid;
-                const label = item.sender_role === 'admin' ? 'TypeMyworDz admin' : isMine ? 'You' : item.sender_role === 'worker' ? 'Worker' : 'Client';
-                return <article key={item.id} className="tm-human-message"><div><strong>{label}</strong><time>{moneylessDate(item.createdAt)}</time></div>{isMine && <span className={`tm-human-message-receipt${item.read_by_role ? ' is-read' : ''}`}>{item.read_by_role ? `Read by ${item.read_by_role}` : 'Not read yet'}</span>}{item.message && <p>{item.message}</p>}{item.attachment && <button type="button" className="tm-human-attachment-link" onClick={() => downloadAttachment(item)}>Download: {item.attachment.name}</button>}</article>;
-              })}{!messages.length && <div className="tm-human-empty">No messages yet. Keep the job conversation here so nobody has to move to another app.</div>}</div>
-              <form className="tm-human-message-form" onSubmit={sendMessage}>
-                <textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} onKeyDown={handleMessageKeyDown} placeholder="Write to the people on this job" rows={2} aria-label="Job conversation message" />
-                {messageFile && <div className="tm-human-attachment-preview" role="status" aria-live="polite"><span><strong>Attached:</strong> {messageFile.name}{formatAttachmentSize(messageFile.size) ? ` · ${formatAttachmentSize(messageFile.size)}` : ''}</span><button type="button" onClick={() => setMessageFile(null)} aria-label={`Remove ${messageFile.name}`}>Remove</button></div>}
-                <div className="tm-human-message-actions"><label className="tm-human-attach" title="Attach any file" aria-label="Attach any file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 3.5h8l3 3V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M15 3.5V7h3M9 11h6M9 15h6"/></svg><input type="file" onChange={(event) => setMessageFile(event.target.files?.[0] || null)} /></label><span className="tm-human-message-hint">Enter to send · Shift+Enter for a new line</span><button type="submit" disabled={busy || (!messageText.trim() && !messageFile)}>Send</button></div>
-              </form>
+              {mode === 'admin' && !jobHasAssignedWorker ? (
+                <div className="tm-human-empty">The worker conversation opens after an approved worker claims a job or part.</div>
+              ) : <>
+                <div className="tm-human-messages">{messages.map((item) => {
+                  const isMine = item.sender_uid === currentUser?.uid;
+                  const label = item.sender_role === 'admin' ? 'TypeMyworDz admin' : isMine ? 'You' : 'Assigned worker';
+                  return <article key={item.id} className="tm-human-message"><div><strong>{label}</strong><time>{moneylessDate(item.createdAt)}</time></div>{isMine && <span className={`tm-human-message-receipt${item.read_by_role ? ' is-read' : ''}`}>{item.read_by_role ? `Read by ${item.read_by_role}` : 'Not read yet'}</span>}{item.message && <p>{item.message}</p>}{item.attachment && <button type="button" className="tm-human-attachment-link" onClick={() => downloadAttachment(item)}>Download: {item.attachment.name}</button>}</article>;
+                })}{!messages.length && <div className="tm-human-empty">No messages yet. Use this thread for job details between admins and assigned workers.</div>}</div>
+                <form className="tm-human-message-form" onSubmit={sendMessage}>
+                  <textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} onKeyDown={handleMessageKeyDown} placeholder={mode === 'admin' ? 'Write to the assigned worker or workers' : 'Write to the TypeMyworDz admin team'} rows={2} aria-label="Job conversation message" />
+                  {messageFile && <div className="tm-human-attachment-preview" role="status" aria-live="polite"><span><strong>Attached:</strong> {messageFile.name}{formatAttachmentSize(messageFile.size) ? ` · ${formatAttachmentSize(messageFile.size)}` : ''}</span><button type="button" onClick={() => setMessageFile(null)} aria-label={`Remove ${messageFile.name}`}>Remove</button></div>}
+                  <div className="tm-human-message-actions"><label className="tm-human-attach" title="Attach any file" aria-label="Attach any file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 3.5h8l3 3V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M15 3.5V7h3M9 11h6M9 15h6"/></svg><input type="file" onChange={(event) => setMessageFile(event.target.files?.[0] || null)} /></label><span className="tm-human-message-hint">Enter to send · Shift+Enter for a new line</span><button type="submit" disabled={busy || (!messageText.trim() && !messageFile)}>Send</button></div>
+                </form>
+              </>}
             </div>}
           </>}
         </div>

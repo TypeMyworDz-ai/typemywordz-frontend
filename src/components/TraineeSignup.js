@@ -245,7 +245,7 @@ export default function TraineeSignup() {
           <div className="tm-trainee-test-gate">
             <p><strong>First, check your typing speed.</strong> Pass a 30-second test at 50 WPM or faster to continue to the application and checkout.</p>
             <TypingSpeedTest compact onPass={({ correctCharacters, seconds, wpm }) => { const result = { correct_chars: correctCharacters, elapsed_ms: seconds * 1000, wpm }; setTypingPassed(true); setTypingTestResult(result); writeSession(TEST_PASSED_KEY, { passed: true, result, recordedAt: Date.now() }); setNotice('Typing requirement met. Your enrollment details are now available below.'); }} />
-            <p className="tm-trainee-practice-link">Want to warm up first? <Link to="/typing-practice">Try the free typing lessons</Link>.</p>
+            <p className="tm-trainee-practice-link">Want to warm up first? <Link to="/typing-practice" target="_blank" rel="noopener noreferrer">Try the free typing lessons</Link>.</p>
           </div>
         )}
         {typingPassed && !paymentConfirmed && (
@@ -260,7 +260,7 @@ export default function TraineeSignup() {
             <label className="tm-trainee-check"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} disabled={busy} /> <span>I confirm that this is my official ID name.</span></label>
             <div className="tm-trainee-fee-disclosure">
               <strong>About the one-time fee</strong>
-              <p>The $1 fee covers collecting and confirming the M-Pesa payout details you provide for future payments if you are hired. The fee is non-refundable once Training Room access is provided, subject to applicable law and our <Link to="/refund-policy">Refund Policy</Link> for service failures.</p>
+              <p>The $1 fee covers collecting and confirming the M-Pesa payout details you provide for future payments if you are hired. The fee is non-refundable once Training Room access is provided, subject to applicable law and our <Link to="/refund-policy" target="_blank" rel="noopener noreferrer">Refund Policy</Link> for service failures.</p>
               <p>We check the Kenyan phone-number format only; we do not verify details through Safaricom. Make sure the name and number you provide after payment are registered to your M-Pesa account.</p>
             </div>
             <label className="tm-trainee-check"><input type="checkbox" checked={feeAcknowledged} onChange={(e) => setFeeAcknowledged(e.target.checked)} disabled={busy} /> <span>I understand the one-time fee and M-Pesa details requirements.</span></label>

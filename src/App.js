@@ -2609,11 +2609,11 @@ return (
             showMessage={showMessage}
           />
         ) : currentView === 'human_worker' ? (
-          <HumanJobWorkspace mode="worker" initialJobId={selectedHumanJobId} initialSegmentId={selectedHumanSegmentId} onBack={() => setCurrentView('transcribe')} showMessage={showMessage} />
+          <HumanJobWorkspace mode="worker" initialJobId={selectedHumanJobId} initialSegmentId={selectedHumanSegmentId} onInitialJobHandled={() => { setSelectedHumanJobId(''); setSelectedHumanSegmentId(''); }} onBack={() => setCurrentView('transcribe')} showMessage={showMessage} />
         ) : currentView === 'human_ops' ? (
-          <HumanJobWorkspace mode="admin" initialJobId={selectedHumanJobId} initialSegmentId={selectedHumanSegmentId} restricted={!isAdmin} onBack={() => setCurrentView('transcribe')} showMessage={showMessage} />
+          <HumanJobWorkspace mode="admin" initialJobId={selectedHumanJobId} initialSegmentId={selectedHumanSegmentId} onInitialJobHandled={() => { setSelectedHumanJobId(''); setSelectedHumanSegmentId(''); }} restricted={!isAdmin} onBack={() => setCurrentView('transcribe')} showMessage={showMessage} />
         ) : currentView === 'human_job' ? (
-          <HumanJobWorkspace mode="client" initialJobId={selectedHumanJobId} initialSegmentId={selectedHumanSegmentId} onBack={() => setCurrentView('dashboard')} showMessage={showMessage} />
+          <HumanJobWorkspace mode="client" initialJobId={selectedHumanJobId} initialSegmentId={selectedHumanSegmentId} onInitialJobHandled={() => { setSelectedHumanJobId(''); setSelectedHumanSegmentId(''); }} onBack={() => setCurrentView('dashboard')} showMessage={showMessage} />
         ) : currentView === 'pricing' ? (
           <Pricing
             mode="plans"

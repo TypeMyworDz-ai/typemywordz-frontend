@@ -158,7 +158,7 @@ const Login = () => {
     : mode === 'reset' ? 'Reset your password'
       : 'Sign in';
 
-  const blurb = mode === 'signup' ? '5 free credits, worth up to 5 transcription minutes. No card needed.'
+  const blurb = mode === 'signup' ? '30 free credits, worth up to 30 transcription minutes. No card needed.'
     : mode === 'reset' ? 'We will email you a link to set a new password.'
       : 'Welcome back.';
 
