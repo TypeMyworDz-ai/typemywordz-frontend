@@ -127,7 +127,7 @@ const Landing = () => {
           <div className="menu-item" onClick={go('assistant')}>
             <span className="menu-text">Ask TypeMyworDz</span>
           </div>
-          <Link className="menu-item" to="/typing-practice">
+          <Link className="menu-item" to="/typing-practice" target="_blank" rel="noopener noreferrer">
             <span className="menu-text">Free typing practice</span>
           </Link>
           <div className="menu-item" onClick={go('how')}>
@@ -221,7 +221,7 @@ const Landing = () => {
             <span>Click here</span>
           </Link>
           <p className="tm-lp-freenote">
-            <strong>5 free credits</strong> when you sign up, worth up to 5 minutes of transcription. No card, no automatic charges.
+            <strong>30 free credits</strong> when you sign up, worth up to 30 minutes of transcription. No card, no automatic charges.
           </p>
         </div>
       </section>
@@ -253,7 +253,7 @@ const Landing = () => {
             <p className="tm-lp-eyebrow">Free tool · open to everyone</p>
             <h2>Practise the skill behind every transcript.</h2>
             <p className="tm-lp-sub">Learn touch typing with guided home-row lessons, short drills and a 30-second speed test. No sign-up is needed to practise.</p>
-            <Link className="tm-lp-typing-link" to="/typing-practice">Open typing practice</Link>
+            <Link className="tm-lp-typing-link" to="/typing-practice" target="_blank" rel="noopener noreferrer">Open typing practice</Link>
           </div>
           <div className="tm-lp-home-row" aria-label="Home row keyboard keys">
             <span>A</span><span>S</span><span>D</span><span className="is-anchor">F</span><span>J</span><span className="is-anchor">K</span><span>L</span><span>;</span>
@@ -378,7 +378,7 @@ const Landing = () => {
           </p>
           <table className="tm-lp-plans">
             <tbody>
-              <tr><td>Free trial</td><td>5 credits (up to 5 transcription minutes), once, no card</td></tr>
+              <tr><td>Free trial</td><td>30 credits (up to 30 transcription minutes), once, no card</td></tr>
               <tr><td>One-Day Plan</td><td>1 day, 4 hours of transcription included</td></tr>
               <tr><td>Three-Day Plan</td><td>3 days, 8 hours of transcription included</td></tr>
               <tr><td>One-Week Plan</td><td>7 days, 15 hours of transcription included</td></tr>
@@ -408,7 +408,7 @@ const Landing = () => {
         <div className="tm-lp-inner tm-lp-narrow">
           <h2>Try it on a real recording</h2>
           <p>
-            Start with 5 free credits, upload a short recording, and judge the result on your own work.
+            Start with 30 free credits, upload a short recording, and judge the result on your own work.
           </p>
           <button className="tm-lp-cta-btn" onClick={go('top')}>
             Get started

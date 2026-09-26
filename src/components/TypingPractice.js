@@ -32,7 +32,7 @@ export default function TypingPractice() {
           <img src="/android-chrome-192x192.png" alt="" />
           <span><b><i>Type</i><em>My</em><i>worDz</i></b><small>Typing practice</small></span>
         </Link>
-        <nav aria-label="Typing practice links"><Link to="/">Home</Link><Link to="/trainee-signup">Transcriber training</Link></nav>
+        <nav aria-label="Typing practice links"><Link to="/" target="_blank" rel="noopener noreferrer">Home</Link><Link to="/trainee-signup" target="_blank" rel="noopener noreferrer">Transcriber training</Link></nav>
       </header>
 
       <section className="tm-typing-hero">
@@ -91,7 +91,7 @@ export default function TypingPractice() {
         {showTest && <TypingSpeedTest compact />}
       </section>
 
-      <footer className="tm-typing-footer"><span>TypeMyworDz · Free typing practice</span><Link to="/">Try transcription with 5 free credits</Link><Link to="/trainee-signup">Interested in transcription training?</Link></footer>
+      <footer className="tm-typing-footer"><span>TypeMyworDz · Free typing practice</span><Link to="/" target="_blank" rel="noopener noreferrer">Try transcription with 30 free credits</Link><Link to="/trainee-signup" target="_blank" rel="noopener noreferrer">Interested in transcription training?</Link></footer>
     </main>
   );
 }
