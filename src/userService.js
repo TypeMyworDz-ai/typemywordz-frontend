@@ -8,7 +8,7 @@ import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getD
 // figure for the rare case the browser cannot reach the credit balance
 // endpoint at all; the server-issued balance is always the real source of
 // truth for how many free minutes an account actually has left.
-export const FREE_TRIAL_MINUTES = 30;
+export const FREE_TRIAL_MINUTES = 5;
 
 // How much transcription each paid plan includes, in minutes.
 //

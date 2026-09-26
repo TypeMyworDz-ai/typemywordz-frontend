@@ -7,7 +7,7 @@ const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backen
 const STATUS_LABELS = {
   pending_admin: 'Waiting for admin', approved: 'Approved', assigned: 'Assigned', in_progress: 'In progress',
   submitted: 'Submitted for review', client_review: 'Waiting for client', client_approved: 'Client approved',
-  released: 'Released', cancelled: 'Cancelled', split_assigned: 'Parts assigned', split_in_progress: 'Parts in progress', proofreading_available: 'Ready for proofreading', proofreading_assigned: 'Proofreading assigned', proofreading_in_progress: 'Proofreading in progress'
+  released: 'Released', cancelled: 'Cancelled', split_assigned: 'Available to claim', split_in_progress: 'Parts in progress', available: 'Available to claim', proofreading_available: 'Ready for proofreading', proofreading_assigned: 'Proofreading assigned', proofreading_in_progress: 'Proofreading in progress'
 };
 
 const moneylessDate = (value) => {
@@ -50,7 +50,7 @@ const adminQueueLaneFor = (job) => {
   return 'needs_action';
 };
 
-export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', initialSegmentId = '', restricted = false }) {
+export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', restricted = false }) {
   const { currentUser } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [workers, setWorkers] = useState([]);
@@ -62,11 +62,9 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [editorText, setEditorText] = useState('');
   const [feedback, setFeedback] = useState('');
   const [rating, setRating] = useState('5');
-  const [selectedWorker, setSelectedWorker] = useState('');
-  const [secondWorker, setSecondWorker] = useState('');
   const [proofreaderWorker, setProofreaderWorker] = useState('');
-  const [assignmentMode, setAssignmentMode] = useState('single');
-  const [selectedSegmentId, setSelectedSegmentId] = useState('');
+  const [workerAvailable, setWorkerAvailable] = useState(true);
+  const [availabilitySaving, setAvailabilitySaving] = useState(false);
   const [extensionMinutes, setExtensionMinutes] = useState('5');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -77,7 +75,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   // this; the server decides their thread from their role regardless of
   // what this is set to.
   const [adminThread, setAdminThread] = useState('client');
-  const [workerTab, setWorkerTab] = useState('in_progress');
+  const [workerTab, setWorkerTab] = useState('available');
   const [paymentHistory, setPaymentHistory] = useState(null);
   const [adminTab, setAdminTab] = useState('queue');
   const [adminQueueLane, setAdminQueueLane] = useState('needs_action');
@@ -110,7 +108,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const selectedJob = useMemo(() => jobsForCurrentView.find((job) => job.id === selectedId) || jobsForCurrentView[0] || null, [jobsForCurrentView, selectedId]);
   const workerAssignment = selectedJob?.worker_assignment || null;
   const workerAssignmentActive = mode === 'worker' && ['assigned', 'in_progress'].includes(workerAssignment?.status);
-  const splitJob = selectedJob?.split_mode === 'dual';
+  const splitJob = ['dual', 'multi'].includes(String(selectedJob?.split_mode || '').toLowerCase());
   const draftAssignmentKey = selectedJob?.id
     ? `${selectedJob.id}:${mode === 'worker' ? `${workerAssignment?.role || 'unassigned'}:${workerAssignment?.id || ''}` : 'admin'}`
     : '';
@@ -135,11 +133,11 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
   const loadJobs = useCallback(async () => {
     try {
-      const scope = mode === 'admin' ? 'admin' : mode === 'worker' ? (workerTab === 'finished' ? 'finished' : 'assigned') : 'mine';
+      const scope = mode === 'admin' ? 'admin' : mode === 'worker' ? (workerTab === 'available' ? 'available' : workerTab === 'finished' ? 'finished' : 'assigned') : 'mine';
       const payload = await request(`/human-transcription/jobs?scope=${scope}`);
       const nextJobs = payload.jobs || [];
       setJobs(nextJobs);
-      if (mode === 'worker') setWorkerRatingSummary(payload.worker_rating_summary || { average: null, count: 0 });
+      if (mode === 'worker' && payload.worker_rating_summary) setWorkerRatingSummary(payload.worker_rating_summary);
       setJobsFetchedAt(Date.now());
       lastSyncErrorAtRef.current = 0;
     } catch (error) {
@@ -172,8 +170,36 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     }
   }, [mode, request, showMessage]);
 
+  const loadAvailability = useCallback(async () => {
+    if (mode !== 'worker') return;
+    try {
+      const payload = await request('/human-transcription/worker/availability');
+      setWorkerAvailable(payload.available !== false);
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+    }
+  }, [mode, request, showMessage]);
+
+  const updateWorkerAvailability = async (event) => {
+    const nextAvailable = event.target.checked;
+    setAvailabilitySaving(true);
+    try {
+      const payload = await request('/human-transcription/worker/availability', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ available: nextAvailable }),
+      });
+      setWorkerAvailable(payload.available !== false);
+      await loadJobs();
+      showMessage?.(nextAvailable ? 'You are available for new work.' : 'You will not receive new work until you turn availability back on.', 'success');
+    } catch (error) {
+      showMessage?.(error.message || 'Your availability could not be changed.', 'error');
+    } finally {
+      setAvailabilitySaving(false);
+    }
+  };
+
   const loadMessages = useCallback(async () => {
-    if (!selectedJob?.id) return;
+    if (!selectedJob?.id || (mode === 'worker' && workerTab === 'available')) return;
     try {
       const query = mode === 'admin' ? `?thread=${adminThread}` : '';
       const payload = await request(`/human-transcription/jobs/${selectedJob.id}/messages${query}`);
@@ -182,43 +208,28 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       // A quiet refresh failure should not interrupt editing.
       console.warn('Human chat refresh failed:', error);
     }
-  }, [request, selectedJob?.id, mode, adminThread]);
+  }, [request, selectedJob?.id, mode, adminThread, workerTab]);
 
-  useEffect(() => { loadJobs(); loadWorkers(); loadPayments(); }, [loadJobs, loadWorkers, loadPayments]);
+  useEffect(() => { loadJobs(); loadWorkers(); loadPayments(); loadAvailability(); }, [loadJobs, loadWorkers, loadPayments, loadAvailability]);
   useEffect(() => {
+    if (mode === 'worker' && initialJobId) setWorkerTab('in_progress');
     const requestedJob = initialJobId ? jobs.find((job) => job.id === initialJobId) : null;
     if (requestedJob) {
       setSelectedId(requestedJob.id);
       if (mode === 'admin') setAdminQueueLane(adminQueueLaneFor(requestedJob));
-      if (initialSegmentId && (requestedJob.segments || []).some((part) => part.id === initialSegmentId)) setSelectedSegmentId(initialSegmentId);
     } else if (!selectedId && jobs[0]?.id) setSelectedId(jobs[0].id);
     if (selectedJob && draftAssignmentKeyRef.current !== draftAssignmentKey) {
       draftAssignmentKeyRef.current = draftAssignmentKey;
       setEditorText(selectedJob.transcript || '');
-      setSelectedWorker(selectedJob.worker_uid || '');
-      setSecondWorker('');
       setProofreaderWorker(selectedJob.proofreader_uid || '');
-      setAssignmentMode(selectedJob.split_mode === 'dual' ? 'dual' : 'single');
-      setSelectedSegmentId(
-        initialSegmentId && (selectedJob.segments || []).some((part) => part.id === initialSegmentId)
-          ? initialSegmentId
-          : (selectedJob.segments || []).find((part) => ['available', 'approved'].includes(part.status))?.id || ''
-      );
       setFinalAttachment(null);
     }
-  }, [initialJobId, initialSegmentId, jobs, mode, selectedId, selectedJob, draftAssignmentKey]);
-  useEffect(() => {
-    if (mode !== 'admin' || !selectedJob || selectedJob.split_mode !== 'dual') return;
-    const available = (selectedJob.segments || []).find((part) => ['available', 'approved'].includes(part.status));
-    const selectedStillAvailable = (selectedJob.segments || []).some((part) => part.id === selectedSegmentId && ['available', 'approved'].includes(part.status));
-    if (available && !selectedStillAvailable) setSelectedSegmentId(available.id);
-    if (!available && selectedSegmentId) setSelectedSegmentId('');
-  }, [mode, selectedJob, selectedSegmentId]);
+  }, [initialJobId, jobs, mode, selectedId, selectedJob, draftAssignmentKey]);
 
   useEffect(() => {
     let objectUrl = '';
     (async () => {
-      if (!selectedJob?.id || !selectedJob.audio) { setAudioUrl(''); return; }
+      if (!selectedJob?.id || !selectedJob.audio || (mode === 'worker' && workerTab === 'available')) { setAudioUrl(''); return; }
       try {
         const idToken = await token();
         const segmentQuery = mode === 'worker' && workerAssignment?.role === 'transcriber' && workerAssignment?.id ? `?segment_id=${encodeURIComponent(workerAssignment.id)}` : '';
@@ -229,7 +240,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       } catch (error) { console.warn('Human source audio could not be loaded:', error); }
     })();
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [selectedJob?.id, selectedJob?.audio, token, mode, workerAssignment?.role, workerAssignment?.id]);
+  }, [selectedJob?.id, selectedJob?.audio, token, mode, workerTab, workerAssignment?.role, workerAssignment?.id]);
 
   // Keep using the server-filtered REST conversation endpoint: the backend
   // controls who can read the client and worker threads. Refresh promptly,
@@ -334,27 +345,27 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     return act(`/human-transcription/jobs/${selectedJob.id}/submit`, { method: 'POST', body: form });
   };
 
+  const claimWork = async (segmentId = '') => {
+    if (!selectedJob || busy || !selectedJob.can_claim) return;
+    setBusy(true);
+    try {
+      await request(`/human-transcription/jobs/${selectedJob.id}/claim`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(segmentId ? { segment_id: segmentId } : {}),
+      });
+      setWorkerTab('in_progress');
+      showMessage?.('Work claimed. Your deadline has started.', 'success');
+    } catch (error) {
+      showMessage?.(error.message || 'That work is no longer available.', 'error');
+      await loadJobs();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const workerPayload = (uid) => {
     const worker = workers.find((item) => item.uid === uid);
     return worker ? { worker_uid: worker.uid, worker_email: worker.email, worker_name: worker.name } : null;
-  };
-
-  const assignWork = () => {
-    if (assignmentMode === 'dual') {
-      const first = workerPayload(selectedWorker);
-      const second = workerPayload(secondWorker);
-      if (!first || !second) return showMessage?.('Choose two approved workers for the two parts.', 'error');
-      return act(`/human-transcription/jobs/${selectedJob.id}/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignment_mode: 'dual', workers: [first, second] }) });
-    }
-    const worker = workerPayload(selectedWorker);
-    if (!worker) return showMessage?.('Choose an approved worker first.', 'error');
-    return act(`/human-transcription/jobs/${selectedJob.id}/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(worker) });
-  };
-
-  const reassignPart = () => {
-    const worker = workerPayload(selectedWorker);
-    if (!worker || !selectedSegmentId) return showMessage?.('Choose a worker and a part to assign.', 'error');
-    return act(`/human-transcription/jobs/${selectedJob.id}/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...worker, segment_id: selectedSegmentId }) });
   };
 
   const assignProofreader = () => {
@@ -417,11 +428,12 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       <div className="tm-human-workspace-head">
         <div>
           {onBack && <button className="tm-human-back" type="button" onClick={onBack}>← Back to workspace</button>}
-          <p className="tm-human-eyebrow">{mode === 'admin' ? 'Operations' : mode === 'worker' ? 'Assigned work' : 'Human transcripts'}</p>
-          <h1>{mode === 'admin' ? 'Human work queue' : mode === 'worker' ? 'Your assigned work' : 'Your human-transcription work'}</h1>
-          <p>{mode === 'admin' ? 'Approve requests, assign the right worker, review delivery and release credits only after approval.' : mode === 'worker' ? 'Open an assignment, work in the shared editor, and send it back for review.' : 'Follow each request from quote to delivery. Credits remain untouched until the finished work is approved and released.'}</p>
+          <p className="tm-human-eyebrow">{mode === 'admin' ? 'Operations' : mode === 'worker' ? 'Work Room' : 'Human transcripts'}</p>
+          <h1>{mode === 'admin' ? 'Human work queue' : mode === 'worker' ? 'Your Work Room' : 'Your human-transcription work'}</h1>
+          <p>{mode === 'admin' ? 'Approve client requests, monitor worker claims, review delivery and release credits only after approval.' : mode === 'worker' ? 'Claim one available job or slice at a time, submit it, then return for more work.' : 'Follow each request from quote to delivery. Credits remain untouched until the finished work is approved and released.'}</p>
         </div>
-        <button className="tm-human-refresh" type="button" onClick={() => { loadJobs(); loadWorkers(); loadPayments(); }}>Refresh</button>
+        {mode === 'worker' && <label className="tm-worker-availability-toggle"><input type="checkbox" checked={workerAvailable} disabled={availabilitySaving} onChange={updateWorkerAvailability} /><span><strong>{workerAvailable ? 'Available for work' : 'Not accepting new work'}</strong><small>{availabilitySaving ? 'Saving…' : 'You can change this at any time.'}</small></span></label>}
+        <button className="tm-human-refresh" type="button" onClick={() => { loadJobs(); loadWorkers(); loadPayments(); loadAvailability(); }}>Refresh</button>
       </div>
 
       {mode === 'worker' && (
@@ -440,6 +452,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
       {mode === 'worker' && (
         <div className="tm-human-thread-tabs tm-worker-room-tabs" role="tablist" aria-label="Worker room sections">
+          <button type="button" role="tab" aria-selected={workerTab === 'available'} className={workerTab === 'available' ? 'active' : ''} onClick={() => setWorkerTab('available')}>Available Jobs</button>
           <button type="button" role="tab" aria-selected={workerTab === 'in_progress'} className={workerTab === 'in_progress' ? 'active' : ''} onClick={() => setWorkerTab('in_progress')}>In Progress</button>
           <button type="button" role="tab" aria-selected={workerTab === 'finished'} className={workerTab === 'finished' ? 'active' : ''} onClick={() => setWorkerTab('finished')}>Finished Jobs</button>
           <button type="button" role="tab" aria-selected={workerTab === 'payments'} className={workerTab === 'payments' ? 'active' : ''} onClick={() => { setWorkerTab('payments'); loadPayments(); }}>Payment History · KES</button>
@@ -502,11 +515,11 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           {jobsForCurrentView.map((job) => (
             <button type="button" key={job.id} className={`tm-human-job-row ${selectedJob?.id === job.id ? 'selected' : ''}`} onClick={() => setSelectedId(job.id)}>
               <strong>{job.audio?.name || `Human job ${job.id.slice(0, 6)}`}</strong>
-              <span>{mode === 'worker' && job.worker_assignment?.role === 'proofreader' ? 'Proofreading · In progress' : (STATUS_LABELS[job.status] || job.status)}{typeof job.time_remaining_seconds === 'number' && ['assigned', 'in_progress'].includes(job.worker_assignment?.status || job.status) ? ` · ${formatCountdown(remainingSecondsFor(job))} left` : ''}</span>
+              <span>{mode === 'worker' && workerTab === 'available' ? (job.claimable_full_job ? 'Entire job · available to claim' : `${(job.claimable_parts || []).length} part${(job.claimable_parts || []).length === 1 ? '' : 's'} available`) : mode === 'worker' && job.worker_assignment?.role === 'proofreader' ? 'Proofreading · In progress' : (STATUS_LABELS[job.status] || job.status)}{typeof job.time_remaining_seconds === 'number' && ['assigned', 'in_progress'].includes(job.worker_assignment?.status || job.status) ? ` · ${formatCountdown(remainingSecondsFor(job))} left` : ''}</span>
               <small>{mode === 'worker' ? moneylessDate(job.createdAt) : `${job.quote_credits || 0} credits · ${moneylessDate(job.createdAt)}`}</small>
             </button>
           ))}
-          {!jobsForCurrentView.length && <div className="tm-human-empty">{mode === 'admin' ? 'No jobs match this status and type.' : 'No human work is waiting here.'}</div>}
+          {!jobsForCurrentView.length && <div className="tm-human-empty">{mode === 'admin' ? 'No jobs match this status and type.' : mode === 'worker' && workerTab === 'available' ? 'No new work is available right now. This board refreshes automatically.' : 'No human work is waiting here.'}</div>}
         </aside>
 
         <div className="tm-human-job-detail">
@@ -526,7 +539,26 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               </div>
             </div>
 
-            {String(selectedJob.instructions || '').trim() && (
+            {mode === 'worker' && workerTab === 'available' && (
+              <section className="tm-human-claim-panel" aria-label="Claim available work">
+                <div>
+                  <h3>Claim this work</h3>
+                  <p>Claim one job or slice at a time. Your turnaround deadline begins as soon as you claim it. After submitting, you can return here for another available slice.</p>
+                </div>
+                {!selectedJob.can_claim && selectedJob.claim_block_reason && <p className="tm-human-claim-blocked" role="status">{selectedJob.claim_block_reason}</p>}
+                {selectedJob.claimable_full_job && (
+                  <button type="button" disabled={busy || !selectedJob.can_claim} onClick={() => claimWork()}>Claim job</button>
+                )}
+                {(selectedJob.claimable_parts || []).map((part) => (
+                  <div className="tm-human-claim-part" key={part.id}>
+                    <span><strong>{part.label || 'Available part'}</strong><small>{part.minutes || 0} minutes of audio</small></span>
+                    <button type="button" disabled={busy || !selectedJob.can_claim} onClick={() => claimWork(part.id)}>Claim part</button>
+                  </div>
+                ))}
+              </section>
+            )}
+
+            {!(mode === 'worker' && workerTab === 'available') && String(selectedJob.instructions || '').trim() && (
               <div className="tm-human-instructions" role="note">
                 <strong>Notes for the transcriber</strong>
                 <p>{selectedJob.instructions}</p>
@@ -551,38 +583,36 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               return (
                 <div className={`tm-tat-timer${urgent ? ' tm-tat-timer-urgent' : ''}`}>
                   <div><strong>{remaining <= 0 ? 'Time is up' : formatCountdown(remaining)}</strong><span>{workerAssignment.role === 'proofreader' ? 'left to finish proofreading' : 'left to submit your part'}</span></div>
-                  <p className="tm-tat-hint">Tip: a quicker typing pace means faster turnarounds and more jobs you can take on.</p>
+                  <p className="tm-tat-hint">Tip: a quicker typing pace means faster turnarounds and more jobs you can take on. <a href="/typing-practice">Practice touch typing</a></p>
                 </div>
               );
             })()}
 
-            {mode === 'admin' && splitJob && <div className="tm-human-assign" style={{ display: 'grid', gap: 10 }}><strong>Parts and deadlines</strong>{(selectedJob.segments || []).map((part) => <div key={part.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><span style={{ minWidth: 170 }}><strong>{part.label}</strong><small style={{ display: 'block', color: '#858a95' }}>{part.worker_name || 'Waiting for reassignment'} · {STATUS_LABELS[part.status] || part.status}{typeof part.time_remaining_seconds === 'number' ? ` · ${formatCountdown(part.time_remaining_seconds)} left` : ''}</small></span>{['assigned', 'in_progress'].includes(part.status) && <><select value={extensionMinutes} onChange={(event) => setExtensionMinutes(event.target.value)} aria-label={`Extra time for ${part.label}`}><option value="5">+5 minutes</option><option value="10">+10 minutes</option><option value="15">+15 minutes</option><option value="20">+20 minutes</option></select><button type="button" disabled={busy} onClick={() => extendTat(part.id)}>Add time</button><button type="button" disabled={busy} onClick={() => takeBackAssignment('transcriber', part.id)}>Take back</button></>}{['available', 'approved'].includes(part.status) && <span style={{ color: '#7a5f1b', fontSize: 12 }}>This part is ready to assign again.</span>}</div>)}{['assigned', 'in_progress'].includes(selectedJob.proofreader_status) && <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><span style={{ minWidth: 170 }}><strong>Final proofreader</strong><small style={{ display: 'block', color: '#858a95' }}>{selectedJob.proofreader_name || 'Assigned worker'} · {formatCountdown(selectedJob.proofreader_time_remaining_seconds || 0)} left</small></span><select value={extensionMinutes} onChange={(event) => setExtensionMinutes(event.target.value)} aria-label="Extra time for proofreader"><option value="5">+5 minutes</option><option value="10">+10 minutes</option><option value="15">+15 minutes</option><option value="20">+20 minutes</option></select><button type="button" disabled={busy} onClick={() => extendTat('', 'proofreader')}>Add time</button><button type="button" disabled={busy} onClick={() => takeBackAssignment('proofreader')}>Take back</button></div>}</div>}
+            {mode === 'admin' && splitJob && <div className="tm-human-assign" style={{ display: 'grid', gap: 10 }}><strong>Parts and deadlines</strong>{(selectedJob.segments || []).map((part) => <div key={part.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><span style={{ minWidth: 170 }}><strong>{part.label}</strong><small style={{ display: 'block', color: '#858a95' }}>{part.worker_name || 'Waiting for reassignment'} · {STATUS_LABELS[part.status] || part.status}{typeof part.time_remaining_seconds === 'number' ? ` · ${formatCountdown(part.time_remaining_seconds)} left` : ''}</small></span>{['assigned', 'in_progress'].includes(part.status) && <><select value={extensionMinutes} onChange={(event) => setExtensionMinutes(event.target.value)} aria-label={`Extra time for ${part.label}`}><option value="5">+5 minutes</option><option value="10">+10 minutes</option><option value="15">+15 minutes</option><option value="20">+20 minutes</option></select><button type="button" disabled={busy} onClick={() => extendTat(part.id)}>Add time</button><button type="button" disabled={busy} onClick={() => takeBackAssignment('transcriber', part.id)}>Take back</button></>}{['available', 'approved'].includes(part.status) && <span style={{ color: '#7a5f1b', fontSize: 12 }}>This part is available for a worker to claim.</span>}</div>)}{['assigned', 'in_progress'].includes(selectedJob.proofreader_status) && <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><span style={{ minWidth: 170 }}><strong>Final proofreader</strong><small style={{ display: 'block', color: '#858a95' }}>{selectedJob.proofreader_name || 'Assigned worker'} · {formatCountdown(selectedJob.proofreader_time_remaining_seconds || 0)} left</small></span><select value={extensionMinutes} onChange={(event) => setExtensionMinutes(event.target.value)} aria-label="Extra time for proofreader"><option value="5">+5 minutes</option><option value="10">+10 minutes</option><option value="15">+15 minutes</option><option value="20">+20 minutes</option></select><button type="button" disabled={busy} onClick={() => extendTat('', 'proofreader')}>Add time</button><button type="button" disabled={busy} onClick={() => takeBackAssignment('proofreader')}>Take back</button></div>}</div>}
 
             {mode === 'admin' && !splitJob && ['assigned', 'in_progress'].includes(selectedJob.status) && typeof selectedJob.time_remaining_seconds === 'number' && <div className="tm-human-assign"><label>Add time before the deadline<select value={extensionMinutes} onChange={(event) => setExtensionMinutes(event.target.value)}><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20">20 minutes</option></select></label><button type="button" disabled={busy} onClick={() => extendTat()}>Extend deadline</button><p className="tm-tat-hint">The job will remain with the worker while the added time is still active.</p></div>}
 
 
             {selectedJob.last_auto_reassigned_worker_name && selectedJob.status === 'approved' && (
-              <p className="tm-tat-reassigned-note">This job was automatically returned from {selectedJob.last_auto_reassigned_worker_name} after the turnaround deadline passed. Assign it to a worker again below.</p>
+              <p className="tm-tat-reassigned-note">This job was automatically returned from {selectedJob.last_auto_reassigned_worker_name} after the deadline passed. It is available on the workers’ claim board again; the next deadline starts when claimed.</p>
             )}
 
-            {mode === 'admin' && !splitJob && selectedJob.status === 'approved' && <div className="tm-human-assign"><label>Assignment type<select value={assignmentMode} onChange={(event) => setAssignmentMode(event.target.value)}><option value="single">One worker</option><option value="dual">Split between two workers</option></select></label><label>First worker<select value={selectedWorker} onChange={(event) => setSelectedWorker(event.target.value)}><option value="">Choose worker</option>{workers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}</select></label>{assignmentMode === 'dual' && <label>Second worker<select value={secondWorker} onChange={(event) => setSecondWorker(event.target.value)}><option value="">Choose second worker</option>{workers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}</select></label>}<button type="button" disabled={busy || !selectedWorker || (assignmentMode === 'dual' && !secondWorker)} onClick={assignWork}>{assignmentMode === 'dual' ? (selectedWorker && selectedWorker === secondWorker ? 'Assign parts sequentially' : 'Assign two parts') : (selectedJob.auto_reassigned_count ? 'Reassign work' : 'Assign work')}</button>{assignmentMode === 'dual' && <p className="tm-tat-hint">{selectedWorker && selectedWorker === secondWorker ? 'Same worker selected: Part 1 starts now. Part 2 stays queued; after Part 1 is submitted, assign it to the same worker or choose another. Its deadline starts when assigned.' : 'Each worker receives a clearly labelled half.'} After both parts are submitted, you can assign one worker to proofread the final transcript.</p>}</div>}
+            {mode === 'admin' && !splitJob && selectedJob.status === 'approved' && <div className="tm-human-assign"><strong>Available to workers</strong><p>Approved workers who are marked available can claim this job from the Available Jobs board. The deadline starts when a worker claims it. You can still take back active work or extend its deadline if needed.</p></div>}
 
             {mode === 'admin' && splitJob && (selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status)) && (
               <div className="tm-human-assign">
-                <label>Part to assign<select value={selectedSegmentId} onChange={(event) => setSelectedSegmentId(event.target.value)}>{(selectedJob.segments || []).filter((part) => ['available', 'approved'].includes(part.status)).map((part) => <option key={part.id} value={part.id}>{part.label}</option>)}</select></label>
-                <label>Assign to worker<select value={selectedWorker} onChange={(event) => setSelectedWorker(event.target.value)}><option value="">Choose worker</option>{workers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}</select></label>
-                <button type="button" disabled={busy || !selectedWorker || !selectedSegmentId} onClick={reassignPart}>Assign part</button>
-                <p className="tm-tat-hint">After a worker submits their current part, you can assign the next part to that same worker. Its deadline starts when assigned.</p>
+                <strong>Parts are open to claim</strong>
+                <p>These slices are listed on the workers’ Available Jobs board. A worker’s deadline begins when they claim a slice; you can take back an active part or add time below.</p>
               </div>
             )}
 
-            {mode === 'admin' && splitJob && ['proofreading_available', 'split_in_progress'].includes(selectedJob.status) && (selectedJob.segments || []).every((part) => part.status === 'submitted') && <div className="tm-human-assign"><label>Assign final proofreader<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose worker</option>{workers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign proofreading</button><p className="tm-tat-hint">The proofreader receives both submitted parts in one editor and returns one final transcript.</p></div>}
+            {mode === 'admin' && splitJob && ['proofreading_available', 'split_in_progress'].includes(selectedJob.status) && (selectedJob.segments || []).every((part) => part.status === 'submitted') && <div className="tm-human-assign"><label>Assign final proofreader<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose worker</option>{workers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign proofreading</button><p className="tm-tat-hint">The proofreader receives every submitted slice in one editor and returns one final transcript.</p></div>}
 
 
             {mode === 'admin' && selectedJob.status === 'submitted' && <div className="tm-human-review"><label>Worker rating<select value={rating} onChange={(event) => setRating(event.target.value)}><option value="5">5 — excellent</option><option value="4">4 — strong</option><option value="3">3 — acceptable</option><option value="2">2 — needs work</option><option value="1">1 — poor</option></select></label><textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder="Notes for the client and worker" /><button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating, feedback }) })}>Send to client</button></div>}
 
             {audioUrl && <div className="tm-human-audio-card"><strong>Source recording</strong><span>Available to the client, admin and assigned worker.</span><audio controls src={audioUrl} /></div>}
-            {selectedJob.instruction_attachments?.length > 0 && <div className="tm-human-reference-card"><strong>Reference files from the client</strong><span>Use these notes, spellings, and supporting documents while working.</span><div className="tm-human-reference-list">{selectedJob.instruction_attachments.map((item, index) => <button type="button" key={`${item.name}-${index}`} onClick={() => downloadProtectedFile(`/human-transcription/jobs/${selectedJob.id}/instruction/${index}`, item.name, 'The reference file could not be downloaded.')}>Download: {item.name}</button>)}</div></div>}
+            {!(mode === 'worker' && workerTab === 'available') && selectedJob.instruction_attachments?.length > 0 && <div className="tm-human-reference-card"><strong>Reference files from the client</strong><span>Use these notes, spellings, and supporting documents while working.</span><div className="tm-human-reference-list">{selectedJob.instruction_attachments.map((item, index) => <button type="button" key={`${item.name}-${index}`} onClick={() => downloadProtectedFile(`/human-transcription/jobs/${selectedJob.id}/instruction/${index}`, item.name, 'The reference file could not be downloaded.')}>Download: {item.name}</button>)}</div></div>}
             {mode === 'worker' && workerAssignment?.role === 'proofreader' && (selectedJob.proofreader_parts || []).length > 0 && (
               <div className="tm-human-reference-card tm-proofreader-source-parts">
                 <strong>Both submitted parts</strong>
@@ -599,8 +629,9 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 </div>
               </div>
             )}
-            {selectedJob.final_attachment && workerAssignment?.role !== 'proofreader' && <div className="tm-human-reference-card"><strong>Finished file from the worker</strong><span>Submitted instead of, or alongside, the shared editor text.</span><div className="tm-human-reference-list"><button type="button" onClick={() => downloadProtectedFile(`/human-transcription/jobs/${selectedJob.id}/final-attachment`, selectedJob.final_attachment.name, 'The finished file could not be downloaded.')}>Download: {selectedJob.final_attachment.name}</button></div></div>}
+            {!(mode === 'worker' && workerTab === 'available') && selectedJob.final_attachment && workerAssignment?.role !== 'proofreader' && <div className="tm-human-reference-card"><strong>Finished file from the worker</strong><span>Submitted instead of, or alongside, the shared editor text.</span><div className="tm-human-reference-list"><button type="button" onClick={() => downloadProtectedFile(`/human-transcription/jobs/${selectedJob.id}/final-attachment`, selectedJob.final_attachment.name, 'The finished file could not be downloaded.')}>Download: {selectedJob.final_attachment.name}</button></div></div>}
 
+            {!(mode === 'worker' && workerTab === 'available') && (
             <div className="tm-human-editor-card">
               <div className="tm-human-editor-head"><div><strong>Shared proofreading editor</strong><span>The same working area is used by the worker, admin and client.</span></div><div className="tm-human-editor-ad">Need a first draft or a quick answer? <button type="button" onClick={() => showMessage?.('Ask TypeMyworDz opens from the left navigation.', 'success')}>Use Ask TypeMyworDz</button></div></div>
               <TranscriptEditor
@@ -614,8 +645,9 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               />
               <p className="tm-human-editor-note">AI tools can help with first drafts and questions, but the final human release stays under admin review.</p>
             </div>
+            )}
 
-            <div className="tm-human-chat-card">
+            {!(mode === 'worker' && workerTab === 'available') && <div className="tm-human-chat-card">
               <div className="tm-human-chat-head">
                 <div><strong>Conversation</strong><span>{mode === 'admin' ? 'Two separate threads: the worker never sees the client, and the client never sees the worker.' : mode === 'worker' ? 'You and TypeMyworDz admin only. The client is never part of this thread.' : 'You and TypeMyworDz admin only. The worker is never part of this thread.'}</span></div>
                 <span className="tm-human-live-dot">Live</span>
@@ -636,7 +668,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 {messageFile && <div className="tm-human-attachment-preview" role="status" aria-live="polite"><span><strong>Attached:</strong> {messageFile.name}{formatAttachmentSize(messageFile.size) ? ` · ${formatAttachmentSize(messageFile.size)}` : ''}</span><button type="button" onClick={() => setMessageFile(null)} aria-label={`Remove ${messageFile.name}`}>Remove</button></div>}
                 <div className="tm-human-message-actions"><label className="tm-human-attach" title="Attach any file" aria-label="Attach any file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 3.5h8l3 3V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M15 3.5V7h3M9 11h6M9 15h6"/></svg><input type="file" onChange={(event) => setMessageFile(event.target.files?.[0] || null)} /></label><span className="tm-human-message-hint">Enter to send · Shift+Enter for a new line</span><button type="submit" disabled={busy || (!messageText.trim() && !messageFile)}>Send</button></div>
               </form>
-            </div>
+            </div>}
           </>}
         </div>
       </div>

@@ -55,6 +55,10 @@ const PrivacyPolicy = () => (
           <td>To apply your plan correctly and to know when a trial or plan has ended.</td>
         </tr>
         <tr>
+          <td>Official name and M-Pesa payout name and phone number (trainee applicants and workers)</td>
+          <td>To maintain training records and pay workers if hired. We validate the Kenyan number format but do not verify account ownership through Safaricom. Workers can update their payout details in Settings.</td>
+        </tr>
+        <tr>
           <td>The country you are connecting from</td>
           <td>To show you prices in a currency and payment method that works where you are.</td>
         </tr>

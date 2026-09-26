@@ -47,7 +47,7 @@ const TermsOfService = () => (
 
     <h2>3. The free trial</h2>
     <p>
-      New accounts get <strong>30 free credits</strong> so you can judge the
+      New accounts get <strong>5 free credits</strong> (up to 5 minutes of transcription) so you can judge the
       quality for yourself before paying anything. It is once per account, no card required, and
       it does not turn into a paid plan. When it is used up, the app will tell you and you can
       decide whether to buy a plan.
@@ -96,8 +96,10 @@ const TermsOfService = () => (
     <p>
       We generally will not refund a plan that worked as described and that you simply did not use,
       or a transcript you are unhappy with purely on accuracy where the recording itself was very
-      poor. That said, we would rather keep a client than win an argument, so if you think you have
-      been treated unfairly, tell us and a person will look at it.
+      poor. The one-time trainee enrollment fee is non-refundable after Training Room access has
+      been provided, except where applicable law or a service failure covered by our Refund Policy
+      requires a refund. That said, we would rather keep a client than win an argument, so if you
+      think you have been treated unfairly, tell us and a person will look at it.
     </p>
     <p>
       The full details, including how long a refund takes and how to cancel a renewing plan, are
