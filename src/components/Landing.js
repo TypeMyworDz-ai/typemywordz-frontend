@@ -127,6 +127,9 @@ const Landing = () => {
           <div className="menu-item" onClick={go('assistant')}>
             <span className="menu-text">Ask TypeMyworDz</span>
           </div>
+          <Link className="menu-item" to="/typing-practice">
+            <span className="menu-text">Free typing practice</span>
+          </Link>
           <div className="menu-item" onClick={go('how')}>
             <span className="menu-text">How it works</span>
           </div>
@@ -154,6 +157,7 @@ const Landing = () => {
             <li><strong>Transcription</strong> with speaker labels, timestamps and a proper editor</li>
             <li><strong>Not happy with an AI transcript, or prefer it proofread?</strong> Sign up for proofreading services and get a quote.</li>
             <li><strong>Ask TypeMyworDz</strong> for research, drafting and questions of any kind</li>
+            <li>Free touch-typing lessons for anyone, with no account required</li>
             <li>Export to Word or plain text, or copy in one click</li>
             <li>Multiple AI models behind one simple workflow</li>
             <li>Your recordings and your questions are never used to train AI</li>
@@ -217,8 +221,7 @@ const Landing = () => {
             <span>Click here</span>
           </Link>
           <p className="tm-lp-freenote">
-            <strong>30 credits free</strong> when you sign up. No card, no trial that quietly
-            becomes a bill.
+            <strong>5 free credits</strong> when you sign up, worth up to 5 minutes of transcription. No card, no automatic charges.
           </p>
         </div>
       </section>
@@ -239,6 +242,22 @@ const Landing = () => {
                 <p>{w.text}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ---- A free typing utility for visitors and trainees ---- */}
+      <section className="tm-lp-band tm-lp-typing" id="typing-practice">
+        <div className="tm-lp-inner tm-lp-typing-inner">
+          <div>
+            <p className="tm-lp-eyebrow">Free tool · open to everyone</p>
+            <h2>Practise the skill behind every transcript.</h2>
+            <p className="tm-lp-sub">Learn touch typing with guided home-row lessons, short drills and a 30-second speed test. No sign-up is needed to practise.</p>
+            <Link className="tm-lp-typing-link" to="/typing-practice">Open typing practice</Link>
+          </div>
+          <div className="tm-lp-home-row" aria-label="Home row keyboard keys">
+            <span>A</span><span>S</span><span>D</span><span className="is-anchor">F</span><span>J</span><span className="is-anchor">K</span><span>L</span><span>;</span>
+            <small>Return here after every reach.</small>
           </div>
         </div>
       </section>
@@ -359,7 +378,7 @@ const Landing = () => {
           </p>
           <table className="tm-lp-plans">
             <tbody>
-              <tr><td>Free trial</td><td>30 credits, once, no card</td></tr>
+              <tr><td>Free trial</td><td>5 credits (up to 5 transcription minutes), once, no card</td></tr>
               <tr><td>One-Day Plan</td><td>1 day, 4 hours of transcription included</td></tr>
               <tr><td>Three-Day Plan</td><td>3 days, 8 hours of transcription included</td></tr>
               <tr><td>One-Week Plan</td><td>7 days, 15 hours of transcription included</td></tr>
@@ -389,7 +408,7 @@ const Landing = () => {
         <div className="tm-lp-inner tm-lp-narrow">
           <h2>Try it on a real recording</h2>
           <p>
-            Start with 30 free credits, upload a real recording, and judge the result on your own work.
+            Start with 5 free credits, upload a short recording, and judge the result on your own work.
           </p>
           <button className="tm-lp-cta-btn" onClick={go('top')}>
             Get started

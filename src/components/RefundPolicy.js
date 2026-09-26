@@ -54,6 +54,7 @@ const RefundPolicy = () => (
         anything.
       </li>
       <li>Credits you have already spent.</li>
+      <li>The one-time trainee enrollment fee after Training Room access has been provided, except where applicable law or a service failure listed above requires a refund.</li>
     </ul>
     <p>
       That said, we would rather keep a client than win an argument. If you think you have been
