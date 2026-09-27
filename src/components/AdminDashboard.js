@@ -11,6 +11,7 @@ import { ADMIN_EMAILS, isAdminEmail, isCompAccessEmail } from '../adminEmails';
 import { fetchCreditBalance, isOnCreditsOnly } from '../creditsService';
 import ConfirmDialog from './ConfirmDialog';
 import HumanJobWorkspace from './HumanJobWorkspace';
+import TraineeReviewDialog from './TraineeReviewDialog';
 import './AdminDashboard.css';
 
 const BACKEND_URL =
@@ -228,6 +229,8 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
   const [confirmingDelete, setConfirmingDelete] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [chatUser, setChatUser] = useState(null);
+  const [traineeReview, setTraineeReview] = useState(null);
+  const [traineeDecisionBusy, setTraineeDecisionBusy] = useState(false);
 
   const loadTrainees = useCallback(async () => {
     if (!currentUser) return;
@@ -241,15 +244,19 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
     } catch (error) { showMessage?.(error.message, 'error'); } finally { setTraineeLoading(false); }
   }, [currentUser, showMessage]);
 
-  const decideTrainee = async (uid, decision, payment_status) => {
+  const decideTrainee = async (uid, decision) => {
+    setTraineeDecisionBusy(true);
     try {
       const token = await currentUser.getIdToken();
-      const response = await fetch(`${BACKEND_URL}/api/admin/trainees/${uid}/decision`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ decision, payment_status }) });
+      const response = await fetch(`${BACKEND_URL}/api/admin/trainees/${encodeURIComponent(uid)}/decision`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ decision }) });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.detail || 'The trainee decision failed.');
-      showMessage?.('Trainee record updated.', 'success');
+      showMessage?.(decision === 'promote_worker' ? 'Trainee promoted to worker.' : 'Trainee application declined.', 'success');
+      setTraineeReview(null);
       await loadTrainees();
-    } catch (error) { showMessage?.(error.message, 'error'); }
+      return true;
+    } catch (error) { showMessage?.(error.message, 'error'); return false; }
+    finally { setTraineeDecisionBusy(false); }
   };
 
   const fetchAdminData = useCallback(async () => {
@@ -488,8 +495,8 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
 
         {activeTab === 'trainees' && (
           <section className="tm-admin-panel tm-admin-table-panel">
-            <div className="tm-admin-table-toolbar"><div><h2 className="tm-admin-panel-title">Trainee applications</h2><p className="tm-admin-panel-note">Paid trainees enter automatically after checkout. Review training, approve levels, and promote qualified people into the Work Room.</p></div><button type="button" className="tm-admin-btn" onClick={loadTrainees} disabled={traineeLoading}>{traineeLoading ? 'Refreshing…' : 'Refresh trainees'}</button></div>
-            <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Applicant</th><th>Application</th><th>Payment</th><th>Level</th><th>Actions</th></tr></thead><tbody>{trainees.map((trainee) => <tr key={trainee.uid || trainee.id}><td><strong>{trainee.name || 'Unnamed applicant'}</strong><div className="tm-admin-name">{trainee.email}</div><div className="tm-admin-name">{trainee.country || 'Country not supplied'}</div></td><td>{String(trainee.traineeStatus || 'not started').replaceAll('_', ' ')}</td><td>{String(trainee.trainingPaymentStatus || 'not submitted').replaceAll('_', ' ')}<div className="tm-admin-name">{trainee.trainingPaymentReference || ''}</div></td><td>{trainee.trainingLevel || 0} · {String(trainee.trainingStatus || 'not started').replaceAll('_', ' ')}</td><td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{trainee.role === 'trainee' && trainee.trainingPaymentStatus === 'paid' && <button type="button" className="tm-admin-btn" onClick={() => decideTrainee(trainee.uid, 'approve_level', 'paid')}>Approve next level</button>}{trainee.role === 'trainee' && <button type="button" className="tm-admin-btn" onClick={() => decideTrainee(trainee.uid, 'promote_worker', 'verified')}>Promote worker</button>}</div></td></tr>)}</tbody></table>{!trainees.length && <div className="tm-admin-empty">No trainee applications yet.</div>}</div>
+            <div className="tm-admin-table-toolbar"><div><h2 className="tm-admin-panel-title">Trainees</h2><p className="tm-admin-panel-note">Trainees complete all six modules without per-level approval. Review their full answers and final audio transcript once the programme is submitted.</p></div><button type="button" className="tm-admin-btn" onClick={loadTrainees} disabled={traineeLoading}>{traineeLoading ? 'Refreshing…' : 'Refresh trainees'}</button></div>
+            <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Applicant</th><th>Application</th><th>Payment</th><th>Modules</th><th>Actions</th></tr></thead><tbody>{trainees.map((trainee) => <tr key={trainee.uid || trainee.id}><td><strong>{trainee.name || 'Unnamed applicant'}</strong><div className="tm-admin-name">{trainee.email}</div><div className="tm-admin-name">{trainee.country || 'Country not supplied'}</div></td><td>{String(trainee.traineeStatus || 'not started').replaceAll('_', ' ')}</td><td>{String(trainee.trainingPaymentStatus || 'not submitted').replaceAll('_', ' ')}<div className="tm-admin-name">{trainee.trainingPaymentReference || ''}</div></td><td>{trainee.trainingCompletedModules || 0} of 6 · {String(trainee.trainingStatus || 'not started').replaceAll('_', ' ')}</td><td>{trainee.trainingReviewReady ? <button type="button" className="tm-admin-btn" onClick={() => setTraineeReview(trainee)}>Review all modules</button> : <span className="tm-admin-small">In progress</span>}</td></tr>)}</tbody></table>{!trainees.length && <div className="tm-admin-empty">No trainee applications yet.</div>}</div>
           </section>
         )}
 
@@ -499,6 +506,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
       </div>
       <ConfirmDialog open={Boolean(confirmingDelete)} title="Remove this account?" body={confirmingDelete ? `${confirmingDelete.email || confirmingDelete.name || 'This account'} will lose access, its profile will be removed, and its saved transcripts and Ask chats will be deleted. This cannot be undone.` : ''} confirmLabel="Remove account" cancelLabel="Keep account" tone="danger" busy={deleteBusy} onCancel={() => setConfirmingDelete(null)} onConfirm={handleDeleteUser} />
       {chatUser && <UserChatDialog currentUser={currentUser} target={chatUser} showMessage={showMessage} onClose={() => setChatUser(null)} />}
+      {traineeReview && <TraineeReviewDialog trainee={traineeReview} currentUser={currentUser} busy={traineeDecisionBusy} onClose={() => setTraineeReview(null)} onDecision={decideTrainee} />}
     </div>
   );
 };
