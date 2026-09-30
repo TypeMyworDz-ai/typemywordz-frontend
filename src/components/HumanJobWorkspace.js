@@ -600,8 +600,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
       {mode === 'worker' && (
         <div className="tm-worker-policy-note" role="note">
-          <strong>How hired work must be prepared</strong>
-          <span>Once hired, keep enough TypeMyworDz credits to create each AI draft in the app. Edit it in Microsoft Word, then attach the finished Word document to your submission. Work without an in-app AI draft may be declined.</span>
+          <strong>How hired work must be prepared:</strong>
+          <span>Once hired, keep enough TypeMyworDz credits to create each AI draft in the app. You can generate a draft specific for your whole/slice/part of assigned job. Edit it in Microsoft Word and then copy paste in the TypeMyworDz editor under your job and submit. Never attach documents unless a job is a TEMPLATE JOB or when requested.</span>
         </div>
       )}
 
