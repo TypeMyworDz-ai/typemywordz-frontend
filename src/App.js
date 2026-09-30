@@ -68,12 +68,14 @@ let notificationAudioBufferPromise = null;
 let notificationSoundUntil = 0;
 let notificationSources = [];
 let notificationSoundPending = false;
+let notificationStopCount = 0;
 
 const notificationSoundsEnabled = () => {
   try { return window.localStorage.getItem(NOTIFICATION_SOUND_PREFERENCE_KEY) !== 'off'; } catch { return true; }
 };
 
 const stopNotificationSound = () => {
+  notificationStopCount += 1;
   notificationSoundUntil = 0;
   notificationSoundPending = false;
   notificationSources.forEach((source) => {
@@ -292,6 +294,19 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
+    const silenceOnAlertClick = (event) => {
+      const target = event.target;
+      if (target && typeof target.closest === 'function' && target.closest('[class*="notification"], [class*="tm-notif"], [class*="tm-msg"]')) stopNotificationSound();
+    };
+    window.addEventListener('click', silenceOnAlertClick, true);
+    return () => window.removeEventListener('click', silenceOnAlertClick, true);
+  }, []);
+
+  useEffect(() => {
+    if (currentView === 'messages' || currentView === 'human_worker' || currentView === 'human_ops') stopNotificationSound();
+  }, [currentView]);
+
+  useEffect(() => {
     const unlock = () => {
       unlockNotificationSounds();
       if (notificationAudioContext?.state === 'running') {
@@ -330,6 +345,7 @@ function AppContent() {
       setNotificationsLoading(true);
     }
     notificationPollInFlightRef.current = true;
+    const stopCountAtStart = notificationStopCount;
     try {
       const token = await currentUser.getIdToken();
       const response = await fetch(`${RAILWAY_BACKEND_URL}/api/notifications`, {
@@ -369,10 +385,13 @@ function AppContent() {
         const serverLastRung = Date.parse(item.last_rung_at || '') || 0;
         const localLastRung = notificationRungLocalRef.current.get(item.id) || 0;
         const lastRung = Math.max(serverLastRung, localLastRung);
+        if (item.kind === 'job_available') return !lastRung;
         return !lastRung || serverNow - lastRung >= 5 * 60 * 1000;
       });
       if (dueToRing.length && notificationSoundsEnabled()) {
-        playNotificationSound();
+        // If the worker clicked or opened alerts while this refresh was in
+        // flight, do not start a sound they have just silenced.
+        if (notificationStopCount === stopCountAtStart) playNotificationSound();
         dueToRing.forEach((item) => {
           notificationRungLocalRef.current.set(item.id, serverNow);
           fetch(`${RAILWAY_BACKEND_URL}/api/notifications/${encodeURIComponent(item.id)}/ringed`, {
