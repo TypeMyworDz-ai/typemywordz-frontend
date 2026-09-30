@@ -4,6 +4,7 @@ import TranscriptEditor from './TranscriptEditor';
 import PdfJobsAdminPanel from './PdfJobsAdminPanel';
 import WordLikeEditor from './WordLikeEditor';
 import ConfirmDialog from './ConfirmDialog';
+import WorkerAudioPlayer from './WorkerAudioPlayer';
 import { AdminPartReview, AdminAiReviewPanel } from './AdminPartReview';
 import './HumanJobWorkspace.css';
 
@@ -279,21 +280,48 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     }
   }, [initialJobId, jobs, mode, selectedId, selectedJob, draftAssignmentKey, onInitialJobHandled]);
 
+  // The recording is fetched once per job (or per part) and then left alone.
+  // The address the player uses only changes when the recording itself does,
+  // so the polling that refreshes the job list can no longer reload it.
+  const tokenRef = useRef(token);
+  tokenRef.current = token;
+  const audioJobId = selectedJob?.id || '';
+  const hasAudio = Boolean(selectedJob?.audio);
+  const audioHidden = mode === 'worker' && workerTab === 'available';
+  const audioSegmentId = mode === 'worker' && workerAssignment?.role === 'transcriber' && workerAssignment?.id && !['transcriber', 'main'].includes(workerAssignment.id) ? workerAssignment.id : '';
+  const audioKey = audioJobId && hasAudio && !audioHidden ? `${audioJobId}|${audioSegmentId}` : '';
+  const [audioLoading, setAudioLoading] = useState(false);
+  const [audioError, setAudioError] = useState('');
   useEffect(() => {
+    if (!audioKey) { setAudioUrl(''); setAudioLoading(false); setAudioError(''); return undefined; }
+    let cancelled = false;
     let objectUrl = '';
+    setAudioUrl('');
+    setAudioError('');
+    setAudioLoading(true);
     (async () => {
-      if (!selectedJob?.id || !selectedJob.audio || (mode === 'worker' && workerTab === 'available')) { setAudioUrl(''); return; }
-      try {
-        const idToken = await token();
-        const segmentQuery = mode === 'worker' && workerAssignment?.role === 'transcriber' && workerAssignment?.id ? `?segment_id=${encodeURIComponent(workerAssignment.id)}` : '';
-        const response = await fetch(`${BACKEND_URL}/human-transcription/jobs/${selectedJob.id}/audio${segmentQuery}`, { headers: { Authorization: `Bearer ${idToken}` } });
-        if (!response.ok) return;
-        objectUrl = URL.createObjectURL(await response.blob());
-        setAudioUrl(objectUrl);
-      } catch (error) { console.warn('Human source audio could not be loaded:', error); }
+      const [jobId, segmentId] = audioKey.split('|');
+      const query = segmentId ? `?segment_id=${encodeURIComponent(segmentId)}` : '';
+      for (let attempt = 0; attempt < 3 && !cancelled; attempt += 1) {
+        try {
+          const idToken = await tokenRef.current();
+          const response = await fetch(`${BACKEND_URL}/human-transcription/jobs/${jobId}/audio${query}`, { headers: { Authorization: `Bearer ${idToken}` } });
+          if (!response.ok) throw new Error(`audio ${response.status}`);
+          const blob = await response.blob();
+          if (cancelled) return;
+          objectUrl = URL.createObjectURL(blob);
+          setAudioUrl(objectUrl);
+          setAudioLoading(false);
+          return;
+        } catch (error) {
+          console.warn('Human source audio could not be loaded:', error);
+          await new Promise((resolve) => setTimeout(resolve, 1500 * (attempt + 1)));
+        }
+      }
+      if (!cancelled) { setAudioLoading(false); setAudioError('The recording could not be loaded. Reload the page, or tell the admin if it keeps happening.'); }
     })();
-    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [selectedJob?.id, selectedJob?.audio, token, mode, workerTab, workerAssignment?.role, workerAssignment?.id]);
+    return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [audioKey]);
 
   useEffect(() => {
     let objectUrl = '';
@@ -522,8 +550,11 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       const link = document.createElement('a');
       link.href = url;
       link.download = filename || 'human-work-file';
+      link.style.display = 'none';
+      document.body.appendChild(link);
       link.click();
-      URL.revokeObjectURL(url);
+      // Revoking straight away can cancel the download in some browsers.
+      setTimeout(() => { link.remove(); URL.revokeObjectURL(url); }, 30000);
     } catch (error) {
       showMessage?.(error.message, 'error');
     }
@@ -786,7 +817,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             {mode === 'admin' && selectedJob.status === 'submitted' && <div className="tm-human-review"><label>Worker rating<select value={rating} onChange={(event) => setRating(event.target.value)}><option value="5">5 — excellent</option><option value="4">4 — strong</option><option value="3">3 — acceptable</option><option value="2">2 — needs work</option><option value="1">1 — poor</option></select></label><textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder={selectedJob.job_type === 'pdf_job' ? 'Internal review notes for this image job' : 'Notes for the client and worker'} /><button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating, feedback }) }, selectedJob.job_type === 'pdf_job' ? 'PDF transcription approved and completed.' : 'Sent to client for review.')}>{selectedJob.job_type === 'pdf_job' ? 'Approve PDF transcription' : 'Send to client'}</button></div>}
 
             {selectedJob.job_type === 'pdf_job' && !(mode === 'worker' && workerTab === 'available') && <div className="tm-human-pdf-image-card"><div><strong>Assigned image</strong><span>{selectedJob.pdf_image?.source_filename || selectedJob.pdf_image?.name}{selectedJob.pdf_image?.page_count > 1 ? ` · Page ${selectedJob.pdf_image.page_number} of ${selectedJob.pdf_image.page_count}` : ''}</span></div>{pdfImageUrl ? <img src={pdfImageUrl} alt={`Transcribe ${selectedJob.pdf_image?.name || 'PDF Job'}`} /> : <p role={pdfImageError ? 'alert' : 'status'}>{pdfImageError || 'Loading the private image…'}</p>}</div>}
-            {audioUrl && <div className="tm-human-audio-card"><strong>Source recording</strong><span>Available to the client, admin and assigned worker.</span><audio controls src={audioUrl} /></div>}
+            {audioKey && <WorkerAudioPlayer src={audioUrl} loading={audioLoading} error={audioError} title={audioSegmentId ? 'Your part of the recording' : 'Source recording'} note={audioSegmentId ? 'Only your assigned part is played and downloaded here.' : 'Available to the client, admin and assigned worker.'} filename={audioSegmentId ? `${(workerAssignment?.label || 'part').replace(/[^A-Za-z0-9]+/g, '-').toLowerCase()}.mp3` : (selectedJob?.audio?.name || 'recording.mp3')} />}
             {mode === 'worker' && workerAssignmentActive && workerAssignment?.role !== 'proofreader' && selectedJob.job_type !== 'pdf_job' && <div className="tm-human-reference-card" style={{ display: 'grid', gap: 8 }}>
               <strong>AI draft for this audio</strong>
               <span>Get a first draft of {workerAssignment?.label ? workerAssignment.label.toLowerCase() : 'this audio'}, then copy it into Word or insert it into the editor below. Drafts use your TypeMyworDz credits: about {Math.max(1, Math.ceil(((workerAssignment?.end_seconds || 0) - (workerAssignment?.start_seconds || 0)) / 60) || 1)} credit{Math.max(1, Math.ceil(((workerAssignment?.end_seconds || 0) - (workerAssignment?.start_seconds || 0)) / 60) || 1) === 1 ? '' : 's'} for this {workerAssignment?.id && workerAssignment.id !== 'transcriber' ? 'part' : 'job'}. Generating it once is charged once.</span>
