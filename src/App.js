@@ -51,7 +51,7 @@ import NotificationsCenter, { NotificationAlert } from './components/Notificatio
 import { isPaidAIUser } from './aiAccess';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { isAdminEmail, hasFreeAccess } from './adminEmails';
+import { isAdminEmail, isHumanJobAdminEmail, hasFreeAccess } from './adminEmails';
 import { recordPageView } from './analyticsService';
 
 
@@ -513,9 +513,20 @@ function AppContent() {
 
   // Admin list lives in src/adminEmails.js so it cannot drift from the backend.
   const isAdmin = isAdminEmail(currentUser?.email);
+  const isHumanJobAdmin = isHumanJobAdminEmail(currentUser?.email);
   const profileRole = String(userProfile?.role || userProfile?.user_type || '').toLowerCase();
   const isTrainee = !isAdmin && profileRole === 'trainee' && userProfile?.trainingRoomAccess === true && userProfile?.workerApproved !== true;
   const isWorker = !isAdmin && (['worker', 'transcriber'].includes(profileRole) || userProfile?.workerApproved === true);
+
+  // "/?view=human_ops" is what the Human Work link opens in a new tab.
+  useEffect(() => {
+    if (!currentUser || !userProfile) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('view') !== 'human_ops') return;
+    if (isHumanJobAdminEmail(currentUser.email)) setCurrentView('human_ops');
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }, [currentUser, userProfile]);
+
 
   // The unified notification feed now owns job, message, and assignment alerts.
 
@@ -2470,6 +2481,34 @@ return (
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v18M5 8h14M5 16h14"/></svg>
                   Credit tools
                 </button>
+                <a
+                  className="tm-nav"
+                  href="/?view=human_ops"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Opens the Human Work management in a new tab"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>
+                  Human Work
+                </a>
+              </>
+            )}
+
+            {/* The Human Work desk account is not a full admin, so its link
+                sits beside Refer &amp; earn, set apart from the main tabs. */}
+            {isHumanJobAdmin && !isAdmin && (
+              <>
+                <div className="tm-navrule" role="separator" />
+                <a
+                  className="tm-nav"
+                  href="/?view=human_ops"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Opens the Human Work management in a new tab"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>
+                  Human Work
+                </a>
               </>
             )}
 
