@@ -61,6 +61,7 @@ export default function NotificationsCenter({
           <p className="tm-notifications-kicker">Your workspace</p>
           <h1 id="tm-notifications-title">Notifications</h1>
           <p>Messages and job updates stay here until you have read or handled them.</p>
+          <p style={{ marginTop: 6, fontSize: 12, color: '#8a948c' }}>Alert sounds can be muted in Settings. Muting may cost you a message or an important update.</p>
         </div>
         <div className="tm-notifications-total" aria-live="polite">
           <strong>{unreadCount > 99 ? '99+' : unreadCount}</strong>

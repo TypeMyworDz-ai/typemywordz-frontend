@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 const TEST_SECONDS = 30;
-const MINIMUM_WPM = 50;
+const MINIMUM_WPM = 40;
 const TEST_TEXT = 'A steady typing rhythm begins with relaxed hands and eyes on the screen. Keep your fingers close to the home row, press each key lightly, and return to your starting position. Accuracy comes from control, not force. Read ahead by a few words, keep your shoulders loose, and let your hands move at a pace you can sustain. When a name or number appears, take the time to type it carefully. A clear transcript depends on careful listening and consistent work. Practise a little each day, and your speed will grow without making your typing harder.';
 
 export const correctCharacterCount = (typed, target) => {
@@ -106,7 +106,7 @@ export default function TypingSpeedTest({ onPass, compact = false }) {
       {complete && (
         <div className={`tm-speed-test-result${passed ? ' is-pass' : ' is-retry'}`} role="status">
           <strong>{passed ? `Passed — ${wpm} WPM` : `${wpm} WPM — try again`}</strong>
-          <span>{passed ? 'Your typing speed meets the 50 WPM requirement.' : 'You need 50 WPM. You can repeat the test as many times as needed.'}</span>
+          <span>{passed ? 'Your typing speed meets the 40 WPM requirement.' : 'You need 40 WPM. You can repeat the test as many times as needed.'}</span>
         </div>
       )}
     </section>

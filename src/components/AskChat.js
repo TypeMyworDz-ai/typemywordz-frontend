@@ -526,6 +526,7 @@ const AskChat = ({
   emptyTitle = 'Ask TypeMyworDz',
   emptyHint = 'Ask a question, paste something in, or attach an image, PDF or Word document.',
   suggestions = [],
+  systemExtra = '',
 }) => {
   const [draft, setDraft] = useState('');
   const [openAnswer, setOpenAnswer] = useState(null);
@@ -595,6 +596,7 @@ const AskChat = ({
       // transcription job is tracked by email but the ledger by id.
       body.append('user_id', userId || '');
       if (transcript) body.append('transcript', transcript);
+      if (systemExtra) body.append('system_extra', systemExtra);
       sending.forEach((f) => body.append('files', f, f.name));
 
       const res = await fetch(`${RAILWAY_BACKEND_URL}/ai/ask`, { method: 'POST', body });
@@ -625,7 +627,7 @@ const AskChat = ({
     } finally {
       setBusy(false);
     }
-  }, [draft, files, busy, messages, onMessagesChange, model, transcript, userPlan, userEmail, userId]);
+  }, [draft, files, busy, messages, onMessagesChange, model, transcript, userPlan, userEmail, userId, systemExtra]);
 
   const onKeyDown = (e) => {
     // Enter sends, Shift and Enter starts a new line. Standard for a chat box.

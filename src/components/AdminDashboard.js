@@ -12,6 +12,7 @@ import { fetchCreditBalance, isOnCreditsOnly } from '../creditsService';
 import ConfirmDialog from './ConfirmDialog';
 import HumanJobWorkspace from './HumanJobWorkspace';
 import TraineeReviewDialog from './TraineeReviewDialog';
+import AdminAskPanel from './AdminAskPanel';
 import './AdminDashboard.css';
 
 const BACKEND_URL =
@@ -230,6 +231,20 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [chatUser, setChatUser] = useState(null);
   const [traineeReview, setTraineeReview] = useState(null);
+  const [workers, setWorkers] = useState([]);
+  const [workersLoading, setWorkersLoading] = useState(false);
+  const [workerSearch, setWorkerSearch] = useState('');
+  const loadWorkers = useCallback(async () => {
+    if (!currentUser) return;
+    setWorkersLoading(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${BACKEND_URL}/api/admin/workers`, { headers: { Authorization: `Bearer ${token}` } });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || 'Workers could not be loaded.');
+      setWorkers(Array.isArray(payload.workers) ? payload.workers : []);
+    } catch (error) { showMessage?.(error.message, 'error'); } finally { setWorkersLoading(false); }
+  }, [currentUser, showMessage]);
   const [traineeDecisionBusy, setTraineeDecisionBusy] = useState(false);
 
   const loadTrainees = useCallback(async () => {
@@ -244,16 +259,17 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
     } catch (error) { showMessage?.(error.message, 'error'); } finally { setTraineeLoading(false); }
   }, [currentUser, showMessage]);
 
-  const decideTrainee = async (uid, decision) => {
+  const decideTrainee = async (uid, decision, extra = {}) => {
     setTraineeDecisionBusy(true);
     try {
       const token = await currentUser.getIdToken();
-      const response = await fetch(`${BACKEND_URL}/api/admin/trainees/${encodeURIComponent(uid)}/decision`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ decision }) });
+      const response = await fetch(`${BACKEND_URL}/api/admin/trainees/${encodeURIComponent(uid)}/decision`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ decision, ...extra }) });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.detail || 'The trainee decision failed.');
-      showMessage?.(decision === 'promote_worker' ? 'Trainee promoted to worker.' : 'Trainee application declined.', 'success');
+      showMessage?.({ promote_worker: 'Trainee promoted to worker. They now appear on the Workers tab.', invite_redo: 'Redo invitation sent. The modules are open again for the trainee.', waitlist: 'Trainee moved to the waitlist.' }[decision] || 'Trainee application declined.', 'success');
       setTraineeReview(null);
       await loadTrainees();
+      await loadWorkers();
       return true;
     } catch (error) { showMessage?.(error.message, 'error'); return false; }
     finally { setTraineeDecisionBusy(false); }
@@ -308,8 +324,8 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
   }, [currentUser, showMessage]);
 
   useEffect(() => {
-    if (isAdmin) { fetchAdminData(); loadTrainees(); }
-  }, [isAdmin, fetchAdminData, loadTrainees]);
+    if (isAdmin) { fetchAdminData(); loadTrainees(); loadWorkers(); }
+  }, [isAdmin, fetchAdminData, loadTrainees, loadWorkers]);
 
   const trafficSnapshot = useMemo(() => {
     const cutoff = Date.now() - 30 * 86400000;
@@ -446,6 +462,8 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
             ['support', `Support${unreadFeedback ? ` · ${unreadFeedback}` : ''}`],
             ['human', 'Human work'],
             ['trainees', `Trainees${trainees.length ? ` · ${trainees.length}` : ''}`],
+            ['workers', `Workers${workers.length ? ` · ${workers.length}` : ''}`],
+            ['ask', 'Ask TypeMyworDz'],
           ].map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={activeTab === id} className="tm-admin-tab" onClick={() => setActiveTab(id)}>{label}</button>
           ))}
@@ -493,10 +511,19 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
           <HumanJobWorkspace mode="admin" showMessage={showMessage} />
         )}
 
+        {activeTab === 'ask' && <AdminAskPanel currentUser={currentUser} showMessage={showMessage} />}
+
+        {activeTab === 'workers' && (
+          <div className="tm-admin-panel">
+            <div className="tm-admin-table-toolbar"><div><h2 className="tm-admin-panel-title">Workers</h2><p className="tm-admin-panel-note">Trainees who were promoted. Claiming work needs a rating of 3.5 or higher; proofreading needs 4.5 or higher.</p></div><div style={{ display: 'flex', gap: 8 }}><input className="tm-admin-input" type="search" aria-label="Search workers" placeholder="Search name or email" value={workerSearch} onChange={(event) => setWorkerSearch(event.target.value)} /><button type="button" className="tm-admin-btn" onClick={loadWorkers} disabled={workersLoading}>{workersLoading ? 'Refreshing…' : 'Refresh workers'}</button></div></div>
+            <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Worker</th><th>Email</th><th>Rating</th><th>Can proofread</th><th>Availability</th></tr></thead><tbody>{workers.filter((worker) => `${worker.name} ${worker.email}`.toLowerCase().includes(workerSearch.trim().toLowerCase())).map((worker) => <tr key={worker.uid}><td><strong>{worker.name}</strong>{worker.phone ? <div className="tm-admin-name">{worker.phone}</div> : null}</td><td>{worker.email}</td><td>{worker.rating == null ? 'Not rated yet' : `${Number(worker.rating).toFixed(2)} / 5`}<div className="tm-admin-name">{worker.rating_count ? `${worker.rating_count} rated job${worker.rating_count === 1 ? '' : 's'}` : ''}</div></td><td>{worker.can_proofread ? 'Yes' : 'No'}</td><td>{worker.is_available ? 'Available' : 'Unavailable'}</td></tr>)}</tbody></table>{!workers.length && <div className="tm-admin-empty">No promoted workers yet.</div>}</div>
+          </div>
+        )}
+
         {activeTab === 'trainees' && (
           <section className="tm-admin-panel tm-admin-table-panel">
             <div className="tm-admin-table-toolbar"><div><h2 className="tm-admin-panel-title">Trainees</h2><p className="tm-admin-panel-note">Trainees complete all six modules without per-level approval. Review their full answers and final audio transcript once the programme is submitted.</p></div><button type="button" className="tm-admin-btn" onClick={loadTrainees} disabled={traineeLoading}>{traineeLoading ? 'Refreshing…' : 'Refresh trainees'}</button></div>
-            <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Applicant</th><th>Application</th><th>Payment</th><th>Modules</th><th>Actions</th></tr></thead><tbody>{trainees.map((trainee) => <tr key={trainee.uid || trainee.id}><td><strong>{trainee.name || 'Unnamed applicant'}</strong><div className="tm-admin-name">{trainee.email}</div><div className="tm-admin-name">{trainee.country || 'Country not supplied'}</div></td><td>{String(trainee.traineeStatus || 'not started').replaceAll('_', ' ')}</td><td>{String(trainee.trainingPaymentStatus || 'not submitted').replaceAll('_', ' ')}<div className="tm-admin-name">{trainee.trainingPaymentReference || ''}</div></td><td>{trainee.trainingCompletedModules || 0} of 6 · {String(trainee.trainingStatus || 'not started').replaceAll('_', ' ')}</td><td>{trainee.trainingReviewReady ? <button type="button" className="tm-admin-btn" onClick={() => setTraineeReview(trainee)}>Review all modules</button> : <span className="tm-admin-small">In progress</span>}</td></tr>)}</tbody></table>{!trainees.length && <div className="tm-admin-empty">No trainee applications yet.</div>}</div>
+            <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Applicant</th><th>Application</th><th>Payment</th><th>Modules</th><th>Actions</th></tr></thead><tbody>{trainees.map((trainee) => <tr key={trainee.uid || trainee.id}><td><strong>{trainee.name || 'Unnamed applicant'}</strong><div className="tm-admin-name">{trainee.email}</div><div className="tm-admin-name">{trainee.country || 'Country not supplied'}</div></td><td>{String(trainee.traineeStatus || 'not started').replaceAll('_', ' ')}</td><td>{String(trainee.trainingPaymentStatus || 'not submitted').replaceAll('_', ' ')}<div className="tm-admin-name">{trainee.trainingPaymentReference || ''}</div></td><td>{trainee.trainingCompletedModules || 0} of 6 · {String(trainee.trainingStatus || 'not started').replaceAll('_', ' ')}</td><td>{trainee.trainingReviewReady || (trainee.trainingCompletedModules || 0) > 0 || trainee.traineeStatus === 'waitlisted' ? <button type="button" className="tm-admin-btn" onClick={() => setTraineeReview(trainee)}>{trainee.trainingReviewReady ? 'Review all modules' : 'View progress / invite redo'}</button> : <span className="tm-admin-small">In progress</span>}</td></tr>)}</tbody></table>{!trainees.length && <div className="tm-admin-empty">No trainee applications yet.</div>}</div>
           </section>
         )}
 
