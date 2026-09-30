@@ -191,12 +191,12 @@ const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', in
 
   return (
     <div className="tm-word-editor" style={{ border: '1px solid #d9dfda', borderRadius: 8, background: '#fff' }}>
-      <div role="toolbar" aria-label="Formatting" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '8px 10px', borderBottom: '1px solid #e5e9e5', background: '#fafbfa', borderRadius: '8px 8px 0 0' }}>
+      {!disabled && <div role="toolbar" aria-label="Formatting" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '8px 10px', borderBottom: '1px solid #e5e9e5', background: '#fafbfa', borderRadius: '8px 8px 0 0' }}>
         {TOOLBAR.map(([name, label, title, style]) => (
           <button key={name} type="button" title={title} aria-label={title} disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={() => command(name)} style={{ minWidth: 32, height: 28, border: '1px solid #d9dfda', borderRadius: 5, background: '#fff', cursor: 'pointer', font: '13px system-ui,sans-serif', ...style }}>{label}</button>
         ))}
         <span style={{ marginLeft: 'auto', color: '#7b857d', fontSize: 12 }}>Paste from Word and the formatting stays as it is.</span>
-      </div>
+      </div>}
       {combined && loadable.length > 0 && (
         <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#eef7f0', borderBottom: '1px solid #d6e9da', fontSize: 13 }}>
           <span>{loadable.length === 1 ? 'A new part has been submitted.' : `${loadable.length} new parts have been submitted.`}</span>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { DOC_FONT, copyForWord as copyText, downloadDocx, safeFileName } from '../utils/transcriptExport';
 const readModelPref = () => { try { return window.localStorage.getItem('tmwd.askModel') || ''; } catch { return ''; } };
 
 const box = { border: '1px solid #e1e6e2', borderRadius: 8, padding: '12px 14px', display: 'grid', gap: 10, background: '#fff' };
@@ -27,6 +28,10 @@ export function AdminPartReview({ job, act, downloadProtectedFile }) {
     await act(`/human-transcription/jobs/${job.id}/rate-part`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ segment_id: row.id, rating, note: value.note ?? ratings[row.id]?.note ?? '' }) }, `${row.label} rated.`);
   };
 
+  const suggested = job.proofreader_suggested_ratings || {};
+  const applySuggestion = (row) => act(`/human-transcription/jobs/${job.id}/rate-part`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ segment_id: row.id, rating: suggested[row.id].rating, note: `Proofreader: ${suggested[row.id].note || ''}`.trim().slice(0, 1800), source: 'proofreader' }) }, `Applied the proofreader's rating to ${row.label}.`);
+  const dismissSuggestion = (row) => act(`/human-transcription/jobs/${job.id}/proofreader-ratings/dismiss`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ segment_id: row.id }) }, 'Suggestion dismissed.');
+
   return (
     <div className="tm-human-assign" style={box}>
       <div><strong>Submitted parts</strong><div style={muted}>Read each part as soon as it is in, and rate its worker separately. Ratings stay open after proofreading.</div></div>
@@ -42,6 +47,13 @@ export function AdminPartReview({ job, act, downloadProtectedFile }) {
               <button type="button" onClick={() => setOpen((current) => ({ ...current, [row.id]: !current[row.id] }))}>{open[row.id] ? 'Hide text' : 'Read this part'}</button>
               {row.attachment && <button type="button" onClick={() => downloadProtectedFile(row.attachmentPath, row.attachment.name, 'The finished file could not be downloaded.')}>Download: {row.attachment.name}</button>}
             </div>
+            {suggested[row.id] && (
+              <div role="status" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, background: '#f3f0fc', border: '1px solid #ddd5f6', borderRadius: 6, padding: '8px 12px', fontSize: 13 }}>
+                <span><strong>The proofreader suggests {suggested[row.id].rating}/5</strong>{suggested[row.id].note ? `: ${suggested[row.id].note}` : ''}. This is not registered until you apply it.</span>
+                <button type="button" onClick={() => applySuggestion(row)}>Apply this rating</button>
+                <button type="button" onClick={() => dismissSuggestion(row)}>Dismiss</button>
+              </div>
+            )}
             {open[row.id] && <div style={{ whiteSpace: 'pre-wrap', maxHeight: 300, overflow: 'auto', background: '#fafbfa', border: '1px solid #e5e9e5', borderRadius: 6, padding: 12, fontSize: 14, lineHeight: 1.5 }}>{row.text || 'No text was typed for this part. See the attached file.'}</div>}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
               <select aria-label={`Rating for ${row.label}`} value={value.rating ?? saved?.rating ?? ''} onChange={(event) => setDraft((current) => ({ ...current, [row.id]: { ...current[row.id], rating: event.target.value } }))}>
@@ -60,19 +72,9 @@ export function AdminPartReview({ job, act, downloadProtectedFile }) {
 
 // AI proofreading. Works on a job finished by one worker or on every submitted
 // part of a split job, and produces one client-ready transcript.
-const DOC_FONT = 'Times New Roman';
 
-const escapeHtml = (value) => String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-// Word-ready markup: every line keeps its leading tab and double spaces.
-const wordHtml = (text) => `<div style="font-family:'${DOC_FONT}',serif;font-size:12pt">${String(text || '').split('\n').map((line) => `<p style="margin:0;white-space:pre-wrap">${line ? escapeHtml(line) : '&nbsp;'}</p>`).join('')}</div>`;
 
-const downloadBlob = (blob, name) => {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url; link.download = name; document.body.appendChild(link); link.click(); link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 30000);
-};
 
 export function AdminAiReviewPanel({ job, act, busy, splitJob = true }) {
   const review = job.ai_review;
@@ -90,19 +92,8 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true }) {
   const labelFor = (id) => (id === 'main' ? 'Full transcript' : ((job.segments || []).find((part) => part.id === id)?.label || id));
 
   const copyForWord = async () => {
-    const text = review.combined_text || '';
     try {
-      if (navigator.clipboard && window.ClipboardItem) {
-        await navigator.clipboard.write([new window.ClipboardItem({ 'text/html': new Blob([wordHtml(text)], { type: 'text/html' }), 'text/plain': new Blob([text], { type: 'text/plain' }) })]);
-      } else {
-        const holder = document.createElement('div');
-        holder.style.cssText = 'position:fixed;left:-9999px;top:0';
-        holder.innerHTML = wordHtml(text);
-        document.body.appendChild(holder);
-        const range = document.createRange(); range.selectNodeContents(holder);
-        const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
-        document.execCommand('copy'); selection.removeAllRanges(); holder.remove();
-      }
+      await copyText(review.combined_text || '');
       flash('Copied. Paste it into Word and the indents and double spaces stay.');
     } catch {
       flash('Copying was blocked by the browser. Use Download Word instead.');
@@ -111,20 +102,7 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true }) {
 
   const downloadWord = async () => {
     try {
-      const { Document, Packer, Paragraph, TextRun, Tab } = await import('docx');
-      const paragraphs = String(review.combined_text || '').split('\n').map((line) => {
-        const tabs = (/^\t*/.exec(line) || [''])[0].length;
-        const body = line.slice(tabs);
-        const children = [];
-        for (let i = 0; i < tabs; i += 1) children.push(new TextRun({ children: [new Tab()] }));
-        if (body) children.push(new TextRun({ text: body }));
-        return new Paragraph({ children, spacing: { before: 0, after: 0, line: 240 } });
-      });
-      const doc = new Document({
-        styles: { default: { document: { run: { font: DOC_FONT, size: 24 } } } },
-        sections: [{ properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } }, children: paragraphs }],
-      });
-      downloadBlob(await Packer.toBlob(doc), `${String(job.job_name || job.title || 'transcript').replace(/[^A-Za-z0-9._ -]+/g, '').trim() || 'transcript'} - final.docx`);
+      await downloadDocx(review.combined_text || '', `${safeFileName(job.job_name || job.title)} - final`);
     } catch {
       flash('The Word file could not be created. Use Copy for Word instead.');
     }

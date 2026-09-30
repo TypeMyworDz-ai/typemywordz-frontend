@@ -88,6 +88,7 @@ const Landing = () => {
   }, []);
 
   const [activeSlide, setActiveSlide] = useState(0);
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -126,6 +127,21 @@ const Landing = () => {
           </div>
           <div className="menu-item" onClick={go('assistant')}>
             <span className="menu-text">Ask TypeMyworDz</span>
+          </div>
+          <div className="menu-item" onClick={() => setToolsOpen((open) => !open)} onMouseLeave={() => setToolsOpen(false)}>
+            <span className="menu-text">Tools</span>
+            <span className={`dropdown-arrow ${toolsOpen ? 'rotated' : ''}`} aria-hidden="true">
+              <svg viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 4.5L6 8l3.5-3.5"/></svg>
+            </span>
+            {toolsOpen && (
+              <div className="submenu open" id="toolsSubmenu">
+                <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/word-to-pdf.html"><span className="menu-text">Word to PDF</span></a>
+                <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/pdf-to-word.html"><span className="menu-text">PDF to Word</span></a>
+                <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/pdf-to-jpg.html"><span className="menu-text">PDF to JPG</span></a>
+                <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/jpg-to-pdf.html"><span className="menu-text">JPG to PDF</span></a>
+                <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/"><span className="menu-text">All free tools</span></a>
+              </div>
+            )}
           </div>
           <Link className="menu-item" to="/typing-practice" target="_blank" rel="noopener noreferrer">
             <span className="menu-text">Free typing practice</span>
@@ -421,6 +437,7 @@ const Landing = () => {
         <span className="tm-sitefoot-links">
           <Link to="/faq">Help and FAQ</Link>
           <a href="/cost-calculator.html">What it costs</a>
+          <a href="/tools/">Free tools</a>
           <Link to="/privacy-policy">Privacy &amp; Security</Link>
           <Link to="/terms">Terms of Service</Link>
           <Link to="/refund-policy">Refund Policy</Link>

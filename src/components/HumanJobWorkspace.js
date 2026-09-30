@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import TranscriptEditor from './TranscriptEditor';
+import FinalTranscriptView from './FinalTranscriptView';
 import PdfJobsAdminPanel from './PdfJobsAdminPanel';
 import WordLikeEditor from './WordLikeEditor';
 import ConfirmDialog from './ConfirmDialog';
@@ -64,6 +64,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [messageText, setMessageText] = useState('');
   const [messageFile, setMessageFile] = useState(null);
   const [finalAttachment, setFinalAttachment] = useState(null);
+  const [proofRatings, setProofRatings] = useState({});
   const [editorText, setEditorText] = useState('');
   const [editorHtml, setEditorHtml] = useState('');
   const [aiDraftBusy, setAiDraftBusy] = useState(false);
@@ -277,6 +278,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       setStarterWorker('');
       setStarterSegment('');
       setFinalAttachment(null);
+      setProofRatings({});
     }
   }, [initialJobId, jobs, mode, selectedId, selectedJob, draftAssignmentKey, onInitialJobHandled]);
 
@@ -434,7 +436,21 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     if (!busy && (messageText.trim() || messageFile)) event.currentTarget.form?.requestSubmit();
   };
 
+  const saveProofreaderRatings = async () => {
+    const entries = Object.entries(proofRatings).filter(([, value]) => Number(value?.rating) >= 1);
+    if (!entries.length || workerAssignment?.role !== 'proofreader') return;
+    try {
+      await request(`/human-transcription/jobs/${selectedJob.id}/proofreader-ratings`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ratings: entries.map(([segment_id, value]) => ({ segment_id, rating: Number(value.rating), note: value.note || '' })) }),
+      });
+    } catch {
+      showMessage?.('Your ratings could not be saved, but your work will still be submitted.', 'error');
+    }
+  };
+
   const submitWorker = async () => {
+    await saveProofreaderRatings();
     const form = new FormData();
     form.append('transcript', editorText);
     form.append('transcript_html', editorHtml);
@@ -856,6 +872,27 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 </div>
               </div>
             )}
+            {mode === 'worker' && workerAssignmentActive && workerAssignment?.role === 'proofreader' && (selectedJob.proofreader_parts || []).length > 0 && (
+              <div className="tm-human-reference-card tm-proofreader-ratings">
+                <strong>Rate the parts (optional)</strong>
+                <span>When you finish, you can suggest a rating for each part. It is not registered: an admin sees your suggestion and decides whether to apply it.</span>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {selectedJob.proofreader_parts.map((part) => {
+                    const mine = proofRatings[part.id] || selectedJob.my_suggested_ratings?.[part.id] || {};
+                    return (
+                      <div key={part.id} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                        <strong style={{ minWidth: 150 }}>{part.label}{part.author_label ? ` by ${part.author_label}` : ''}</strong>
+                        <select aria-label={`Rating for ${part.label}`} value={mine.rating || ''} onChange={(event) => setProofRatings((current) => ({ ...current, [part.id]: { ...mine, rating: event.target.value } }))}>
+                          <option value="">No rating</option>
+                          <option value="5">5 · excellent</option><option value="4">4 · strong</option><option value="3">3 · acceptable</option><option value="2">2 · needs work</option><option value="1">1 · poor</option>
+                        </select>
+                        <input aria-label={`Note for ${part.label}`} style={{ flex: '1 1 200px' }} placeholder="Short note (optional)" value={mine.note || ''} onChange={(event) => setProofRatings((current) => ({ ...current, [part.id]: { ...mine, note: event.target.value } }))} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {!(mode === 'worker' && workerTab === 'available') && selectedJob.final_attachment && workerAssignment?.role !== 'proofreader' && <div className="tm-human-reference-card"><strong>Finished file from the worker</strong><span>Submitted instead of, or alongside, the shared editor text.</span><div className="tm-human-reference-list"><button type="button" onClick={() => downloadProtectedFile(`/human-transcription/jobs/${selectedJob.id}/final-attachment`, selectedJob.final_attachment.name, 'The finished file could not be downloaded.')}>Download: {selectedJob.final_attachment.name}</button></div></div>}
 
             {!(mode === 'worker' && workerTab === 'available') && (
@@ -871,15 +908,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                   onChange={(text, html) => { setEditorText(text); setEditorHtml(html); }}
                 />
               ) : (
-              <TranscriptEditor
-                key={selectedJob.id}
-                fileName={selectedJob.pdf_image?.name || selectedJob.audio?.name || `Human job ${selectedJob.id.slice(0, 6)}`}
-                rawText={selectedJob.transcript || editorText}
-                durationSeconds={Number(selectedJob.minutes || 0) * 60}
-                audioUrl={audioUrl || null}
-                readOnly={mode === 'client' && !['client_review', 'released'].includes(selectedJob.status)}
-                onChange={setEditorText}
-              />
+              <FinalTranscriptView job={selectedJob} showMessage={showMessage} />
               )}
               <p className="tm-human-editor-note">{selectedJob.job_type === 'pdf_job' ? 'Always use Gemini for image transcription, check the draft against the image, then complete and attach your Word document.' : 'AI tools can help with first drafts and questions, but the final human release stays under admin review.'}</p>
             </div>
