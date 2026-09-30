@@ -46,6 +46,8 @@ import CreditHistory from './components/CreditHistory';
 import TraineeDashboard from './components/TraineeDashboard';
 import TraineeSignup from './components/TraineeSignup';
 import TypingPractice from './components/TypingPractice';
+import FormatWithGuidelines from './components/FormatWithGuidelines';
+import DocumentConverter from './components/DocumentConverter';
 import GuidelinesPage from './components/GuidelinesPage';
 import NotificationsCenter, { NotificationAlert } from './components/NotificationsCenter';
 import { isPaidAIUser } from './aiAccess';
@@ -2284,9 +2286,9 @@ return (
             className="tm-menu" 
             onMouseLeave={() => setOpenSubmenu(null)}
           >
-            {/* Products Parent Menu */}
+            {/* Tools Parent Menu */}
             <div className="menu-item" onClick={() => handleToggleSubmenu('productsSubmenu')}>
-                <span className="menu-text">Products</span>
+                <span className="menu-text">Tools</span>
                 <span className={`dropdown-arrow ${openSubmenu === 'productsSubmenu' ? 'rotated' : ''}`} aria-hidden="true">
                   <svg viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 4.5L6 8l3.5-3.5"/></svg>
                 </span>
@@ -2299,6 +2301,9 @@ return (
                         </div>
                         <div className="submenu-item" onClick={() => setCurrentView('ai_assistant')}>
                             <span className="menu-text">Ask TypeMyworDz</span>
+                        </div>
+                        <div className="submenu-item" onClick={() => setCurrentView('tools')}>
+                            <span className="menu-text">Document converter</span>
                         </div>
                         <div className="submenu-item" onClick={() => window.showComingSoon('Text-to-Speech')}>
                             <span className="menu-text">Text-to-Speech</span>
@@ -2682,6 +2687,8 @@ return (
             onBuy={(itemId, countryCode) => initializePayment(itemId, countryCode)}
             onGoTo={setCurrentView}
           />
+        ) : currentView === 'tools' ? (
+          <DocumentConverter />
         ) : currentView === 'credits' ? (
           <Pricing
             mode="credits"
@@ -3194,6 +3201,10 @@ return (
                   showHumanRequest
                   onHumanTopUp={() => setCurrentView('credits')}
                 />
+              )}
+
+              {transcription && status === 'completed' && (
+                <FormatWithGuidelines transcript={transcription} fileName={selectedFile ? selectedFile.name : ''} />
               )}
 
               {transcription && (
