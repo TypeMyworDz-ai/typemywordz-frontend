@@ -247,6 +247,7 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
           />
         </label>
         <p className="tm-set-note">Some browsers require one click or key press before they allow app sounds.</p>
+        <p className="tm-set-note" style={{ color: '#8a5a00' }}>Heads up: with sounds off you may miss a message or an important update, so keep an eye on your notifications.</p>
       </section>
 
       <section className="tm-set-section">

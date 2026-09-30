@@ -243,7 +243,7 @@ export default function TraineeSignup() {
         <p className="tm-trainee-lede">Enrollment is currently open to Kenyan applicants. Use your official ID name so your training and work records match.</p>
         {!typingPassed && !paymentConfirmed && (
           <div className="tm-trainee-test-gate">
-            <p><strong>First, check your typing speed.</strong> Pass a 30-second test at 50 WPM or faster to continue to the application and checkout.</p>
+            <p><strong>First, check your typing speed.</strong> Pass a 30-second test at 40 WPM or faster to continue to the application and checkout.</p>
             <TypingSpeedTest compact onPass={({ correctCharacters, seconds, wpm }) => { const result = { correct_chars: correctCharacters, elapsed_ms: seconds * 1000, wpm }; setTypingPassed(true); setTypingTestResult(result); writeSession(TEST_PASSED_KEY, { passed: true, result, recordedAt: Date.now() }); setNotice('Typing requirement met. Your enrollment details are now available below.'); }} />
             <p className="tm-trainee-practice-link">Want to warm up first? <Link to="/typing-practice" target="_blank" rel="noopener noreferrer">Try the free typing lessons</Link>.</p>
           </div>

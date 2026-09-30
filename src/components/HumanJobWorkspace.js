@@ -2,6 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext';
 import TranscriptEditor from './TranscriptEditor';
 import PdfJobsAdminPanel from './PdfJobsAdminPanel';
+import WordLikeEditor from './WordLikeEditor';
+import ConfirmDialog from './ConfirmDialog';
+import { AdminPartReview, AdminAiReviewPanel } from './AdminPartReview';
 import './HumanJobWorkspace.css';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
@@ -61,6 +64,12 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [messageFile, setMessageFile] = useState(null);
   const [finalAttachment, setFinalAttachment] = useState(null);
   const [editorText, setEditorText] = useState('');
+  const [editorHtml, setEditorHtml] = useState('');
+  const [aiDraftBusy, setAiDraftBusy] = useState(false);
+  const [aiDraftLocal, setAiDraftLocal] = useState('');
+  const [wholeWorker, setWholeWorker] = useState('');
+  const [wholeConfirm, setWholeConfirm] = useState(false);
+  const editorRef = useRef(null);
   const [feedback, setFeedback] = useState('');
   const [rating, setRating] = useState('5');
   const [proofreaderWorker, setProofreaderWorker] = useState('');
@@ -260,6 +269,9 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     if (selectedJob && draftAssignmentKeyRef.current !== draftAssignmentKey) {
       draftAssignmentKeyRef.current = draftAssignmentKey;
       setEditorText(selectedJob.transcript || '');
+      setEditorHtml(selectedJob.transcript_html || '');
+      setAiDraftLocal('');
+      setWholeWorker('');
       setProofreaderWorker(selectedJob.proofreader_uid || '');
       setStarterWorker('');
       setStarterSegment('');
@@ -397,6 +409,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const submitWorker = async () => {
     const form = new FormData();
     form.append('transcript', editorText);
+    form.append('transcript_html', editorHtml);
     form.append('notes', feedback);
     // Some jobs only need the finished file handed back -- nothing to type
     // into the shared editor. The server accepts either real transcript
@@ -457,6 +470,25 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     const worker = workerPayload(proofreaderWorker);
     if (!worker) return showMessage?.('Choose an approved proofreader first.', 'error');
     return act(`/human-transcription/jobs/${selectedJob.id}/assign-proofreader`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(worker) });
+  };
+
+  const assignWholeJob = async () => {
+    const worker = workerPayload(wholeWorker);
+    setWholeConfirm(false);
+    if (!worker) return showMessage?.('Choose a worker for this urgent job.', 'error');
+    const saved = await act(`/human-transcription/jobs/${selectedJob.id}/assign-whole`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(worker) }, 'The whole job was assigned.');
+    if (saved) { setWholeWorker(''); setAdminQueueLane('in_progress'); }
+    return saved;
+  };
+
+  const requestAiDraft = async () => {
+    setAiDraftBusy(true);
+    try {
+      const payload = await request(`/human-transcription/jobs/${selectedJob.id}/ai-draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ segment_id: workerAssignment?.id && workerAssignment.id !== 'transcriber' ? workerAssignment.id : '' }) });
+      setAiDraftLocal(payload.draft || '');
+      showMessage?.(payload.already_generated ? 'Your saved AI draft is shown below. You were not charged again.' : `AI draft ready. ${payload.credits_charged || 0} credits were used.`, 'success');
+      await loadJobs();
+    } catch (error) { showMessage?.(error.message, 'error'); } finally { setAiDraftBusy(false); }
   };
 
   const extendTat = (segmentId = '', target = '') => act(`/human-transcription/jobs/${selectedJob.id}/extend-tat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minutes: Number(extensionMinutes), segment_id: segmentId, target }) });
@@ -627,11 +659,11 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <div className="tm-human-job-detail">
           {!selectedJob ? <div className="tm-human-empty">Choose a job to see its details.</div> : <>
             <div className="tm-human-detail-head">
-              <div><span className="tm-human-status">{STATUS_LABELS[selectedJob.status] || selectedJob.status}</span><h2>{selectedJob.pdf_image?.name || selectedJob.audio?.name || (selectedJob.source_type === 'ai_proofreading' ? 'AI transcript for proofreading' : 'Human-transcription request')}</h2><p>{selectedJob.job_type === 'pdf_job' ? 'PDF image transcription · KES 100 per submitted image' : `${selectedJob.source_type === 'ai_proofreading' ? 'AI transcript proofreading' : 'New human transcript'} · ${selectedJob.minutes || 0} minutes${mode !== 'worker' ? ` · ${selectedJob.quote_credits || 0} credits` : ''} · ${selectedJob.turnaround || 'standard'} delivery`}</p>{mode === 'worker' && workerAssignment?.label && <p><strong>{workerAssignment.label}</strong>{workerAssignment.role === 'proofreader' ? ' · Combine both submitted parts and check the handoff between them.' : selectedJob.job_type === 'pdf_job' ? ' · Transcribe the single assigned image and submit the finished Word file or transcript.' : ` · Work from ${formatCountdown(workerAssignment.start_seconds || 0)} to ${formatCountdown(workerAssignment.end_seconds || 0)} in the source recording.`}</p>}</div>
+              <div><span className="tm-human-status">{STATUS_LABELS[selectedJob.status] || selectedJob.status}</span><h2>{selectedJob.pdf_image?.name || selectedJob.audio?.name || (selectedJob.source_type === 'ai_proofreading' ? 'AI transcript for proofreading' : 'Human-transcription request')}</h2><p>{selectedJob.job_type === 'pdf_job' ? 'PDF image transcription · KES 100 per submitted image' : `${selectedJob.source_type === 'ai_proofreading' ? 'AI transcript proofreading' : 'New human transcript'} · ${selectedJob.minutes || 0} minutes${mode !== 'worker' ? ` · ${selectedJob.quote_credits || 0} credits` : ''} · ${selectedJob.turnaround || 'standard'} delivery`}</p>{mode === 'worker' && workerAssignment?.label && <p><strong>{workerAssignment.label}</strong>{workerAssignment.role === 'proofreader' ? ' · Proofread the combined text below and check the handoff between parts. You can submit once every part is in.' : selectedJob.job_type === 'pdf_job' ? ' · Transcribe the single assigned image and submit the finished Word file or transcript.' : ` · Work from ${formatCountdown(workerAssignment.start_seconds || 0)} to ${formatCountdown(workerAssignment.end_seconds || 0)} in the source recording.`}</p>}</div>
               <div className="tm-human-detail-actions">
                 {mode === 'admin' && selectedJob.status === 'pending_admin' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/approve`, { method: 'POST' })}>Approve request</button>}
                 {mode === 'worker' && workerAssignmentActive && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/start`, { method: 'POST' })}>Start work</button>}
-                {mode === 'worker' && workerAssignmentActive && <button type="button" onClick={submitWorker} disabled={busy || (!editorText.trim() && !finalAttachment && !selectedJob.final_attachment)}>Submit {workerAssignment?.role === 'proofreader' ? 'final work' : selectedJob.job_type === 'pdf_job' ? 'image transcription' : 'part'} for review</button>}
+                {mode === 'worker' && workerAssignmentActive && <button type="button" onClick={submitWorker} disabled={busy || (workerAssignment?.role === 'proofreader' && (selectedJob.proofreader_parts || []).some((part) => part.pending)) || (!editorText.trim() && !finalAttachment && !selectedJob.final_attachment)}>Submit {workerAssignment?.role === 'proofreader' ? 'final work' : selectedJob.job_type === 'pdf_job' ? 'image transcription' : 'part'} for review</button>}
                 {mode === 'client' && selectedJob.status === 'client_review' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/client-approve`, { method: 'POST' })}>Approve completed work</button>}
                 {mode === 'admin' && selectedJob.status === 'client_review' && <button type="button" title="Some clients are fully hands-off and trust an admin's review instead of logging in to approve it themselves." onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/client-approve`, { method: 'POST' })}>Approve on client's behalf</button>}
                 {mode === 'admin' && selectedJob.status === 'client_approved' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/release`, { method: 'POST' })}>Release completed work</button>}
@@ -699,6 +731,19 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <p className="tm-tat-reassigned-note">This job was automatically returned from {selectedJob.last_auto_reassigned_worker_name} after the deadline passed. It is available on the workers’ claim board again; the next deadline starts when claimed.</p>
             )}
 
+            {mode === 'admin' && selectedJob.job_type !== 'pdf_job' && ((!splitJob && selectedJob.status === 'approved') || (splitJob && !selectedJob.proofreader_status && (selectedJob.segments || []).every((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))) && <div className="tm-human-assign">
+              <strong>Urgent: give the whole job to one worker</strong>
+              <label>Worker
+                <select value={wholeWorker} onChange={(event) => setWholeWorker(event.target.value)}>
+                  <option value="">Choose an approved worker</option>
+                  {workers.filter((worker) => worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.rating == null ? 'not rated' : `${Number(worker.rating).toFixed(1)}/5`} · {worker.email}</option>)}
+                </select>
+              </label>
+              <button type="button" disabled={busy || !wholeWorker} onClick={() => setWholeConfirm(true)}>Assign whole job</button>
+              <p className="tm-tat-hint">Rating does not matter here. The job is taken off the claim board and is not split. The worker must be free of other active work.</p>
+            </div>}
+            <ConfirmDialog open={wholeConfirm} title="Assign the whole job to this worker?" body="The job leaves the Available Jobs board and the worker does the full recording. Use this for urgent work." confirmLabel="Assign whole job" busy={busy} onConfirm={assignWholeJob} onCancel={() => setWholeConfirm(false)} />
+
             {mode === 'admin' && !splitJob && selectedJob.status === 'approved' && <div className="tm-human-assign">
               <strong>Available to workers</strong>
               <p>Approved workers who meet the 3.5/5 rating standard can claim this job from the Available Jobs board. The deadline starts when they claim it.</p>
@@ -733,18 +778,41 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               </div>
             )}
 
-            {mode === 'admin' && splitJob && ['proofreading_available', 'split_in_progress'].includes(selectedJob.status) && (selectedJob.segments || []).every((part) => part.status === 'submitted') && <div className="tm-human-assign"><label>Assign final proofreader<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose worker</option>{workers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign proofreading</button><p className="tm-tat-hint">The proofreader receives every submitted slice in one editor and returns one final transcript.</p></div>}
+            {mode === 'admin' && splitJob && ['split_assigned', 'split_in_progress', 'proofreading_available'].includes(selectedJob.status) && (selectedJob.segments || []).some((part) => part.status === 'submitted') && !['assigned', 'in_progress'].includes(selectedJob.proofreader_status) && <div className="tm-human-assign"><label>Assign a proofreader<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose a worker rated 4.5 or higher</option>{workers.filter((worker) => worker.can_proofread).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {Number(worker.rating).toFixed(1)}/5 · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign proofreading</button><p className="tm-tat-hint">Only workers rated 4.5/5 or higher can proofread. You can assign now, before every part is in. The proofreader gets one editor with all submitted parts, separated by dotted lines, and can load the rest as they arrive. They can submit only once every part is in.</p></div>}
+            {mode === 'admin' && splitJob && (selectedJob.segments || []).length > 0 && (selectedJob.segments || []).every((part) => part.status === 'submitted') && <AdminAiReviewPanel job={selectedJob} act={act} busy={busy} />}
+            {mode === 'admin' && <AdminPartReview job={selectedJob} act={act} downloadProtectedFile={downloadProtectedFile} />}
 
 
             {mode === 'admin' && selectedJob.status === 'submitted' && <div className="tm-human-review"><label>Worker rating<select value={rating} onChange={(event) => setRating(event.target.value)}><option value="5">5 — excellent</option><option value="4">4 — strong</option><option value="3">3 — acceptable</option><option value="2">2 — needs work</option><option value="1">1 — poor</option></select></label><textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder={selectedJob.job_type === 'pdf_job' ? 'Internal review notes for this image job' : 'Notes for the client and worker'} /><button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating, feedback }) }, selectedJob.job_type === 'pdf_job' ? 'PDF transcription approved and completed.' : 'Sent to client for review.')}>{selectedJob.job_type === 'pdf_job' ? 'Approve PDF transcription' : 'Send to client'}</button></div>}
 
             {selectedJob.job_type === 'pdf_job' && !(mode === 'worker' && workerTab === 'available') && <div className="tm-human-pdf-image-card"><div><strong>Assigned image</strong><span>{selectedJob.pdf_image?.source_filename || selectedJob.pdf_image?.name}{selectedJob.pdf_image?.page_count > 1 ? ` · Page ${selectedJob.pdf_image.page_number} of ${selectedJob.pdf_image.page_count}` : ''}</span></div>{pdfImageUrl ? <img src={pdfImageUrl} alt={`Transcribe ${selectedJob.pdf_image?.name || 'PDF Job'}`} /> : <p role={pdfImageError ? 'alert' : 'status'}>{pdfImageError || 'Loading the private image…'}</p>}</div>}
             {audioUrl && <div className="tm-human-audio-card"><strong>Source recording</strong><span>Available to the client, admin and assigned worker.</span><audio controls src={audioUrl} /></div>}
+            {mode === 'worker' && workerAssignmentActive && workerAssignment?.role !== 'proofreader' && selectedJob.job_type !== 'pdf_job' && <div className="tm-human-reference-card" style={{ display: 'grid', gap: 8 }}>
+              <strong>AI draft for this audio</strong>
+              <span>Get a first draft of {workerAssignment?.label ? workerAssignment.label.toLowerCase() : 'this audio'}, then copy it into Word or insert it into the editor below. Drafts use your TypeMyworDz credits: about {Math.max(1, Math.ceil(((workerAssignment?.end_seconds || 0) - (workerAssignment?.start_seconds || 0)) / 60) || 1)} credit{Math.max(1, Math.ceil(((workerAssignment?.end_seconds || 0) - (workerAssignment?.start_seconds || 0)) / 60) || 1) === 1 ? '' : 's'} for this {workerAssignment?.id && workerAssignment.id !== 'transcriber' ? 'part' : 'job'}. Generating it once is charged once.</span>
+              {!(aiDraftLocal || selectedJob.ai_draft) && <div><button type="button" disabled={aiDraftBusy} onClick={requestAiDraft}>{aiDraftBusy ? 'Preparing your draft…' : 'Get AI draft'}</button></div>}
+              {(aiDraftLocal || selectedJob.ai_draft) && <>
+                <div style={{ whiteSpace: 'pre-wrap', maxHeight: 280, overflow: 'auto', background: '#fafbfa', border: '1px solid #e5e9e5', borderRadius: 6, padding: 12, fontSize: 14, lineHeight: 1.5 }}>{aiDraftLocal || selectedJob.ai_draft}</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(aiDraftLocal || selectedJob.ai_draft); showMessage?.('Draft copied.', 'success'); } catch { showMessage?.('Copy failed. Select the text and copy it manually.', 'error'); } }}>Copy draft</button>
+                  <button type="button" onClick={() => { editorRef.current?.insertText(aiDraftLocal || selectedJob.ai_draft); showMessage?.('Draft inserted into the editor.', 'success'); }}>Insert into editor</button>
+                </div>
+              </>}
+            </div>}
+            {mode === 'worker' && workerAssignmentActive && <div className="tm-human-reference-card" style={{ display: 'grid', gap: 6 }}>
+              <strong>Your reference documents</strong>
+              <span>Open these while you work.</span>
+              <div className="tm-human-reference-list">
+                {selectedJob.job_type !== 'pdf_job' && <a href="/guidelines" target="_blank" rel="noopener noreferrer">TypeMyworDz General Guidelines (opens in a new tab)</a>}
+                <button type="button" onClick={() => downloadProtectedFile('/human-transcription/trainee/training/materials/formatting-default.docx', 'TypeMyworDz Default Document settings.docx', 'The default document settings file could not be downloaded.')}>Download: TypeMyworDz Default Document settings</button>
+              </div>
+              <span style={{ fontSize: 12, color: '#7b857d' }}>Reminder: create your draft with the TypeMyworDz AI above and edit it in Word. Work done without an in-app AI draft may be declined.</span>
+            </div>}
             {!(mode === 'worker' && workerTab === 'available') && selectedJob.instruction_attachments?.length > 0 && <div className="tm-human-reference-card"><strong>Reference files from the client</strong><span>Use these notes, spellings, and supporting documents while working.</span><div className="tm-human-reference-list">{selectedJob.instruction_attachments.map((item, index) => <button type="button" key={`${item.name}-${index}`} onClick={() => downloadProtectedFile(`/human-transcription/jobs/${selectedJob.id}/instruction/${index}`, item.name, 'The reference file could not be downloaded.')}>Download: {item.name}</button>)}</div></div>}
             {mode === 'worker' && workerAssignment?.role === 'proofreader' && (selectedJob.proofreader_parts || []).length > 0 && (
               <div className="tm-human-reference-card tm-proofreader-source-parts">
-                <strong>Both submitted parts</strong>
-                <span>Download each part, combine them in Word, then submit one final proofread transcript.</span>
+                <strong>Submitted parts</strong>
+                <span>All submitted parts are already combined in the editor below. You can also download each part here.</span>
                 <div className="tm-human-reference-list">
                   {selectedJob.proofreader_parts.map((part) => (
                     <div className="tm-proofreader-source-part" key={part.id}>
@@ -762,6 +830,16 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             {!(mode === 'worker' && workerTab === 'available') && (
             <div className="tm-human-editor-card">
               <div className="tm-human-editor-head"><div><strong>{selectedJob.job_type === 'pdf_job' ? 'Image transcription draft' : 'Shared proofreading editor'}</strong><span>{selectedJob.job_type === 'pdf_job' ? 'Enter your checked transcript here or attach your completed Word document.' : 'The same working area is used by the worker, admin and client.'}</span></div><div className="tm-human-editor-ad">Need a first draft or a quick answer? <button type="button" onClick={() => showMessage?.('Ask TypeMyworDz opens from the left navigation.', 'success')}>Use Ask TypeMyworDz</button></div></div>
+              {mode === 'worker' && workerAssignmentActive ? (
+                <WordLikeEditor
+                  key={draftAssignmentKey}
+                  ref={editorRef}
+                  parts={workerAssignment?.role === 'proofreader' ? (selectedJob.proofreader_parts || []) : null}
+                  initialHtml={selectedJob.transcript_html || ''}
+                  initialText={selectedJob.transcript || ''}
+                  onChange={(text, html) => { setEditorText(text); setEditorHtml(html); }}
+                />
+              ) : (
               <TranscriptEditor
                 key={selectedJob.id}
                 fileName={selectedJob.pdf_image?.name || selectedJob.audio?.name || `Human job ${selectedJob.id.slice(0, 6)}`}
@@ -771,6 +849,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 readOnly={mode === 'client' && !['client_review', 'released'].includes(selectedJob.status)}
                 onChange={setEditorText}
               />
+              )}
               <p className="tm-human-editor-note">{selectedJob.job_type === 'pdf_job' ? 'Always use Gemini for image transcription, check the draft against the image, then complete and attach your Word document.' : 'AI tools can help with first drafts and questions, but the final human release stays under admin review.'}</p>
             </div>
             )}

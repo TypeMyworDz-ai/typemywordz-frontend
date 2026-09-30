@@ -7,6 +7,8 @@ export default function TraineeReviewDialog({ trainee, currentUser, onClose, onD
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [confirming, setConfirming] = useState('');
+  const [redoLevels, setRedoLevels] = useState([]);
+  const [redoMessage, setRedoMessage] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -28,8 +30,11 @@ export default function TraineeReviewDialog({ trainee, currentUser, onClose, onD
   const modules = record?.modules || [];
   const ready = record?.complete === true && modules.length === 6;
   const finishDecision = async () => {
-    if (!confirming || !ready) return;
-    const saved = await onDecision(trainee.uid || trainee.id, confirming);
+    if (!confirming) return;
+    if ((confirming === 'promote_worker' || confirming === 'reject') && !ready) return;
+    if (confirming === 'invite_redo' && !redoLevels.length) return;
+    const extra = confirming === 'invite_redo' ? { levels: redoLevels, message: redoMessage.trim() } : {};
+    const saved = await onDecision(trainee.uid || trainee.id, confirming, extra);
     if (saved) setConfirming('');
   };
 
@@ -40,7 +45,7 @@ export default function TraineeReviewDialog({ trainee, currentUser, onClose, onD
         {loading ? <div className="tm-admin-empty">Loading saved answers and practical work…</div> : error ? <div className="tm-training-review-error" role="alert">{error}</div> : <>
           {!ready && <div className="tm-training-review-error">The saved record is incomplete. Promotion remains disabled until every module and the final transcript are present.</div>}
           {modules.map((module) => <article className="tm-training-review-module" key={module.level}>
-            <div className="tm-training-review-module-head"><div><span>Module {module.level}</span><h3>{module.name}</h3></div><strong className={module.status === 'submitted' ? 'is-complete' : ''}>{module.status === 'submitted' ? 'Submitted' : 'Missing'}</strong></div>
+            <div className="tm-training-review-module-head"><div><span>Module {module.level}</span><h3>{module.name}</h3></div><strong className={module.status === 'submitted' ? 'is-complete' : ''}>{module.status === 'submitted' ? 'Submitted' : module.status === 'redo_requested' ? 'Redo invited' : 'Missing'}</strong>{module.status !== 'redo_requested' && <button type="button" className="tm-admin-btn" onClick={() => { setRedoLevels([module.level]); setConfirming('invite_redo'); }}>Invite to redo this module</button>}</div>
             {module.status !== 'submitted' ? <p className="tm-training-review-muted">No completed submission was saved for this module.</p> : <>
               <div className="tm-training-review-checks"><strong>Checklist</strong>{(module.answers?.checklist || []).map((item, index) => <div key={`${module.level}-${index}`}><span aria-hidden="true">{item.checked ? '✓' : '—'}</span><span>{item.label}</span></div>)}</div>
               <div className="tm-training-review-answer"><strong>Knowledge check</strong><p>{module.answers?.quiz_question || 'No question saved'}</p><span>{module.answers?.quiz_answer || 'No answer saved'} · {module.answers?.quiz_answer_correct ? 'Correct' : 'Needs review'}</span></div>
@@ -49,8 +54,9 @@ export default function TraineeReviewDialog({ trainee, currentUser, onClose, onD
               {module.notes && <div className="tm-training-review-answer"><strong>Additional notes</strong><p className="tm-training-review-prewrap">{module.notes}</p></div>}
             </>}
           </article>)}
-          {ready && !confirming && <div className="tm-training-review-decision"><p>After reviewing the full record, decide whether the trainee meets the quality standard for paid work.</p><div><button type="button" className="tm-admin-btn" onClick={() => setConfirming('promote_worker')}>Promote to worker</button><button type="button" className="tm-admin-btn tm-admin-btn-danger" onClick={() => setConfirming('reject')}>Decline trainee</button></div></div>}
-          {ready && confirming && <div className="tm-training-review-confirm" role="alert"><strong>{confirming === 'promote_worker' ? 'Confirm worker promotion?' : 'Confirm decline?'}</strong><p>{confirming === 'promote_worker' ? 'This grants access to the Work Room and available paid jobs.' : 'This closes the trainee’s training access. Their saved training record remains available to admins.'}</p><div><button type="button" className="tm-admin-btn" disabled={busy} onClick={finishDecision}>{busy ? 'Saving…' : confirming === 'promote_worker' ? 'Confirm promotion' : 'Confirm decline'}</button><button type="button" className="tm-admin-btn" disabled={busy} onClick={() => setConfirming('')}>Cancel</button></div></div>}
+          {!confirming && <div className="tm-training-review-decision"><p>{ready ? 'After reviewing the full record, decide whether the trainee meets the quality standard for paid work. You can also invite them to redo modules, or keep them on the waitlist if there is no open position.' : 'The saved record is incomplete, but you can still invite the trainee to redo modules or keep them on the waitlist.'}</p><div>{ready && <button type="button" className="tm-admin-btn" onClick={() => setConfirming('promote_worker')}>Promote to worker</button>}<button type="button" className="tm-admin-btn" onClick={() => { setRedoLevels([1, 2, 3, 4, 5, 6]); setConfirming('invite_redo'); }}>Invite to redo all modules</button><button type="button" className="tm-admin-btn" onClick={() => setConfirming('waitlist')}>Passed, no open position: waitlist</button>{ready && <button type="button" className="tm-admin-btn tm-admin-btn-danger" onClick={() => setConfirming('reject')}>Decline trainee</button>}</div></div>}
+          {confirming === 'invite_redo' && <div className="tm-training-review-confirm" role="alert"><strong>Invite {trainee.name || 'this trainee'} to redo {redoLevels.length === 6 ? 'all modules' : `module${redoLevels.length > 1 ? 's' : ''} ${redoLevels.join(', ')}`}?</strong><div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, margin: '8px 0' }}>{[1, 2, 3, 4, 5, 6].map((n) => <label key={n}><input type="checkbox" checked={redoLevels.includes(n)} onChange={(event) => setRedoLevels((current) => event.target.checked ? [...current, n].sort() : current.filter((x) => x !== n))} /> Module {n}</label>)}</div><textarea rows={3} style={{ width: '100%' }} placeholder="Optional note for the trainee, for example what to improve" value={redoMessage} onChange={(event) => setRedoMessage(event.target.value)} /><p>Their earlier answers stay on record. The chosen modules reopen on their dashboard right away.</p><div><button type="button" className="tm-admin-btn" disabled={busy || !redoLevels.length} onClick={finishDecision}>{busy ? 'Saving…' : 'Send invitation'}</button><button type="button" className="tm-admin-btn" disabled={busy} onClick={() => setConfirming('')}>Cancel</button></div></div>}
+          {confirming && confirming !== 'invite_redo' && <div className="tm-training-review-confirm" role="alert"><strong>{confirming === 'promote_worker' ? 'Confirm worker promotion?' : confirming === 'waitlist' ? 'Move this trainee to the waitlist?' : 'Confirm decline?'}</strong><p>{confirming === 'promote_worker' ? 'This grants access to the Work Room and available paid jobs. They will move to the Workers tab.' : confirming === 'waitlist' ? 'They will see that they completed the training successfully, that no position is open, and that they are on the waitlist for future work.' : 'This closes the trainee’s training access. Their saved training record remains available to admins.'}</p><div><button type="button" className="tm-admin-btn" disabled={busy} onClick={finishDecision}>{busy ? 'Saving…' : confirming === 'promote_worker' ? 'Confirm promotion' : confirming === 'waitlist' ? 'Confirm waitlist' : 'Confirm decline'}</button><button type="button" className="tm-admin-btn" disabled={busy} onClick={() => setConfirming('')}>Cancel</button></div></div>}
         </>}
       </div>
     </section>
