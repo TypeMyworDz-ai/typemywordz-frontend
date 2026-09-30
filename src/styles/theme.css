@@ -497,6 +497,14 @@ body {
 
 .tm-navlabel:first-of-type { margin-top: 0; }
 
+.tm-navrule {
+  height: 1px;
+  background: var(--tm-line, rgba(0, 0, 0, 0.1));
+  margin: 12px 8px 8px;
+}
+
+a.tm-nav { text-decoration: none; }
+
 .tm-nav {
   display: flex;
   align-items: center;
