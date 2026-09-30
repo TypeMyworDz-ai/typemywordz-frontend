@@ -1,6 +1,6 @@
 // Checks we run on an email address before letting somebody create an account.
 //
-// Why this exists: every new account is given five free minutes of transcription.
+// Why this exists: every new account is given 30 free credits (30 minutes) of transcription.
 // Without any checks, one person can farm unlimited free minutes by signing up
 // again and again with throwaway addresses.
 
