@@ -46,6 +46,7 @@ import CreditHistory from './components/CreditHistory';
 import TraineeDashboard from './components/TraineeDashboard';
 import TraineeSignup from './components/TraineeSignup';
 import TypingPractice from './components/TypingPractice';
+import GuidelinesPage from './components/GuidelinesPage';
 import NotificationsCenter, { NotificationAlert } from './components/NotificationsCenter';
 import { isPaidAIUser } from './aiAccess';
 import { db } from './firebase';
@@ -2209,6 +2210,7 @@ return (
     <Route path="/refund-policy" element={<RefundPolicy />} />
     <Route path="/faq" element={<Faq />} />
     <Route path="/typing-practice" element={<TypingPractice />} />
+    <Route path="/guidelines" element={<GuidelinesPage />} />
     <Route path="/trainee-signup" element={<TraineeSignup />} />
     <Route path="/dashboard" element={<><Dashboard setCurrentView={setCurrentView} standalone /><FloatingWhatsApp /></>} />
     <Route path="/admin" element={isAdmin ? <><AdminDashboard showMessage={showMessage} latestTranscription={latestTranscription} /><FloatingWhatsApp /></> : <Navigate to="/" />} />
