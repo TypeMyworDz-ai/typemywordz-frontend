@@ -19,12 +19,12 @@ label{display:block;font-size:13px;color:#858a95;margin:16px 0 0;text-align:left
 .cta a{color:#5b44cf;font-weight:600}.mk{font-size:13px;color:#858a95;margin-top:10px}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#d93025;margin-right:6px;animation:b 1s infinite}@keyframes b{50%{opacity:.2}}
 </style></head><body><main>
-<div class="brand">Type<b>My</b>worDz Recorder</div><p class="tag">Your Transcription Companion</p>
+<div class="brand"><img src="https://typemywordz.ai/android-chrome-192x192.png" width="30" height="30" alt="" style="vertical-align:middle;margin-right:8px;border-radius:50%">Type<b>My</b>worDz Recorder</div><p class="tag">Your Transcription Companion</p>
 <div class="card">
 <div id="t">00:00</div><div id="s">Ready to record</div><canvas id="c" width="400" height="46"></canvas>
 <div class="row"><button class="go" id="rec">Record</button><button class="alt" id="pau" disabled>Pause</button><button class="stop" id="stp" disabled>Stop</button><button class="alt" id="mrk" disabled>Mark</button></div>
 <label>Quality<select id="q"><option value="32000">Speech, smallest file</option><option value="64000" selected>Standard, clear voice</option><option value="128000">High, music or noisy rooms</option></select></label>
-<div id="r"><strong id="n"></strong><audio id="a" controls></audio><div class="row"><a class="btn go" id="d">Save recording</a><button class="alt" id="x">New recording</button></div><div class="mk" id="m"></div></div>
+<div id="r"><strong id="n"></strong><audio id="a" controls></audio><div class="row"><a class="btn go" id="d">Save recording</a><a class="btn alt" href="https://typemywordz.ai/?utm_source=recorder" target="_blank" rel="noopener">Transcribe on TypeMyworDz</a><button class="alt" id="x">New recording</button></div><div class="mk" id="m"></div></div>
 </div>
 <div class="cta"><strong>Need the words, not just the sound?</strong> Upload this recording to <a href="https://typemywordz.ai/?utm_source=recorder" target="_blank" rel="noopener">TypeMyworDz</a> and get an accurate, editable transcript, then ask AI questions about it. <a href="https://typemywordz.ai/?utm_source=recorder" target="_blank" rel="noopener">Open TypeMyworDz</a></div>
 <p class="mk">Your recording stays on this device until you save it. Nothing is uploaded from this page.</p>
@@ -54,7 +54,7 @@ $('stp').onclick=function(){acc=el();run=0;clearTimeout(tm);mr.stop()};
 function done(){cancelAnimationFrame(raf);st.getTracks().forEach(function(t){t.stop()});if(ac)ac.close();if(wl)wl.release();
  var ty=mr.mimeType||'audio/webm',ext=/mp4/.test(ty)?'m4a':/ogg/.test(ty)?'ogg':'webm';blob=new Blob(ch,{type:ty});if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(blob);
  var d=new Date(),nm='recording-'+d.toISOString().slice(0,16).replace(/[-:T]/g,'')+'.'+ext;$('a').src=url;$('d').href=url;$('d').download=nm;$('n').textContent=nm+' ('+(blob.size/1048576).toFixed(1)+' MB, '+fmt(acc)+')';
- $('m').textContent=marks.length?'Marks: '+marks.join(', '):'';$('r').style.display='block';$('s').textContent='Done. Save it, then transcribe it on TypeMyworDz.';setb(0,1,1,1);$('pau').textContent='Pause';
+ $('m').textContent=marks.length?'Marks: '+marks.join(', '):'';$('r').style.display='block';$('s').textContent='Done. Save it, then upload the file on TypeMyworDz to get your transcript.';setb(0,1,1,1);$('pau').textContent='Pause';
  $('t').textContent=fmt(acc);window.onbeforeunload=null;
  $('d').onclick=function(){window.onbeforeunload=null}}
 $('x').onclick=function(){$('r').style.display='none';$('t').textContent='00:00';$('s').textContent='Ready to record';ch=[]};
