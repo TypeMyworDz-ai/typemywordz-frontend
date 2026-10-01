@@ -55,6 +55,7 @@ import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { isAdminEmail, isHumanJobAdminEmail, hasFreeAccess } from './adminEmails';
 import { recordPageView } from './analyticsService';
+import * as recordingBackup from './utils/recordingBackup';
 
 
 // UPDATED Configuration - RE-ADDED Render Whisper URL
@@ -226,6 +227,19 @@ function AppContent() {
   const { currentUser, logout, userProfile, refreshUserProfile, showMessage, clearMessage, loading: authLoading } = useAuth();
   
   // Utility functions
+  const recBtnStyle = (kind, disabled, small) => ({
+    fontFamily: 'inherit',
+    fontWeight: 600,
+    fontSize: small ? '13px' : '15px',
+    padding: small ? '5px 12px' : '12px 20px',
+    borderRadius: '8px',
+    cursor: disabled ? 'default' : 'pointer',
+    opacity: disabled ? 0.4 : 1,
+    border: '1px solid ' + (kind === 'go' ? '#28a745' : kind === 'stop' ? '#14161a' : kind === 'alt' ? '#5b44cf' : '#e5e6ea'),
+    background: kind === 'go' ? '#28a745' : kind === 'stop' ? '#14161a' : '#fff',
+    color: kind === 'go' || kind === 'stop' ? '#fff' : kind === 'alt' ? '#5b44cf' : '#858a95'
+  });
+
   const formatTime = (seconds) => {
     const n = Number(seconds);
     if (!Number.isFinite(n) || n < 0) return '0:00';
@@ -451,6 +465,14 @@ function AppContent() {
   const [silencePaused, setSilencePaused] = useState(false);
   const [autoPauseEnabled, setAutoPauseEnabled] = useState(false);
   const [downloadFormat, setDownloadFormat] = useState('mp3');
+  const [manualPaused, setManualPaused] = useState(false);
+  const [recMarks, setRecMarks] = useState([]);
+  const [recQuality, setRecQuality] = useState('speech');
+  const recQualityRef = useRef('speech');
+  const [recPreviewUrl, setRecPreviewUrl] = useState('');
+  const [backupFound, setBackupFound] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const handoffCheckedRef = useRef(false);
   const [copiedMessageVisible, setCopiedMessageVisible] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en'); 
   const [speakerLabelsEnabled, setSpeakerLabelsEnabled] = useState(false);
@@ -522,6 +544,8 @@ function AppContent() {
     setAudioDetected(false);
     setSilencePaused(false);
   }, []);
+
+  useEffect(() => { recQualityRef.current = recQuality; }, [recQuality]);
 
   useEffect(() => {
     autoPauseEnabledRef.current = autoPauseEnabled;
@@ -1191,6 +1215,11 @@ function AppContent() {
     // This also stops any ongoing transcription.
     resetTranscriptionProcessUI(); 
     setSelectedFile(null); // Clear any previously selected file
+    setRecMarks([]);
+    setManualPaused(false);
+    setConfirmDiscard(false);
+    setBackupFound(false);
+    recordingBackup.clearBackup();
     
     const fileInput = document.querySelector('input[type="file"]');
     if (fileInput) {
@@ -1300,13 +1329,19 @@ function AppContent() {
       const mimeType = chosen ? chosen.mimeType : '';
       recordingExtensionRef.current = chosen ? chosen.extension : 'webm';
 
+      const quality = recQualityRef.current;
+      const bits = chosen
+        ? (quality === 'high' ? 128000 : quality === 'standard' ? Math.max(64000, chosen.bits) : chosen.bits)
+        : 0;
       mediaRecorderRef.current = chosen
-        ? new MediaRecorder(stream, { mimeType, audioBitsPerSecond: chosen.bits })
+        ? new MediaRecorder(stream, { mimeType, audioBitsPerSecond: bits })
         : new MediaRecorder(stream);
       const chunks = [];
+      recordingBackup.saveMeta({ type: mimeType || 'audio/webm', ext: recordingExtensionRef.current || 'webm' });
 
       mediaRecorderRef.current.ondataavailable = (event) => {
         chunks.push(event.data);
+        if (event.data && event.data.size) recordingBackup.saveChunk(chunks.length, event.data);
         console.log('DEBUG: Data available from MediaRecorder. Chunk size:', event.data.size); // NEW LOG
       };
 
@@ -1361,6 +1396,8 @@ function AppContent() {
         }
         setSelectedFile(file);
         setTakeSaved(false);
+        setManualPaused(false);
+        setRecPreviewUrl((old) => { if (old) URL.revokeObjectURL(old); return URL.createObjectURL(originalBlob); });
         // Ask what to do with the take rather than silently leaving it sitting
         // there. Clients were clicking Stop and then hunting for Transcribe.
         setRecordingChoice(true);
@@ -1396,6 +1433,95 @@ function AppContent() {
     }
     beginRecording();
   }, [beginRecording, takeSaved]);
+
+  const togglePauseRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || !isRecording) return;
+    if (recorder.state === 'recording') {
+      recorder.pause();
+      setManualPaused(true);
+    } else if (recorder.state === 'paused') {
+      recorder.resume();
+      recordingPausedRef.current = false;
+      setSilencePaused(false);
+      setManualPaused(false);
+    }
+  }, [isRecording]);
+
+  const markMoment = useCallback(() => {
+    setRecMarks((marks) => [...marks, formatTime(recordingTime)]);
+  }, [recordingTime]);
+
+  // Takes a finished recording that did not come from this session (a
+  // recovered one, or one sent over from the free recorder tool) and puts it
+  // where a fresh recording would be.
+  const adoptTake = useCallback(async (blob, name, type) => {
+    const file = new File([blob], name, { type });
+    const measured = await measureAudio(file);
+    if (!measured.ok) {
+      showMessage('That recording could not be read back. Please record again.', 'error');
+      return false;
+    }
+    recordedAudioBlobRef.current = blob;
+    recordingExtensionRef.current = (name.split('.').pop() || 'webm');
+    if (measured.duration > 0) setAudioDuration(measured.duration);
+    setSelectedFile(file);
+    setTakeSaved(false);
+    setRecPreviewUrl((old) => { if (old) URL.revokeObjectURL(old); return URL.createObjectURL(blob); });
+    setRecordingChoice(true);
+    return true;
+  }, [measureAudio, showMessage]);
+
+  const recoverBackup = useCallback(async () => {
+    const found = await recordingBackup.loadBackup();
+    setBackupFound(false);
+    if (!found) return;
+    await adoptTake(found.blob, `recovered-${Date.now()}.${found.ext}`, found.type);
+  }, [adoptTake]);
+
+  const discardTake = useCallback(() => {
+    setRecordingChoice(false);
+    resetTranscriptionProcessUI();
+    setSelectedFile(null);
+    recordedAudioBlobRef.current = null;
+    setTakeSaved(false);
+    setConfirmDiscard(false);
+    setRecMarks([]);
+    setRecPreviewUrl((old) => { if (old) URL.revokeObjectURL(old); return ''; });
+    recordingBackup.clearBackup();
+  }, [resetTranscriptionProcessUI]);
+
+  // The backup is only worth keeping until the take is saved or transcribed.
+  useEffect(() => { if (takeSaved) recordingBackup.clearBackup(); }, [takeSaved]);
+  useEffect(() => { if (transcription && recordedAudioBlobRef.current) recordingBackup.clearBackup(); }, [transcription]);
+
+  // A recording that never got saved because the page closed or crashed.
+  useEffect(() => {
+    if (!currentUser) return;
+    recordingBackup.hasBackup().then((found) => { if (found && !recordedAudioBlobRef.current) setBackupFound(true); });
+  }, [currentUser]);
+
+  // A recording sent over from the free recorder tool on the website.
+  useEffect(() => {
+    if (!currentUser || handoffCheckedRef.current) return;
+    handoffCheckedRef.current = true;
+    (async () => {
+      const rec = await recordingBackup.takeHandoff();
+      if (!rec) return;
+      try {
+        if (window.location.search.includes('from=recorder')) {
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+      } catch (e) { /* the address bar is cosmetic */ }
+      if (Date.now() - (rec.at || 0) > 24 * 60 * 60 * 1000) return;
+      setCurrentView('transcribe');
+      const ok = await adoptTake(rec.blob, rec.name || `recording-${Date.now()}.webm`, rec.type || rec.blob.type || 'audio/webm');
+      if (ok) {
+        if (Array.isArray(rec.marks)) setRecMarks(rec.marks);
+        showMessage('Your recording from the recorder is ready below.', 'success');
+      }
+    })();
+  }, [currentUser, adoptTake, showMessage]);
 
   // Keyboard shortcuts, so nobody has to scroll the page to start, stop or
   // pick a file. Recording uses Ctrl+R outside text fields; file selection
@@ -2761,47 +2887,6 @@ return (
                 onConfirm={() => { setConfirmingNew(false); resetTranscriptionProcessUI(); setCurrentView('transcribe'); }}
                 onCancel={() => setConfirmingNew(false)}
               />
-              {recordingChoice && (
-                <div
-                  className="tm-dialog-back"
-                  onMouseDown={(e) => { if (e.target === e.currentTarget && !savingTake) setRecordingChoice(false); }}
-                >
-                  <div className="tm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="tm-rec-title">
-                    <h3 className="tm-dialog-title" id="tm-rec-title">Your recording is ready</h3>
-                    <p className="tm-dialog-body">
-                      {'You can send it straight for transcription, or save a copy to your ' +
-                       'computer first. Saving a copy is worth doing on anything important: ' +
-                       'if a transcription ever fails, you still have the audio.'}
-                    </p>
-                    <div className="tm-dialog-actions tm-rec-actions">
-                      <button
-                        type="button"
-                        className="tm-dialog-cancel"
-                        disabled={savingTake}
-                        onClick={() => { setRecordingChoice(false); resetTranscriptionProcessUI(); setSelectedFile(null); recordedAudioBlobRef.current = null; setTakeSaved(false); }}
-                      >
-                        Discard it
-                      </button>
-                      <button
-                        type="button"
-                        className="tm-dialog-cancel"
-                        disabled={savingTake}
-                        onClick={downloadRecordedAudio}
-                      >
-                        {savingTake ? 'Preparing your file\u2026' : 'Save a copy'}
-                      </button>
-                      <button
-                        type="button"
-                        className="tm-dialog-go"
-                        disabled={savingTake}
-                        onClick={() => { setRecordingChoice(false); handleUpload(); }}
-                      >
-                        Transcribe it
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
               <ConfirmDialog
                 open={confirmReRecord}
                 title="Record over the one you have?"
@@ -2890,73 +2975,76 @@ return (
                     Record audio
                   </h3>
                   
-                  <label className="tm-auto-pause-toggle">
-                    <input
-                      type="checkbox"
-                      checked={autoPauseEnabled}
-                      onChange={(event) => setAutoPauseEnabled(event.target.checked)}
-                    />
-                    <span>Pause automatically during long silence (Your mic/recording device should be well configured.)</span>
-                  </label>
-
-                  {isRecording && (
-                    <>
-                      <div
-                        className={`tm-waveform${audioDetected ? ' tm-waveform-live' : ''}${silencePaused ? ' tm-waveform-paused' : ''}`}
-                        role="img"
-                        aria-label={audioDetected ? 'Microphone waveform showing audio levels' : 'Waiting for microphone audio'}
-                      >
-                        <span className="tm-waveform-baseline" aria-hidden="true" />
-                        {Array.from({ length: 32 }, (_, index) => {
-                          const pulse = 0.32 + Math.abs(Math.sin(index * 0.72 + recordingTime * 0.9)) * 0.68;
-                          const scale = Math.max(0.22, Math.min(1.35, 0.22 + audioLevel * 1.75 * pulse));
-                          return (
-                            <span
-                              key={index}
-                              className={audioDetected ? 'tm-wave-bar tm-wave-bar-live' : 'tm-wave-bar'}
-                              style={{ transform: `scaleY(${scale})`, animationDelay: `${index * 26}ms` }}
-                            />
-                          );
-                        })}
-                      </div>
-                      <div className="tm-recording-timer" aria-live="polite">
-                        {formatTime(recordingTime)}
-                      </div>
-                      {silencePaused && (
-                        <div className="tm-recording-pause-note" role="status">
-                          Paused during silence. Listening for audio.
-                        </div>
-                      )}
-                    </>
+                  {backupFound && !isRecording && !recordedAudioBlobRef.current && (
+                    <div className="tm-rec-warn" role="status" style={{ marginBottom: '16px' }}>
+                      <strong>You have an unsaved recording from last time.</strong>{' '}
+                      <button type="button" onClick={recoverBackup} style={recBtnStyle('alt', false, true)}>Recover it</button>{' '}
+                      <button type="button" onClick={() => { recordingBackup.clearBackup(); setBackupFound(false); }} style={recBtnStyle('quiet', false, true)}>Discard</button>
+                    </div>
                   )}
-                  
-                  <button
-                    onClick={isRecording ? stopRecording : startRecording}
-                    style={{
-                      padding: '10px 18px',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      backgroundColor: isRecording ? '#c0392b' : '#28a745',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '7px',
-                      cursor: 'pointer',
-                      boxShadow: 'none',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      transition: 'background-color 0.15s ease'
-                    }}
-                  >
-                    <span style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      backgroundColor: 'white',
-                      display: 'inline-block'
-                    }} />
-                    {isRecording ? 'Stop recording' : 'Start recording'}
-                  </button>
+
+                  <div className="tm-recording-timer" aria-live="polite" style={{ fontFamily: 'Georgia, serif', fontSize: '46px', fontWeight: 700, lineHeight: 1.1, color: '#14161a', fontVariantNumeric: 'tabular-nums', margin: '0' }}>
+                    {formatTime(recordingTime)}
+                  </div>
+                  <div role="status" style={{ minHeight: '22px', fontSize: '14px', color: '#858a95', margin: '4px 0 14px' }}>
+                    {isRecording
+                      ? (manualPaused
+                          ? 'Paused'
+                          : silencePaused
+                            ? 'Paused during silence. Listening for audio.'
+                            : (recMarks.length ? `Recording. Mark at ${recMarks[recMarks.length - 1]}` : 'Recording'))
+                      : (recordedAudioBlobRef.current ? 'Done. Transcribe it, or save a copy first.' : 'Ready to record')}
+                  </div>
+                  {isRecording && (
+                    <div
+                      className={`tm-waveform${audioDetected ? ' tm-waveform-live' : ''}${(silencePaused || manualPaused) ? ' tm-waveform-paused' : ''}`}
+                      role="img"
+                      aria-label={audioDetected ? 'Microphone waveform showing audio levels' : 'Waiting for microphone audio'}
+                    >
+                      <span className="tm-waveform-baseline" aria-hidden="true" />
+                      {Array.from({ length: 32 }, (_, index) => {
+                        const pulse = 0.32 + Math.abs(Math.sin(index * 0.72 + recordingTime * 0.9)) * 0.68;
+                        const scale = Math.max(0.22, Math.min(1.35, 0.22 + audioLevel * 1.75 * pulse));
+                        return (
+                          <span
+                            key={index}
+                            className={audioDetected ? 'tm-wave-bar tm-wave-bar-live' : 'tm-wave-bar'}
+                            style={{ transform: `scaleY(${scale})`, animationDelay: `${index * 26}ms` }}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <button type="button" onClick={startRecording} disabled={isRecording} style={recBtnStyle('go', isRecording)}>Record</button>
+                    <button type="button" onClick={togglePauseRecording} disabled={!isRecording} style={recBtnStyle('alt', !isRecording)}>{(manualPaused || silencePaused) ? 'Resume' : 'Pause'}</button>
+                    <button type="button" onClick={stopRecording} disabled={!isRecording} style={recBtnStyle('stop', !isRecording)}>Stop</button>
+                    <button type="button" onClick={markMoment} disabled={!isRecording} style={recBtnStyle('alt', !isRecording)}>Mark</button>
+                  </div>
+
+                  <div style={{ maxWidth: '420px', margin: '16px auto 0', textAlign: 'left' }}>
+                    <label htmlFor="recQuality" style={{ display: 'block', fontSize: '13px', color: '#858a95' }}>Quality</label>
+                    <select
+                      id="recQuality"
+                      value={recQuality}
+                      disabled={isRecording}
+                      onChange={(e) => setRecQuality(e.target.value)}
+                      style={{ width: '100%', padding: '9px', marginTop: '4px', border: '1px solid #e5e6ea', borderRadius: '8px', fontFamily: 'inherit', fontSize: '14px', background: '#fff' }}
+                    >
+                      <option value="speech">Speech, smallest file</option>
+                      <option value="standard">Standard, clear voice</option>
+                      <option value="high">High, music or noisy rooms</option>
+                    </select>
+                    <label className="tm-auto-pause-toggle" style={{ marginTop: '14px' }}>
+                      <input
+                        type="checkbox"
+                        checked={autoPauseEnabled}
+                        onChange={(event) => setAutoPauseEnabled(event.target.checked)}
+                      />
+                      <span>Skip long silences while recording (works best with a well set up microphone)</span>
+                    </label>
+                  </div>
 
                   <div className="tm-rec-hint">
                     {isRecording
@@ -2964,23 +3052,22 @@ return (
                       : 'Press Ctrl+R to start recording, or Ctrl+Shift+O to choose a file.'}
                   </div>
 
-                  {recordedAudioBlobRef.current && !isRecording && !takeSaved && (
-                    <div className="tm-rec-warn" role="status">
-                      This recording only exists here until you transcribe it or save it. Save a
-                      copy to your computer if it matters, so a failed transcription cannot cost
-                      you the audio.
-                    </div>
-                  )}
-
                   {recordedAudioBlobRef.current && !isRecording && (
-                    <div style={{ marginTop: '15px' }}>
-                      <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        gap: '10px',
-                        marginBottom: '10px'
-                      }}>
+                    <div role="status" style={{ marginTop: '18px', borderTop: '1px solid #eceef1', paddingTop: '16px', textAlign: 'left' }}>
+                      <strong style={{ color: '#1a1b1f' }}>{recordingChoice ? 'Your recording is ready' : 'Your recording'}</strong>
+                      {recPreviewUrl && (
+                        <audio controls src={recPreviewUrl} style={{ width: '100%', margin: '8px 0 10px' }} />
+                      )}
+                      <div className="tm-rec-warn" style={{ marginTop: 0 }}>
+                        {takeSaved
+                          ? 'A copy is saved on your computer. '
+                          : 'You can transcribe it now, or save a copy to your computer first. Saving a copy is worth doing on anything important: if a transcription ever fails, you still have the audio. '}
+                        It is also kept safely on this device until you transcribe, save or discard it.
+                      </div>
+                      {recMarks.length > 0 && (
+                        <div style={{ fontSize: '13px', color: '#858a95', marginTop: '10px' }}>Marks: {recMarks.join(', ')}</div>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '12px 0 10px', flexWrap: 'wrap' }}>
                         <label htmlFor="downloadFormat" style={{ color: '#1a1b1f', fontWeight: '500', fontSize: '14px' }}>
                           Download Format:
                         </label>
@@ -2988,35 +3075,32 @@ return (
                           id="downloadFormat"
                           value={downloadFormat}
                           onChange={(e) => setDownloadFormat(e.target.value)}
-                          style={{
-                            padding: '6px 10px',
-                            borderRadius: '7px',
-                            border: '1px solid #d5d7dd',
-                            fontFamily: 'inherit',
-                            fontSize: '14px',
-                            background: '#fff'
-                          }}
+                          style={{ padding: '6px 10px', borderRadius: '7px', border: '1px solid #d5d7dd', fontFamily: 'inherit', fontSize: '14px', background: '#fff' }}
                         >
                           <option value="mp3">MP3, plays anywhere</option>
                           <option value="original">Original, exactly as recorded</option>
                         </select>
                       </div>
-                      <button
-                        onClick={downloadRecordedAudio}
-                        disabled={savingTake}
-                        style={{
-                          padding: '8px 14px',
-                          backgroundColor: '#fff',
-                          color: '#1a1b1f',
-                          border: '1px solid #d5d7dd',
-                          borderRadius: '7px',
-                          cursor: 'pointer',
-                          fontFamily: 'inherit',
-                          fontSize: '14px'
-                        }}
-                      >
-                        {savingTake ? 'Preparing your file\u2026' : (downloadFormat === 'mp3' ? 'Save recording as MP3' : 'Save recording as recorded')}
-                      </button>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        {recordingChoice && (
+                          <button type="button" disabled={savingTake} onClick={() => { setRecordingChoice(false); handleUpload(); }} style={recBtnStyle('go', savingTake)}>
+                            Transcribe it
+                          </button>
+                        )}
+                        <button type="button" onClick={downloadRecordedAudio} disabled={savingTake} style={recBtnStyle('alt', savingTake)}>
+                          {savingTake ? 'Preparing your file\u2026' : (downloadFormat === 'mp3' ? 'Save a copy as MP3' : 'Save a copy as recorded')}
+                        </button>
+                        {recordingChoice && (
+                          <button
+                            type="button"
+                            disabled={savingTake}
+                            onClick={() => { if (confirmDiscard) discardTake(); else setConfirmDiscard(true); }}
+                            style={recBtnStyle('quiet', savingTake)}
+                          >
+                            {confirmDiscard ? 'Click again to discard' : 'Discard it'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
