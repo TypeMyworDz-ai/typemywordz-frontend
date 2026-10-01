@@ -27,14 +27,16 @@
 <body>
 <div class="wrap">
 <header class="top">
-<a class="brand" href="https://typemywordz.ai/"><span class="a">Type</span><span class="b">My</span><span class="a">worDz</span></a>
+<a class="brand" href="https://typemywordz.ai/"><img src="/android-chrome-192x192.png" alt="" width="30" height="30" style="vertical-align:middle;margin-right:9px;border-radius:50%"><span class="a">Type</span><span class="b">My</span><span class="a">worDz</span></a>
 <nav class="links"><a href="/tools/">All tools</a><a href="/tools/word-to-pdf.html">Word to PDF</a><a href="/tools/pdf-to-word.html">PDF to Word</a><a href="/tools/pdf-to-jpg.html">PDF to JPG</a><a href="/">AI transcription</a></nav>
 </header>
 <main>
 <h1>PDF to Word converter</h1>
 <p class="lead">Turn a PDF into a Word document you can edit. Text, headings, tables and pictures are carried across as closely as possible.</p>
-<form class="tool" id="tm-tool" data-target="docx" data-accept=".pdf" data-name="PDF to Word">
+<form class="tool" id="tm-tool" data-kind="convert" data-endpoint="/tools/convert" data-target="docx" data-max="15" data-verb="Convert and download" data-accept=".pdf" data-name="PDF to Word">
 <label class="drop" id="tm-drop"><strong id="tm-drop-title">Choose a PDF</strong><small id="tm-drop-hint">or drop it here. Up to 15 MB.</small><input type="file" id="tm-file" accept=".pdf"></label>
+<ul class="flist" id="tm-list"></ul>
+
 <button class="go" id="tm-go" type="submit" disabled>Convert and download</button>
 <div class="msg" id="tm-msg" role="status" aria-live="polite"></div>
 </form>
@@ -45,7 +47,7 @@
 <h2>Questions</h2>
 <h3>Can I convert a scanned PDF to Word?</h3><p>A scan is a picture of a page, so there is no text to move into Word. Use PDF to JPG for scans, or upload the pages to TypeMyworDz to have them transcribed.</p><h3>Will tables and columns survive?</h3><p>In most documents, yes. Very complex layouts may need a little tidying in Word.</p><h3>Is it free and private?</h3><p>Yes. No account is needed and your file is deleted right after conversion.</p>
 <h2>More free tools</h2>
-<div class="grid"><a class="card" href="/tools/word-to-pdf.html"><strong>Word to PDF</strong><span>Convert a Word document (DOCX or DOC) to PDF for free.</span></a><a class="card" href="/tools/word-to-jpg.html"><strong>Word to JPG</strong><span>Convert each page of a Word document into a JPG picture for free.</span></a><a class="card" href="/tools/word-to-png.html"><strong>Word to PNG</strong><span>Convert Word document pages to crisp PNG images for free.</span></a><a class="card" href="/tools/pdf-to-jpg.html"><strong>PDF to JPG</strong><span>Convert PDF pages to JPG images for free.</span></a><a class="card" href="/tools/pdf-to-png.html"><strong>PDF to PNG</strong><span>Convert PDF pages to sharp PNG images for free.</span></a><a class="card" href="/tools/jpg-to-pdf.html"><strong>JPG to PDF</strong><span>Convert a JPG or PNG picture to a PDF for free.</span></a></div>
+<div class="grid"><a class="card" href="/tools/word-to-pdf.html"><strong>Word to PDF</strong><span>Convert a Word document (DOCX or DOC) to PDF for free.</span></a><a class="card" href="/tools/word-to-jpg.html"><strong>Word to JPG</strong><span>Convert each page of a Word document into a JPG picture for free.</span></a><a class="card" href="/tools/word-to-png.html"><strong>Word to PNG</strong><span>Convert Word document pages to crisp PNG images for free.</span></a><a class="card" href="/tools/pdf-to-jpg.html"><strong>PDF to JPG</strong><span>Convert PDF pages to JPG images for free.</span></a><a class="card" href="/tools/pdf-to-png.html"><strong>PDF to PNG</strong><span>Convert PDF pages to sharp PNG images for free.</span></a><a class="card" href="/tools/jpg-to-pdf.html"><strong>JPG to PDF</strong><span>Convert a JPG or PNG picture to a PDF for free.</span></a><a class="card" href="/tools/merge-pdf.html"><strong>Merge PDF</strong><span>Combine several PDF files into one document for free.</span></a><a class="card" href="/tools/split-pdf.html"><strong>Split PDF</strong><span>Split a PDF by page range, pull out the pages you need, or save every page as its own file.</span></a><a class="card" href="/tools/compress-pdf.html"><strong>Compress PDF</strong><span>Reduce the size of a PDF so it is easy to email or upload.</span></a><a class="card" href="/tools/audio-converter.html"><strong>Audio Converter</strong><span>Convert audio or video to MP3, WAV, M4A, OGG or FLAC for free.</span></a><a class="card" href="/tools/audio-recorder.html"><strong>Audio Recorder</strong><span>A free, tiny voice recorder for your browser.</span></a></div>
 <div class="cta"><p><strong>Need a recording turned into text?</strong></p><p>TypeMyworDz transcribes interviews, meetings and dictation into clean, editable text, and lets you ask AI about it. Your first 30 credits are free.</p><a class="btn" href="/">Try TypeMyworDz free</a></div>
 </main>
 <footer class="bot"><a href="/">TypeMyworDz</a><a href="/tools/">Free tools</a><a href="/faq.html">Help and FAQ</a><a href="/privacy-policy.html">Privacy and Security</a><a href="/terms-of-service.html">Terms of Service</a></footer>
