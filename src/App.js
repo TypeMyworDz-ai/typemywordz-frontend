@@ -2192,7 +2192,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
       <div className="tm-boot">
         {bootVisible && (
           <div className="tm-boot-mark">
-            <img className="tm-boot-logo" src="/brand-mark.png" alt="TypeMyworDz AI" width="96" height="96" />
+            <img className="tm-boot-logo" src="/brand-mark.png" alt="TypeMyworDz AI" width="176" height="176" />
             <span className="tm-boot-sub">Your Transcription Companion</span>
           </div>
         )}
