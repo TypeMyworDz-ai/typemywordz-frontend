@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { DOC_FONT, copyForWord as copyText, downloadDocx, safeFileName } from '../utils/transcriptExport';
 const readModelPref = () => { try { return window.localStorage.getItem('tmwd.askModel') || ''; } catch { return ''; } };
 
@@ -81,7 +81,22 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true }) {
   const [showText, setShowText] = useState(true);
   const [note, setNote] = useState('');
   const flash = (message) => { setNote(message); window.setTimeout(() => setNote(''), 4000); };
-  const run = () => act(`/human-transcription/jobs/${job.id}/ai-review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: readModelPref() }) }, 'The AI review is ready.');
+  const [running, setRunning] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!running) { setElapsed(0); return undefined; }
+    const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [running]);
+  const run = async () => {
+    if (running) return;
+    setRunning(true);
+    try {
+      await act(`/human-transcription/jobs/${job.id}/ai-review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: readModelPref() }) }, 'The AI review is ready.');
+    } finally {
+      setRunning(false);
+    }
+  };
   const applyRatings = async () => {
     for (const part of review.parts || []) {
       // eslint-disable-next-line no-await-in-loop
@@ -118,7 +133,11 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true }) {
   return (
     <div className="tm-human-assign" style={box}>
       <div><strong>AI proofreading</strong><div style={muted}>{splitJob ? 'Combines every part into one transcript.' : 'Proofreads the worker\'s transcript.'} Spellings follow the first {splitJob ? 'part' : 'part of the dictation'}, then the job instructions, reference files, your notes to the workers, the guidelines and web research. It gives you a Word-ready final transcript and a list of what it changed and why. It uses the model chosen in your settings.</div></div>
-      <div><button type="button" disabled={busy} onClick={run}>{review ? 'Run the AI review again' : (splitJob ? 'Review and combine with AI' : 'Review with AI')}</button></div>
+      <style>{`@keyframes tmAiSpin{to{transform:rotate(360deg)}}.tm-ai-spin{display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid rgba(91,45,158,.25);border-top-color:#5b2d9e;border-radius:50%;animation:tmAiSpin .8s linear infinite}`}</style>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+        <button type="button" disabled={busy || running} aria-busy={running} onClick={run}>{running ? <><span className="tm-ai-spin" aria-hidden="true" />Reviewing with AI...</> : (review ? 'Run the AI review again' : (splitJob ? 'Review and combine with AI' : 'Review with AI'))}</button>
+        {running && <span role="status" style={{ ...muted, color: '#4b2a8a' }}>Working for {elapsed}s. Researching spellings and checking every part. This usually takes one to three minutes. Please keep this page open.</span>}
+      </div>
       {review && (
         <div style={{ display: 'grid', gap: 10 }}>
           {review.summary && <p style={{ margin: 0 }}>{review.summary}</p>}

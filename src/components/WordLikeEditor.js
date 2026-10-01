@@ -1,4 +1,5 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { copyPlainText, copyRich, nodeToWordHtml } from '../utils/transcriptExport';
 
 // A plain, familiar writing surface for workers. It behaves like a word
 // processor: text pasted from Word keeps its bold, italics, underline,
@@ -9,9 +10,9 @@ import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef,
 //   * combined: the proofreader's view, where every part sits in the same
 //     document, separated by a dotted line that says "Part N by Worker N".
 
-const ALLOWED_TAGS = new Set(['p', 'br', 'b', 'strong', 'i', 'em', 'u', 's', 'strike', 'sub', 'sup', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'hr', 'blockquote', 'pre', 'font']);
+const ALLOWED_TAGS = new Set(['p', 'br', 'b', 'strong', 'i', 'em', 'u', 's', 'strike', 'sub', 'sup', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'hr', 'blockquote', 'pre', 'font', 'caption', 'colgroup', 'col', 'tfoot', 'a', 'small', 'big', 'mark', 'code']);
 const DROP_TAGS = new Set(['script', 'style', 'iframe', 'object', 'embed', 'link', 'meta', 'form', 'input', 'button', 'textarea', 'select', 'svg', 'math', 'head', 'title', 'xml', 'img']);
-const STYLE_PROPS = new Set(['font-weight', 'font-style', 'text-decoration', 'text-align', 'text-indent', 'margin', 'padding', 'margin-left', 'margin-right', 'margin-top', 'margin-bottom', 'padding-left', 'line-height', 'font-family', 'font-size', 'color', 'background-color', 'white-space', 'text-transform', 'letter-spacing', 'vertical-align']);
+const STYLE_PROPS = new Set(['font-weight', 'font-style', 'text-decoration', 'text-align', 'text-indent', 'margin', 'padding', 'margin-left', 'margin-right', 'margin-top', 'margin-bottom', 'padding-left', 'line-height', 'font-family', 'font-size', 'color', 'background-color', 'white-space', 'text-transform', 'letter-spacing', 'vertical-align', 'border', 'border-collapse', 'border-top', 'border-bottom', 'border-left', 'border-right', 'width', 'text-align-last', 'list-style-type']);
 
 const escapeHtml = (value) => String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -46,7 +47,7 @@ export const sanitizePastedHtml = (html) => {
       if (node.nodeType === 3) {
         // Word wraps long paragraphs in the source with newlines; those are
         // not line breaks in the document.
-        to.appendChild(document.createTextNode(node.nodeValue.replace(/\s*[\r\n]+\s*/g, ' ')));
+        to.appendChild(document.createTextNode(node.nodeValue.replace(/\s*[\r\n]+\s*/g, ' ').replace(/\u00a0/g, ' ')));
         return;
       }
       if (node.nodeType !== 1) return;
@@ -106,30 +107,48 @@ const bodyHtml = (part) => `<div data-tm-part="${escapeHtml(part.id)}">${part.tr
 
 export const combinedPartsHtml = (parts) => (parts || []).map((part) => dividerHtml(part) + (part.pending ? pendingHtml(part) : bodyHtml(part))).join('');
 
-const TOOLBAR = [
-  ['bold', 'B', 'Bold', { fontWeight: 700 }],
-  ['italic', 'I', 'Italic', { fontStyle: 'italic' }],
-  ['underline', 'U', 'Underline', { textDecoration: 'underline' }],
-  ['undo', 'Undo', 'Undo', {}],
-  ['redo', 'Redo', 'Redo', {}],
-];
+
+const FONTS = ['Century Gothic', 'Times New Roman', 'Arial', 'Calibri', 'Cambria', 'Courier New', 'Georgia', 'Verdana', 'Tahoma'];
+const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36];
+
+const Btn = ({ title, label, onClick, active, wide, style }) => (
+  <button type="button" title={title} aria-label={title} aria-pressed={active ? 'true' : undefined} onMouseDown={(event) => event.preventDefault()} onClick={onClick} className={`tm-we-btn${active ? ' is-on' : ''}${wide ? ' is-wide' : ''}`} style={style}>{label}</button>
+);
+
+const textStats = (text) => {
+  const value = String(text || '');
+  const words = (value.match(/\S+/g) || []).length;
+  const tabs = (value.match(/\t/g) || []).length;
+  const oneSpace = (value.match(/[.!?]["')\]]? (?=[A-Z])/g) || []).length;
+  return { words, chars: value.length, tabs, oneSpace };
+};
 
 const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', initialText = '', parts = null, onChange, disabled = false, minHeight = 420 }, ref) {
   const rootRef = useRef(null);
   const [loadable, setLoadable] = useState([]);
+  const [stats, setStats] = useState({ words: 0, chars: 0, tabs: 0, oneSpace: 0 });
+  const [formats, setFormats] = useState({});
+  const [note, setNote] = useState('');
+  const [marks, setMarks] = useState(false);
+  const [zoom, setZoom] = useState(100);
   const combined = Array.isArray(parts);
   const seedRef = useRef(null);
   if (seedRef.current === null) seedRef.current = combined ? combinedPartsHtml(parts) : (initialHtml || plainTextToHtml(initialText));
 
+  const flash = (message) => { setNote(message); window.setTimeout(() => setNote(''), 3500); };
+
   const emit = useCallback(() => {
     const root = rootRef.current;
-    if (!root || !onChange) return;
+    if (!root) return;
+    const text = domToPlainText(root);
+    setStats(textStats(text));
+    if (!onChange) return;
     const clone = root.cloneNode(true);
     clone.querySelectorAll('[data-tm-skip]').forEach((node) => node.remove());
     const html = combined
       ? Array.from(clone.querySelectorAll('[data-tm-part]')).map((node) => node.innerHTML).join('<div><br></div>')
       : clone.innerHTML;
-    onChange(domToPlainText(root), html);
+    onChange(text, html);
   }, [combined, onChange]);
 
   useEffect(() => {
@@ -173,29 +192,174 @@ const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', in
     emit();
   };
 
+  const refreshFormats = () => {
+    if (disabled || !rootRef.current || !rootRef.current.contains(document.getSelection()?.anchorNode || null)) return;
+    const next = {};
+    ['bold', 'italic', 'underline', 'strikeThrough', 'subscript', 'superscript', 'insertUnorderedList', 'insertOrderedList', 'justifyLeft', 'justifyCenter', 'justifyRight', 'justifyFull'].forEach((name) => {
+      try { next[name] = document.queryCommandState(name); } catch { next[name] = false; }
+    });
+    setFormats(next);
+  };
+  useEffect(() => {
+    document.addEventListener('selectionchange', refreshFormats);
+    return () => document.removeEventListener('selectionchange', refreshFormats);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [disabled]);
+
+  const insertHtmlOrText = (html, plain) => {
+    if (html && html.trim()) {
+      const clean = sanitizePastedHtml(html);
+      if (clean.trim()) { document.execCommand('insertHTML', false, clean); return; }
+    }
+    document.execCommand('insertText', false, plain || '');
+  };
+
   const onPaste = (event) => {
     if (disabled) return;
     const data = event.clipboardData;
     if (!data) return;
-    const html = data.getData('text/html');
     event.preventDefault();
-    if (html && html.trim()) {
-      const clean = sanitizePastedHtml(html);
-      if (clean.trim()) { document.execCommand('insertHTML', false, clean); emit(); return; }
-    }
-    document.execCommand('insertText', false, data.getData('text/plain'));
+    insertHtmlOrText(data.getData('text/html'), data.getData('text/plain'));
     emit();
   };
 
-  const command = (name) => { rootRef.current?.focus(); document.execCommand(name, false, null); emit(); };
+  // Whatever is selected leaves the editor with its tabs and double spaces
+  // written the way Word reads them, plus a plain-text version with real tabs.
+  const onCopy = (event) => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !rootRef.current?.contains(selection.anchorNode)) return;
+    const holder = document.createElement('div');
+    holder.appendChild(selection.getRangeAt(0).cloneContents());
+    holder.querySelectorAll('[data-tm-skip]').forEach((node) => node.remove());
+    event.clipboardData.setData('text/html', nodeToWordHtml(holder));
+    event.clipboardData.setData('text/plain', domToPlainText(holder));
+    event.preventDefault();
+    if (event.type === 'cut' && !disabled) { document.execCommand('delete'); emit(); }
+  };
+
+  const onKeyDown = (event) => {
+    if (disabled) return;
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      if (event.shiftKey) {
+        const selection = window.getSelection();
+        if (selection && selection.isCollapsed && selection.anchorNode?.nodeType === 3) {
+          const text = selection.anchorNode.nodeValue;
+          const at = selection.anchorOffset;
+          if (at > 0 && text[at - 1] === '\t') { selection.modify('extend', 'backward', 'character'); document.execCommand('delete'); emit(); }
+        }
+        return;
+      }
+      document.execCommand('insertText', false, '\t');
+      emit();
+    }
+  };
+
+  const command = (name, value = null) => { rootRef.current?.focus(); document.execCommand(name, false, value); emit(); refreshFormats(); };
+
+  const setSize = (pt) => {
+    rootRef.current?.focus();
+    document.execCommand('fontSize', false, '7');
+    rootRef.current?.querySelectorAll('font[size="7"]').forEach((node) => {
+      const span = document.createElement('span');
+      span.style.fontSize = `${pt}pt`;
+      span.innerHTML = node.innerHTML;
+      node.replaceWith(span);
+    });
+    emit();
+  };
+
+  const clearFormatting = () => { command('removeFormat'); };
+
+  const insertTab = () => command('insertText', '\t');
+
+  const blockText = () => domToPlainText(rootRef.current);
+  const copyAs = async (kind) => {
+    const root = rootRef.current;
+    if (!root) return;
+    const holder = root.cloneNode(true);
+    holder.querySelectorAll('[data-tm-skip]').forEach((node) => node.remove());
+    try {
+      if (kind === 'word') { await copyRich(nodeToWordHtml(holder), blockText()); flash('Copied for Word. Indents and double spaces will stay.'); }
+      else if (kind === 'plain') { await copyPlainText(blockText()); flash('Copied as plain text with real tabs.'); }
+      else { await copyPlainText(holder.innerHTML); flash('Copied the markup (HTML).'); }
+    } catch { flash('Copying was blocked by the browser.'); }
+  };
+  const downloadPlain = () => {
+    const blob = new Blob([blockText()], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url; link.download = 'transcript.txt'; document.body.appendChild(link); link.click(); link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 20000);
+  };
+
+  const fontChange = (event) => { if (event.target.value) command('fontName', event.target.value); event.target.value = ''; };
+  const sizeChange = (event) => { if (event.target.value) setSize(Number(event.target.value)); event.target.value = ''; };
 
   return (
-    <div className="tm-word-editor" style={{ border: '1px solid #d9dfda', borderRadius: 8, background: '#fff' }}>
-      {!disabled && <div role="toolbar" aria-label="Formatting" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '8px 10px', borderBottom: '1px solid #e5e9e5', background: '#fafbfa', borderRadius: '8px 8px 0 0' }}>
-        {TOOLBAR.map(([name, label, title, style]) => (
-          <button key={name} type="button" title={title} aria-label={title} disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={() => command(name)} style={{ minWidth: 32, height: 28, border: '1px solid #d9dfda', borderRadius: 5, background: '#fff', cursor: 'pointer', font: '13px system-ui,sans-serif', ...style }}>{label}</button>
-        ))}
-        <span style={{ marginLeft: 'auto', color: '#7b857d', fontSize: 12 }}>Paste from Word and the formatting stays as it is.</span>
+    <div className="tm-word-editor" style={{ border: '1px solid #d9dfda', borderRadius: 10, background: '#fff' }}>
+      <style>{`
+        .tm-we-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid #e5e9e5;background:#f8f9fb;border-radius:10px 10px 0 0;position:sticky;top:0;z-index:5}
+        .tm-we-group{display:flex;align-items:center;gap:3px;padding-right:8px;margin-right:2px;border-right:1px solid #e1e5ea}
+        .tm-we-group:last-child{border-right:0}
+        .tm-we-btn{min-width:30px;height:28px;padding:0 7px;border:1px solid transparent;border-radius:6px;background:transparent;color:#2b2f38;cursor:pointer;font:13px system-ui,sans-serif}
+        .tm-we-btn:hover{background:#ece8f6}
+        .tm-we-btn.is-on{background:#e3d9f7;border-color:#c9b8ee;color:#4b2a8a}
+        .tm-we-btn.is-wide{padding:0 10px}
+        .tm-we-select{height:28px;border:1px solid #d9dfda;border-radius:6px;background:#fff;font:12.5px system-ui,sans-serif;color:#2b2f38;padding:0 4px;max-width:132px}
+        .tm-we-color{width:26px;height:26px;padding:0;border:1px solid #d9dfda;border-radius:6px;background:#fff;cursor:pointer}
+        .tm-we-status{display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:7px 14px;border-top:1px solid #e5e9e5;background:#f8f9fb;border-radius:0 0 10px 10px;font:12px system-ui,sans-serif;color:#5b6472}
+        .tm-we-status .warn{color:#8a5a00}
+        .tm-we-page{background:#eef0f4;padding:18px 12px;border-radius:0}
+        .tm-we-sheet{max-width:816px;margin:0 auto;background:#fff;box-shadow:0 1px 4px rgba(20,24,40,.18);transform-origin:top center}
+        .tm-we-surface table{border-collapse:collapse}
+        .tm-we-surface td,.tm-we-surface th{border:1px solid #c9ced6;padding:4px 8px;vertical-align:top}
+        .tm-we-surface.marks div::after,.tm-we-surface.marks p::after{content:"\\00b6";color:#9aa3b2;font-size:.85em}
+      `}</style>
+      {!disabled && <div role="toolbar" aria-label="Formatting" className="tm-we-bar">
+        <div className="tm-we-group">
+          <Btn title="Undo (Ctrl+Z)" label="Undo" wide onClick={() => command('undo')} />
+          <Btn title="Redo (Ctrl+Y)" label="Redo" wide onClick={() => command('redo')} />
+        </div>
+        <div className="tm-we-group">
+          <select className="tm-we-select" aria-label="Font" defaultValue="" onChange={fontChange}><option value="">Font</option>{FONTS.map((font) => <option key={font} value={font}>{font}</option>)}</select>
+          <select className="tm-we-select" aria-label="Font size" defaultValue="" onChange={sizeChange} style={{ maxWidth: 64 }}><option value="">Size</option>{SIZES.map((size) => <option key={size} value={size}>{size}</option>)}</select>
+        </div>
+        <div className="tm-we-group">
+          <Btn title="Bold (Ctrl+B)" label={<b>B</b>} active={formats.bold} onClick={() => command('bold')} />
+          <Btn title="Italic (Ctrl+I)" label={<i>I</i>} active={formats.italic} onClick={() => command('italic')} />
+          <Btn title="Underline (Ctrl+U)" label={<u>U</u>} active={formats.underline} onClick={() => command('underline')} />
+          <Btn title="Strikethrough" label={<s>S</s>} active={formats.strikeThrough} onClick={() => command('strikeThrough')} />
+          <Btn title="Subscript" label={<span>x<sub>2</sub></span>} active={formats.subscript} onClick={() => command('subscript')} />
+          <Btn title="Superscript" label={<span>x<sup>2</sup></span>} active={formats.superscript} onClick={() => command('superscript')} />
+        </div>
+        <div className="tm-we-group">
+          <label title="Text colour" className="tm-we-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>A<input className="tm-we-color" type="color" aria-label="Text colour" defaultValue="#000000" onChange={(event) => command('foreColor', event.target.value)} /></label>
+          <label title="Highlight" className="tm-we-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>Hi<input className="tm-we-color" type="color" aria-label="Highlight colour" defaultValue="#ffff00" onChange={(event) => command('hiliteColor', event.target.value)} /></label>
+        </div>
+        <div className="tm-we-group">
+          <Btn title="Align left" label="Left" wide active={formats.justifyLeft} onClick={() => command('justifyLeft')} />
+          <Btn title="Centre" label="Centre" wide active={formats.justifyCenter} onClick={() => command('justifyCenter')} />
+          <Btn title="Align right" label="Right" wide active={formats.justifyRight} onClick={() => command('justifyRight')} />
+          <Btn title="Justify" label="Justify" wide active={formats.justifyFull} onClick={() => command('justifyFull')} />
+        </div>
+        <div className="tm-we-group">
+          <Btn title="Bulleted list" label="Bullets" wide active={formats.insertUnorderedList} onClick={() => command('insertUnorderedList')} />
+          <Btn title="Numbered list" label="Numbers" wide active={formats.insertOrderedList} onClick={() => command('insertOrderedList')} />
+          <Btn title="Insert a tab character (Tab key)" label="Tab" wide onClick={insertTab} />
+          <Btn title="Block indent" label="Indent" wide onClick={() => command('indent')} />
+          <Btn title="Remove block indent" label="Outdent" wide onClick={() => command('outdent')} />
+        </div>
+        <div className="tm-we-group">
+          <Btn title="Clear formatting" label="Clear" wide onClick={clearFormatting} />
+          <Btn title="Show paragraph marks" label="Marks" wide active={marks} onClick={() => setMarks((value) => !value)} />
+        </div>
+        <div className="tm-we-group" style={{ borderRight: 0 }}>
+          <Btn title="Copy with Word formatting" label="Copy for Word" wide onClick={() => copyAs('word')} />
+          <Btn title="Copy as plain text" label="Copy plain" wide onClick={() => copyAs('plain')} />
+          <Btn title="Copy the HTML markup" label="Copy markup" wide onClick={() => copyAs('markup')} />
+          <Btn title="Download plain text" label="Save .txt" wide onClick={downloadPlain} />
+        </div>
       </div>}
       {combined && loadable.length > 0 && (
         <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#eef7f0', borderBottom: '1px solid #d6e9da', fontSize: 13 }}>
@@ -203,19 +367,35 @@ const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', in
           <button type="button" onClick={loadNewParts} style={{ border: '1px solid #2da653', background: '#2da653', color: '#fff', borderRadius: 5, padding: '5px 10px', cursor: 'pointer' }}>Load newly submitted parts</button>
         </div>
       )}
-      <div
-        ref={rootRef}
-        className="tm-word-editor-surface"
-        contentEditable={!disabled}
-        suppressContentEditableWarning
-        spellCheck
-        role="textbox"
-        aria-multiline="true"
-        aria-label="Transcript editor"
-        onInput={emit}
-        onPaste={onPaste}
-        style={{ minHeight, padding: '22px 28px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', outline: 'none', fontFamily: '"Century Gothic", Calibri, system-ui, sans-serif', fontSize: 15, lineHeight: 1.5, tabSize: 4, color: '#1f2721' }}
-      />
+      <div className="tm-we-page">
+        <div className="tm-we-sheet">
+          <div
+            ref={rootRef}
+            className={`tm-word-editor-surface tm-we-surface${marks ? ' marks' : ''}`}
+            contentEditable={!disabled}
+            suppressContentEditableWarning
+            spellCheck
+            role="textbox"
+            aria-multiline="true"
+            aria-label="Transcript editor"
+            onInput={emit}
+            onPaste={onPaste}
+            onCopy={onCopy}
+            onCut={onCopy}
+            onKeyDown={onKeyDown}
+            style={{ minHeight, padding: '48px 56px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', outline: 'none', fontFamily: '"Century Gothic", Calibri, system-ui, sans-serif', fontSize: (15 * zoom) / 100, lineHeight: 1.5, tabSize: 8, color: '#1f2721' }}
+          />
+        </div>
+      </div>
+      <div className="tm-we-status">
+        <span>{stats.words.toLocaleString()} words</span>
+        <span>{stats.chars.toLocaleString()} characters</span>
+        <span>{stats.tabs} tab{stats.tabs === 1 ? '' : 's'}</span>
+        {stats.oneSpace > 0 && !disabled && <span className="warn">{stats.oneSpace} sentence{stats.oneSpace === 1 ? '' : 's'} with a single space after the full stop</span>}
+        {note && <span style={{ color: '#267b40' }}>{note}</span>}
+        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>Zoom <select className="tm-we-select" aria-label="Zoom" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} style={{ maxWidth: 74 }}>{[80, 90, 100, 110, 125].map((value) => <option key={value} value={value}>{value}%</option>)}</select></span>
+      </div>
+      {!disabled && <div style={{ padding: '6px 14px 10px', color: '#7b857d', fontSize: 12 }}>Paste from Word and the formatting stays. The Tab key types a real tab. Copy for Word keeps tabs and double spaces.</div>}
     </div>
   );
 });

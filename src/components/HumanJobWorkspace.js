@@ -467,6 +467,12 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     if (saved) setWorkerTab('available');
   };
 
+  const renderSubmitButton = (place) => {
+    if (!(mode === 'worker' && workerAssignmentActive)) return null;
+    const disabled = busy || (workerAssignment?.role === 'proofreader' && (selectedJob.proofreader_parts || []).some((part) => part.pending)) || (!editorText.trim() && !finalAttachment && !selectedJob.final_attachment);
+    return <button type="button" className={place === 'bottom' ? 'tm-human-submit-bottom' : undefined} onClick={submitWorker} disabled={disabled}>Submit {workerAssignment?.role === 'proofreader' ? 'final work' : selectedJob.job_type === 'pdf_job' ? 'image transcription' : 'part'} for review</button>;
+  };
+
   const claimWork = async (segmentId = '') => {
     if (!selectedJob || busy || !selectedJob.can_claim) return;
     setBusy(true);
@@ -697,6 +703,14 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             <button type="button" key={job.id} className={`tm-human-job-row ${selectedJob?.id === job.id ? 'selected' : ''}`} onClick={() => setSelectedId(job.id)}>
               <strong>{job.pdf_image?.name || job.audio?.name || `Human job ${job.id.slice(0, 6)}`}</strong>
               <span>{mode === 'worker' && workerTab === 'available' ? (job.claimable_full_job ? 'Entire job · available to claim' : `${(job.claimable_parts || []).length} part${(job.claimable_parts || []).length === 1 ? '' : 's'} available`) : mode === 'worker' && job.worker_assignment?.role === 'proofreader' ? 'Proofreading · In progress' : (STATUS_LABELS[job.status] || job.status)}{typeof job.time_remaining_seconds === 'number' && ['assigned', 'in_progress'].includes(job.worker_assignment?.status || job.status) ? ` · ${formatCountdown(remainingSecondsFor(job))} left` : ''}</span>
+              {mode === 'admin' && (() => {
+                const active = ['assigned', 'in_progress'];
+                const names = [];
+                (job.segments || []).forEach((part) => { if (part.worker_name || part.worker_email) names.push(`${part.label || 'Part'}: ${part.worker_name || part.worker_email}${active.includes(part.status) ? ' (working)' : part.status === 'submitted' || part.status === 'approved' ? '' : ''}`); });
+                if (!names.length && (job.worker_name || job.worker_email)) names.push(`${job.worker_name || job.worker_email}${active.includes(job.status) ? ' (working)' : ''}`);
+                if (job.proofreader_name || job.proofreader_email) names.push(`Proofreader: ${job.proofreader_name || job.proofreader_email}`);
+                return <small className="tm-human-claimed" style={{ color: names.length ? '#4b2a8a' : '#858a95', fontWeight: 600 }}>{names.length ? `Claimed by ${names.join(' | ')}` : 'Not claimed yet'}</small>;
+              })()}
               <small>{mode === 'worker' ? `${job.job_type === 'pdf_job' ? 'PDF image · KES 100' : moneylessDate(job.createdAt)}${job.job_type === 'pdf_job' ? ` · ${moneylessDate(job.createdAt)}` : ''}` : `${job.quote_credits || 0} credits · ${moneylessDate(job.createdAt)}`}</small>
             </button>
           ))}
@@ -710,7 +724,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <div className="tm-human-detail-actions">
                 {mode === 'admin' && selectedJob.status === 'pending_admin' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/approve`, { method: 'POST' })}>Approve request</button>}
                 {mode === 'worker' && workerAssignmentActive && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/start`, { method: 'POST' })}>Start work</button>}
-                {mode === 'worker' && workerAssignmentActive && <button type="button" onClick={submitWorker} disabled={busy || (workerAssignment?.role === 'proofreader' && (selectedJob.proofreader_parts || []).some((part) => part.pending)) || (!editorText.trim() && !finalAttachment && !selectedJob.final_attachment)}>Submit {workerAssignment?.role === 'proofreader' ? 'final work' : selectedJob.job_type === 'pdf_job' ? 'image transcription' : 'part'} for review</button>}
+                {renderSubmitButton('top')}
                 {mode === 'client' && selectedJob.status === 'client_review' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/client-approve`, { method: 'POST' })}>Approve completed work</button>}
                 {mode === 'admin' && selectedJob.status === 'client_review' && <button type="button" title="Some clients are fully hands-off and trust an admin's review instead of logging in to approve it themselves." onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/client-approve`, { method: 'POST' })}>Approve on client's behalf</button>}
                 {mode === 'admin' && selectedJob.status === 'client_approved' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/release`, { method: 'POST' })}>Release completed work</button>}
@@ -898,6 +912,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             {!(mode === 'worker' && workerTab === 'available') && (
             <div className="tm-human-editor-card">
               <div className="tm-human-editor-head"><div><strong>{selectedJob.job_type === 'pdf_job' ? 'Image transcription draft' : 'Shared proofreading editor'}</strong><span>{selectedJob.job_type === 'pdf_job' ? 'Enter your checked transcript here or attach your completed Word document.' : 'The same working area is used by the worker, admin and client.'}</span></div><div className="tm-human-editor-ad">Need a first draft or a quick answer? <button type="button" onClick={() => showMessage?.('Ask TypeMyworDz opens from the left navigation.', 'success')}>Use Ask TypeMyworDz</button></div></div>
+              {mode === 'worker' && workerAssignmentActive && selectedJob.job_type !== 'pdf_job' && <div className="tm-research-notes-warning" role="note"><strong>Keep your research notes.</strong> Do not delete the research notes at the end of your work when you submit. The proofreader and admin need them to check your spellings.</div>}
               {mode === 'worker' && workerAssignmentActive ? (
                 <WordLikeEditor
                   key={draftAssignmentKey}
@@ -910,6 +925,10 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               ) : (
               <FinalTranscriptView job={selectedJob} showMessage={showMessage} />
               )}
+              {mode === 'worker' && workerAssignmentActive && <div className="tm-human-submit-row">
+                <span>{selectedJob.job_type === 'pdf_job' ? 'Finished? Submit your transcription.' : 'Finished? Check that your research notes are still at the end of the text, then submit.'}</span>
+                {renderSubmitButton('bottom')}
+              </div>}
               <p className="tm-human-editor-note">{selectedJob.job_type === 'pdf_job' ? 'Always use Gemini for image transcription, check the draft against the image, then complete and attach your Word document.' : 'AI tools can help with first drafts and questions, but the final human release stays under admin review.'}</p>
             </div>
             )}

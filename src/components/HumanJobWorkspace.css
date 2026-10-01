@@ -23,3 +23,9 @@
 .tm-training-exercise-prompt{margin:14px 0;padding:13px 15px;border-left:3px solid #6a55ad;border-radius:5px;background:#f8f6fc;color:#453b5d;font-size:13px;line-height:1.6}.tm-human-pdf-image-card{display:grid;gap:12px;margin:0 0 16px;padding:15px;border:1px solid #e2e8e3;border-radius:10px;background:#fff}.tm-human-pdf-image-card>div{display:grid;gap:4px}.tm-human-pdf-image-card>div strong{color:#29362e;font-size:14px}.tm-human-pdf-image-card>div span,.tm-human-pdf-image-card>p{margin:0;color:#707b73;font-size:12px;line-height:1.5}.tm-human-pdf-image-card img{display:block;max-width:100%;max-height:72vh;object-fit:contain;justify-self:center;border:1px solid #edf0ed;border-radius:6px;background:#f7f8f7}
 
 .tm-audio-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:#555a66}.tm-audio-tools button{border:1px solid #dcdce3;background:#fff;border-radius:6px;padding:4px 9px;font:600 12px inherit;cursor:pointer}.tm-audio-tools select{margin-left:5px;border:1px solid #dcdce3;border-radius:6px;padding:3px 5px;font:inherit}.tm-audio-tools a{margin-left:auto;color:#6450a8;font-weight:700;text-decoration:none}
+
+.tm-research-notes-warning { margin: 0 0 12px; padding: 10px 14px; border-radius: 8px; background: #fff7e0; border: 1px solid #ecd27a; color: #5c4608; font-size: 13.5px; line-height: 1.45; }
+.tm-human-submit-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 14px; padding-top: 14px; border-top: 1px solid #e5e9e5; }
+.tm-human-submit-row > span { color: #5b6472; font-size: 13.5px; }
+.tm-human-submit-bottom { border: 0; border-radius: 8px; padding: 10px 18px; background: #5b2d9e; color: #fff; font-weight: 600; cursor: pointer; }
+.tm-human-submit-bottom:disabled { opacity: .5; cursor: not-allowed; }
