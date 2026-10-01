@@ -4,7 +4,31 @@ export const DOC_FONT = 'Times New Roman';
 
 const escapeHtml = (value) => String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-const wordHtml = (text) => `<div style="font-family:'${DOC_FONT}',serif;font-size:12pt">${String(text || '').split('\n').map((line) => `<p style="margin:0;white-space:pre-wrap">${line ? escapeHtml(line) : '&nbsp;'}</p>`).join('')}</div>`;
+// Word collapses tabs and runs of spaces in pasted HTML unless they are written
+// the way Word writes them itself: tabs as mso-tab-count spans and runs of
+// spaces as mso-spacerun spans of non-breaking spaces.
+export const encodeWhitespaceForWord = (escaped) => String(escaped || '')
+  .replace(/\t/g, '<span style="mso-tab-count:1">&nbsp;&nbsp;&nbsp;&nbsp;</span>')
+  .replace(/ {2,}/g, (run) => `<span style="mso-spacerun:yes">${' ' + '&nbsp;'.repeat(run.length - 1)}</span>`)
+  .replace(/^ /, '&nbsp;');
+
+export const wordHtml = (text) => `<div style="font-family:'${DOC_FONT}',serif;font-size:12pt">${String(text || '').split('\n').map((line) => `<p style="margin:0">${line ? encodeWhitespaceForWord(escapeHtml(line)) : '&nbsp;'}</p>`).join('')}</div>`;
+
+// Rewrites the text nodes of a copied selection so that Word keeps every tab
+// and double space. Returns HTML.
+export const nodeToWordHtml = (root) => {
+  const clone = root.cloneNode(true);
+  const walker = document.createTreeWalker(clone, 4);
+  const texts = [];
+  while (walker.nextNode()) texts.push(walker.currentNode);
+  texts.forEach((node) => {
+    const holder = document.createElement('span');
+    holder.innerHTML = encodeWhitespaceForWord(escapeHtml(node.nodeValue));
+    node.replaceWith(...Array.from(holder.childNodes));
+  });
+  clone.querySelectorAll('[style]').forEach((el) => { el.style.removeProperty('white-space'); el.style.removeProperty('tab-size'); });
+  return clone.innerHTML;
+};
 
 export const downloadBlob = (blob, name) => {
   const url = URL.createObjectURL(blob);
@@ -48,4 +72,32 @@ export const downloadDocx = async (text, baseName = 'transcript') => {
     sections: [{ properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } }, children: paragraphs }],
   });
   downloadBlob(await Packer.toBlob(doc), `${safeFileName(baseName)}.docx`);
+};
+
+// Plain text copy keeps the real tab characters.
+export const copyPlainText = async (text) => {
+  const value = String(text || '');
+  if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(value); return; }
+  const area = document.createElement('textarea');
+  area.value = value; area.style.cssText = 'position:fixed;left:-9999px;top:0';
+  document.body.appendChild(area); area.select();
+  const ok = document.execCommand('copy'); area.remove();
+  if (!ok) throw new Error('copy blocked');
+};
+
+// Copies rich HTML (already built) together with its plain text.
+export const copyRich = async (html, plain) => {
+  if (navigator.clipboard && window.ClipboardItem) {
+    await navigator.clipboard.write([new window.ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([plain], { type: 'text/plain' }) })]);
+    return;
+  }
+  const holder = document.createElement('div');
+  holder.style.cssText = 'position:fixed;left:-9999px;top:0';
+  holder.innerHTML = html;
+  document.body.appendChild(holder);
+  const range = document.createRange(); range.selectNodeContents(holder);
+  const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+  const ok = document.execCommand('copy');
+  selection.removeAllRanges(); holder.remove();
+  if (!ok) throw new Error('copy blocked');
 };
