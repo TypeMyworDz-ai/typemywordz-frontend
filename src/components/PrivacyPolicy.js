@@ -116,6 +116,7 @@ const PrivacyPolicy = () => (
       <li><strong>AssemblyAI</strong> &mdash; our account is opted out of their model improvement programme, and we have set their copy of your audio and transcript to be deleted after one day.</li>
       <li><strong>Deepgram</strong> &mdash; every request we send is marked as excluded from their model improvement programme.</li>
       <li><strong>OpenAI</strong> &mdash; data sent through their programming interface is not used to train their models by default.</li>
+      <li><strong>DeepSeek</strong> &mdash; when the assistant uses this model (it is our default for everyday questions), the text of your question and any transcript or document you include is processed on DeepSeek&apos;s servers, which are located in China. If you prefer another provider, choose a different model under Settings.</li>
     </ul>
     <p>
       The same applies to the assistant. Questions you ask about your transcript are sent to an
@@ -139,7 +140,7 @@ const PrivacyPolicy = () => (
         <tr><td>AssemblyAI</td><td>Speech-to-text</td></tr>
         <tr><td>OpenAI</td><td>Speech-to-text, and part of the assistant</td></tr>
         <tr><td>Deepgram</td><td>Speech-to-text, used as a backup</td></tr>
-        <tr><td>Anthropic and Google</td><td>Power the assistant's answers</td></tr>
+        <tr><td>Anthropic, Google, OpenAI and DeepSeek</td><td>Power the assistant's answers</td></tr>
         <tr><td>Paystack</td><td>Takes payments</td></tr>
         <tr><td>Google Analytics</td><td>Anonymous usage statistics</td></tr>
       </tbody>
