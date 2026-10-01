@@ -2193,7 +2193,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         {bootVisible && (
           <div className="tm-boot-mark">
             <img className="tm-boot-logo" src="/brand-mark.png" alt="TypeMyworDz AI" width="96" height="96" />
-            <span className="tm-boot-sub">Your everyday AI companion</span>
+            <span className="tm-boot-sub">Your Transcription Companion</span>
           </div>
         )}
       </div>
@@ -2276,7 +2276,7 @@ return (
               <div className="tm-wordmark">
                 <span className="tm-w-purple">Type</span><span className="tm-w-green">My</span><span className="tm-w-purple">worDz</span>
               </div>
-              <div className="tm-slogan">Your everyday AI companion</div>
+              <div className="tm-slogan">Your Transcription Companion</div>
             </div>
           </button>
 
@@ -2305,6 +2305,15 @@ return (
                         <div className="submenu-item" onClick={() => setCurrentView('tools')}>
                             <span className="menu-text">Document converter</span>
                         </div>
+                        <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/merge-pdf.html" target="_blank" rel="noopener noreferrer">
+                            <span className="menu-text">Merge, split, compress PDF</span>
+                        </a>
+                        <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/audio-converter.html" target="_blank" rel="noopener noreferrer">
+                            <span className="menu-text">Audio converter</span>
+                        </a>
+                        <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/audio-recorder.html" target="_blank" rel="noopener noreferrer">
+                            <span className="menu-text">Audio recorder</span>
+                        </a>
                         <div className="submenu-item" onClick={() => window.showComingSoon('Text-to-Speech')}>
                             <span className="menu-text">Text-to-Speech</span>
                         </div>
