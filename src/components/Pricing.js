@@ -322,7 +322,7 @@ export const PublicPricing = () => {
       <header className="tm-public-pricing-head">
         <a className="tm-public-pricing-brand" href="/" aria-label="TypeMyworDz home">
           <span className="tm-w-purple">Type</span><span className="tm-w-green">My</span><span className="tm-w-purple">worDz</span>
-          <small>Your everyday AI companion</small>
+          <small>Your Transcription Companion</small>
         </a>
         <nav aria-label="Pricing page navigation">
           <a href="/">Home</a>

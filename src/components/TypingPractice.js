@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import TypingSpeedTest from './TypingSpeedTest';
 
@@ -11,6 +11,17 @@ const LESSONS = [
 const KEY_ROWS = ['qwertyuiop', 'asdfghjkl;', 'zxcvbnm'];
 
 export default function TypingPractice() {
+  useEffect(() => {
+    const previous = document.title;
+    document.title = 'Free Typing Lessons and Speed Test | TypeMyworDz';
+    let meta = document.querySelector('meta[name="description"]');
+    const oldDescription = meta ? meta.getAttribute('content') : null;
+    if (meta) meta.setAttribute('content', 'Free typing lessons from the home row up, plus a typing speed test. No account needed. Build the speed and accuracy that transcription work rewards.');
+    return () => {
+      document.title = previous;
+      if (meta && oldDescription !== null) meta.setAttribute('content', oldDescription);
+    };
+  }, []);
   const [lessonId, setLessonId] = useState('home');
   const [typed, setTyped] = useState('');
   const [showTest, setShowTest] = useState(false);

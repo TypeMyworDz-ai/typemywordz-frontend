@@ -13,6 +13,15 @@ export const CONVERSIONS = [
   { id: 'image-pdf', label: 'Picture to PDF', target: 'pdf', accept: '.jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff', hint: 'A JPG, PNG or similar picture' },
 ];
 
+const MORE_TOOLS = [
+  { href: '/tools/merge-pdf.html', label: 'Merge PDF', text: 'Combine several PDFs into one.' },
+  { href: '/tools/split-pdf.html', label: 'Split PDF', text: 'Pull out pages or cut a PDF apart.' },
+  { href: '/tools/compress-pdf.html', label: 'Compress PDF', text: 'Make a PDF small enough to email.' },
+  { href: '/tools/audio-converter.html', label: 'Audio converter', text: 'MP3, WAV, M4A and more. Shrink recordings.' },
+  { href: '/tools/audio-recorder.html', label: 'Audio recorder', text: 'A tiny recorder you can download.' },
+  { href: '/typing-practice', label: 'Typing practice', text: 'Free lessons and a speed test.' },
+];
+
 const nameFromHeader = (header, fallback) => {
   const match = /filename="?([^";]+)"?/i.exec(header || '');
   return match ? match[1] : fallback;
@@ -68,6 +77,15 @@ export default function DocumentConverter() {
         {message.text && <div role="status" style={{ color: message.kind === 'error' ? '#b3261e' : '#1f7a38', fontSize: 14 }}>{message.text}</div>}
       </form>
       <p style={{ color: '#858a95', fontSize: 13, marginTop: 14 }}>Scanned PDFs have no text to move into Word, so use PDF to JPG for those, or transcribe the pages with TypeMyworDz. Limits: 15 MB a file, 20 conversions an hour.</p>
+      <h2 style={{ fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 20, margin: '30px 0 12px', color: '#14161a' }}>More free tools</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+        {MORE_TOOLS.map((tool) => (
+          <a key={tool.href} href={tool.href} target="_blank" rel="noopener noreferrer" style={{ display: 'block', border: '1px solid #e5e6ea', borderRadius: 8, padding: '12px 14px', textDecoration: 'none', background: '#fff' }}>
+            <strong style={{ color: '#5b44cf', display: 'block' }}>{tool.label}</strong>
+            <span style={{ color: '#858a95', fontSize: 13 }}>{tool.text}</span>
+          </a>
+        ))}
+      </div>
     </div>
   );
 }

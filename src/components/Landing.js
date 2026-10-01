@@ -117,7 +117,7 @@ const Landing = () => {
               <span className="tm-w-green">My</span>
               <span className="tm-w-purple">worDz</span>
             </div>
-            <div className="tm-slogan">Your everyday AI companion</div>
+            <div className="tm-slogan">Your Transcription Companion</div>
           </div>
         </div>
         <div className="tm-spacer"></div>
@@ -139,6 +139,11 @@ const Landing = () => {
                 <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/pdf-to-word.html"><span className="menu-text">PDF to Word</span></a>
                 <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/pdf-to-jpg.html"><span className="menu-text">PDF to JPG</span></a>
                 <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/jpg-to-pdf.html"><span className="menu-text">JPG to PDF</span></a>
+                <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/merge-pdf.html"><span className="menu-text">Merge PDF</span></a>
+                <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/split-pdf.html"><span className="menu-text">Split PDF</span></a>
+                <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/compress-pdf.html"><span className="menu-text">Compress PDF</span></a>
+                <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/audio-converter.html"><span className="menu-text">Audio converter</span></a>
+                <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/audio-recorder.html"><span className="menu-text">Audio recorder</span></a>
                 <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/"><span className="menu-text">All free tools</span></a>
               </div>
             )}
