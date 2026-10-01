@@ -87,8 +87,8 @@ body {
 }
 
 .tm-brand-logo {
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   object-fit: contain;
   display: block;
 }
@@ -112,9 +112,8 @@ body {
 .tm-wordmark .tm-w-green  { color: var(--tm-green); }
 
 .tm-slogan {
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.02em;
   color: var(--tm-faint);
   font-weight: 500;
   line-height: 1;
@@ -2320,9 +2319,8 @@ a.tm-nav { text-decoration: none; }
 .tm-boot-p{ color: var(--tm-purple); }
 .tm-boot-g{ color: var(--tm-green); }
 .tm-boot-sub{
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-size: 13px;
+  letter-spacing: 0.02em;
   color: var(--tm-muted);
 }
 @keyframes tm-boot-in{ from{ opacity: 0 } to{ opacity: 1 } }
