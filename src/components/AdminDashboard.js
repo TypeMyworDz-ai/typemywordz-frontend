@@ -117,6 +117,21 @@ const loadTrafficSafely = async (currentUser) => {
   }
 };
 
+const loadRecorderDownloadClicks = async (currentUser) => {
+  try {
+    const token = await currentUser.getIdToken();
+    const response = await fetch(`${BACKEND_URL}/api/admin/metrics/recorder-downloads`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return 0;
+    const payload = await response.json();
+    return finiteNumber(payload.clicks);
+  } catch (error) {
+    console.warn('Recorder download clicks could not be loaded:', error);
+    return 0;
+  }
+};
+
 const accessLabel = (user) => {
   if (isAdminEmail(user.email)) return { text: 'Admin access', tone: 'ai' };
   if (isCompAccessEmail(user.email)) return { text: 'Complimentary', tone: 'ai' };
@@ -214,6 +229,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
   const [users, setUsers] = useState([]);
   const [feedback, setFeedback] = useState([]);
   const [traffic, setTraffic] = useState([]);
+  const [recorderDownloadClicks, setRecorderDownloadClicks] = useState(0);
   const [trainees, setTrainees] = useState([]);
   const [traineeLoading, setTraineeLoading] = useState(false);
   const [stats, setStats] = useState({
@@ -283,11 +299,12 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
       // aggregated transcription totals. A raw top-level history read can
       // remain pending on some Firebase sessions, which used to strand the
       // whole dashboard in Refreshing.
-      const [rawUsers, feedbackRows, trafficRows, revenue] = await Promise.all([
+      const [rawUsers, feedbackRows, trafficRows, revenue, recorderClicks] = await Promise.all([
         loadUsersSafely(currentUser),
         readCollection('feedback'),
         loadTrafficSafely(currentUser),
         getMonthlyRevenue(),
+        loadRecorderDownloadClicks(currentUser),
       ]);
 
       const enrichedUsers = await Promise.all(rawUsers.map(async (user) => {
@@ -306,6 +323,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
       setUsers(enrichedUsers);
       setFeedback(feedbackRows.map(normalizeFeedback).sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0)));
       setTraffic(trafficRows);
+      setRecorderDownloadClicks(recorderClicks);
       setStats({
         totalUsers: enrichedUsers.length,
         activeUsers: enrichedUsers.filter((user) => (toDate(user.lastAccessed)?.getTime() || 0) >= oneWeekAgo.getTime()).length,
@@ -484,11 +502,12 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
                 <div className="tm-admin-grid">
                   <div className="tm-admin-stat"><div className="tm-admin-stat-label">Visitors</div><div className="tm-admin-stat-value">{formatNumber(trafficSnapshot.visitors)}</div></div>
                   <div className="tm-admin-stat"><div className="tm-admin-stat-label">Page views</div><div className="tm-admin-stat-value">{formatNumber(trafficSnapshot.pageViews)}</div></div>
+                  <div className="tm-admin-stat"><div className="tm-admin-stat-label">Windows recorder download clicks</div><div className="tm-admin-stat-value">{formatNumber(recorderDownloadClicks)}</div><div className="tm-admin-stat-note">Click count; completed downloads are not confirmed</div></div>
                 </div>
                 {trafficSnapshot.pageViews ? <>
                   <div className="tm-admin-list"><div className="tm-admin-list-row"><div className="tm-admin-list-main"><strong>Most visited page</strong><span>{trafficSnapshot.topPage?.[0]}</span></div><div className="tm-admin-list-value">{trafficSnapshot.topPage?.[1]}</div></div><div className="tm-admin-list-row"><div className="tm-admin-list-main"><strong>Top source</strong><span>{trafficSnapshot.topSource?.[0]}</span></div><div className="tm-admin-list-value">{trafficSnapshot.topSource?.[1]}</div></div></div>
                   <div className="tm-admin-bars" aria-label="Page views over the last seven days">{trafficSnapshot.daily.map((day) => <div className="tm-admin-bar-wrap" key={day.label}><span className="tm-admin-bar-label">{day.label}</span><div className="tm-admin-bar" style={{ height: `${Math.max(2, (day.count / maxDaily) * 100)}%` }} title={`${day.count} page views`} /></div>)}</div>
-                </> : <div className="tm-admin-empty">Traffic will appear here as visitors use the app. Google Analytics remains the detailed source for geographic reporting.</div>}
+                </> : <><div className="tm-admin-grid"><div className="tm-admin-stat"><div className="tm-admin-stat-label">Windows recorder download clicks</div><div className="tm-admin-stat-value">{formatNumber(recorderDownloadClicks)}</div><div className="tm-admin-stat-note">Click count; completed downloads are not confirmed</div></div></div><div className="tm-admin-empty">Traffic will appear here as visitors use the app. Google Analytics remains the detailed source for geographic reporting.</div></>}
               </section>
 
               <section className="tm-admin-panel">

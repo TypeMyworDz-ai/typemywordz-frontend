@@ -75,6 +75,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [feedback, setFeedback] = useState('');
   const [rating, setRating] = useState('5');
   const [proofreaderWorker, setProofreaderWorker] = useState('');
+  const [aiAgentSegment, setAiAgentSegment] = useState('');
   const [workerAvailable, setWorkerAvailable] = useState(true);
   const [availabilitySaving, setAvailabilitySaving] = useState(false);
   const [extensionMinutes, setExtensionMinutes] = useState('5');
@@ -522,6 +523,17 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     return act(`/human-transcription/jobs/${selectedJob.id}/assign-proofreader`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(worker) });
   };
 
+  const assignAiAgent = async (agentId) => {
+    if (!selectedJob || busy) return;
+    const eligible = (selectedJob.segments || []).filter((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid);
+    const segmentId = splitJob ? (aiAgentSegment || eligible[0]?.id || '') : '';
+    if (splitJob && !segmentId) { showMessage?.('Choose an available part first.', 'error'); return; }
+    await act(`/human-transcription/jobs/${selectedJob.id}/ai-agent/assign`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent_id: agentId, segment_id: segmentId }),
+    }, 'AI draft queued. It will stay private until an approved human proofreader submits the final work.');
+  };
+
   const assignWholeJob = async () => {
     const worker = workerPayload(wholeWorker);
     setWholeConfirm(false);
@@ -733,6 +745,32 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 {mode === 'client' && selectedJob.status === 'released' && selectedJob.transcript && <button type="button" onClick={async () => { const idToken = await token(); const response = await fetch(`${BACKEND_URL}/human-transcription/jobs/${selectedJob.id}/download`, { headers: { Authorization: `Bearer ${idToken}` } }); if (!response.ok) { showMessage?.('The completed transcript is not ready to download.', 'error'); return; } const url = URL.createObjectURL(await response.blob()); const link = document.createElement('a'); link.href = url; link.download = `human-${selectedJob.id}.txt`; link.click(); URL.revokeObjectURL(url); }}>Download transcript</button>}
               </div>
             </div>
+
+            {mode === 'admin' && selectedJob && (
+              <section className="tm-ai-agent-panel" aria-label="AI first-draft agents">
+                <div className="tm-ai-agent-copy">
+                  <strong>AI first draft <span>Human proofreading required</span></strong>
+                  <p>Choose an internal agent for an available job or part. Its transcript stays out of the client view until an approved proofreader submits the checked version.</p>
+                </div>
+                {splitJob && <label className="tm-ai-agent-part">Part
+                  <select value={aiAgentSegment || (selectedJob.segments || []).find((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid)?.id || ''} onChange={(event) => setAiAgentSegment(event.target.value)}>
+                    <option value="">Choose an available part</option>
+                    {(selectedJob.segments || []).filter((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid).map((part) => <option key={part.id} value={part.id}>{part.label || part.id}</option>)}
+                  </select>
+                </label>}
+                <div className="tm-ai-agent-buttons">
+                  {selectedJob.job_type === 'pdf_job' ? (
+                    <button type="button" disabled={busy || ['queued', 'processing'].includes(selectedJob.ai_agent_status) || (!splitJob && selectedJob.status !== 'approved') || (splitJob && !(selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))} onClick={() => assignAiAgent('pdf-gemini')}>{['queued', 'processing'].includes(selectedJob.ai_agent_status) ? 'Gemini is drafting…' : 'Assign Gemini 3.8 to image'}</button>
+                  ) : <>
+                    <button type="button" disabled={busy || (!splitJob && selectedJob.status !== 'approved') || (splitJob && !(selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))} onClick={() => assignAiAgent('general-gpt')}>Assign GPT Terra + Sol · general</button>
+                    <button type="button" disabled={busy || (!splitJob && selectedJob.status !== 'approved') || (splitJob && !(selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))} onClick={() => assignAiAgent('template-claude')}>Assign Claude Opus + Sonnet · template</button>
+                  </>}
+                </div>
+                {selectedJob.ai_agent_status && <p className={`tm-ai-agent-state is-${selectedJob.ai_agent_status}`} role="status">
+                  {['queued', 'processing'].includes(selectedJob.ai_agent_status) ? `${selectedJob.ai_agent_name || 'AI agent'} is preparing a private draft…` : selectedJob.ai_agent_status === 'submitted' ? `${selectedJob.ai_agent_name || 'AI agent'} submitted a draft. Assign an approved human proofreader before review or release.` : selectedJob.ai_agent_status === 'failed' ? `The last AI run failed: ${selectedJob.ai_agent_error || 'Retry the agent or assign a human worker.'}` : ''}
+                </p>}
+              </section>
+            )}
 
             {mode === 'worker' && workerTab === 'available' && (
               <section className="tm-human-claim-panel" aria-label="Claim available work">

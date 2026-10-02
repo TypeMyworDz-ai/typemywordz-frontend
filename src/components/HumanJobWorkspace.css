@@ -29,3 +29,15 @@
 .tm-human-submit-row > span { color: #5b6472; font-size: 13.5px; }
 .tm-human-submit-bottom { border: 0; border-radius: 8px; padding: 10px 18px; background: #5b2d9e; color: #fff; font-weight: 600; cursor: pointer; }
 .tm-human-submit-bottom:disabled { opacity: .5; cursor: not-allowed; }
+
+.tm-ai-agent-panel{display:grid;gap:10px;margin:0 0 14px;padding:14px 16px;border:1px solid #d9d1ed;border-left:4px solid #5b2d9e;border-radius:9px;background:#faf9fd}
+.tm-ai-agent-copy strong{display:flex;align-items:center;gap:9px;color:#29243a}
+.tm-ai-agent-copy strong span{font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:#73520b;background:#fff4d6;padding:4px 7px;border-radius:4px}
+.tm-ai-agent-copy p,.tm-ai-agent-state{margin:4px 0 0;color:#5c5d69;font-size:13px;line-height:1.45}
+.tm-ai-agent-part{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600}
+.tm-ai-agent-part select{min-width:190px;padding:7px;border:1px solid #d7d4e0;border-radius:6px;background:#fff}
+.tm-ai-agent-buttons{display:flex;flex-wrap:wrap;gap:8px}
+.tm-ai-agent-buttons button{border:1px solid #d5c8ec;border-radius:7px;padding:8px 12px;background:#fff;color:#4b2a8a;font-weight:600;cursor:pointer}
+.tm-ai-agent-buttons button:hover:not(:disabled){background:#f0eafb}
+.tm-ai-agent-buttons button:disabled{opacity:.55;cursor:not-allowed}
+.tm-ai-agent-state.is-failed{color:#9b2727}.tm-ai-agent-state.is-submitted{color:#236b3d}
