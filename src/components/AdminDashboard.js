@@ -499,7 +499,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
             <div className="tm-admin-columns">
               <section className="tm-admin-panel">
                 <div className="tm-admin-panel-head"><div><h2 className="tm-admin-panel-title">Traffic, last 30 days</h2><p className="tm-admin-panel-note">Anonymous in-app telemetry: visitors, pages and referring sources.</p></div><a className="tm-admin-link" href="https://analytics.google.com/" target="_blank" rel="noreferrer">Open Google Analytics</a></div>
-                <div className="tm-admin-grid">
+                <div className="tm-admin-grid tm-admin-grid-traffic">
                   <div className="tm-admin-stat"><div className="tm-admin-stat-label">Visitors</div><div className="tm-admin-stat-value">{formatNumber(trafficSnapshot.visitors)}</div></div>
                   <div className="tm-admin-stat"><div className="tm-admin-stat-label">Page views</div><div className="tm-admin-stat-value">{formatNumber(trafficSnapshot.pageViews)}</div></div>
                   <div className="tm-admin-stat"><div className="tm-admin-stat-label">Windows recorder download clicks</div><div className="tm-admin-stat-value">{formatNumber(recorderDownloadClicks)}</div><div className="tm-admin-stat-note">Click count; completed downloads are not confirmed</div></div>
@@ -507,7 +507,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
                 {trafficSnapshot.pageViews ? <>
                   <div className="tm-admin-list"><div className="tm-admin-list-row"><div className="tm-admin-list-main"><strong>Most visited page</strong><span>{trafficSnapshot.topPage?.[0]}</span></div><div className="tm-admin-list-value">{trafficSnapshot.topPage?.[1]}</div></div><div className="tm-admin-list-row"><div className="tm-admin-list-main"><strong>Top source</strong><span>{trafficSnapshot.topSource?.[0]}</span></div><div className="tm-admin-list-value">{trafficSnapshot.topSource?.[1]}</div></div></div>
                   <div className="tm-admin-bars" aria-label="Page views over the last seven days">{trafficSnapshot.daily.map((day) => <div className="tm-admin-bar-wrap" key={day.label}><span className="tm-admin-bar-label">{day.label}</span><div className="tm-admin-bar" style={{ height: `${Math.max(2, (day.count / maxDaily) * 100)}%` }} title={`${day.count} page views`} /></div>)}</div>
-                </> : <><div className="tm-admin-grid"><div className="tm-admin-stat"><div className="tm-admin-stat-label">Windows recorder download clicks</div><div className="tm-admin-stat-value">{formatNumber(recorderDownloadClicks)}</div><div className="tm-admin-stat-note">Click count; completed downloads are not confirmed</div></div></div><div className="tm-admin-empty">Traffic will appear here as visitors use the app. Google Analytics remains the detailed source for geographic reporting.</div></>}
+                </> : <><div className="tm-admin-grid tm-admin-grid-traffic-empty"><div className="tm-admin-stat"><div className="tm-admin-stat-label">Windows recorder download clicks</div><div className="tm-admin-stat-value">{formatNumber(recorderDownloadClicks)}</div><div className="tm-admin-stat-note">Click count; completed downloads are not confirmed</div></div></div><div className="tm-admin-empty">Traffic will appear here as visitors use the app. Google Analytics remains the detailed source for geographic reporting.</div></>}
               </section>
 
               <section className="tm-admin-panel">
