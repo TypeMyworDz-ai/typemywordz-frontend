@@ -588,6 +588,23 @@ function AppContent() {
   // account starts seeing Upgrade and See plans.
   const hasComplimentaryAccess = hasFreeAccess(currentUser?.email);
 
+  const dismissNotification = useCallback((item) => {
+    stopNotificationSound();
+    const notificationId = item?.id;
+    if (!notificationId) return;
+    notificationDismissedLocalRef.current.add(notificationId);
+    const readAt = new Date().toISOString();
+    setNotifications((previous) => previous.map((entry) => entry.id === notificationId ? { ...entry, read_at: readAt } : entry));
+    const isMessage = item?.kind === 'direct_message' || item?.kind === 'job_message';
+    const unreadToClear = isMessage ? Math.max(1, Number(item.unread_count) || 1) : 1;
+    setUnreadMessageCount((previous) => Math.max(0, previous - unreadToClear));
+    if (currentUser) {
+      currentUser.getIdToken().then((token) => fetch(`${RAILWAY_BACKEND_URL}/api/notifications/${encodeURIComponent(notificationId)}/read`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      })).then(() => refreshUnreadMessageCount()).catch(() => {});
+    }
+  }, [currentUser, refreshUnreadMessageCount]);
+
   const openNotification = useCallback((item) => {
     stopNotificationSound();
     const notificationId = item?.id;
@@ -2732,7 +2749,7 @@ return (
               <button type="button" onClick={() => { setNotificationTab('all'); setNotificationThreadId(''); setCurrentView('messages'); }}>View Notifications</button>
             </div>
             {activeNotificationAlerts.slice(0, 3).map((item) => (
-              <NotificationAlert key={item.id} item={item} onOpenNotification={openNotification} />
+              <NotificationAlert key={item.id} item={item} onOpenNotification={openNotification} onDismissNotification={dismissNotification} />
             ))}
             {activeNotificationAlerts.length > 3 && <button type="button" className="tm-notification-rail-more" onClick={() => { setNotificationTab('all'); setNotificationThreadId(''); setCurrentView('messages'); }}>See all {activeNotificationAlerts.length} updates</button>}
           </section>
@@ -2795,6 +2812,7 @@ return (
             activeTab={notificationTab}
             onTabChange={setNotificationTab}
             onOpenNotification={openNotification}
+            onDismissNotification={dismissNotification}
             selectedThreadId={notificationThreadId}
             onMessagesRead={refreshUnreadMessageCount}
             showMessage={showMessage}
