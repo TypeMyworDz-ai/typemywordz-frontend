@@ -1,19 +1,25 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import WordLikeEditor from './WordLikeEditor';
-import { copyForWord, downloadDocx, safeFileName } from '../utils/transcriptExport';
+import AIOutputWindow from './AIOutputWindow';
+import { safeFileName } from '../utils/transcriptExport';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
-export const FORMAT_ACCOUNT_EMAIL = 'info@typemywordz.ai';
+export const FORMAT_ACCOUNT_EMAILS = new Set([
+  'info@typemywordz.ai',
+  'typemywordz@gmail.com',
+  'gracenyaitara@gmail.com',
+]);
 
-// Shown under a finished transcript for one account only. It applies the same
-// general guidelines the admin "General" thread uses, without any setup.
+export const canUseGuidelineFormatter = (email) => FORMAT_ACCOUNT_EMAILS.has(String(email || '').trim().toLowerCase());
+
+// Shown under a finished transcript for the three approved test accounts. It
+// applies the same general guidelines the admin "General" thread uses.
 export default function FormatWithGuidelines({ transcript, fileName }) {
   const { currentUser } = useAuth();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [message, setMessage] = useState('');
-  if ((currentUser?.email || '').toLowerCase() !== FORMAT_ACCOUNT_EMAIL || !(transcript || '').trim()) return null;
+  if (!canUseGuidelineFormatter(currentUser?.email) || !(transcript || '').trim()) return null;
 
   const run = async () => {
     if (busy) return;
@@ -30,8 +36,6 @@ export default function FormatWithGuidelines({ transcript, fileName }) {
       setMessage(error.message || 'The formatting could not be completed.');
     } finally { setBusy(false); }
   };
-  const copy = async () => { try { await copyForWord(result.text); setMessage('Copied. Paste it into Word and the formatting stays.'); } catch { setMessage('Copying was blocked by the browser. Use Download Word instead.'); } };
-
   return (
     <div className="tm-format-guidelines" style={{ margin: '14px 0', display: 'grid', gap: 10 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
@@ -40,13 +44,16 @@ export default function FormatWithGuidelines({ transcript, fileName }) {
         {message && <span role="status" style={{ fontSize: 12, color: '#267b40' }}>{message}</span>}
       </div>
       {result && (
-        <div style={{ display: 'grid', gap: 8 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <button type="button" onClick={copy}>Copy</button>
-            <button type="button" onClick={() => downloadDocx(result.text, `${safeFileName((fileName || 'transcript').replace(/\.[^.]+$/, ''))} - formatted`)}>Download Word (.docx)</button>
-          </div>
-          <WordLikeEditor key={result.stamp} disabled initialHtml={result.html} initialText={result.text} minHeight={320} />
-        </div>
+        <AIOutputWindow
+          key={result.stamp}
+          title="Shared proofreading editor"
+          description="The same working area is used by the worker, admin and client."
+          text={result.text}
+          html={result.html}
+          fileName={`${safeFileName((fileName || 'transcript').replace(/\.[^.]+$/, ''))} - formatted`}
+          minHeight={320}
+          revision={`format-${result.stamp}`}
+        />
       )}
     </div>
   );

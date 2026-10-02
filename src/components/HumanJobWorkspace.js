@@ -92,7 +92,9 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [starterSegment, setStarterSegment] = useState('');
   const [paymentHistory, setPaymentHistory] = useState(null);
   const [adminTab, setAdminTab] = useState('queue');
-  const canManagePdfJobs = (currentUser?.email || '').trim().toLowerCase() === 'info@typemywordz.ai';
+  const adminEmail = (currentUser?.email || '').trim().toLowerCase();
+  const canManagePdfJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai'].includes(adminEmail);
+  const canAssignAiAgents = adminEmail === 'typemywordz@gmail.com';
   const [adminQueueLane, setAdminQueueLane] = useState('needs_action');
   const [adminQueueType, setAdminQueueType] = useState('all');
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -394,6 +396,12 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     } finally { setBusy(false); }
   };
 
+  const saveSharedTranscript = (text, html) => act(
+    `/human-transcription/jobs/${selectedJob.id}/transcript`,
+    { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transcript: text, transcript_html: html }) },
+    'Transcript changes saved.',
+  );
+
   const deleteJob = async () => {
     if (!selectedJob || mode !== 'admin' || busy) return;
     if (!window.confirm('Delete this human-work job, its stored files, and its conversation? Worker earnings and payment history will be kept. This cannot be undone.')) return;
@@ -471,7 +479,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const renderSubmitButton = (place) => {
     if (!(mode === 'worker' && workerAssignmentActive)) return null;
     const disabled = busy || (workerAssignment?.role === 'proofreader' && (selectedJob.proofreader_parts || []).some((part) => part.pending)) || (!editorText.trim() && !finalAttachment && !selectedJob.final_attachment);
-    return <button type="button" className={place === 'bottom' ? 'tm-human-submit-bottom' : undefined} onClick={submitWorker} disabled={disabled}>Submit {workerAssignment?.role === 'proofreader' ? 'final work' : selectedJob.job_type === 'pdf_job' ? 'image transcription' : 'part'} for review</button>;
+    return <button type="button" className={`tm-human-submit-button${place === 'bottom' ? ' tm-human-submit-bottom' : ''}`} onClick={submitWorker} disabled={disabled}>Submit {workerAssignment?.role === 'proofreader' ? 'final work' : selectedJob.job_type === 'pdf_job' ? 'image transcription' : 'part'} for review</button>;
   };
 
   const claimWork = async (segmentId = '') => {
@@ -520,7 +528,26 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const assignProofreader = () => {
     const worker = workerPayload(proofreaderWorker);
     if (!worker) return showMessage?.('Choose an approved proofreader first.', 'error');
-    return act(`/human-transcription/jobs/${selectedJob.id}/assign-proofreader`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(worker) });
+    const proofreaderPartsOverride = editorRef.current?.getParts?.() || [];
+    const useCombinedTranscript = proofreaderPartsOverride.length === 0 && Boolean(editorText.trim());
+    return act(`/human-transcription/jobs/${selectedJob.id}/assign-proofreader`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...worker,
+        transcript: editorText,
+        transcript_html: editorHtml,
+        proofreader_parts_override: proofreaderPartsOverride,
+        proofreader_use_combined_transcript: useCombinedTranscript,
+      }),
+    }, 'Proofreader assigned with the current edited transcript.');
+  };
+
+  const insertAiReviewedTranscript = (text) => {
+    if (!editorRef.current?.replaceContent) {
+      showMessage?.('Open the shared editor first, then insert the reviewed transcript.', 'error');
+      return;
+    }
+    editorRef.current.replaceContent(text);
   };
 
   const assignAiAgent = async (agentId) => {
@@ -635,7 +662,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       {mode === 'worker' && (
         <div className="tm-worker-policy-note" role="note">
           <strong>How hired work must be prepared:</strong>
-          <span>Once hired, keep enough TypeMyworDz credits to create each AI draft in the app. You can generate a draft specific for your whole/slice/part of assigned job. Edit it in Microsoft Word and then copy paste in the TypeMyworDz editor under your job and submit. Never attach documents unless a job is a TEMPLATE JOB or when requested.</span>
+          <span>Once hired, keep enough TypeMyworDz credits to create an AI draft for your assigned job. Edit it in Word, then paste it into the TypeMyworDz editor and submit. Keep the research notes and spellings section at the end of your work; the proofreader and admin need them to verify names. Do not attach documents unless a job is a TEMPLATE JOB or the admin requests one.</span>
         </div>
       )}
 
@@ -735,7 +762,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <div><span className="tm-human-status">{STATUS_LABELS[selectedJob.status] || selectedJob.status}</span><h2>{selectedJob.pdf_image?.name || selectedJob.audio?.name || (selectedJob.source_type === 'ai_proofreading' ? 'AI transcript for proofreading' : 'Human-transcription request')}</h2><p>{selectedJob.job_type === 'pdf_job' ? 'PDF image transcription · KES 100 per submitted image' : `${selectedJob.source_type === 'ai_proofreading' ? 'AI transcript proofreading' : 'New human transcript'} · ${selectedJob.minutes || 0} minutes${mode !== 'worker' ? ` · ${selectedJob.quote_credits || 0} credits` : ''} · ${selectedJob.turnaround || 'standard'} delivery`}</p>{mode === 'worker' && workerAssignment?.label && <p><strong>{workerAssignment.label}</strong>{workerAssignment.role === 'proofreader' ? ' · Proofread the combined text below and check the handoff between parts. You can submit once every part is in.' : selectedJob.job_type === 'pdf_job' ? ' · Transcribe the single assigned image and submit the finished Word file or transcript.' : ` · Work from ${formatCountdown(workerAssignment.start_seconds || 0)} to ${formatCountdown(workerAssignment.end_seconds || 0)} in the source recording.`}</p>}</div>
               <div className="tm-human-detail-actions">
                 {mode === 'admin' && selectedJob.status === 'pending_admin' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/approve`, { method: 'POST' })}>Approve request</button>}
-                {mode === 'worker' && workerAssignmentActive && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/start`, { method: 'POST' })}>Start work</button>}
                 {renderSubmitButton('top')}
                 {mode === 'client' && selectedJob.status === 'client_review' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/client-approve`, { method: 'POST' })}>Approve completed work</button>}
                 {mode === 'admin' && selectedJob.status === 'client_review' && <button type="button" title="Some clients are fully hands-off and trust an admin's review instead of logging in to approve it themselves." onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/client-approve`, { method: 'POST' })}>Approve on client's behalf</button>}
@@ -746,7 +772,19 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               </div>
             </div>
 
-            {mode === 'admin' && selectedJob && (
+            {mode === 'worker' && (selectedJob.my_job_ratings || []).length > 0 && (
+              <section className="tm-worker-job-feedback" aria-label="Admin feedback for this job">
+                <h3>Feedback on this job</h3>
+                {(selectedJob.my_job_ratings || []).map((item, index) => (
+                  <article className="tm-worker-job-feedback-item" key={`${item.label}-${index}`}>
+                    <div><strong>{item.label}</strong><span>{item.rating}/5 · Rated by {item.rater || 'Admin'}</span></div>
+                    {item.note && <p>{item.note}</p>}
+                  </article>
+                ))}
+              </section>
+            )}
+
+            {mode === 'admin' && selectedJob && canAssignAiAgents && (
               <section className="tm-ai-agent-panel" aria-label="AI first-draft agents">
                 <div className="tm-ai-agent-copy">
                   <strong>AI first draft <span>Human proofreading required</span></strong>
@@ -878,7 +916,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             )}
 
             {mode === 'admin' && splitJob && ['split_assigned', 'split_in_progress', 'proofreading_available'].includes(selectedJob.status) && (selectedJob.segments || []).some((part) => part.status === 'submitted') && !['assigned', 'in_progress'].includes(selectedJob.proofreader_status) && <div className="tm-human-assign"><label>Assign a proofreader<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose a worker rated 4.5 or higher</option>{workers.filter((worker) => worker.can_proofread).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {Number(worker.rating).toFixed(1)}/5 · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign proofreading</button><p className="tm-tat-hint">Only workers rated 4.5/5 or higher can proofread. You can assign now, before every part is in. The proofreader gets one editor with all submitted parts, separated by dotted lines, and can load the rest as they arrive. They can submit only once every part is in.</p></div>}
-            {mode === 'admin' && selectedJob.job_type !== 'pdf_job' && ((splitJob && (selectedJob.segments || []).length > 0 && (selectedJob.segments || []).every((part) => part.status === 'submitted')) || (!splitJob && ['submitted', 'client_review', 'client_approved', 'released'].includes(selectedJob.status) && String(selectedJob.transcript || '').trim())) && <AdminAiReviewPanel job={selectedJob} act={act} busy={busy} splitJob={splitJob} />}
+            {mode === 'admin' && selectedJob.job_type !== 'pdf_job' && ((splitJob && (selectedJob.segments || []).length > 0 && (selectedJob.segments || []).every((part) => part.status === 'submitted')) || (!splitJob && ['submitted', 'client_review', 'client_approved', 'released'].includes(selectedJob.status) && String(selectedJob.transcript || '').trim())) && <AdminAiReviewPanel job={selectedJob} act={act} busy={busy} splitJob={splitJob} onInsert={insertAiReviewedTranscript} />}
             {mode === 'admin' && <AdminPartReview job={selectedJob} act={act} downloadProtectedFile={downloadProtectedFile} />}
 
 
@@ -955,13 +993,22 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 <WordLikeEditor
                   key={draftAssignmentKey}
                   ref={editorRef}
-                  parts={workerAssignment?.role === 'proofreader' ? (selectedJob.proofreader_parts || []) : null}
+                  parts={workerAssignment?.role === 'proofreader' && selectedJob.proofreader_use_combined_transcript !== true ? (selectedJob.proofreader_parts || []) : null}
                   initialHtml={selectedJob.transcript_html || ''}
                   initialText={selectedJob.transcript || ''}
+                  fileName={selectedJob.job_name || selectedJob.title || 'transcript'}
                   onChange={(text, html) => { setEditorText(text); setEditorHtml(html); }}
                 />
               ) : (
-              <FinalTranscriptView job={selectedJob} showMessage={showMessage} />
+              <FinalTranscriptView
+                job={selectedJob}
+                showMessage={showMessage}
+                editable={mode === 'admin' || mode === 'client'}
+                editorRef={editorRef}
+                onChange={(text, html) => { setEditorText(text); setEditorHtml(html); }}
+                onSave={saveSharedTranscript}
+                saving={busy}
+              />
               )}
               {mode === 'worker' && workerAssignmentActive && <div className="tm-human-submit-row">
                 <span>{selectedJob.job_type === 'pdf_job' ? 'Finished? Submit your transcription.' : 'Finished? Check that your research notes are still at the end of the text, then submit.'}</span>

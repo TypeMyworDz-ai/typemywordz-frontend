@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { DOC_FONT, copyForWord as copyText, downloadDocx, safeFileName } from '../utils/transcriptExport';
+import AIOutputWindow from './AIOutputWindow';
 const readModelPref = () => { try { return window.localStorage.getItem('tmwd.askModel') || ''; } catch { return ''; } };
 
 const box = { border: '1px solid #e1e6e2', borderRadius: 8, padding: '12px 14px', display: 'grid', gap: 10, background: '#fff' };
@@ -76,9 +76,8 @@ export function AdminPartReview({ job, act, downloadProtectedFile }) {
 
 
 
-export function AdminAiReviewPanel({ job, act, busy, splitJob = true }) {
+export function AdminAiReviewPanel({ job, act, busy, splitJob = true, onInsert }) {
   const review = job.ai_review;
-  const [showText, setShowText] = useState(true);
   const [note, setNote] = useState('');
   const flash = (message) => { setNote(message); window.setTimeout(() => setNote(''), 4000); };
   const [running, setRunning] = useState(false);
@@ -103,25 +102,12 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true }) {
       await act(`/human-transcription/jobs/${job.id}/rate-part`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ segment_id: part.segment_id, rating: part.rating, note: `AI review: ${part.notes || part.accuracy || ''}`.slice(0, 1800), source: 'ai' }) }, `Applied the AI rating to ${part.segment_id}.`);
     }
   };
-  const useCombined = () => act(`/human-transcription/jobs/${job.id}/ai-review/apply`, { method: 'POST' }, splitJob ? 'The AI transcript is now the final transcript, ready for your review.' : 'The AI transcript replaced the worker text on this job.');
+  const useCombined = () => {
+    if (!review?.combined_text || !onInsert) return;
+    onInsert(review.combined_text);
+    flash('Inserted into the editable proofreader transcript.');
+  };
   const labelFor = (id) => (id === 'main' ? 'Full transcript' : ((job.segments || []).find((part) => part.id === id)?.label || id));
-
-  const copyForWord = async () => {
-    try {
-      await copyText(review.combined_text || '');
-      flash('Copied. Paste it into Word and the indents and double spaces stay.');
-    } catch {
-      flash('Copying was blocked by the browser. Use Download Word instead.');
-    }
-  };
-
-  const downloadWord = async () => {
-    try {
-      await downloadDocx(review.combined_text || '', `${safeFileName(job.job_name || job.title)} - final`);
-    } catch {
-      flash('The Word file could not be created. Use Copy for Word instead.');
-    }
-  };
 
   const notesText = () => [
     'CHANGES MADE AND WHY',
@@ -141,14 +127,17 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true }) {
       {review && (
         <div style={{ display: 'grid', gap: 10 }}>
           {review.summary && <p style={{ margin: 0 }}>{review.summary}</p>}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-            <button type="button" onClick={copyForWord}>Copy for Word</button>
-            <button type="button" onClick={downloadWord}>Download Word (.docx)</button>
-            <button type="button" onClick={() => setShowText((value) => !value)}>{showText ? 'Hide final transcript' : 'Read final transcript'}</button>
-            <button type="button" disabled={busy || ['assigned', 'in_progress'].includes(job.proofreader_status)} onClick={useCombined}>{splitJob ? 'Use as the final transcript' : 'Replace the worker text with this'}</button>
-            {note && <span style={{ ...muted, color: '#267b40' }}>{note}</span>}
-          </div>
-          {showText && <div style={{ whiteSpace: 'pre-wrap', tabSize: 4, fontFamily: `'${DOC_FONT}', serif`, maxHeight: 420, overflow: 'auto', background: '#fafbfa', border: '1px solid #e5e9e5', borderRadius: 6, padding: 12, fontSize: 15, lineHeight: 1.5 }}>{review.combined_text}</div>}
+          <AIOutputWindow
+            title="AI-reviewed transcript"
+            description="Check the reviewed text, then insert it into the editable proofreader transcript below."
+            text={review.combined_text || ''}
+            fileName={`${job.job_name || job.title || 'transcript'} - AI review`}
+            minHeight={360}
+            showCopyDownload={false}
+            revision={`${job.id}-${(review.combined_text || '').length}`}
+            actionContent={<button type="button" className="tm-ai-output-button is-primary" disabled={busy || !onInsert || ['assigned', 'in_progress'].includes(job.proofreader_status)} onClick={useCombined}>Insert to the Editor for Proofreader</button>}
+          />
+          {note && <span style={{ ...muted, color: '#267b40' }}>{note}</span>}
           {(review.changes || []).length > 0 && (
             <div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}><strong style={{ fontSize: 13 }}>What the AI changed and why</strong><button type="button" onClick={copyNotes}>Copy notes</button></div>

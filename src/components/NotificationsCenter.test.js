@@ -19,34 +19,40 @@ const sampleNotification = {
   action_completed_at: null,
 };
 
-test('shows unread activity with a direct open action and no snooze control', () => {
+test('offers Cancel without navigating and keeps Open as a separate action', () => {
   const onOpenNotification = jest.fn();
+  const onDismissNotification = jest.fn();
   render(
     <NotificationsCenter
       notifications={[sampleNotification]}
       unreadCount={1}
       onOpenNotification={onOpenNotification}
+      onDismissNotification={onDismissNotification}
     />
   );
 
   expect(screen.getByRole('heading', { name: 'Notifications' })).toBeInTheDocument();
   expect(screen.getByText('A new Human Work job is ready')).toBeInTheDocument();
   expect(screen.getByText('Needs action')).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: /snooze/i })).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Open Work Room' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(onDismissNotification).toHaveBeenCalledWith(sampleNotification);
+  expect(onOpenNotification).not.toHaveBeenCalled();
 
+  fireEvent.click(screen.getByRole('button', { name: 'Open Work Room' }));
   expect(onOpenNotification).toHaveBeenCalledWith(sampleNotification);
 });
 
-test('clicking anywhere in a persistent alert opens it and keyboard activation works', () => {
+test('persistent alert has separate Open and Cancel buttons', () => {
   const onOpenNotification = jest.fn();
-  render(<NotificationAlert item={sampleNotification} onOpenNotification={onOpenNotification} />);
-  const alert = screen.getByRole('button', { name: 'Open Work Room: A new Human Work job is ready' });
+  const onDismissNotification = jest.fn();
+  render(<NotificationAlert item={sampleNotification} onOpenNotification={onOpenNotification} onDismissNotification={onDismissNotification} />);
 
-  fireEvent.click(screen.getByText(sampleNotification.body));
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel notification: A new Human Work job is ready' }));
+  expect(onDismissNotification).toHaveBeenCalledWith(sampleNotification);
+  expect(onOpenNotification).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Open Work Room: A new Human Work job is ready' }));
   expect(onOpenNotification).toHaveBeenCalledWith(sampleNotification);
-  fireEvent.keyDown(alert, { key: 'Enter' });
-  expect(onOpenNotification).toHaveBeenCalledTimes(2);
 });
 
 test('shows a useful empty state when there are no notifications', () => {

@@ -1,5 +1,5 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { copyPlainText, copyRich, nodeToWordHtml } from '../utils/transcriptExport';
+import { copyPlainText, copyRich, downloadDocx, nodeToWordHtml, safeFileName } from '../utils/transcriptExport';
 
 // A plain, familiar writing surface for workers. It behaves like a word
 // processor: text pasted from Word keeps its bold, italics, underline,
@@ -123,7 +123,7 @@ const textStats = (text) => {
   return { words, chars: value.length, tabs, oneSpace };
 };
 
-const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', initialText = '', parts = null, onChange, disabled = false, minHeight = 420 }, ref) {
+const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', initialText = '', parts = null, onChange, disabled = false, minHeight = 420, fileName = 'transcript' }, ref) {
   const rootRef = useRef(null);
   const [loadable, setLoadable] = useState([]);
   const [stats, setStats] = useState({ words: 0, chars: 0, tabs: 0, oneSpace: 0 });
@@ -145,8 +145,9 @@ const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', in
     if (!onChange) return;
     const clone = root.cloneNode(true);
     clone.querySelectorAll('[data-tm-skip]').forEach((node) => node.remove());
-    const html = combined
-      ? Array.from(clone.querySelectorAll('[data-tm-part]')).map((node) => node.innerHTML).join('<div><br></div>')
+    const partNodes = Array.from(clone.querySelectorAll('[data-tm-part]'));
+    const html = combined && partNodes.length
+      ? partNodes.map((node) => node.innerHTML).join('<div><br></div>')
       : clone.innerHTML;
     onChange(text, html);
   }, [combined, onChange]);
@@ -160,7 +161,7 @@ const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', in
   useImperativeHandle(ref, () => ({
     insertText: (text) => {
       const root = rootRef.current;
-      if (!root) return;
+      if (!root || disabled) return;
       root.focus();
       const value = String(text || '');
       if (!document.execCommand('insertText', false, value)) {
@@ -168,7 +169,23 @@ const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', in
       }
       emit();
     },
-  }), [emit]);
+    replaceContent: (text, html = '') => {
+      const root = rootRef.current;
+      if (!root || disabled) return;
+      root.innerHTML = html ? sanitizePastedHtml(html) : plainTextToHtml(text);
+      root.focus();
+      emit();
+    },
+    getParts: () => {
+      const root = rootRef.current;
+      if (!root) return [];
+      return Array.from(root.querySelectorAll('[data-tm-part]')).map((node) => ({
+        id: node.getAttribute('data-tm-part') || '',
+        transcript: domToPlainText(node),
+        transcript_html: node.innerHTML,
+      })).filter((part) => part.id);
+    },
+  }), [disabled, emit]);
 
   // Combined mode: notice parts that were submitted after the editor opened.
   useEffect(() => {
@@ -292,6 +309,13 @@ const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', in
     link.href = url; link.download = 'transcript.txt'; document.body.appendChild(link); link.click(); link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 20000);
   };
+  const downloadWord = async () => {
+    const root = rootRef.current;
+    const holder = root?.cloneNode(true);
+    holder?.querySelectorAll('[data-tm-skip]').forEach((node) => node.remove());
+    try { await downloadDocx(blockText(), safeFileName(fileName), holder?.innerHTML || ''); flash('Word document downloaded.'); }
+    catch { flash('The Word document could not be created.'); }
+  };
 
   const fontChange = (event) => { if (event.target.value) command('fontName', event.target.value); event.target.value = ''; };
   const sizeChange = (event) => { if (event.target.value) setSize(Number(event.target.value)); event.target.value = ''; };
@@ -356,6 +380,7 @@ const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', in
         </div>
         <div className="tm-we-group" style={{ borderRight: 0 }}>
           <Btn title="Copy with Word formatting" label="Copy for Word" wide onClick={() => copyAs('word')} />
+          <Btn title="Download as a Word document" label="Download Word" wide onClick={downloadWord} />
           <Btn title="Copy as plain text" label="Copy plain" wide onClick={() => copyAs('plain')} />
           <Btn title="Copy the HTML markup" label="Copy markup" wide onClick={() => copyAs('markup')} />
           <Btn title="Download plain text" label="Save .txt" wide onClick={downloadPlain} />

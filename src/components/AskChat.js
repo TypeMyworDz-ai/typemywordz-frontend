@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import AIOutputWindow from './AIOutputWindow';
 
 // The conversation itself. Used in two places: the standalone Ask TypeMyworDz
 // page, and the panel beside a finished transcript. Everything about how a
@@ -673,10 +674,15 @@ const AskChat = ({
             </div>
             <div className="tm-ask-body">
               {m.role === 'assistant' ? (
-                <>
-                  <Answer text={m.content} />
-                  <AnswerActions text={m.content} onOpen={() => setOpenAnswer(m.content)} />
-                </>
+                <AIOutputWindow
+                  title="Ask TypeMyworDz response"
+                  description="Read the answer in a clean page view, then copy it or save it as a Word document."
+                  text={answerToText(m.content)}
+                  html={answerToHtml(m.content)}
+                  fileName={answerFileName(m.content)}
+                  minHeight={220}
+                  revision={`ask-${i}-${m.content.length}`}
+                />
               ) : (
                 <p className="tm-ask-p">{m.content}</p>
               )}
