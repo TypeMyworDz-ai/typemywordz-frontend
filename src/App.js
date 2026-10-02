@@ -3296,7 +3296,7 @@ return (
                 />
               )}
 
-              {transcription && status === 'completed' && (
+              {transcription && status === 'completed' && ['info@typemywordz.ai', 'typemywordz@gmail.com', 'gracenyaitara@gmail.com'].includes((currentUser?.email || '').trim().toLowerCase()) && (
                 <FormatWithGuidelines transcript={transcription} fileName={selectedFile ? selectedFile.name : ''} />
               )}
 
