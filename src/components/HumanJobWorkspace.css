@@ -37,6 +37,15 @@
 .tm-ai-agent-copy p,.tm-ai-agent-state{margin:4px 0 0;color:#5c5d69;font-size:13px;line-height:1.45}
 .tm-ai-agent-part{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600}
 .tm-ai-agent-part select{min-width:190px;padding:7px;border:1px solid #d7d4e0;border-radius:6px;background:#fff}
+.tm-ai-template-guidance{display:grid;gap:9px;padding:12px;border:1px solid #e5dfef;border-radius:7px;background:#fff}
+.tm-ai-template-guidance-intro{margin:0;color:#5c5d69;font-size:12px;line-height:1.5}
+.tm-ai-template-guidance label{display:grid;gap:5px;color:#393545;font-size:13px;font-weight:600}
+.tm-ai-template-guidance textarea{width:100%;min-height:88px;padding:9px 10px;border:1px solid #d7d4e0;border-radius:6px;background:#fff;color:#262432;font:inherit;font-weight:400;line-height:1.45;resize:vertical}
+.tm-ai-template-guidance input[type=file]{max-width:100%;color:#4e4a58;font-size:12px;font-weight:400}
+.tm-ai-template-guidance small{color:#6b6874;font-size:12px;line-height:1.45}
+.tm-ai-template-file-list{display:grid;gap:5px;margin:0;padding:0;list-style:none}
+.tm-ai-template-file-list li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 8px;border-radius:5px;background:#f8f7fb;color:#575361;font-size:12px}
+.tm-ai-template-file-list li button{flex:none;border:0;background:transparent;color:#6a3aa2;font:inherit;text-decoration:underline;cursor:pointer}
 .tm-ai-agent-buttons{display:flex;flex-wrap:wrap;gap:8px}
 .tm-ai-agent-buttons button{border:1px solid #d5c8ec;border-radius:7px;padding:8px 12px;background:#fff;color:#4b2a8a;font-weight:600;cursor:pointer}
 .tm-ai-agent-buttons button:hover:not(:disabled){background:#f0eafb}

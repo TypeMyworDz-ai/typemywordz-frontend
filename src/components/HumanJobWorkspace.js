@@ -74,6 +74,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [wholeConfirm, setWholeConfirm] = useState(false);
   const [aiWholeConfirm, setAiWholeConfirm] = useState(false);
   const [aiWholeAgent, setAiWholeAgent] = useState('');
+  const [templateAgentGuidelines, setTemplateAgentGuidelines] = useState('');
+  const [templateAgentFiles, setTemplateAgentFiles] = useState([]);
   const editorRef = useRef(null);
   const [feedback, setFeedback] = useState('');
   const [rating, setRating] = useState('5');
@@ -258,6 +260,10 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   }, [request, selectedJob?.id, mode, workerTab, jobHasAssignedWorker]);
 
   useEffect(() => { loadJobs(); loadWorkers(); loadPayments(); loadAvailability(); }, [loadJobs, loadWorkers, loadPayments, loadAvailability]);
+  useEffect(() => {
+    setTemplateAgentGuidelines('');
+    setTemplateAgentFiles([]);
+  }, [selectedJob?.id]);
   useEffect(() => {
     if (!initialJobId) {
       handledInitialJobIdRef.current = '';
@@ -562,12 +568,28 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     const eligible = (selectedJob.segments || []).filter((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid);
     const segmentId = splitJob && !wholeJob ? (aiAgentSegment || eligible[0]?.id || '') : '';
     if (splitJob && !wholeJob && !segmentId) { showMessage?.('Choose an available part first.', 'error'); return; }
-    await act(`/human-transcription/jobs/${selectedJob.id}/ai-agent/assign`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agent_id: agentId, segment_id: segmentId, ...(wholeJob ? { whole_job: true } : {}) }),
-    }, wholeJob
+    const options = { method: 'POST' };
+    if (agentId === 'template-claude') {
+      const form = new FormData();
+      form.append('agent_id', agentId);
+      form.append('segment_id', segmentId);
+      if (wholeJob) form.append('whole_job', 'true');
+      if (templateAgentGuidelines.trim()) form.append('job_specific_guidelines', templateAgentGuidelines.trim());
+      templateAgentFiles.forEach((file) => form.append('reference_files', file));
+      options.body = form;
+    } else {
+      if (templateAgentGuidelines.trim() || templateAgentFiles.length) {
+        showMessage?.('These extra instructions and files are only sent to the template-aware agent. Choose that agent or remove them first.', 'error');
+        return;
+      }
+      options.headers = { 'Content-Type': 'application/json' };
+      options.body = JSON.stringify({ agent_id: agentId, segment_id: segmentId, ...(wholeJob ? { whole_job: true } : {}) });
+    }
+    await act(`/human-transcription/jobs/${selectedJob.id}/ai-agent/assign`, options, wholeJob
       ? 'Whole-job AI draft queued. The split parts are paused; a failed run restores them. Human proofreading is still required.'
-      : 'AI formatted draft queued. It will stay private until an approved human proofreader submits the final work.');
+      : agentId === 'template-claude'
+        ? 'Template-aware draft queued with the permanent rules and this job’s extra instructions.'
+        : 'AI formatted draft queued. It will stay private until an approved human proofreader submits the final work.');
   };
 
   const confirmAiWholeJob = async () => {
@@ -812,6 +834,22 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                     {(selectedJob.segments || []).filter((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid).map((part) => <option key={part.id} value={part.id}>{part.label || part.id}</option>)}
                   </select>
                 </label>}
+                {hasJobDocxTemplate && selectedJob.job_type !== 'pdf_job' && <div className="tm-ai-template-guidance">
+                  <p className="tm-ai-template-guidance-intro">Below are text-specific guidelines (additional guidelines only aimed at the current template job I'm giving you to format). Note that those template-specific guidelines should be given priority first over GENERAL guidelines where applicable.</p>
+                  <label>Additional instructions for this template job
+                    <textarea aria-label="Additional template-job instructions" rows={4} maxLength={12000} value={templateAgentGuidelines} onChange={(event) => setTemplateAgentGuidelines(event.target.value)} placeholder="Add any extra directions that apply only to this job." />
+                  </label>
+                  <label>Extra reference files for this template job
+                    <input key={selectedJob.id} aria-label="Extra reference files for this template job" type="file" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.gif,.webp" multiple onChange={(event) => setTemplateAgentFiles(Array.from(event.target.files || []))} />
+                  </label>
+                  {templateAgentFiles.length > 0 && <ul className="tm-ai-template-file-list" aria-label="Selected extra reference files">
+                    {templateAgentFiles.map((file, index) => <li key={`${file.name}-${file.lastModified}-${index}`}>
+                      <span><strong>{file.name}</strong>{formatAttachmentSize(file.size) ? ` · ${formatAttachmentSize(file.size)}` : ''}</span>
+                      <button type="button" aria-label={`Remove ${file.name}`} onClick={() => setTemplateAgentFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}>Remove</button>
+                    </li>)}
+                  </ul>}
+                  <small>These extras are private to this AI run. The attached template and existing job references are included too. You can attach up to six PDF, Word, text, or image files.</small>
+                </div>}
                 <div className="tm-ai-agent-buttons">
                   {selectedJob.job_type === 'pdf_job' ? (
                     <button type="button" disabled={busy || ['queued', 'processing'].includes(selectedJob.ai_agent_status) || (!splitJob && selectedJob.status !== 'approved') || (splitJob && !(selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))} onClick={() => assignAiAgent('pdf-gemini')}>{['queued', 'processing'].includes(selectedJob.ai_agent_status) ? 'Gemini is drafting…' : 'Assign Gemini 3.8 to image'}</button>

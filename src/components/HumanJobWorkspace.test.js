@@ -102,6 +102,43 @@ test('admin AI-agent choices describe the Opus-first Sol-fallback route', async 
   expect(screen.queryByText(/GPT Terra|Sonnet/)).not.toBeInTheDocument();
 });
 
+test('admin sends extra template-job instructions and files with the template assignment', async () => {
+  const templateJob = {
+    id: 'template-job', status: 'approved', job_type: 'human_transcription',
+    audio: { name: 'template-job.mp3', storage_path: 'private/audio.mp3' }, minutes: 3,
+    instruction_attachments: [{ name: 'Client Template.docx', content_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }],
+  };
+  setCurrentUserForTest({ uid: 'admin-1', email: 'typemywordz@gmail.com', getIdToken: async () => 'test-token' });
+  global.fetch = jest.fn((url) => {
+    const address = String(url);
+    if (address.includes('/human-transcription/jobs?scope=admin')) return Promise.resolve(response({ jobs: [templateJob] }));
+    if (address.includes('/human-transcription/workers')) return Promise.resolve(response({ workers: [] }));
+    if (address.includes('/messages')) return Promise.resolve(response({ messages: [] }));
+    return Promise.resolve(response({ status: 'queued' }));
+  });
+  render(<HumanJobWorkspace mode="admin" />);
+
+  const assignButton = await screen.findByRole('button', { name: 'Assign template-aware agent' });
+  expect(assignButton).toBeEnabled();
+  expect(screen.getByText(/Below are text-specific guidelines .* priority first over GENERAL guidelines/)).toBeInTheDocument();
+  fireEvent.change(screen.getByRole('textbox', { name: 'Additional template-job instructions' }), {
+    target: { value: 'Preserve client-confirmed spellings and keep the dictated paragraph breaks.' },
+  });
+  const extraFile = new File(['Client reference notes'], 'client-reference.txt', { type: 'text/plain' });
+  fireEvent.change(screen.getByLabelText('Extra reference files for this template job'), { target: { files: [extraFile] } });
+  expect(screen.getByText('client-reference.txt')).toBeInTheDocument();
+
+  fireEvent.click(assignButton);
+  await waitFor(() => expect(global.fetch.mock.calls.some(([url]) => String(url).includes('/human-transcription/jobs/template-job/ai-agent/assign'))).toBe(true));
+  const [, options] = global.fetch.mock.calls.find(([url]) => String(url).includes('/human-transcription/jobs/template-job/ai-agent/assign'));
+  expect(options.method).toBe('POST');
+  expect(options.body).toBeInstanceOf(FormData);
+  expect(options.body.get('agent_id')).toBe('template-claude');
+  expect(options.body.get('job_specific_guidelines')).toBe('Preserve client-confirmed spellings and keep the dictated paragraph breaks.');
+  expect(options.body.get('reference_files').name).toBe('client-reference.txt');
+  expect(options.headers['Content-Type']).toBeUndefined();
+});
+
 test('admin confirms whole-job AI takeover before pausing unclaimed split parts', async () => {
   const splitJob = {
     id: 'split-job', status: 'split_in_progress', split_mode: 'dual', job_type: 'human_transcription',
