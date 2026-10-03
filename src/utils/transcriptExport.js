@@ -4,6 +4,41 @@ export const DOC_FONT = 'Times New Roman';
 
 const escapeHtml = (value) => String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+const EMPTY_PARAGRAPH_TAGS = new Set(['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6']);
+const isEmptyInlineNode = (node) => {
+  if (node.nodeType === 3) return !String(node.nodeValue || '').replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+  if (node.nodeType !== 1) return true;
+  if (node.tagName === 'BR') return true;
+  return ['SPAN', 'FONT', 'B', 'STRONG', 'I', 'EM', 'U', 'S', 'SMALL', 'BIG'].includes(node.tagName)
+    && Array.from(node.childNodes).every(isEmptyInlineNode);
+};
+
+const isEmptyParagraph = (node) => node.nodeType === 1
+  && EMPTY_PARAGRAPH_TAGS.has(node.tagName)
+  && Array.from(node.childNodes).every(isEmptyInlineNode);
+
+// Keep at most one empty paragraph between blocks without flattening inline
+// formatting, tabs, or deliberate runs of spaces.
+export const normalizeParagraphSpacing = (html) => {
+  const root = document.createElement('div');
+  root.innerHTML = String(html || '');
+  const visit = (parent) => {
+    let previousWasEmpty = false;
+    Array.from(parent.childNodes).forEach((node) => {
+      if (node.nodeType === 3 && !String(node.nodeValue || '').trim()) return;
+      if (isEmptyParagraph(node)) {
+        if (previousWasEmpty) node.remove();
+        else previousWasEmpty = true;
+        return;
+      }
+      previousWasEmpty = false;
+      if (node.nodeType === 1) visit(node);
+    });
+  };
+  visit(root);
+  return root.innerHTML;
+};
+
 // Word collapses tabs and runs of spaces in pasted HTML unless they are written
 // the way Word writes them itself: tabs as mso-tab-count spans and runs of
 // spaces as mso-spacerun spans of non-breaking spaces.
@@ -12,12 +47,13 @@ export const encodeWhitespaceForWord = (escaped) => String(escaped || '')
   .replace(/ {2,}/g, (run) => `<span style="mso-spacerun:yes">${' ' + '&nbsp;'.repeat(run.length - 1)}</span>`)
   .replace(/^ /, '&nbsp;');
 
-export const wordHtml = (text) => `<div style="font-family:'${DOC_FONT}',serif;font-size:12pt">${String(text || '').split('\n').map((line) => `<p style="margin:0">${line ? encodeWhitespaceForWord(escapeHtml(line)) : '&nbsp;'}</p>`).join('')}</div>`;
+export const wordHtml = (text) => `<div style="font-family:'${DOC_FONT}',serif;font-size:12pt">${String(text || '').replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').split('\n').map((line) => `<p style="margin:0">${line ? encodeWhitespaceForWord(escapeHtml(line)) : '&nbsp;'}</p>`).join('')}</div>`;
 
 // Rewrites the text nodes of a copied selection so that Word keeps every tab
 // and double space. Returns HTML.
 export const nodeToWordHtml = (root) => {
   const clone = root.cloneNode(true);
+  clone.innerHTML = normalizeParagraphSpacing(clone.innerHTML);
   const walker = document.createTreeWalker(clone, 4);
   const texts = [];
   while (walker.nextNode()) texts.push(walker.currentNode);
@@ -59,8 +95,14 @@ const htmlBlocks = (root) => {
     blocks.push({ node: wrapper });
   };
   const visit = (container) => {
-    Array.from(container.childNodes).forEach((node) => {
-      if (node.nodeType === 3) { inline.push(node); return; }
+    const children = Array.from(container.childNodes);
+    const blockTags = new Set(['div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre', 'li', 'tr', 'ul', 'ol', 'table', 'hr']);
+    const containsBlocks = children.some((node) => node.nodeType === 1 && blockTags.has(node.tagName.toLowerCase()));
+    children.forEach((node) => {
+      if (node.nodeType === 3) {
+        if (containsBlocks && !String(node.nodeValue || '').trim()) return;
+        inline.push(node); return;
+      }
       if (node.nodeType !== 1) return;
       const tag = node.tagName.toLowerCase();
       if (tag === 'ul' || tag === 'ol') {
@@ -130,7 +172,7 @@ const docxRuns = (node, inherited, TextRun, Tab, runs = []) => {
 
 export const htmlToDocxParagraphs = (html, TextRun, Paragraph, Tab, AlignmentType) => {
   const root = document.createElement('div');
-  root.innerHTML = String(html || '');
+  root.innerHTML = normalizeParagraphSpacing(html);
   return htmlBlocks(root).map(({ node, list, listIndex }) => {
     const runs = [];
     if (list === 'ol') runs.push(new TextRun({ text: `${listIndex}. `, font: DOC_FONT, size: 24 }));
@@ -173,7 +215,7 @@ export const downloadDocx = async (text, baseName = 'transcript', html = '') => 
   const { Document, Packer, Paragraph, TextRun, Tab, AlignmentType } = await import('docx');
   let paragraphs = html ? htmlToDocxParagraphs(html, TextRun, Paragraph, Tab, AlignmentType) : [];
   if (!paragraphs.length) {
-    paragraphs = String(text || '').split('\n').map((line) => {
+    paragraphs = String(text || '').replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').split('\n').map((line) => {
       const tabs = (/^\t*/.exec(line) || [''])[0].length;
       const body = line.slice(tabs);
       const children = [];
