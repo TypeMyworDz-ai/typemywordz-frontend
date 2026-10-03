@@ -2,10 +2,14 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import HumanJobWorkspace from './HumanJobWorkspace';
 import * as transcriptExport from '../utils/transcriptExport';
+import { setCurrentUserForTest } from '../contexts/AuthContext';
 
 jest.mock('../contexts/AuthContext', () => {
-  const currentUser = { uid: 'worker-1', getIdToken: async () => 'test-token' };
-  return { useAuth: () => ({ currentUser }) };
+  let currentUser = { uid: 'worker-1', email: 'worker@example.com', getIdToken: async () => 'test-token' };
+  return {
+    useAuth: () => ({ currentUser }),
+    setCurrentUserForTest: (nextUser) => { currentUser = nextUser; },
+  };
 });
 
 jest.mock('./TranscriptEditor', () => function TranscriptEditorMock() {
@@ -15,8 +19,12 @@ jest.mock('./TranscriptEditor', () => function TranscriptEditorMock() {
 const response = (payload) => ({ ok: true, text: async () => JSON.stringify(payload) });
 
 beforeEach(() => {
+  setCurrentUserForTest({ uid: 'worker-1', email: 'worker@example.com', getIdToken: async () => 'test-token' });
   global.fetch = jest.fn((url) => {
     const address = String(url);
+    if (address.includes('/human-transcription/jobs?scope=admin')) {
+      return Promise.resolve(response({ jobs: [{ id: 'admin-job', status: 'approved', job_type: 'human_transcription', audio: { name: 'admin-audio.mp3' }, minutes: 2, quote_credits: 4, createdAt: '2026-10-03T00:00:00Z' }] }));
+    }
     if (address.includes('/human-transcription/jobs?scope=available')) {
       return Promise.resolve(response({
         jobs: [{
@@ -82,4 +90,14 @@ test('worker copies a formatted draft with the Word clipboard format', async () 
   } finally {
     copy.mockRestore();
   }
+});
+
+test('admin AI-agent choices describe the Opus-first Sol-fallback route', async () => {
+  setCurrentUserForTest({ uid: 'admin-1', email: 'typemywordz@gmail.com', getIdToken: async () => 'test-token' });
+  render(<HumanJobWorkspace mode="admin" />);
+
+  expect(await screen.findByRole('button', { name: 'Assign general agent' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Assign template-aware agent' })).toBeInTheDocument();
+  expect(screen.getByText(/Both audio agents use Claude Opus 5.5 first and GPT-5.6 Sol only as fallback\./)).toBeInTheDocument();
+  expect(screen.queryByText(/GPT Terra|Sonnet/)).not.toBeInTheDocument();
 });
