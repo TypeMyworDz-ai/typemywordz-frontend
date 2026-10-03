@@ -47,13 +47,45 @@ export const encodeWhitespaceForWord = (escaped) => String(escaped || '')
   .replace(/ {2,}/g, (run) => `<span style="mso-spacerun:yes">${' ' + '&nbsp;'.repeat(run.length - 1)}</span>`)
   .replace(/^ /, '&nbsp;');
 
-export const wordHtml = (text) => `<div style="font-family:'${DOC_FONT}',serif;font-size:12pt">${String(text || '').replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').split('\n').map((line) => `<p style="margin:0">${line ? encodeWhitespaceForWord(escapeHtml(line)) : '&nbsp;'}</p>`).join('')}</div>`;
+const WORD_PARAGRAPH_STYLE = "margin:0pt;margin-top:0pt;margin-right:0pt;margin-bottom:0pt;margin-left:0pt;line-height:100%;text-align:left;text-indent:0pt;mso-para-margin-before:0pt;mso-para-margin-after:0pt;mso-para-margin-left:0pt;mso-para-margin-right:0pt;mso-line-height-alt:100%";
+const WORD_BLOCK_SELECTOR = 'p,div,h1,h2,h3,h4,h5,h6,li,blockquote,pre,td,th';
+
+export const wordHtml = (text) => `<div style="font-family:'${DOC_FONT}',serif;font-size:12pt;line-height:100%">${String(text || '').replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').split('\n').map((line) => `<p style="${WORD_PARAGRAPH_STYLE}">${line ? encodeWhitespaceForWord(escapeHtml(line)) : '&nbsp;'}</p>`).join('')}</div>`;
+
+const addWordParagraphDefaults = (root) => {
+  root.querySelectorAll(WORD_BLOCK_SELECTOR).forEach((block) => {
+    if (block.hasAttribute('data-tm-skip')) return;
+    const style = block.style;
+    if (!style.marginTop) style.marginTop = '0pt';
+    if (!style.marginRight) style.marginRight = '0pt';
+    if (!style.marginBottom) style.marginBottom = '0pt';
+    if (!style.marginLeft) style.marginLeft = '0pt';
+    if (!style.lineHeight) style.lineHeight = '100%';
+    if (!style.textAlign) style.textAlign = 'left';
+    if (!style.textIndent) style.textIndent = '0pt';
+    const standardStyle = block.getAttribute('style') || '';
+    const cleanedStyle = standardStyle.replace(/(?:^|);\s*mso-(?:para-margin-(?:before|after|left|right)|line-height-alt)\s*:[^;]*/gi, '').replace(/^\s*;+|;+\s*$/g, '').replace(/;;+/g, ';');
+    const rawLineHeight = String(style.lineHeight || '100%').trim();
+    const unitlessLineHeight = /^(\d+(?:\.\d+)?)$/.exec(rawLineHeight);
+    const wordLineHeight = unitlessLineHeight ? `${Number(unitlessLineHeight[1]) * 100}%` : rawLineHeight === 'normal' ? '100%' : rawLineHeight;
+    const msoStyle = `mso-para-margin-before:${style.marginTop};mso-para-margin-after:${style.marginBottom};mso-para-margin-left:${style.marginLeft};mso-para-margin-right:${style.marginRight};mso-line-height-alt:${wordLineHeight}`;
+    block.setAttribute('style', `${cleanedStyle}${cleanedStyle.trim() ? ';' : ''}${msoStyle}`);
+  });
+};
 
 // Rewrites the text nodes of a copied selection so that Word keeps every tab
-// and double space. Returns HTML.
+// and double space, and makes the paragraph defaults explicit rather than
+// allowing Word's Normal style to add space-after or multiple line spacing.
 export const nodeToWordHtml = (root) => {
   const clone = root.cloneNode(true);
   clone.innerHTML = normalizeParagraphSpacing(clone.innerHTML);
+  clone.querySelectorAll('[style]').forEach((el) => { el.style.removeProperty('white-space'); el.style.removeProperty('tab-size'); });
+  if (!clone.querySelector(WORD_BLOCK_SELECTOR) && clone.childNodes.length) {
+    const paragraph = document.createElement('p');
+    Array.from(clone.childNodes).forEach((node) => paragraph.appendChild(node));
+    clone.appendChild(paragraph);
+  }
+  addWordParagraphDefaults(clone);
   const walker = document.createTreeWalker(clone, 4);
   const texts = [];
   while (walker.nextNode()) texts.push(walker.currentNode);
@@ -62,7 +94,6 @@ export const nodeToWordHtml = (root) => {
     holder.innerHTML = encodeWhitespaceForWord(escapeHtml(node.nodeValue));
     node.replaceWith(...Array.from(holder.childNodes));
   });
-  clone.querySelectorAll('[style]').forEach((el) => { el.style.removeProperty('white-space'); el.style.removeProperty('tab-size'); });
   return clone.innerHTML;
 };
 
@@ -151,6 +182,16 @@ const runStyleFor = (node, inherited) => {
   return next;
 };
 
+const cssLineHeightToTwips = (value) => {
+  const lineHeight = String(value || '').trim().toLowerCase();
+  if (!lineHeight || lineHeight === 'normal') return 240;
+  const ratio = /^(\d+(?:\.\d+)?)$/.exec(lineHeight);
+  if (ratio) return Math.round(Number(ratio[1]) * 240);
+  const percent = /^(\d+(?:\.\d+)?)%$/.exec(lineHeight);
+  if (percent) return Math.round((Number(percent[1]) / 100) * 240);
+  return cssLengthToTwips(lineHeight);
+};
+
 const docxRuns = (node, inherited, TextRun, Tab, runs = []) => {
   if (node.nodeType === 3) {
     const options = { font: inherited.font || DOC_FONT, size: inherited.size || 24 };
@@ -170,7 +211,7 @@ const docxRuns = (node, inherited, TextRun, Tab, runs = []) => {
   return runs;
 };
 
-export const htmlToDocxParagraphs = (html, TextRun, Paragraph, Tab, AlignmentType) => {
+export const htmlToDocxParagraphs = (html, TextRun, Paragraph, Tab, AlignmentType, LineRuleType = { AUTO: 'auto' }) => {
   const root = document.createElement('div');
   root.innerHTML = normalizeParagraphSpacing(html);
   return htmlBlocks(root).map(({ node, list, listIndex }) => {
@@ -178,15 +219,28 @@ export const htmlToDocxParagraphs = (html, TextRun, Paragraph, Tab, AlignmentTyp
     if (list === 'ol') runs.push(new TextRun({ text: `${listIndex}. `, font: DOC_FONT, size: 24 }));
     docxRuns(node, { font: DOC_FONT, size: 24 }, TextRun, Tab, runs);
     if (!runs.length) runs.push(new TextRun({ text: '' }));
-    const rawStyle = node.getAttribute?.('style') || '';
-    const align = /text-align\s*:\s*(center|right|justify|left)/i.exec(rawStyle)?.[1]?.toLowerCase();
+    const style = node.style || {};
+    const align = String(style.textAlign || '').toLowerCase();
     const alignment = align === 'center' ? AlignmentType.CENTER : align === 'right' ? AlignmentType.RIGHT : align === 'justify' ? AlignmentType.JUSTIFIED : AlignmentType.LEFT;
-    const indent = /text-indent\s*:\s*([^;]+)/i.exec(rawStyle)?.[1];
+    const firstLine = cssLengthToTwips(style.textIndent || '0');
+    const left = cssLengthToTwips(style.marginLeft || '0');
+    const right = cssLengthToTwips(style.marginRight || '0');
+    const indent = {
+      ...(left ? { left } : {}),
+      ...(right ? { right } : {}),
+      ...(firstLine > 0 ? { firstLine } : {}),
+      ...(firstLine < 0 ? { hanging: Math.abs(firstLine) } : {}),
+    };
     const paragraphOptions = {
       children: runs,
       alignment,
-      spacing: { before: 0, after: 0, line: 240 },
-      ...(indent ? { indent: { firstLine: Math.max(0, cssLengthToTwips(indent)) } } : {}),
+      spacing: {
+        before: cssLengthToTwips(style.marginTop || '0'),
+        after: cssLengthToTwips(style.marginBottom || '0'),
+        line: cssLineHeightToTwips(style.lineHeight || '100%'),
+        lineRule: LineRuleType.AUTO,
+      },
+      ...(Object.keys(indent).length ? { indent } : {}),
       ...(list === 'ul' ? { bullet: { level: 0 } } : {}),
     };
     return new Paragraph(paragraphOptions);
@@ -212,8 +266,8 @@ export const copyForWord = async (text) => {
 };
 
 export const downloadDocx = async (text, baseName = 'transcript', html = '') => {
-  const { Document, Packer, Paragraph, TextRun, Tab, AlignmentType } = await import('docx');
-  let paragraphs = html ? htmlToDocxParagraphs(html, TextRun, Paragraph, Tab, AlignmentType) : [];
+  const { Document, Packer, Paragraph, TextRun, Tab, AlignmentType, LineRuleType } = await import('docx');
+  let paragraphs = html ? htmlToDocxParagraphs(html, TextRun, Paragraph, Tab, AlignmentType, LineRuleType) : [];
   if (!paragraphs.length) {
     paragraphs = String(text || '').replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').split('\n').map((line) => {
       const tabs = (/^\t*/.exec(line) || [''])[0].length;
@@ -222,7 +276,7 @@ export const downloadDocx = async (text, baseName = 'transcript', html = '') => 
       for (let i = 0; i < tabs; i += 1) children.push(new TextRun({ children: [new Tab()] }));
       if (body) children.push(new TextRun({ text: body }));
       if (!children.length) children.push(new TextRun({ text: '' }));
-      return new Paragraph({ children, spacing: { before: 0, after: 0, line: 240 } });
+      return new Paragraph({ children, spacing: { before: 0, after: 0, line: 240, lineRule: LineRuleType.AUTO } });
     });
   }
   const doc = new Document({
