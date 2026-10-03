@@ -6,6 +6,7 @@ import WordLikeEditor from './WordLikeEditor';
 import ConfirmDialog from './ConfirmDialog';
 import WorkerAudioPlayer from './WorkerAudioPlayer';
 import { AdminPartReview, AdminAiReviewPanel } from './AdminPartReview';
+import { copyForWord } from '../utils/transcriptExport';
 import './HumanJobWorkspace.css';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
@@ -929,9 +930,9 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <span>Get a first draft of {workerAssignment?.label ? workerAssignment.label.toLowerCase() : 'this audio'}, then copy it into Word or insert it into the editor below. Drafts use your TypeMyworDz credits: about {Math.max(1, Math.ceil(((workerAssignment?.end_seconds || 0) - (workerAssignment?.start_seconds || 0)) / 60) || 1)} credit{Math.max(1, Math.ceil(((workerAssignment?.end_seconds || 0) - (workerAssignment?.start_seconds || 0)) / 60) || 1) === 1 ? '' : 's'} for this {workerAssignment?.id && workerAssignment.id !== 'transcriber' ? 'part' : 'job'}. Generating it once is charged once.</span>
               {!(aiDraftLocal || selectedJob.ai_draft) && <div><button type="button" disabled={aiDraftBusy} onClick={requestAiDraft}>{aiDraftBusy ? 'Preparing your formatted draft…' : 'Get AI formatted draft'}</button></div>}
               {(aiDraftLocal || selectedJob.ai_draft) && <>
-                <div style={{ whiteSpace: 'pre-wrap', maxHeight: 280, overflow: 'auto', background: '#fafbfa', border: '1px solid #e5e9e5', borderRadius: 6, padding: 12, fontSize: 14, lineHeight: 1.5 }}>{aiDraftLocal || selectedJob.ai_draft}</div>
+                <div style={{ whiteSpace: 'pre-wrap', maxHeight: 280, overflow: 'auto', background: '#fafbfa', border: '1px solid #e5e9e5', borderRadius: 6, padding: 12, fontSize: 14, lineHeight: '100%' }}>{aiDraftLocal || selectedJob.ai_draft}</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(aiDraftLocal || selectedJob.ai_draft); showMessage?.('Draft copied.', 'success'); } catch { showMessage?.('Copy failed. Select the text and copy it manually.', 'error'); } }}>Copy draft</button>
+                  <button type="button" onClick={async () => { try { await copyForWord(aiDraftLocal || selectedJob.ai_draft); showMessage?.('Draft copied for Word with tabs and single spacing.', 'success'); } catch { showMessage?.('Copy failed. Select the text and copy it manually.', 'error'); } }}>Copy for Word</button>
                   <button type="button" onClick={() => { editorRef.current?.insertText(aiDraftLocal || selectedJob.ai_draft); showMessage?.('Draft inserted into the editor.', 'success'); }}>Insert into editor</button>
                 </div>
               </>}

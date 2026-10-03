@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import HumanJobWorkspace from './HumanJobWorkspace';
+import * as transcriptExport from '../utils/transcriptExport';
 
 jest.mock('../contexts/AuthContext', () => {
   const currentUser = { uid: 'worker-1', getIdToken: async () => 'test-token' };
@@ -41,6 +42,7 @@ beforeEach(() => {
         worker_claim_block_reason: 'Finish your current assignment before claiming another.',
       }));
     }
+    if (address.includes('/human-transcription/jobs/job-1/ai-draft')) return Promise.resolve(response({ draft: '\tFirst.  Second.', credits_charged: 1 }));
     if (address.endsWith('/human-transcription/worker/availability')) return Promise.resolve(response({ available: true }));
     if (address.endsWith('/human-transcription/worker/payment-history')) return Promise.resolve(response({ pending_payouts: [], paid: [], accruing: [] }));
     if (address.includes('/messages')) return Promise.resolve(response({ messages: [], thread: 'worker' }));
@@ -65,4 +67,19 @@ test('worker can open Available Jobs after an initial job link without being bou
     expect.stringContaining('/human-transcription/jobs?scope=available'),
     expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer test-token' }) }),
   );
+});
+
+test('worker copies a formatted draft with the Word clipboard format', async () => {
+  const copy = jest.spyOn(transcriptExport, 'copyForWord').mockResolvedValue();
+  try {
+    render(<HumanJobWorkspace mode="worker" initialJobId="job-1" />);
+    const inProgressTab = await screen.findByRole('tab', { name: 'In Progress' });
+    await waitFor(() => expect(inProgressTab).toHaveAttribute('aria-selected', 'true'));
+    await screen.findByText('Part 2');
+    fireEvent.click(screen.getByRole('button', { name: 'Get AI formatted draft' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Copy for Word' }));
+    await waitFor(() => expect(copy).toHaveBeenCalledWith('\tFirst.  Second.'));
+  } finally {
+    copy.mockRestore();
+  }
 });

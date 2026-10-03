@@ -2,7 +2,7 @@ import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import WordLikeEditor, { sanitizePastedHtml, domToPlainText, plainTextToHtml } from './WordLikeEditor';
 import FinalTranscriptView from './FinalTranscriptView';
-import { encodeWhitespaceForWord, htmlToDocxParagraphs, nodeToWordHtml, normalizeParagraphSpacing, wordHtml } from '../utils/transcriptExport';
+import { copyForWord, encodeWhitespaceForWord, htmlToDocxParagraphs, nodeToWordHtml, normalizeParagraphSpacing, wordHtml } from '../utils/transcriptExport';
 
 describe('Word-like editor paste handling', () => {
   test('keeps bold and indents, turns Word tab spans into tab characters and drops scripts', () => {
@@ -92,6 +92,30 @@ describe('Word-like editor paste handling', () => {
     selectedText.innerHTML = '<strong>Only a selected phrase</strong>';
     expect(nodeToWordHtml(selectedText)).toMatch(/^<p style=/);
     expect(wordHtml('One.  Two')).toContain('mso-line-height-alt:100%');
+  });
+
+  test('Word-copy helper offers rich HTML as well as real-tab plain text', async () => {
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    const originalClipboardItem = Object.getOwnPropertyDescriptor(window, 'ClipboardItem');
+    const write = jest.fn().mockResolvedValue();
+    class ClipboardItemMock {
+      constructor(items) { this.items = items; this.types = Object.keys(items); }
+    }
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write } });
+    Object.defineProperty(window, 'ClipboardItem', { configurable: true, value: ClipboardItemMock });
+    try {
+      await copyForWord('\tIndented.  Next sentence.');
+      expect(write).toHaveBeenCalledTimes(1);
+      const payload = write.mock.calls[0][0][0];
+      expect(payload.types).toEqual(['text/html', 'text/plain']);
+      expect(payload.items['text/plain']).toBeInstanceOf(Blob);
+      expect(payload.items['text/html']).toBeInstanceOf(Blob);
+    } finally {
+      if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard);
+      else delete navigator.clipboard;
+      if (originalClipboardItem) Object.defineProperty(window, 'ClipboardItem', originalClipboardItem);
+      else delete window.ClipboardItem;
+    }
   });
 
   test('keeps edited submitted parts addressable for the proofreader handoff', () => {
