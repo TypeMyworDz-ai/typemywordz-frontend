@@ -123,6 +123,13 @@ const textStats = (text) => {
   return { words, chars: value.length, tabs, oneSpace };
 };
 
+const DEFAULT_PARAGRAPH_SETTINGS = {
+  alignment: 'left', leftIndent: '0', rightIndent: '0', special: 'none', specialBy: '0.5',
+  before: '0', after: '0', lineSpacing: 'single',
+};
+const WORD_LINE_SPACING = { single: '1', '1.15': '1.15', '1.5': '1.5', double: '2' };
+const PARAGRAPH_BLOCK_SELECTOR = 'div,p,h1,h2,h3,h4,h5,h6,li,blockquote,pre,td,th';
+
 const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', initialText = '', parts = null, onChange, disabled = false, minHeight = 420, fileName = 'transcript' }, ref) {
   const rootRef = useRef(null);
   const [loadable, setLoadable] = useState([]);
@@ -131,6 +138,9 @@ const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', in
   const [note, setNote] = useState('');
   const [marks, setMarks] = useState(false);
   const [zoom, setZoom] = useState(100);
+  const [paragraphOpen, setParagraphOpen] = useState(false);
+  const [paragraphSettings, setParagraphSettings] = useState(DEFAULT_PARAGRAPH_SETTINGS);
+  const paragraphTargetsRef = useRef([]);
   const combined = Array.isArray(parts);
   const seedRef = useRef(null);
   if (seedRef.current === null) seedRef.current = combined ? combinedPartsHtml(parts) : normalizeParagraphSpacing(initialHtml || plainTextToHtml(initialText));
@@ -320,6 +330,56 @@ const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', in
   const fontChange = (event) => { if (event.target.value) command('fontName', event.target.value); event.target.value = ''; };
   const sizeChange = (event) => { if (event.target.value) setSize(Number(event.target.value)); event.target.value = ''; };
 
+  const captureParagraphTargets = () => {
+    const root = rootRef.current;
+    if (!root) return [];
+    const blocks = Array.from(root.querySelectorAll(PARAGRAPH_BLOCK_SELECTOR)).filter((node) => !node.hasAttribute('data-tm-skip'));
+    const selection = window.getSelection();
+    if (selection?.rangeCount && root.contains(selection.anchorNode)) {
+      const range = selection.getRangeAt(0);
+      if (range.collapsed) {
+        let node = selection.anchorNode.nodeType === 1 ? selection.anchorNode : selection.anchorNode.parentElement;
+        while (node && node !== root) {
+          if (node.matches?.(PARAGRAPH_BLOCK_SELECTOR) && !node.hasAttribute('data-tm-skip')) return [node];
+          node = node.parentElement;
+        }
+      } else {
+        const intersecting = blocks.filter((node) => {
+          try { return range.intersectsNode(node); } catch { return false; }
+        });
+        const deepest = intersecting.filter((node) => !intersecting.some((other) => other !== node && node.contains(other)));
+        if (deepest.length) return deepest;
+      }
+    }
+    return blocks;
+  };
+
+  const toggleParagraphSettings = () => {
+    if (paragraphOpen) { setParagraphOpen(false); return; }
+    paragraphTargetsRef.current = captureParagraphTargets();
+    setParagraphOpen(true);
+  };
+
+  const updateParagraphSetting = (name, value) => setParagraphSettings((current) => ({ ...current, [name]: value }));
+
+  const applyParagraphSettings = () => {
+    const number = (value) => Math.max(0, Number.isFinite(Number(value)) ? Number(value) : 0);
+    const settings = paragraphSettings;
+    const lineHeight = WORD_LINE_SPACING[settings.lineSpacing] || '1';
+    const by = number(settings.specialBy);
+    paragraphTargetsRef.current.forEach((block) => {
+      block.style.textAlign = settings.alignment || 'left';
+      block.style.marginLeft = `${number(settings.leftIndent)}in`;
+      block.style.marginRight = `${number(settings.rightIndent)}in`;
+      block.style.marginTop = `${number(settings.before)}pt`;
+      block.style.marginBottom = `${number(settings.after)}pt`;
+      block.style.lineHeight = lineHeight;
+      block.style.textIndent = settings.special === 'firstLine' ? `${by}in` : settings.special === 'hanging' ? `-${by}in` : '0in';
+    });
+    setParagraphOpen(false);
+    emit();
+  };
+
   return (
     <div className="tm-word-editor" style={{ border: '1px solid #d9dfda', borderRadius: 10, background: '#fff' }}>
       <style>{`
@@ -332,6 +392,17 @@ const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', in
         .tm-we-btn.is-wide{padding:0 10px}
         .tm-we-select{height:28px;border:1px solid #d9dfda;border-radius:6px;background:#fff;font:12.5px system-ui,sans-serif;color:#2b2f38;padding:0 4px;max-width:132px}
         .tm-we-color{width:26px;height:26px;padding:0;border:1px solid #d9dfda;border-radius:6px;background:#fff;cursor:pointer}
+        .tm-we-paragraph-panel{display:grid;gap:13px;padding:14px 16px;border-bottom:1px solid #e5e9e5;background:#fff}
+        .tm-we-paragraph-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;color:#303a32;font:600 13px system-ui,sans-serif}
+        .tm-we-paragraph-meta{color:#768078;font:11px system-ui,sans-serif;font-weight:400}
+        .tm-we-paragraph-fields{display:grid;grid-template-columns:repeat(4,minmax(115px,1fr));gap:10px 12px}
+        .tm-we-paragraph-field{display:grid;gap:5px;min-width:0;color:#667169;font:11px system-ui,sans-serif}
+        .tm-we-paragraph-field input,.tm-we-paragraph-field select{width:100%;height:32px;box-sizing:border-box;border:1px solid #d9dfda;border-radius:6px;background:#fff;padding:0 8px;color:#263129;font:12px system-ui,sans-serif}
+        .tm-we-paragraph-actions{display:flex;justify-content:flex-end;gap:8px}
+        .tm-we-paragraph-actions button{min-height:32px;border:1px solid #dfe5df;border-radius:6px;background:#fff;padding:0 11px;color:#5e6b61;font:600 12px system-ui,sans-serif;cursor:pointer}
+        .tm-we-paragraph-actions button.primary{border-color:#2da653;background:#2da653;color:#fff}
+        .tm-we-surface p,.tm-we-surface div:not([data-tm-skip]),.tm-we-surface h1,.tm-we-surface h2,.tm-we-surface h3,.tm-we-surface h4,.tm-we-surface h5,.tm-we-surface h6,.tm-we-surface li,.tm-we-surface blockquote,.tm-we-surface pre{margin-top:0;margin-right:0;margin-bottom:0;margin-left:0;line-height:1;text-align:left;text-indent:0}
+        @media(max-width:640px){.tm-we-paragraph-fields{grid-template-columns:repeat(2,minmax(110px,1fr))}.tm-we-paragraph-head{align-items:flex-start;flex-direction:column;gap:4px}}
         .tm-we-status{display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:7px 14px;border-top:1px solid #e5e9e5;background:#f8f9fb;border-radius:0 0 10px 10px;font:12px system-ui,sans-serif;color:#5b6472}
         .tm-we-status .warn{color:#8a5a00}
         .tm-we-page{background:#eef0f4;padding:18px 12px;border-radius:0}
@@ -368,6 +439,9 @@ const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', in
           <Btn title="Justify" label="Justify" wide active={formats.justifyFull} onClick={() => command('justifyFull')} />
         </div>
         <div className="tm-we-group">
+          <Btn title="Paragraph settings" label="Paragraph" wide active={paragraphOpen} onClick={toggleParagraphSettings} />
+        </div>
+        <div className="tm-we-group">
           <Btn title="Bulleted list" label="Bullets" wide active={formats.insertUnorderedList} onClick={() => command('insertUnorderedList')} />
           <Btn title="Numbered list" label="Numbers" wide active={formats.insertOrderedList} onClick={() => command('insertOrderedList')} />
           <Btn title="Insert a tab character (Tab key)" label="Tab" wide onClick={insertTab} />
@@ -386,6 +460,50 @@ const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', in
           <Btn title="Download plain text" label="Save .txt" wide onClick={downloadPlain} />
         </div>
       </div>}
+      {paragraphOpen && !disabled && (
+        <div role="dialog" aria-label="Paragraph settings" className="tm-we-paragraph-panel">
+          <div className="tm-we-paragraph-head">
+            <strong>Paragraph settings</strong>
+            <span className="tm-we-paragraph-meta">Normal style · Body text · applies to {paragraphTargetsRef.current.length} paragraph{paragraphTargetsRef.current.length === 1 ? '' : 's'}</span>
+          </div>
+          <div className="tm-we-paragraph-fields">
+            <label className="tm-we-paragraph-field">Alignment
+              <select aria-label="Paragraph alignment" value={paragraphSettings.alignment} onChange={(event) => updateParagraphSetting('alignment', event.target.value)}>
+                <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option><option value="justify">Justified</option>
+              </select>
+            </label>
+            <label className="tm-we-paragraph-field">Left indent (in)
+              <input aria-label="Left indent (inches)" type="number" min="0" step="0.1" value={paragraphSettings.leftIndent} onChange={(event) => updateParagraphSetting('leftIndent', event.target.value)} />
+            </label>
+            <label className="tm-we-paragraph-field">Right indent (in)
+              <input aria-label="Right indent (inches)" type="number" min="0" step="0.1" value={paragraphSettings.rightIndent} onChange={(event) => updateParagraphSetting('rightIndent', event.target.value)} />
+            </label>
+            <label className="tm-we-paragraph-field">Special indent
+              <select aria-label="Special indent" value={paragraphSettings.special} onChange={(event) => updateParagraphSetting('special', event.target.value)}>
+                <option value="none">(none)</option><option value="firstLine">First line</option><option value="hanging">Hanging</option>
+              </select>
+            </label>
+            <label className="tm-we-paragraph-field">By (in)
+              <input aria-label="Special indent amount (inches)" type="number" min="0" step="0.1" value={paragraphSettings.specialBy} disabled={paragraphSettings.special === 'none'} onChange={(event) => updateParagraphSetting('specialBy', event.target.value)} />
+            </label>
+            <label className="tm-we-paragraph-field">Before (pt)
+              <input aria-label="Space before (pt)" type="number" min="0" step="1" value={paragraphSettings.before} onChange={(event) => updateParagraphSetting('before', event.target.value)} />
+            </label>
+            <label className="tm-we-paragraph-field">After (pt)
+              <input aria-label="Space after (pt)" type="number" min="0" step="1" value={paragraphSettings.after} onChange={(event) => updateParagraphSetting('after', event.target.value)} />
+            </label>
+            <label className="tm-we-paragraph-field">Line spacing
+              <select aria-label="Line spacing" value={paragraphSettings.lineSpacing} onChange={(event) => updateParagraphSetting('lineSpacing', event.target.value)}>
+                <option value="single">Single</option><option value="1.15">1.15</option><option value="1.5">1.5</option><option value="double">Double</option>
+              </select>
+            </label>
+          </div>
+          <div className="tm-we-paragraph-actions">
+            <button type="button" onClick={() => setParagraphOpen(false)}>Cancel</button>
+            <button type="button" className="primary" onClick={applyParagraphSettings}>Apply settings</button>
+          </div>
+        </div>
+      )}
       {combined && loadable.length > 0 && (
         <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#eef7f0', borderBottom: '1px solid #d6e9da', fontSize: 13 }}>
           <span>{loadable.length === 1 ? 'A new part has been submitted.' : `${loadable.length} new parts have been submitted.`}</span>
@@ -408,7 +526,7 @@ const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', in
             onCopy={onCopy}
             onCut={onCopy}
             onKeyDown={onKeyDown}
-            style={{ minHeight, padding: '48px 56px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', outline: 'none', fontFamily: '"Century Gothic", Calibri, system-ui, sans-serif', fontSize: (15 * zoom) / 100, lineHeight: 1.5, tabSize: 8, color: '#1f2721' }}
+            style={{ minHeight, padding: '48px 56px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', outline: 'none', fontFamily: '"Century Gothic", Calibri, system-ui, sans-serif', fontSize: (15 * zoom) / 100, lineHeight: 1, textAlign: 'left', tabSize: 8, color: '#1f2721' }}
           />
         </div>
       </div>

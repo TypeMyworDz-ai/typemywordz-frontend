@@ -1,8 +1,8 @@
 import React from 'react';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import WordLikeEditor, { sanitizePastedHtml, domToPlainText, plainTextToHtml } from './WordLikeEditor';
 import FinalTranscriptView from './FinalTranscriptView';
-import { encodeWhitespaceForWord, htmlToDocxParagraphs, nodeToWordHtml, normalizeParagraphSpacing } from '../utils/transcriptExport';
+import { encodeWhitespaceForWord, htmlToDocxParagraphs, nodeToWordHtml, normalizeParagraphSpacing, wordHtml } from '../utils/transcriptExport';
 
 describe('Word-like editor paste handling', () => {
   test('keeps bold and indents, turns Word tab spans into tab characters and drops scripts', () => {
@@ -79,6 +79,21 @@ describe('Word-like editor paste handling', () => {
     expect(copied).toContain('mso-spacerun:yes');
   });
 
+  test('Word copy explicitly sets zero paragraph spacing and single line spacing', () => {
+    const holder = document.createElement('div');
+    holder.innerHTML = '<p>First.</p><div>Second.</div>';
+    const copied = nodeToWordHtml(holder);
+    expect(copied).toMatch(/margin:\s*0pt 0pt 0pt 0pt/i);
+    expect(copied).toMatch(/line-height:\s*100%/i);
+    expect(copied).toContain('mso-para-margin-before:0pt');
+    expect(copied).toContain('mso-para-margin-after:0pt');
+    expect(copied).toContain('mso-line-height-alt:100%');
+    const selectedText = document.createElement('div');
+    selectedText.innerHTML = '<strong>Only a selected phrase</strong>';
+    expect(nodeToWordHtml(selectedText)).toMatch(/^<p style=/);
+    expect(wordHtml('One.  Two')).toContain('mso-line-height-alt:100%');
+  });
+
   test('keeps edited submitted parts addressable for the proofreader handoff', () => {
     const ref = React.createRef();
     render(<WordLikeEditor ref={ref} parts={[{ id: 'part-a', index: 1, author_label: 'Worker 1', transcript: 'Original' }]} />);
@@ -112,11 +127,42 @@ test('Word export preserves paragraph indent, alignment, inline emphasis, double
   expect(paragraphs).toHaveLength(3);
   const paragraph = paragraphs[0].options;
   expect(paragraph.alignment).toBe('justified');
+  expect(paragraph.spacing).toEqual({ before: 0, after: 0, line: 240, lineRule: 'auto' });
   expect(paragraph.indent.firstLine).toBe(720);
   expect(paragraph.children.some((run) => run.options.bold)).toBe(true);
   expect(paragraph.children.some((run) => run.options.italics)).toBe(true);
   expect(paragraph.children.some((run) => run.options.text === '  ')).toBe(true);
   expect(paragraph.children.some((run) => run.options.children?.[0] instanceof Tab)).toBe(true);
+});
+
+test('Word export carries custom paragraph settings into the Word document', () => {
+  function TextRun(options) { this.options = options; }
+  function Paragraph(options) { this.options = options; }
+  function Tab() { this.kind = 'tab'; }
+  const alignment = { LEFT: 'left', CENTER: 'center', RIGHT: 'right', JUSTIFIED: 'justified' };
+  const paragraphs = htmlToDocxParagraphs('<p style="margin-top:3pt;margin-bottom:6pt;margin-left:0.25in;margin-right:0.5in;text-indent:-0.25in;line-height:1.5">Indented</p>', TextRun, Paragraph, Tab, alignment);
+  expect(paragraphs[0].options.spacing).toEqual({ before: 60, after: 120, line: 360, lineRule: 'auto' });
+  expect(paragraphs[0].options.indent).toEqual({ left: 360, right: 720, hanging: 360 });
+});
+
+test('paragraph settings match the 0 pt single-spaced Normal paragraph defaults', () => {
+  render(<WordLikeEditor initialText="First.\nSecond." />);
+  fireEvent.click(screen.getByRole('button', { name: 'Paragraph settings' }));
+  expect(screen.getByRole('dialog', { name: 'Paragraph settings' })).toBeInTheDocument();
+  expect(screen.getByLabelText('Paragraph alignment')).toHaveValue('left');
+  expect(screen.getByLabelText('Left indent (inches)')).toHaveValue(0);
+  expect(screen.getByLabelText('Right indent (inches)')).toHaveValue(0);
+  expect(screen.getByLabelText('Special indent')).toHaveValue('none');
+  expect(screen.getByLabelText('Space before (pt)')).toHaveValue(0);
+  expect(screen.getByLabelText('Space after (pt)')).toHaveValue(0);
+  expect(screen.getByLabelText('Line spacing')).toHaveValue('single');
+  fireEvent.click(screen.getByRole('button', { name: 'Apply settings' }));
+  const editor = screen.getByRole('textbox', { name: 'Transcript editor' });
+  expect(editor.firstElementChild.style.marginTop).toBe('0pt');
+  expect(editor.firstElementChild.style.marginBottom).toBe('0pt');
+  expect(editor.firstElementChild.style.lineHeight).toBe('1');
+  expect(editor.firstElementChild.style.textAlign).toBe('left');
+  expect(editor.firstElementChild.style.textIndent).toBe('0in');
 });
 
 test('the shared final transcript editor is editable and keeps Copy, Word download, and Save controls', () => {
