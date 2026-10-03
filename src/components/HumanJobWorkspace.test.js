@@ -101,3 +101,53 @@ test('admin AI-agent choices describe the Opus-first Sol-fallback route', async 
   expect(screen.getByText(/Both audio agents use Claude Opus 5.5 first and GPT-5.6 Sol only as fallback\./)).toBeInTheDocument();
   expect(screen.queryByText(/GPT Terra|Sonnet/)).not.toBeInTheDocument();
 });
+
+test('admin confirms whole-job AI takeover before pausing unclaimed split parts', async () => {
+  const splitJob = {
+    id: 'split-job', status: 'split_in_progress', split_mode: 'dual', job_type: 'human_transcription',
+    audio: { name: 'full-audio.mp3' }, seconds: 300, minutes: 5, segments: [
+      { id: 'part-1', label: 'Part 1', status: 'available' },
+      { id: 'part-2', label: 'Part 2', status: 'approved' },
+    ],
+  };
+  setCurrentUserForTest({ uid: 'admin-1', email: 'typemywordz@gmail.com', getIdToken: async () => 'test-token' });
+  global.fetch = jest.fn((url) => {
+    if (String(url).includes('/human-transcription/jobs?scope=admin')) return Promise.resolve(response({ jobs: [splitJob] }));
+    if (String(url).includes('/messages')) return Promise.resolve(response({ messages: [] }));
+    return Promise.resolve(response({ status: 'queued' }));
+  });
+  render(<HumanJobWorkspace mode="admin" />);
+
+  fireEvent.click(await screen.findByRole('tab', { name: /In progress/ }));
+  const takeover = await screen.findByRole('button', { name: 'Assign whole job to general agent' });
+  expect(takeover).toBeEnabled();
+  fireEvent.click(takeover);
+  expect(await screen.findByRole('alertdialog', { name: 'Pause the parts and assign one whole-job draft?' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Pause parts and continue' }));
+
+  await waitFor(() => expect(global.fetch.mock.calls.some(([url]) => String(url).includes('/ai-agent/assign'))).toBe(true));
+  const [, options] = global.fetch.mock.calls.find(([url]) => String(url).includes('/ai-agent/assign'));
+  expect(options.method).toBe('POST');
+  expect(JSON.parse(options.body)).toEqual({ agent_id: 'general-gpt', segment_id: '', whole_job: true });
+});
+
+test('admin cannot take over a split job after any part is claimed', async () => {
+  const splitJob = {
+    id: 'split-job', status: 'split_in_progress', split_mode: 'dual', job_type: 'human_transcription',
+    audio: { name: 'full-audio.mp3' }, seconds: 300, minutes: 5, segments: [
+      { id: 'part-1', label: 'Part 1', status: 'available' },
+      { id: 'part-2', label: 'Part 2', status: 'in_progress', worker_uid: 'worker-1' },
+    ],
+  };
+  setCurrentUserForTest({ uid: 'admin-1', email: 'typemywordz@gmail.com', getIdToken: async () => 'test-token' });
+  global.fetch = jest.fn((url) => {
+    if (String(url).includes('/human-transcription/jobs?scope=admin')) return Promise.resolve(response({ jobs: [splitJob] }));
+    if (String(url).includes('/messages')) return Promise.resolve(response({ messages: [] }));
+    return Promise.resolve(response({}));
+  });
+  render(<HumanJobWorkspace mode="admin" />);
+
+  fireEvent.click(await screen.findByRole('tab', { name: /In progress/ }));
+  expect(await screen.findByRole('button', { name: 'Assign whole job to general agent' })).toBeDisabled();
+  expect(screen.queryByRole('alertdialog', { name: 'Pause the parts and assign one whole-job draft?' })).not.toBeInTheDocument();
+});

@@ -72,6 +72,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [aiDraftLocal, setAiDraftLocal] = useState('');
   const [wholeWorker, setWholeWorker] = useState('');
   const [wholeConfirm, setWholeConfirm] = useState(false);
+  const [aiWholeConfirm, setAiWholeConfirm] = useState(false);
+  const [aiWholeAgent, setAiWholeAgent] = useState('');
   const editorRef = useRef(null);
   const [feedback, setFeedback] = useState('');
   const [rating, setRating] = useState('5');
@@ -133,6 +135,10 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     || (selectedJob.segments || []).some((part) => part?.worker_uid)
   ));
   const splitJob = ['dual', 'multi'].includes(String(selectedJob?.split_mode || '').toLowerCase());
+  const aiWholeJobEligible = Boolean(splitJob && selectedJob && !jobHasAssignedWorker && !selectedJob.proofreader_status
+    && (selectedJob.segments || []).length > 0
+    && (selectedJob.segments || []).every((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid));
+  const hasJobDocxTemplate = (selectedJob?.instruction_attachments || []).some((item) => /\.docx$/i.test(String(item.name || '')) || /wordprocessingml.document/i.test(String(item.content_type || '')));
   const draftAssignmentKey = selectedJob?.id
     ? `${selectedJob.id}:${mode === 'worker' ? `${workerAssignment?.role || 'unassigned'}:${workerAssignment?.id || ''}` : 'admin'}`
     : '';
@@ -551,15 +557,24 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     editorRef.current.replaceContent(text);
   };
 
-  const assignAiAgent = async (agentId) => {
+  const assignAiAgent = async (agentId, wholeJob = false) => {
     if (!selectedJob || busy) return;
     const eligible = (selectedJob.segments || []).filter((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid);
-    const segmentId = splitJob ? (aiAgentSegment || eligible[0]?.id || '') : '';
-    if (splitJob && !segmentId) { showMessage?.('Choose an available part first.', 'error'); return; }
+    const segmentId = splitJob && !wholeJob ? (aiAgentSegment || eligible[0]?.id || '') : '';
+    if (splitJob && !wholeJob && !segmentId) { showMessage?.('Choose an available part first.', 'error'); return; }
     await act(`/human-transcription/jobs/${selectedJob.id}/ai-agent/assign`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agent_id: agentId, segment_id: segmentId }),
-    }, 'AI formatted draft queued. It will stay private until an approved human proofreader submits the final work.');
+      body: JSON.stringify({ agent_id: agentId, segment_id: segmentId, ...(wholeJob ? { whole_job: true } : {}) }),
+    }, wholeJob
+      ? 'Whole-job AI draft queued. The split parts are paused; a failed run restores them. Human proofreading is still required.'
+      : 'AI formatted draft queued. It will stay private until an approved human proofreader submits the final work.');
+  };
+
+  const confirmAiWholeJob = async () => {
+    const agentId = aiWholeAgent;
+    setAiWholeConfirm(false);
+    if (agentId) await assignAiAgent(agentId, true);
+    setAiWholeAgent('');
   };
 
   const assignWholeJob = async () => {
@@ -802,9 +817,18 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                     <button type="button" disabled={busy || ['queued', 'processing'].includes(selectedJob.ai_agent_status) || (!splitJob && selectedJob.status !== 'approved') || (splitJob && !(selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))} onClick={() => assignAiAgent('pdf-gemini')}>{['queued', 'processing'].includes(selectedJob.ai_agent_status) ? 'Gemini is drafting…' : 'Assign Gemini 3.8 to image'}</button>
                   ) : <>
                     <button type="button" disabled={busy || (!splitJob && selectedJob.status !== 'approved') || (splitJob && !(selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))} onClick={() => assignAiAgent('general-gpt')}>Assign general agent</button>
-                    <button type="button" disabled={busy || (!splitJob && selectedJob.status !== 'approved') || (splitJob && !(selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))} onClick={() => assignAiAgent('template-claude')}>Assign template-aware agent</button>
+                    <button type="button" disabled={busy || !hasJobDocxTemplate || (!splitJob && selectedJob.status !== 'approved') || (splitJob && !(selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))} title={!hasJobDocxTemplate ? 'Attach exactly one job-specific .docx template first.' : undefined} onClick={() => assignAiAgent('template-claude')}>Assign template-aware agent</button>
                   </>}
                 </div>
+                {mode === 'admin' && splitJob && selectedJob.job_type !== 'pdf_job' && <div className="tm-ai-agent-takeover">
+                  <p>Whole-job takeover pauses all split parts and prepares one draft from the full recording. It is available only before any part is claimed or submitted; a failed AI run restores the original parts.</p>
+                  <div className="tm-ai-agent-buttons">
+                    <button type="button" disabled={busy || !aiWholeJobEligible || ['queued', 'processing'].includes(selectedJob.ai_agent_status)} onClick={() => { setAiWholeAgent('general-gpt'); setAiWholeConfirm(true); }}>Assign whole job to general agent</button>
+                    <button type="button" disabled={busy || !aiWholeJobEligible || !hasJobDocxTemplate || ['queued', 'processing'].includes(selectedJob.ai_agent_status)} title={!hasJobDocxTemplate ? 'Attach exactly one job-specific .docx template first.' : undefined} onClick={() => { setAiWholeAgent('template-claude'); setAiWholeConfirm(true); }}>Assign whole job to template-aware agent</button>
+                  </div>
+                  {!aiWholeJobEligible && <small role="status">Whole-job takeover is locked because at least one part has been claimed/submitted, or proofreading has started.</small>}
+                </div>}
+                {selectedJob.ai_agent_status === 'submitted' && selectedJob.ai_agent_id === 'template-claude' && <button type="button" onClick={() => downloadProtectedFile(`/human-transcription/admin/jobs/${selectedJob.id}/ai-agent/template-docx`, selectedJob.ai_agent_docx?.name || `${selectedJob.job_name || 'transcript'}-formatted-draft.docx`, 'The private template-formatted Word draft is not available.')}>Download template-formatted Word draft (.docx)</button>}
                 {selectedJob.ai_agent_status && <p className={`tm-ai-agent-state is-${selectedJob.ai_agent_status}`} role="status">
                   {['queued', 'processing'].includes(selectedJob.ai_agent_status) ? `${selectedJob.ai_agent_name || 'AI agent'} is preparing a private draft…` : selectedJob.ai_agent_status === 'submitted' ? `${selectedJob.ai_agent_name || 'AI agent'} submitted a draft. Assign an approved human proofreader before review or release.` : selectedJob.ai_agent_status === 'failed' ? `The last AI run failed: ${selectedJob.ai_agent_error || 'Retry the agent or assign a human worker.'}` : ''}
                 </p>}
@@ -881,6 +905,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <p className="tm-tat-hint">Rating does not matter here. The job is taken off the claim board and is not split. The worker must be free of other active work.</p>
             </div>}
             <ConfirmDialog open={wholeConfirm} title="Assign the whole job to this worker?" body="The job leaves the Available Jobs board and the worker does the full recording. Use this for urgent work." confirmLabel="Assign whole job" busy={busy} onConfirm={assignWholeJob} onCancel={() => setWholeConfirm(false)} />
+            <ConfirmDialog open={aiWholeConfirm} title="Pause the parts and assign one whole-job draft?" body={`${aiWholeAgent === 'template-claude' ? 'The template-aware agent' : 'The general agent'} will prepare one private draft from the full recording. This is allowed only when no part has been claimed or submitted. If the AI run fails, the original parts are restored. An approved human proofreader must still check the draft before it can reach the client.`} confirmLabel="Pause parts and continue" busy={busy} onConfirm={confirmAiWholeJob} onCancel={() => { setAiWholeConfirm(false); setAiWholeAgent(''); }} />
 
             {mode === 'admin' && !splitJob && selectedJob.status === 'approved' && <div className="tm-human-assign">
               <strong>Available to workers</strong>
