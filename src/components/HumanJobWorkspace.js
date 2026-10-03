@@ -558,7 +558,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     await act(`/human-transcription/jobs/${selectedJob.id}/ai-agent/assign`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ agent_id: agentId, segment_id: segmentId }),
-    }, 'AI draft queued. It will stay private until an approved human proofreader submits the final work.');
+    }, 'AI formatted draft queued. It will stay private until an approved human proofreader submits the final work.');
   };
 
   const assignWholeJob = async () => {
@@ -575,7 +575,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     try {
       const payload = await request(`/human-transcription/jobs/${selectedJob.id}/ai-draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ segment_id: workerAssignment?.id && workerAssignment.id !== 'transcriber' ? workerAssignment.id : '' }) });
       setAiDraftLocal(payload.draft || '');
-      showMessage?.(payload.already_generated ? 'Your saved AI draft is shown below. You were not charged again.' : `AI draft ready. ${payload.credits_charged || 0} credits were used.`, 'success');
+      showMessage?.(payload.already_generated ? 'Your saved AI formatted draft is shown below. You were not charged again.' : `AI formatted draft ready. ${payload.credits_charged || 0} credits were used.`, 'success');
       await loadJobs();
     } catch (error) { showMessage?.(error.message, 'error'); } finally { setAiDraftBusy(false); }
   };
@@ -662,7 +662,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       {mode === 'worker' && (
         <div className="tm-worker-policy-note" role="note">
           <strong>How hired work must be prepared:</strong>
-          <span>Once hired, keep enough TypeMyworDz credits to create an AI draft for your assigned job. Edit it in Word, then paste it into the TypeMyworDz editor and submit. Keep the research notes and spellings section at the end of your work; the proofreader and admin need them to verify names. Do not attach documents unless a job is a TEMPLATE JOB or the admin requests one.</span>
+          <span>Once hired, keep enough TypeMyworDz credits to create an AI formatted draft for your assigned job. Edit it in Word, then paste it into the TypeMyworDz editor and submit. Keep the research notes and spellings section at the end of your work; the proofreader and admin need them to verify names. Do not attach documents unless a job is a TEMPLATE JOB or the admin requests one.</span>
         </div>
       )}
 
@@ -925,9 +925,9 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             {selectedJob.job_type === 'pdf_job' && !(mode === 'worker' && workerTab === 'available') && <div className="tm-human-pdf-image-card"><div><strong>Assigned image</strong><span>{selectedJob.pdf_image?.source_filename || selectedJob.pdf_image?.name}{selectedJob.pdf_image?.page_count > 1 ? ` · Page ${selectedJob.pdf_image.page_number} of ${selectedJob.pdf_image.page_count}` : ''}</span></div>{pdfImageUrl ? <img src={pdfImageUrl} alt={`Transcribe ${selectedJob.pdf_image?.name || 'PDF Job'}`} /> : <p role={pdfImageError ? 'alert' : 'status'}>{pdfImageError || 'Loading the private image…'}</p>}</div>}
             {audioKey && <WorkerAudioPlayer src={audioUrl} loading={audioLoading} error={audioError} title={audioSegmentId ? 'Your part of the recording' : 'Source recording'} note={audioSegmentId ? 'Only your assigned part is played and downloaded here.' : 'Available to the client, admin and assigned worker.'} filename={audioSegmentId ? `${(workerAssignment?.label || 'part').replace(/[^A-Za-z0-9]+/g, '-').toLowerCase()}.mp3` : (selectedJob?.audio?.name || 'recording.mp3')} />}
             {mode === 'worker' && workerAssignmentActive && workerAssignment?.role !== 'proofreader' && selectedJob.job_type !== 'pdf_job' && <div className="tm-human-reference-card" style={{ display: 'grid', gap: 8 }}>
-              <strong>AI draft for this audio</strong>
+              <strong>AI formatted draft for this audio</strong>
               <span>Get a first draft of {workerAssignment?.label ? workerAssignment.label.toLowerCase() : 'this audio'}, then copy it into Word or insert it into the editor below. Drafts use your TypeMyworDz credits: about {Math.max(1, Math.ceil(((workerAssignment?.end_seconds || 0) - (workerAssignment?.start_seconds || 0)) / 60) || 1)} credit{Math.max(1, Math.ceil(((workerAssignment?.end_seconds || 0) - (workerAssignment?.start_seconds || 0)) / 60) || 1) === 1 ? '' : 's'} for this {workerAssignment?.id && workerAssignment.id !== 'transcriber' ? 'part' : 'job'}. Generating it once is charged once.</span>
-              {!(aiDraftLocal || selectedJob.ai_draft) && <div><button type="button" disabled={aiDraftBusy} onClick={requestAiDraft}>{aiDraftBusy ? 'Preparing your draft…' : 'Get AI draft'}</button></div>}
+              {!(aiDraftLocal || selectedJob.ai_draft) && <div><button type="button" disabled={aiDraftBusy} onClick={requestAiDraft}>{aiDraftBusy ? 'Preparing your formatted draft…' : 'Get AI formatted draft'}</button></div>}
               {(aiDraftLocal || selectedJob.ai_draft) && <>
                 <div style={{ whiteSpace: 'pre-wrap', maxHeight: 280, overflow: 'auto', background: '#fafbfa', border: '1px solid #e5e9e5', borderRadius: 6, padding: 12, fontSize: 14, lineHeight: 1.5 }}>{aiDraftLocal || selectedJob.ai_draft}</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -943,7 +943,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 {selectedJob.job_type !== 'pdf_job' && <a href="/guidelines" target="_blank" rel="noopener noreferrer">TypeMyworDz General Guidelines (opens in a new tab)</a>}
                 <button type="button" onClick={() => downloadProtectedFile('/human-transcription/trainee/training/materials/formatting-default.docx', 'TypeMyworDz Default Document settings.docx', 'The default document settings file could not be downloaded.')}>Download: TypeMyworDz Default Document settings</button>
               </div>
-              <span style={{ fontSize: 12, color: '#7b857d' }}>Reminder: create your draft with the TypeMyworDz AI above and edit it in Word. Work done without an in-app AI draft may be declined.</span>
+              <span style={{ fontSize: 12, color: '#7b857d' }}>Reminder: create your draft with the TypeMyworDz AI above and edit it in Word. Work done without an in-app AI formatted draft may be declined.</span>
             </div>}
             {!(mode === 'worker' && workerTab === 'available') && selectedJob.instruction_attachments?.length > 0 && <div className="tm-human-reference-card"><strong>Reference files from the client</strong><span>Use these notes, spellings, and supporting documents while working.</span><div className="tm-human-reference-list">{selectedJob.instruction_attachments.map((item, index) => <button type="button" key={`${item.name}-${index}`} onClick={() => downloadProtectedFile(`/human-transcription/jobs/${selectedJob.id}/instruction/${index}`, item.name, 'The reference file could not be downloaded.')}>Download: {item.name}</button>)}</div></div>}
             {mode === 'worker' && workerAssignment?.role === 'proofreader' && (selectedJob.proofreader_parts || []).length > 0 && (

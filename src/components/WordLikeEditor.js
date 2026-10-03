@@ -1,5 +1,5 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { copyPlainText, copyRich, downloadDocx, nodeToWordHtml, safeFileName } from '../utils/transcriptExport';
+import { copyPlainText, copyRich, downloadDocx, nodeToWordHtml, normalizeParagraphSpacing, safeFileName } from '../utils/transcriptExport';
 
 // A plain, familiar writing surface for workers. It behaves like a word
 // processor: text pasted from Word keeps its bold, italics, underline,
@@ -17,7 +17,7 @@ const STYLE_PROPS = new Set(['font-weight', 'font-style', 'text-decoration', 'te
 const escapeHtml = (value) => String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export const plainTextToHtml = (text) => {
-  const value = String(text || '');
+  const value = String(text || '').replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n');
   if (!value) return '';
   return value.split('\n').map((line) => `<div>${line ? escapeHtml(line) : '<br>'}</div>`).join('');
 };
@@ -74,7 +74,7 @@ export const sanitizePastedHtml = (html) => {
     });
   };
   walk(doc.body, out);
-  return out.innerHTML;
+  return normalizeParagraphSpacing(out.innerHTML);
 };
 
 const BLOCK_TAGS = new Set(['DIV', 'P', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'TR', 'BLOCKQUOTE', 'PRE', 'UL', 'OL', 'TABLE', 'HR']);
@@ -103,9 +103,9 @@ export const domToPlainText = (root) => {
 
 const dividerHtml = (part) => `<div data-tm-skip="1" data-tm-divider="${escapeHtml(part.id)}" contenteditable="false" style="user-select:none;margin:18px 0 10px;padding:6px 0;border-top:2px dotted #8a94a6;color:#5b6472;font:600 12px system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase">Part ${part.index} by ${escapeHtml(part.author_label || 'worker')}</div>`;
 const pendingHtml = (part) => `<div data-tm-skip="1" data-tm-pending="${escapeHtml(part.id)}" contenteditable="false" style="user-select:none;margin:0 0 12px;padding:10px 12px;background:#f7f4ea;border:1px dashed #d8c98e;border-radius:6px;color:#7a5f1b;font:13px system-ui,sans-serif">Part ${part.index} is still being transcribed. It will appear here once it is submitted.</div>`;
-const bodyHtml = (part) => `<div data-tm-part="${escapeHtml(part.id)}">${part.transcript_html || plainTextToHtml(part.transcript) || '<div><br></div>'}</div>`;
+const bodyHtml = (part) => `<div data-tm-part="${escapeHtml(part.id)}">${normalizeParagraphSpacing(part.transcript_html || plainTextToHtml(part.transcript)) || '<div><br></div>'}</div>`;
 
-export const combinedPartsHtml = (parts) => (parts || []).map((part) => dividerHtml(part) + (part.pending ? pendingHtml(part) : bodyHtml(part))).join('');
+export const combinedPartsHtml = (parts) => normalizeParagraphSpacing((parts || []).map((part) => dividerHtml(part) + (part.pending ? pendingHtml(part) : bodyHtml(part))).join(''));
 
 
 const FONTS = ['Century Gothic', 'Times New Roman', 'Arial', 'Calibri', 'Cambria', 'Courier New', 'Georgia', 'Verdana', 'Tahoma'];
@@ -133,7 +133,7 @@ const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', in
   const [zoom, setZoom] = useState(100);
   const combined = Array.isArray(parts);
   const seedRef = useRef(null);
-  if (seedRef.current === null) seedRef.current = combined ? combinedPartsHtml(parts) : (initialHtml || plainTextToHtml(initialText));
+  if (seedRef.current === null) seedRef.current = combined ? combinedPartsHtml(parts) : normalizeParagraphSpacing(initialHtml || plainTextToHtml(initialText));
 
   const flash = (message) => { setNote(message); window.setTimeout(() => setNote(''), 3500); };
 
@@ -146,9 +146,9 @@ const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', in
     const clone = root.cloneNode(true);
     clone.querySelectorAll('[data-tm-skip]').forEach((node) => node.remove());
     const partNodes = Array.from(clone.querySelectorAll('[data-tm-part]'));
-    const html = combined && partNodes.length
+    const html = normalizeParagraphSpacing(combined && partNodes.length
       ? partNodes.map((node) => node.innerHTML).join('<div><br></div>')
-      : clone.innerHTML;
+      : clone.innerHTML);
     onChange(text, html);
   }, [combined, onChange]);
 
@@ -182,7 +182,7 @@ const WordLikeEditor = forwardRef(function WordLikeEditor({ initialHtml = '', in
       return Array.from(root.querySelectorAll('[data-tm-part]')).map((node) => ({
         id: node.getAttribute('data-tm-part') || '',
         transcript: domToPlainText(node),
-        transcript_html: node.innerHTML,
+        transcript_html: normalizeParagraphSpacing(node.innerHTML),
       })).filter((part) => part.id);
     },
   }), [disabled, emit]);

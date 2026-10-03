@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import AIOutputWindow from './AIOutputWindow';
-const readModelPref = () => { try { return window.localStorage.getItem('tmwd.askModel') || ''; } catch { return ''; } };
 
 const box = { border: '1px solid #e1e6e2', borderRadius: 8, padding: '12px 14px', display: 'grid', gap: 10, background: '#fff' };
 const muted = { color: '#7b857d', fontSize: 12 };
@@ -91,7 +90,7 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true, onInsert }
     if (running) return;
     setRunning(true);
     try {
-      await act(`/human-transcription/jobs/${job.id}/ai-review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: readModelPref() }) }, 'The AI review is ready.');
+      await act(`/human-transcription/jobs/${job.id}/ai-review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }, 'The AI review is ready.');
     } finally {
       setRunning(false);
     }
@@ -118,7 +117,7 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true, onInsert }
 
   return (
     <div className="tm-human-assign" style={box}>
-      <div><strong>AI proofreading</strong><div style={muted}>{splitJob ? 'Combines every part into one transcript.' : 'Proofreads the worker\'s transcript.'} Spellings follow the first {splitJob ? 'part' : 'part of the dictation'}, then the job instructions, reference files, your notes to the workers, the guidelines and web research. It gives you a Word-ready final transcript and a list of what it changed and why. It uses the model chosen in your settings.</div></div>
+      <div><strong>AI proofreading</strong><div style={muted}>{splitJob ? 'Combines every part into one transcript.' : 'Proofreads the worker\'s transcript.'} It follows client spellings, job instructions, reference files, worker research notes, company guidelines and web research. It gives you a Word-ready transcript and a list of changes. Claude Opus 5.5 is primary, with GPT-5.6 Sol as fallback.</div></div>
       <style>{`@keyframes tmAiSpin{to{transform:rotate(360deg)}}.tm-ai-spin{display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid rgba(91,45,158,.25);border-top-color:#5b2d9e;border-radius:50%;animation:tmAiSpin .8s linear infinite}`}</style>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <button type="button" disabled={busy || running} aria-busy={running} onClick={run}>{running ? <><span className="tm-ai-spin" aria-hidden="true" />Reviewing with AI...</> : (review ? 'Run the AI review again' : (splitJob ? 'Review and combine with AI' : 'Review with AI'))}</button>

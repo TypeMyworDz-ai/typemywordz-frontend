@@ -2,7 +2,7 @@ import React from 'react';
 import { act, render, screen } from '@testing-library/react';
 import WordLikeEditor, { sanitizePastedHtml, domToPlainText, plainTextToHtml } from './WordLikeEditor';
 import FinalTranscriptView from './FinalTranscriptView';
-import { encodeWhitespaceForWord, htmlToDocxParagraphs, nodeToWordHtml } from '../utils/transcriptExport';
+import { encodeWhitespaceForWord, htmlToDocxParagraphs, nodeToWordHtml, normalizeParagraphSpacing } from '../utils/transcriptExport';
 
 describe('Word-like editor paste handling', () => {
   test('keeps bold and indents, turns Word tab spans into tab characters and drops scripts', () => {
@@ -22,6 +22,23 @@ describe('Word-like editor paste handling', () => {
   test('plain text round-trips through the editor markup', () => {
     const holder = document.createElement('div');
     holder.innerHTML = plainTextToHtml('first\n\nsecond');
+    expect(domToPlainText(holder)).toBe('first\n\nsecond');
+  });
+
+  test('imports and pastes keep only one empty paragraph between blocks', () => {
+    const source = '<p><strong>First.</strong>  <span>\tIndented</span></p><p><br></p><p>&nbsp;</p><p><br></p><p>Second.</p>';
+    const normalized = normalizeParagraphSpacing(source);
+    expect((normalized.match(/<p/g) || [])).toHaveLength(3);
+    const clean = sanitizePastedHtml(source);
+    expect((clean.match(/<p/g) || [])).toHaveLength(3);
+    expect(clean).toContain('<strong>First.</strong>');
+    expect(clean).toContain('  ');
+    expect(clean).toContain('\tIndented');
+  });
+
+  test('plain-text imports limit runs of blank lines to one blank paragraph', () => {
+    const holder = document.createElement('div');
+    holder.innerHTML = plainTextToHtml('first\n\n\n\nsecond');
     expect(domToPlainText(holder)).toBe('first\n\nsecond');
   });
 
@@ -52,10 +69,28 @@ describe('Word-like editor paste handling', () => {
     expect(domToPlainText(back)).toBe('\tIndented');
   });
 
+  test('Word copy collapses extra blank paragraphs without changing tabs or double spaces', () => {
+    const holder = document.createElement('div');
+    holder.innerHTML = '<p><strong>First.</strong>  \tSecond.</p><p><br></p><p><br></p><p>Third.</p>';
+    const copied = nodeToWordHtml(holder);
+    expect((copied.match(/<p/g) || [])).toHaveLength(3);
+    expect(copied).toContain('<strong>First.</strong>');
+    expect(copied).toContain('mso-tab-count:1');
+    expect(copied).toContain('mso-spacerun:yes');
+  });
+
   test('keeps edited submitted parts addressable for the proofreader handoff', () => {
     const ref = React.createRef();
     render(<WordLikeEditor ref={ref} parts={[{ id: 'part-a', index: 1, author_label: 'Worker 1', transcript: 'Original' }]} />);
     expect(ref.current.getParts()).toEqual([expect.objectContaining({ id: 'part-a', transcript: 'Original' })]);
+  });
+
+  test('normalizes excess empty paragraphs in combined parts before proofreader handoff', () => {
+    const ref = React.createRef();
+    render(<WordLikeEditor ref={ref} parts={[{ id: 'part-a', index: 1, author_label: 'Worker 1', transcript: 'First.\n\nSecond.', transcript_html: '<p>First.</p><p><br></p><p><br></p><p><br></p><p>Second.</p>' }]} />);
+    const part = ref.current.getParts()[0];
+    expect(part.transcript).toBe('First.\n\nSecond.');
+    expect((part.transcript_html.match(/<p/g) || [])).toHaveLength(3);
   });
 
   test('inserts a combined AI transcript into the shared editor without part labels', () => {
@@ -73,7 +108,8 @@ test('Word export preserves paragraph indent, alignment, inline emphasis, double
   function Paragraph(options) { this.options = options; }
   function Tab() { this.kind = 'tab'; }
   const alignment = { LEFT: 'left', CENTER: 'center', RIGHT: 'right', JUSTIFIED: 'justified' };
-  const paragraphs = htmlToDocxParagraphs('<p style="text-indent:0.5in;text-align:justify"><strong>Start.</strong>  <em>Next</em>\tIndented</p>', TextRun, Paragraph, Tab, alignment);
+  const paragraphs = htmlToDocxParagraphs('<p style="text-indent:0.5in;text-align:justify"><strong>Start.</strong>  <em>Next</em>\tIndented</p><p><br></p><p>&nbsp;</p><p><br></p><p>Second.</p>', TextRun, Paragraph, Tab, alignment);
+  expect(paragraphs).toHaveLength(3);
   const paragraph = paragraphs[0].options;
   expect(paragraph.alignment).toBe('justified');
   expect(paragraph.indent.firstLine).toBe(720);
