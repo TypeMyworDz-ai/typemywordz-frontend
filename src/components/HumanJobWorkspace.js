@@ -99,7 +99,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [adminTab, setAdminTab] = useState('queue');
   const adminEmail = (currentUser?.email || '').trim().toLowerCase();
   const canManagePdfJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai'].includes(adminEmail);
-  const canAssignAiAgents = adminEmail === 'typemywordz@gmail.com';
+  const canAssignAiAgents = ['typemywordz@gmail.com', 'info@typemywordz.ai'].includes(adminEmail);
   const [adminQueueLane, setAdminQueueLane] = useState('needs_action');
   const [adminQueueType, setAdminQueueType] = useState('all');
   const [nowTick, setNowTick] = useState(() => Date.now());
