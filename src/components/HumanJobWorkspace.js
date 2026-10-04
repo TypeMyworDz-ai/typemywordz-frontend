@@ -342,6 +342,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [audioKey]);
 
+  const pdfPageCount = Math.max(1, selectedJob?.pdf_images?.length || 1);
   useEffect(() => {
     let objectUrl = '';
     let cancelled = false;
@@ -351,7 +352,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       const urls = [];
       try {
         const idToken = await token();
-        const pageCount = Math.max(1, (selectedJob.pdf_images || []).length);
+        const pageCount = pdfPageCount;
         for (let page = 1; page <= pageCount; page += 1) {
           const response = await fetch(`${BACKEND_URL}/human-transcription/jobs/${selectedJob.id}/image?page=${page}`, { headers: { Authorization: `Bearer ${idToken}` }, cache: 'no-store' });
           if (!response.ok) throw new Error('The source image could not be loaded.');
@@ -364,7 +365,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       } catch (error) { urls.forEach((url) => URL.revokeObjectURL(url)); if (!cancelled) { setPdfImageUrl(''); setPdfImageUrls([]); setPdfImageError(error.message || 'The source image could not be loaded.'); } }
     })();
     return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [selectedJob?.id, selectedJob?.job_type, selectedJob?.pdf_images?.length, token, mode, workerTab]);
+  }, [selectedJob?.id, selectedJob?.job_type, pdfPageCount, token, mode, workerTab]);
 
   // Keep using the server-filtered REST conversation endpoint: the backend
   // controls who can read the client and worker threads. Refresh promptly,
