@@ -89,6 +89,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [audioUrl, setAudioUrl] = useState('');
   const [pdfImageUrl, setPdfImageUrl] = useState('');
   const [pdfImageError, setPdfImageError] = useState('');
+  const [pdfImageUrls, setPdfImageUrls] = useState([]);
   // Job-specific conversation access is admin/worker only. Client questions
   // use the separate direct-message channel.
   const [workerTab, setWorkerTab] = useState('available');
@@ -345,18 +346,25 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     let objectUrl = '';
     let cancelled = false;
     (async () => {
-      if (!selectedJob?.id || selectedJob?.job_type !== 'pdf_job' || (mode === 'worker' && workerTab === 'available')) { setPdfImageUrl(''); setPdfImageError(''); return; }
+      if (!selectedJob?.id || selectedJob?.job_type !== 'pdf_job' || (mode === 'worker' && workerTab === 'available')) { setPdfImageUrl(''); setPdfImageUrls([]); setPdfImageError(''); return; }
       setPdfImageError('');
+      const urls = [];
       try {
         const idToken = await token();
-        const response = await fetch(`${BACKEND_URL}/human-transcription/jobs/${selectedJob.id}/image`, { headers: { Authorization: `Bearer ${idToken}` }, cache: 'no-store' });
-        if (!response.ok) throw new Error('The source image could not be loaded.');
-        objectUrl = URL.createObjectURL(await response.blob());
-        if (!cancelled) setPdfImageUrl(objectUrl);
-      } catch (error) { if (!cancelled) { setPdfImageUrl(''); setPdfImageError(error.message || 'The source image could not be loaded.'); } }
+        const pageCount = Math.max(1, (selectedJob.pdf_images || []).length);
+        for (let page = 1; page <= pageCount; page += 1) {
+          const response = await fetch(`${BACKEND_URL}/human-transcription/jobs/${selectedJob.id}/image?page=${page}`, { headers: { Authorization: `Bearer ${idToken}` }, cache: 'no-store' });
+          if (!response.ok) throw new Error('The source image could not be loaded.');
+          urls.push(URL.createObjectURL(await response.blob()));
+        }
+        objectUrl = urls[0] || '';
+        if (cancelled) { urls.forEach((url) => URL.revokeObjectURL(url)); return; }
+        setPdfImageUrl(urls[0] || '');
+        setPdfImageUrls(urls);
+      } catch (error) { urls.forEach((url) => URL.revokeObjectURL(url)); if (!cancelled) { setPdfImageUrl(''); setPdfImageUrls([]); setPdfImageError(error.message || 'The source image could not be loaded.'); } }
     })();
     return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [selectedJob?.id, selectedJob?.job_type, token, mode, workerTab]);
+  }, [selectedJob?.id, selectedJob?.job_type, selectedJob?.pdf_images?.length, token, mode, workerTab]);
 
   // Keep using the server-filtered REST conversation endpoint: the backend
   // controls who can read the client and worker threads. Refresh promptly,
@@ -590,6 +598,22 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       : agentId === 'template-claude'
         ? 'Template-aware draft queued with the permanent rules and this job’s extra instructions.'
         : 'AI formatted draft queued. It will stay private until an approved human proofreader submits the final work.');
+  };
+
+  const assignWholeFileAi = async (agentId, ids) => {
+    if (busy || ids.length < 2) return;
+    if (!window.confirm(`Give all ${ids.length} pages of this file to the AI agent as one job? Each page still gets its own private draft.`)) return;
+    setBusy(true);
+    let done = 0; const failed = [];
+    for (const id of ids) {
+      try {
+        await request(`/human-transcription/jobs/${id}/ai-agent/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent_id: agentId, batch_job_ids: ids }) });
+        done += 1;
+      } catch (error) { failed.push(error.message); }
+    }
+    await loadJobs();
+    setBusy(false);
+    showMessage?.(failed.length ? `${done} pages queued; ${failed.length} could not be queued (${failed[0]}).` : `All ${done} pages were queued for the AI agent.`, failed.length ? 'error' : 'success');
   };
 
   const confirmAiWholeJob = async () => {
@@ -855,9 +879,15 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                   <small>These extras are private to this AI run. The attached template and existing job references are included too. You can attach up to six PDF, Word, text, or image files.</small>
                 </div>}
                 <div className="tm-ai-agent-buttons">
-                  {selectedJob.job_type === 'pdf_job' ? (
+                  {selectedJob.job_type === 'pdf_job' ? (<>
                     <button type="button" disabled={busy || ['queued', 'processing'].includes(selectedJob.ai_agent_status) || (!splitJob && selectedJob.status !== 'approved') || (splitJob && !(selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))} onClick={() => assignAiAgent(selectedJob.job_category === 'text_messages' ? 'text-messages-gemini' : 'pdf-gemini')}>{['queued', 'processing'].includes(selectedJob.ai_agent_status) ? 'AI agent is drafting…' : selectedJob.job_category === 'text_messages' ? 'Assign Text Messages Agent' : 'Assign PDF Agent (Gemini 3.8)'}</button>
-                  ) : <>
+                    {(() => {
+                      const siblings = selectedJob.pdf_review || !selectedJob.pdf_batch_id ? [] : jobs.filter((item) => item.job_type === 'pdf_job' && !item.pdf_review && item.pdf_batch_id === selectedJob.pdf_batch_id).sort((first, second) => (first.pdf_image?.page_number || 0) - (second.pdf_image?.page_number || 0));
+                      if (siblings.length < 2) return null;
+                      const unclaimed = siblings.every((item) => item.status === 'approved');
+                      return <button type="button" disabled={busy || !unclaimed} title={unclaimed ? undefined : 'Available only while no page has been claimed.'} onClick={() => assignWholeFileAi(selectedJob.job_category === 'text_messages' ? 'text-messages-gemini' : 'pdf-gemini', siblings.map((item) => item.id))}>{`Assign whole file (${siblings.length} pages)`}</button>;
+                    })()}
+                  </>) : <>
                     <button type="button" disabled={busy || (!splitJob && selectedJob.status !== 'approved') || (splitJob && !(selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))} onClick={() => assignAiAgent('general-gpt')}>Assign general agent</button>
                     <button type="button" disabled={busy || !hasJobDocxTemplate || (!splitJob && selectedJob.status !== 'approved') || (splitJob && !(selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))} title={!hasJobDocxTemplate ? 'Attach exactly one job-specific .docx template first.' : undefined} onClick={() => assignAiAgent('template-claude')}>Assign template-aware agent</button>
                   </>}
@@ -990,7 +1020,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
             {mode === 'admin' && selectedJob.status === 'submitted' && <div className="tm-human-review"><label>Worker rating<select value={rating} onChange={(event) => setRating(event.target.value)}><option value="5">5 — excellent</option><option value="4">4 — strong</option><option value="3">3 — acceptable</option><option value="2">2 — needs work</option><option value="1">1 — poor</option></select></label><textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder={selectedJob.job_type === 'pdf_job' ? 'Internal review notes for this image job' : 'Notes for the client and worker'} /><button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating, feedback }) }, selectedJob.job_type === 'pdf_job' ? 'PDF transcription approved and completed.' : 'Sent to client for review.')}>{selectedJob.job_type === 'pdf_job' ? 'Approve PDF transcription' : 'Send to client'}</button></div>}
 
-            {selectedJob.job_type === 'pdf_job' && !(mode === 'worker' && workerTab === 'available') && <div className="tm-human-pdf-image-card"><div><strong>Assigned image</strong><span>{selectedJob.pdf_image?.source_filename || selectedJob.pdf_image?.name}{selectedJob.pdf_image?.page_count > 1 ? ` · Page ${selectedJob.pdf_image.page_number} of ${selectedJob.pdf_image.page_count}` : ''}</span></div>{pdfImageUrl ? <img src={pdfImageUrl} alt={`Transcribe ${selectedJob.pdf_image?.name || 'PDF Job'}`} /> : <p role={pdfImageError ? 'alert' : 'status'}>{pdfImageError || 'Loading the private image…'}</p>}</div>}
+            {selectedJob.job_type === 'pdf_job' && !(mode === 'worker' && workerTab === 'available') && <div className="tm-human-pdf-image-card"><div><strong>{selectedJob.pdf_review ? 'Whole-file review: all pages' : 'Assigned image'}</strong><span>{selectedJob.pdf_image?.source_filename || selectedJob.pdf_image?.name}{selectedJob.pdf_image?.page_count > 1 && !selectedJob.pdf_review ? ` · Page ${selectedJob.pdf_image.page_number} of ${selectedJob.pdf_image.page_count}` : ''}</span></div>{pdfImageUrls.length > 1 ? pdfImageUrls.map((url, index) => <img key={url} src={url} alt={`Page ${index + 1} of ${pdfImageUrls.length}`} />) : pdfImageUrl ? <img src={pdfImageUrl} alt={`Transcribe ${selectedJob.pdf_image?.name || 'PDF Job'}`} /> : <p role={pdfImageError ? 'alert' : 'status'}>{pdfImageError || 'Loading the private image…'}</p>}</div>}
             {audioKey && <WorkerAudioPlayer src={audioUrl} loading={audioLoading} error={audioError} title={audioSegmentId ? 'Your part of the recording' : 'Source recording'} note={audioSegmentId ? 'Only your assigned part is played and downloaded here.' : 'Available to the client, admin and assigned worker.'} filename={audioSegmentId ? `${(workerAssignment?.label || 'part').replace(/[^A-Za-z0-9]+/g, '-').toLowerCase()}.mp3` : (selectedJob?.audio?.name || 'recording.mp3')} />}
             {mode === 'worker' && workerAssignmentActive && workerAssignment?.role !== 'proofreader' && selectedJob.job_type !== 'pdf_job' && <div className="tm-human-reference-card" style={{ display: 'grid', gap: 8 }}>
               <strong>AI formatted draft for this audio</strong>

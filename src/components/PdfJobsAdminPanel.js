@@ -89,14 +89,15 @@ export default function PdfJobsAdminPanel({ showMessage, onOpenQueue, category =
   const runWholeFile = async (group) => {
     if (!canAssignAiAgents || working || bulkRunning) return;
     const waiting = group.jobs.filter((job) => job.status === 'approved');
-    if (!waiting.length) return;
-    if (!window.confirm(`Send ${waiting.length} page${waiting.length === 1 ? '' : 's'} of "${group.name}" to the ${agentLabel}? Each page is drafted separately and stays private until a human proofreader checks it.`)) return;
+    if (!waiting.length || waiting.length !== group.jobs.length) return;
+    const batchIds = waiting.map((job) => job.id);
+    if (!window.confirm(`Give all ${waiting.length} pages of "${group.name}" to the ${agentLabel} as one job? The agent reads every page together so names and formatting stay consistent. Each page still gets its own draft, which stays private until a human proofreader checks it.`)) return;
     setBulkRunning(true);
     let done = 0; const failed = [];
     for (const job of waiting) {
       try {
         const token = await currentUser.getIdToken();
-        const response = await fetch(`${BACKEND_URL}/human-transcription/jobs/${job.id}/ai-agent/assign`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ agent_id: agentId }) });
+        const response = await fetch(`${BACKEND_URL}/human-transcription/jobs/${job.id}/ai-agent/assign`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ agent_id: agentId, batch_job_ids: batchIds }) });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.detail || 'Not queued');
         done += 1;
@@ -107,14 +108,24 @@ export default function PdfJobsAdminPanel({ showMessage, onOpenQueue, category =
     await loadJobs();
   };
 
+  const createFileReview = async (group) => {
+    if (working || bulkRunning) return;
+    setWorking(group.key);
+    try {
+      await postJson('/human-transcription/admin/pdf-jobs/file-review', { job_ids: group.jobs.map((job) => job.id) }, `Whole-file review job created for "${group.name}". Assign the AI reviewer or a human worker to it in the table below.`);
+      await loadJobs();
+    } catch (error) { showMessage?.(error.message, 'error'); }
+    finally { setWorking(''); }
+  };
+
   const fileGroups = (() => {
     const map = new Map();
-    jobs.forEach((job) => {
+    jobs.filter((job) => !job.is_review).forEach((job) => {
       const key = job.batch_id || job.source_filename || job.id;
       if (!map.has(key)) map.set(key, { key, name: job.source_filename || job.name, jobs: [] });
       map.get(key).jobs.push(job);
     });
-    return Array.from(map.values()).filter((group) => group.jobs.length > 1 && group.jobs.some((job) => job.status === 'approved'));
+    return Array.from(map.values()).filter((group) => group.jobs.length > 1);
   })();
 
   const extendJob = async (job) => {
@@ -165,8 +176,19 @@ export default function PdfJobsAdminPanel({ showMessage, onOpenQueue, category =
     </section>
     <section className="tm-admin-panel tm-pdf-jobs-list">
       <div className="tm-admin-panel-head"><div><h2 className="tm-admin-panel-title">{isText ? 'Uploaded screenshot jobs' : 'Uploaded image jobs'}</h2><p className="tm-admin-panel-note">Review status and worker submissions in the Human Work queue.</p></div><button type="button" className="tm-admin-btn" onClick={loadJobs} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button></div>
-      {canAssignAiAgents && fileGroups.length > 0 && <div className="tm-pdf-jobs-selected" style={{ marginBottom: 12 }}><strong>Whole files</strong>{fileGroups.map((group) => <div className="tm-pdf-jobs-file" key={group.key}><span>{group.name}</span><small>{group.jobs.filter((job) => job.status === 'approved').length} of {group.jobs.length} pages waiting</small><button type="button" className="tm-admin-btn" disabled={bulkRunning || !!working} onClick={() => runWholeFile(group)}>{bulkRunning ? 'Queuing…' : `Send all to ${agentLabel}`}</button></div>)}</div>}
-      <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Image / source</th><th>Status</th><th>Worker / AI agent</th><th>Assign / deadline</th><th>Worker pay</th><th>Added</th></tr></thead><tbody>{jobs.map((job) => <tr key={job.id}><td><strong>{job.name}</strong>{job.reference_files > 0 && <div className="tm-admin-name">{job.reference_files} reference file{job.reference_files === 1 ? '' : 's'} attached</div>}<div className="tm-admin-name">{job.source_filename}{job.page_count > 1 ? ` · Page ${job.page_number} of ${job.page_count}` : ''}</div></td><td>{statusLabel(job.status)}{job.ai_agent_status && <div className="tm-admin-name">{job.ai_agent_status === 'submitted' ? 'AI draft ready' : job.ai_agent_status === 'failed' ? 'AI run failed' : 'AI agent: ' + (job.ai_agent_name || 'Gemini 3.8')}</div>}</td><td>{job.ai_agent_name || job.worker_name || job.worker_email || 'Not assigned'}{job.ai_agent_model_ids?.length ? <div className="tm-admin-name">{job.ai_agent_model_ids.join(' + ')}</div> : null}</td><td>{job.status === 'approved' ? <div style={{ display: 'grid', gap: 6 }}>{canAssignAiAgents ? <button type="button" className="tm-admin-btn" disabled={working === job.id} onClick={() => runGemini(job)}>{working === job.id ? 'Queuing…' : `Assign ${agentLabel}`}</button> : <small>AI-agent assignments are limited to authorized admin accounts.</small>}{workers.length ? <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><select aria-label="Choose a worker" value={pick[job.id] || ''} onChange={(event) => setPick((current) => ({ ...current, [job.id]: event.target.value }))}><option value="">Or choose a worker</option>{workers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name}{worker.available ? '' : ' (unavailable)'}</option>)}</select><button type="button" className="tm-admin-btn" disabled={!pick[job.id] || working === job.id} onClick={() => assignJob(job)}>{working === job.id ? 'Assigning…' : 'Assign worker'}</button></div> : null}</div> : job.ai_agent_status === 'failed' ? (canAssignAiAgents ? <button type="button" className="tm-admin-btn" disabled={working === job.id} onClick={() => runGemini(job)}>{working === job.id ? 'Queuing…' : 'Retry AI agent'}</button> : <small>AI-agent assignments are limited to authorized admin accounts.</small>) : job.ai_agent_status === 'submitted' || job.status.startsWith('proofreading_') ? <button type="button" className="tm-admin-btn" onClick={onOpenQueue}>Open queue to assign proofreader</button> : (job.status === 'assigned' || job.status === 'in_progress') ? <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}><small>{job.deadline_at ? `Due ${moneylessDate(job.deadline_at)}` : ''}</small><select aria-label="Extend by" value={extend[job.id] || 5} onChange={(event) => setExtend((current) => ({ ...current, [job.id]: event.target.value }))}>{[5, 10, 15, 20].map((value) => <option key={value} value={value}>+{value} min</option>)}</select><button type="button" className="tm-admin-btn" disabled={working === job.id} onClick={() => extendJob(job)}>Extend</button></div> : '—'}</td><td>{job.worker_amount_kes ? `KES ${job.worker_amount_kes}` : job.status === 'approved' || job.status === 'assigned' || job.status === 'in_progress' ? 'KES 100 on submission' : 'KES 100'}</td><td>{moneylessDate(job.created_at)}</td></tr>)}</tbody></table>{!loading && !jobs.length && <div className="tm-admin-empty">{isText ? 'No text message jobs have been uploaded yet.' : 'No PDF image jobs have been uploaded yet.'}</div>}</div>
+      {fileGroups.length > 0 && <div className="tm-pdf-jobs-selected" style={{ marginBottom: 12 }}><strong>Whole files</strong>{fileGroups.map((group) => {
+        const waiting = group.jobs.filter((job) => job.status === 'approved').length;
+        const allWaiting = waiting === group.jobs.length;
+        const allDone = group.jobs.every((job) => job.has_text);
+        const reviewExists = jobs.some((job) => job.is_review && (job.review_of || []).includes(group.jobs[0].id));
+        return <div className="tm-pdf-jobs-file" key={group.key} style={{ flexWrap: 'wrap', gap: 8 }}><span>{group.name}</span><small>{waiting} of {group.jobs.length} pages unclaimed</small>
+          {canAssignAiAgents && allWaiting && <button type="button" className="tm-admin-btn" disabled={bulkRunning || !!working} onClick={() => runWholeFile(group)}>{bulkRunning ? 'Queuing…' : `Assign whole file to ${agentLabel}`}</button>}
+          {canAssignAiAgents && !allWaiting && !allDone && <small>Whole-file assignment is only available while no page has been claimed.</small>}
+          {allDone && !reviewExists && <button type="button" className="tm-admin-btn" disabled={!!working || bulkRunning} onClick={() => createFileReview(group)}>{working === group.key ? 'Preparing…' : 'Create whole-file review'}</button>}
+          {reviewExists && <small>Whole-file review job created below.</small>}
+        </div>;
+      })}</div>}
+      <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Image / source</th><th>Status</th><th>Worker / AI agent</th><th>Assign / deadline</th><th>Worker pay</th><th>Added</th></tr></thead><tbody>{jobs.map((job) => <tr key={job.id}><td><strong>{job.name}</strong>{job.reference_files > 0 && <div className="tm-admin-name">{job.reference_files} reference file{job.reference_files === 1 ? '' : 's'} attached</div>}<div className="tm-admin-name">{job.source_filename}{job.is_review ? ` · Whole-file review of ${job.page_count} pages` : job.page_count > 1 ? ` · Page ${job.page_number} of ${job.page_count}` : ''}</div></td><td>{statusLabel(job.status)}{job.ai_agent_status && <div className="tm-admin-name">{job.ai_agent_status === 'submitted' ? 'AI draft ready' : job.ai_agent_status === 'failed' ? 'AI run failed' : 'AI agent: ' + (job.ai_agent_name || 'Gemini 3.8')}</div>}</td><td>{job.ai_agent_name || job.worker_name || job.worker_email || 'Not assigned'}{job.ai_agent_model_ids?.length ? <div className="tm-admin-name">{job.ai_agent_model_ids.join(' + ')}</div> : null}</td><td>{job.status === 'approved' ? <div style={{ display: 'grid', gap: 6 }}>{canAssignAiAgents ? <button type="button" className="tm-admin-btn" disabled={working === job.id} onClick={() => runGemini(job)}>{working === job.id ? 'Queuing…' : `Assign ${agentLabel}`}</button> : <small>AI-agent assignments are limited to authorized admin accounts.</small>}{workers.length ? <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><select aria-label="Choose a worker" value={pick[job.id] || ''} onChange={(event) => setPick((current) => ({ ...current, [job.id]: event.target.value }))}><option value="">Or choose a worker</option>{workers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name}{worker.available ? '' : ' (unavailable)'}</option>)}</select><button type="button" className="tm-admin-btn" disabled={!pick[job.id] || working === job.id} onClick={() => assignJob(job)}>{working === job.id ? 'Assigning…' : 'Assign worker'}</button></div> : null}</div> : job.ai_agent_status === 'failed' ? (canAssignAiAgents ? <button type="button" className="tm-admin-btn" disabled={working === job.id} onClick={() => runGemini(job)}>{working === job.id ? 'Queuing…' : 'Retry AI agent'}</button> : <small>AI-agent assignments are limited to authorized admin accounts.</small>) : job.ai_agent_status === 'submitted' || job.status.startsWith('proofreading_') ? <button type="button" className="tm-admin-btn" onClick={onOpenQueue}>Open queue to assign proofreader</button> : (job.status === 'assigned' || job.status === 'in_progress') ? <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}><small>{job.deadline_at ? `Due ${moneylessDate(job.deadline_at)}` : ''}</small><select aria-label="Extend by" value={extend[job.id] || 5} onChange={(event) => setExtend((current) => ({ ...current, [job.id]: event.target.value }))}>{[5, 10, 15, 20].map((value) => <option key={value} value={value}>+{value} min</option>)}</select><button type="button" className="tm-admin-btn" disabled={working === job.id} onClick={() => extendJob(job)}>Extend</button></div> : '—'}</td><td>{job.worker_amount_kes ? `KES ${job.worker_amount_kes}` : job.status === 'approved' || job.status === 'assigned' || job.status === 'in_progress' ? 'KES 100 on submission' : 'KES 100'}</td><td>{moneylessDate(job.created_at)}</td></tr>)}</tbody></table>{!loading && !jobs.length && <div className="tm-admin-empty">{isText ? 'No text message jobs have been uploaded yet.' : 'No PDF image jobs have been uploaded yet.'}</div>}</div>
     </section>
   </div>;
 }
