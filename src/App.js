@@ -56,6 +56,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { isAdminEmail, isHumanJobAdminEmail, hasFreeAccess } from './adminEmails';
 import { recordPageView } from './analyticsService';
 import * as recordingBackup from './utils/recordingBackup';
+import { formatRecorderShortcut, matchesRecorderShortcut, readRecorderShortcut } from './recorderShortcut';
 
 
 // UPDATED Configuration - RE-ADDED Render Whisper URL
@@ -1540,9 +1541,9 @@ function AppContent() {
     })();
   }, [currentUser, adoptTake, showMessage]);
 
-  // Keyboard shortcuts, so nobody has to scroll the page to start, stop or
-  // pick a file. Recording uses Ctrl+R outside text fields; file selection
-  // remains on Ctrl+Shift+O.
+  // Recorder shortcuts work only while the recorder view is open and this
+  // browser tab is active. A normal web page cannot capture keys in the
+  // background or when another tab/app has focus.
   const chooseFile = useCallback(() => {
     const input = document.querySelector('input.tm-file');
     if (input) input.click();
@@ -1559,29 +1560,38 @@ function AppContent() {
   }, [isRecording]);
   useEffect(() => {
     const inTextField = (el) =>
-      !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+      !!el && (
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) ||
+        el.isContentEditable ||
+        Boolean(el.closest?.('[contenteditable="true"], [role="textbox"]'))
+      );
 
     const onKey = (e) => {
-      if (e.altKey || !e.ctrlKey || inTextField(e.target)) return;
+      if (currentView !== 'transcribe' || document.visibilityState === 'hidden' || inTextField(e.target)) return;
+      if (typeof document.hasFocus === 'function' && !document.hasFocus()) return;
 
-      if (!e.shiftKey && (e.key || '').toLowerCase() === 'r') {
-        // Ctrl+R normally reloads the browser; keep it scoped to the app and
-        // use it for recording only when the client is outside a text field.
+      if (
+        !e.repeat && e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey &&
+        (e.key || '').toLowerCase() === 'o'
+      ) {
         e.preventDefault();
-        if (isRecording) stopRecording();
-        else startRecording();
+        chooseFile();
         return;
       }
 
-      if (e.shiftKey && (e.key || '').toLowerCase() === 'o') {
-        e.preventDefault();
-        chooseFile();
-      }
+      const shortcut = readRecorderShortcut(currentUser?.uid);
+      if (!matchesRecorderShortcut(e, shortcut)) return;
+
+      // Keep Ctrl+R from reloading the browser while preserving the app's
+      // existing default. User-selected single keys are also page-scoped.
+      e.preventDefault();
+      if (isRecording) stopRecording();
+      else startRecording();
     };
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isRecording, startRecording, stopRecording, chooseFile]);
+  }, [currentView, currentUser?.uid, isRecording, startRecording, stopRecording, chooseFile]);
 
   const handleCancelUpload = useCallback(async () => {
     console.log('DEBUG: FORCE CANCEL - Stopping everything immediately');
@@ -3066,8 +3076,8 @@ return (
 
                   <div className="tm-rec-hint">
                     {isRecording
-                      ? 'Press Ctrl+R to stop.'
-                      : 'Press Ctrl+R to start recording, or Ctrl+Shift+O to choose a file.'}
+                      ? `Press ${formatRecorderShortcut(readRecorderShortcut(currentUser?.uid))} to stop.`
+                      : `Press ${formatRecorderShortcut(readRecorderShortcut(currentUser?.uid))} to start recording, or Ctrl+Shift+O to choose a file.`}
                   </div>
 
                   {recordedAudioBlobRef.current && !isRecording && (

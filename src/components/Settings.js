@@ -2,6 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAsk } from './AskContext';
 import { isCompAccessEmail } from '../adminEmails';
+import {
+  DEFAULT_RECORDER_SHORTCUT,
+  formatRecorderShortcut,
+  isModifierOnlyKey,
+  isReservedRecorderShortcut,
+  readRecorderShortcut,
+  recorderShortcutFromEvent,
+  resetRecorderShortcut,
+  saveRecorderShortcut,
+} from '../recorderShortcut';
 
 // The client's own settings. Right now this is where the assistant model is
 // chosen, which used to sit awkwardly beside the chat. The list is fetched
@@ -31,9 +41,65 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
   const [notificationSoundsEnabled, setNotificationSoundsEnabled] = useState(() => {
     try { return window.localStorage.getItem('tmwd_notification_sounds') !== 'off'; } catch { return true; }
   });
+  const [recorderShortcut, setRecorderShortcut] = useState(() => readRecorderShortcut(currentUser?.uid));
+  const [isCapturingRecorderShortcut, setIsCapturingRecorderShortcut] = useState(false);
+  const [recorderShortcutMessage, setRecorderShortcutMessage] = useState('');
 
   const profileRole = String(userProfile?.role || userProfile?.user_type || '').toLowerCase();
   const isApprovedWorker = Boolean(userProfile?.workerApproved) || ['worker', 'transcriber'].includes(profileRole);
+
+  useEffect(() => {
+    setRecorderShortcut(readRecorderShortcut(currentUser?.uid));
+    setIsCapturingRecorderShortcut(false);
+    setRecorderShortcutMessage('');
+  }, [currentUser?.uid]);
+
+  useEffect(() => {
+    if (!isCapturingRecorderShortcut) return undefined;
+
+    const captureShortcut = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopImmediatePropagation?.();
+        setIsCapturingRecorderShortcut(false);
+        setRecorderShortcutMessage('Shortcut change cancelled.');
+        return;
+      }
+      if (isModifierOnlyKey(event.key)) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation?.();
+      const nextShortcut = recorderShortcutFromEvent(event);
+      if (isReservedRecorderShortcut(nextShortcut)) {
+        setRecorderShortcutMessage('That key combination is reserved by your browser or the app. Try another one.');
+        return;
+      }
+      if (!saveRecorderShortcut(currentUser?.uid, nextShortcut)) {
+        setRecorderShortcutMessage('The shortcut could not be saved in this browser. Check your browser storage settings and try again.');
+        setIsCapturingRecorderShortcut(false);
+        return;
+      }
+
+      setRecorderShortcut(nextShortcut);
+      setIsCapturingRecorderShortcut(false);
+      setRecorderShortcutMessage(`Saved ${formatRecorderShortcut(nextShortcut)} for this browser.`);
+    };
+
+    window.addEventListener('keydown', captureShortcut, true);
+    return () => window.removeEventListener('keydown', captureShortcut, true);
+  }, [isCapturingRecorderShortcut, currentUser?.uid]);
+
+  const beginRecorderShortcutCapture = () => {
+    setRecorderShortcutMessage('Press the key or key combination you want. Press Esc to cancel.');
+    setIsCapturingRecorderShortcut(true);
+  };
+
+  const resetRecorderShortcutSetting = () => {
+    const reset = resetRecorderShortcut(currentUser?.uid);
+    if (reset) setRecorderShortcut({ ...DEFAULT_RECORDER_SHORTCUT });
+    setIsCapturingRecorderShortcut(false);
+    setRecorderShortcutMessage(reset ? 'Reset to Ctrl+R.' : 'The default shortcut could not be restored in this browser.');
+  };
 
   useEffect(() => {
     let alive = true;
@@ -248,6 +314,34 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
         </label>
         <p className="tm-set-note">Some browsers require one click or key press before they allow app sounds.</p>
         <p className="tm-set-note" style={{ color: '#8a5a00' }}>Heads up: with sounds off you may miss a message or an important update, so keep an eye on your notifications.</p>
+      </section>
+
+      <section className="tm-set-section tm-recorder-shortcut-section">
+        <h3 className="tm-set-h">Recorder shortcut</h3>
+        <p className="tm-set-sub">
+          Use your chosen key or key combination to start recording, then press it again to stop.
+          Ctrl+Shift+O remains the shortcut for choosing an audio file.
+        </p>
+        <div className="tm-recorder-shortcut-controls">
+          <div className="tm-recorder-shortcut-current">
+            <span>Current shortcut</span>
+            <kbd>{formatRecorderShortcut(recorderShortcut)}</kbd>
+          </div>
+          <div className="tm-recorder-shortcut-actions">
+            <button type="button" className="tm-recorder-shortcut-change" onClick={beginRecorderShortcutCapture} disabled={!currentUser?.uid}>
+              {isCapturingRecorderShortcut ? 'Press a key…' : 'Change shortcut'}
+            </button>
+            <button type="button" className="tm-recorder-shortcut-reset" onClick={resetRecorderShortcutSetting} disabled={!currentUser?.uid}>
+              Use default
+            </button>
+          </div>
+        </div>
+        <p className="tm-recorder-shortcut-message" role="status" aria-live="polite">
+          {recorderShortcutMessage}
+        </p>
+        <p className="tm-set-note">
+          The shortcut works only while the Recorder page is open and this TypeMyworDz browser tab is active. A website cannot hear keys from another tab or app. A single key such as Tab can interfere with normal page navigation; choose one you do not rely on elsewhere. Your choice is saved in this browser for your account.
+        </p>
       </section>
 
       <section className="tm-set-section">
