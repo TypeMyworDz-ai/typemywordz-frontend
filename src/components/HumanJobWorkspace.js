@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext';
 import FinalTranscriptView from './FinalTranscriptView';
 import PdfJobsAdminPanel from './PdfJobsAdminPanel';
+import LetterJobsAdminPanel from './LetterJobsAdminPanel';
 import WordLikeEditor from './WordLikeEditor';
 import ConfirmDialog from './ConfirmDialog';
 import WorkerAudioPlayer from './WorkerAudioPlayer';
@@ -100,6 +101,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [adminTab, setAdminTab] = useState('queue');
   const adminEmail = (currentUser?.email || '').trim().toLowerCase();
   const canManagePdfJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai'].includes(adminEmail);
+  const canManageLetterJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai'].includes(adminEmail);
   const canAssignAiAgents = ['typemywordz@gmail.com', 'info@typemywordz.ai'].includes(adminEmail);
   const [adminQueueLane, setAdminQueueLane] = useState('needs_action');
   const [adminQueueType, setAdminQueueType] = useState('all');
@@ -121,12 +123,12 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
   const token = useCallback(() => currentUser?.getIdToken(), [currentUser]);
   const adminQueueCounts = useMemo(() => jobs.reduce((counts, job) => {
-    const matchesType = adminQueueType === 'all' || (job.source_type || 'human_transcription') === adminQueueType;
+    const matchesType = adminQueueType === 'all' ? job.job_type !== 'letter_job' : adminQueueType === 'letter_job' ? job.job_type === 'letter_job' : (job.source_type || 'human_transcription') === adminQueueType;
     if (matchesType) counts[adminQueueLaneFor(job)] += 1;
     return counts;
   }, { needs_action: 0, in_progress: 0, submitted: 0, finished: 0 }), [adminQueueType, jobs]);
   const adminQueueJobs = useMemo(() => jobs.filter((job) =>
-    (adminQueueType === 'all' || (job.source_type || 'human_transcription') === adminQueueType)
+    (adminQueueType === 'all' ? job.job_type !== 'letter_job' : adminQueueType === 'letter_job' ? job.job_type === 'letter_job' : (job.source_type || 'human_transcription') === adminQueueType)
     && adminQueueLaneFor(job) === adminQueueLane
   ), [adminQueueLane, adminQueueType, jobs]);
   const jobsForCurrentView = mode === 'admin' && adminTab === 'queue' ? adminQueueJobs : jobs;
@@ -500,8 +502,10 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
   const renderSubmitButton = (place) => {
     if (!(mode === 'worker' && workerAssignmentActive)) return null;
-    const disabled = busy || (workerAssignment?.role === 'proofreader' && (selectedJob.proofreader_parts || []).some((part) => part.pending)) || (!editorText.trim() && !finalAttachment && !selectedJob.final_attachment);
-    return <button type="button" className={`tm-human-submit-button${place === 'bottom' ? ' tm-human-submit-bottom' : ''}`} onClick={submitWorker} disabled={disabled}>Submit {workerAssignment?.role === 'proofreader' ? 'final work' : selectedJob.job_type === 'pdf_job' ? 'image transcription' : 'part'} for review</button>;
+    const letterJob = selectedJob.job_type === 'letter_job';
+    const validLetterDocx = Boolean(finalAttachment && /\.docx$/i.test(finalAttachment.name || ''));
+    const disabled = busy || (workerAssignment?.role === 'proofreader' && (selectedJob.proofreader_parts || []).some((part) => part.pending)) || (letterJob ? !validLetterDocx : (!editorText.trim() && !finalAttachment && !selectedJob.final_attachment));
+    return <button type="button" className={`tm-human-submit-button${place === 'bottom' ? ' tm-human-submit-bottom' : ''}`} onClick={submitWorker} disabled={disabled}>Submit {letterJob ? 'finished letter' : workerAssignment?.role === 'proofreader' ? 'final work' : selectedJob.job_type === 'pdf_job' ? 'image transcription' : 'part'} for review</button>;
   };
 
   const claimWork = async (segmentId = '') => {
@@ -746,6 +750,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           {!restricted && <button type="button" role="tab" aria-selected={adminTab === 'cleanup'} className={adminTab === 'cleanup' ? 'active' : ''} onClick={() => setAdminTab('cleanup')}>Job cleanup</button>}
           {canManagePdfJobs && <button type="button" role="tab" aria-selected={adminTab === 'pdf_jobs'} className={adminTab === 'pdf_jobs' ? 'active' : ''} onClick={() => setAdminTab('pdf_jobs')}>PDF Jobs</button>}
           {canManagePdfJobs && <button type="button" role="tab" aria-selected={adminTab === 'text_messages'} className={adminTab === 'text_messages' ? 'active' : ''} onClick={() => setAdminTab('text_messages')}>Text Messages</button>}
+          {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'letter_jobs'} className={adminTab === 'letter_jobs' ? 'active' : ''} onClick={() => setAdminTab('letter_jobs')}>Letter Jobs</button>}
         </div>
       )}
 
@@ -753,6 +758,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <PdfJobsAdminPanel showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('pdf_job'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'text_messages' && canManagePdfJobs ? (
         <PdfJobsAdminPanel category="text_messages" showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('text_messages'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
+      ) : mode === 'admin' && adminTab === 'letter_jobs' && canManageLetterJobs ? (
+        <LetterJobsAdminPanel showMessage={showMessage} />
       ) : mode === 'worker' && workerTab === 'payments' ? (
         <div className="tm-human-chat-card tm-worker-payment-panel">
           <div className="tm-human-chat-head"><div><strong>Payment history</strong><span>Pay accrues in two halves of each month: the 1st-15th and the 16th to month end.</span></div><span className="tm-human-live-dot">KES</span></div>
@@ -792,6 +799,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <option value="ai_proofreading">AI transcript proofreading</option>
               <option value="pdf_job">PDF Jobs</option>
               <option value="text_messages">Text Messages</option>
+              <option value="letter_job">Letter Jobs</option>
             </select>
           </label>
         </div>
@@ -807,7 +815,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           <div className="tm-human-list-head"><strong>{jobsForCurrentView.length} job{jobsForCurrentView.length === 1 ? '' : 's'}</strong><span>Live updates</span></div>
           {jobsForCurrentView.map((job) => (
             <button type="button" key={job.id} className={`tm-human-job-row ${selectedJob?.id === job.id ? 'selected' : ''}`} onClick={() => setSelectedId(job.id)}>
-              <strong>{job.pdf_image?.name || job.audio?.name || `Human job ${job.id.slice(0, 6)}`}</strong>
+              <strong>{job.job_name || job.pdf_image?.name || job.audio?.name || `Human job ${job.id.slice(0, 6)}`}</strong>
               <span>{mode === 'worker' && workerTab === 'available' ? (job.claimable_full_job ? 'Entire job · available to claim' : `${(job.claimable_parts || []).length} part${(job.claimable_parts || []).length === 1 ? '' : 's'} available`) : mode === 'worker' && job.worker_assignment?.role === 'proofreader' ? 'Proofreading · In progress' : (STATUS_LABELS[job.status] || job.status)}{typeof job.time_remaining_seconds === 'number' && ['assigned', 'in_progress'].includes(job.worker_assignment?.status || job.status) ? ` · ${formatCountdown(remainingSecondsFor(job))} left` : ''}</span>
               {mode === 'admin' && (() => {
                 const active = ['assigned', 'in_progress'];
@@ -826,7 +834,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <div className="tm-human-job-detail">
           {!selectedJob ? <div className="tm-human-empty">Choose a job to see its details.</div> : <>
             <div className="tm-human-detail-head">
-              <div><span className="tm-human-status">{STATUS_LABELS[selectedJob.status] || selectedJob.status}</span><h2>{selectedJob.pdf_image?.name || selectedJob.audio?.name || (selectedJob.source_type === 'ai_proofreading' ? 'AI transcript for proofreading' : 'Human-transcription request')}</h2><p>{selectedJob.job_type === 'pdf_job' ? (selectedJob.job_category === 'text_messages' ? 'Text message screenshot · KES 100 per submitted image' : 'PDF image transcription · KES 100 per submitted image') : `${selectedJob.source_type === 'ai_proofreading' ? 'AI transcript proofreading' : 'New human transcript'} · ${selectedJob.minutes || 0} minutes${mode !== 'worker' ? ` · ${selectedJob.quote_credits || 0} credits` : ''} · ${selectedJob.turnaround || 'standard'} delivery`}</p>{mode === 'worker' && workerAssignment?.label && <p><strong>{workerAssignment.label}</strong>{workerAssignment.role === 'proofreader' ? ' · Proofread the combined text below and check the handoff between parts. You can submit once every part is in.' : selectedJob.job_type === 'pdf_job' ? ' · Transcribe the single assigned image and submit the finished Word file or transcript.' : ` · Work from ${formatCountdown(workerAssignment.start_seconds || 0)} to ${formatCountdown(workerAssignment.end_seconds || 0)} in the source recording.`}</p>}</div>
+              <div><span className="tm-human-status">{STATUS_LABELS[selectedJob.status] || selectedJob.status}</span><h2>{selectedJob.job_name || selectedJob.pdf_image?.name || selectedJob.audio?.name || (selectedJob.source_type === 'ai_proofreading' ? 'AI transcript for proofreading' : 'Human-transcription request')}</h2><p>{selectedJob.job_type === 'letter_job' ? `Letter Job · Complete recording · ${selectedJob.minutes || 0} minutes` : selectedJob.job_type === 'pdf_job' ? (selectedJob.job_category === 'text_messages' ? 'Text message screenshot · KES 100 per submitted image' : 'PDF image transcription · KES 100 per submitted image') : `${selectedJob.source_type === 'ai_proofreading' ? 'AI transcript proofreading' : 'New human transcript'} · ${selectedJob.minutes || 0} minutes${mode !== 'worker' ? ` · ${selectedJob.quote_credits || 0} credits` : ''} · ${selectedJob.turnaround || 'standard'} delivery`}</p>{mode === 'worker' && workerAssignment?.label && <p><strong>{workerAssignment.label}</strong>{workerAssignment.role === 'proofreader' ? ' · Proofread the combined text below and check the handoff between parts. You can submit once every part is in.' : selectedJob.job_type === 'pdf_job' ? ' · Transcribe the single assigned image and submit the finished Word file or transcript.' : ` · Work from ${formatCountdown(workerAssignment.start_seconds || 0)} to ${formatCountdown(workerAssignment.end_seconds || 0)} in the source recording.`}</p>}</div>
               <div className="tm-human-detail-actions">
                 {mode === 'admin' && selectedJob.status === 'pending_admin' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/approve`, { method: 'POST' })}>Approve request</button>}
                 {renderSubmitButton('top')}
@@ -912,7 +920,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <section className="tm-human-claim-panel" aria-label="Claim available work">
                 <div>
                   <h3>Claim this work</h3>
-                  <p>{selectedJob.job_type === 'pdf_job' ? 'Each listing is one image and may be claimed by one worker. Your deadline begins when you claim it; the image opens after the claim.' : 'Claim one job or slice at a time. Your turnaround deadline begins as soon as you claim it. After submitting, you can return here for another available slice.'}</p>
+                  <p>{selectedJob.job_type === 'letter_job' ? 'This is one complete letter. Claim the whole job, follow the Letter Job guidelines, and return a finished Word .docx document.' : selectedJob.job_type === 'pdf_job' ? 'Each listing is one image and may be claimed by one worker. Your deadline begins when you claim it; the image opens after the claim.' : 'Claim one job or slice at a time. Your turnaround deadline begins as soon as you claim it. After submitting, you can return here for another available slice.'}</p>
                 </div>
                 {!selectedJob.can_claim && selectedJob.claim_block_reason && <p className="tm-human-claim-blocked" role="status">{selectedJob.claim_block_reason}</p>}
                 {selectedJob.claimable_full_job && (
@@ -939,10 +947,10 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 <label className="tm-human-attach" title="Attach the finished file instead of typing it" aria-label="Attach the finished file">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 3.5h8l3 3V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M15 3.5V7h3M9 11h6M9 15h6"/></svg>
                   <span>{workerAssignment?.role === 'proofreader' ? (finalAttachment ? 'Change final proofread file' : 'Attach final proofread file') : (finalAttachment ? 'Change finished file' : 'Attach finished file')}</span>
-                  <input type="file" onChange={(event) => setFinalAttachment(event.target.files?.[0] || null)} />
+                  <input type="file" accept={selectedJob.job_type === 'letter_job' ? '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document' : undefined} onChange={(event) => setFinalAttachment(event.target.files?.[0] || null)} />
                 </label>
                 {finalAttachment && <span className="tm-human-attachment-preview"><strong>{finalAttachment.name}</strong>{formatAttachmentSize(finalAttachment.size) ? ` · ${formatAttachmentSize(finalAttachment.size)}` : ''}<button type="button" onClick={() => setFinalAttachment(null)} aria-label="Remove attachment">Remove</button></span>}
-                <p className="tm-human-editor-note">Nothing to type for this job? Attach the finished file and submit -- the editor can stay empty.</p>
+                <p className="tm-human-editor-note">{selectedJob.job_type === 'letter_job' ? 'A finished Word .docx is required. The editor text alone cannot be submitted as a letter.' : 'Nothing to type for this job? Attach the finished file and submit -- the editor can stay empty.'}</p>
               </div>
             )}
 
@@ -1023,7 +1031,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
             {selectedJob.job_type === 'pdf_job' && !(mode === 'worker' && workerTab === 'available') && <div className="tm-human-pdf-image-card"><div><strong>{selectedJob.pdf_review ? 'Whole-file review: all pages' : 'Assigned image'}</strong><span>{selectedJob.pdf_image?.source_filename || selectedJob.pdf_image?.name}{selectedJob.pdf_image?.page_count > 1 && !selectedJob.pdf_review ? ` · Page ${selectedJob.pdf_image.page_number} of ${selectedJob.pdf_image.page_count}` : ''}</span></div>{pdfImageUrls.length > 1 ? pdfImageUrls.map((url, index) => <img key={url} src={url} alt={`Page ${index + 1} of ${pdfImageUrls.length}`} />) : pdfImageUrl ? <img src={pdfImageUrl} alt={`Transcribe ${selectedJob.pdf_image?.name || 'PDF Job'}`} /> : <p role={pdfImageError ? 'alert' : 'status'}>{pdfImageError || 'Loading the private image…'}</p>}</div>}
             {audioKey && <WorkerAudioPlayer src={audioUrl} loading={audioLoading} error={audioError} title={audioSegmentId ? 'Your part of the recording' : 'Source recording'} note={audioSegmentId ? 'Only your assigned part is played and downloaded here.' : 'Available to the client, admin and assigned worker.'} filename={audioSegmentId ? `${(workerAssignment?.label || 'part').replace(/[^A-Za-z0-9]+/g, '-').toLowerCase()}.mp3` : (selectedJob?.audio?.name || 'recording.mp3')} />}
-            {mode === 'worker' && workerAssignmentActive && workerAssignment?.role !== 'proofreader' && selectedJob.job_type !== 'pdf_job' && <div className="tm-human-reference-card" style={{ display: 'grid', gap: 8 }}>
+            {mode === 'worker' && workerAssignmentActive && selectedJob.job_type === 'letter_job' && <div className="tm-human-reference-card tm-letter-guidelines" role="note"><strong>Letter Job guidelines</strong><p>Use the standard Letter Standard Indentation template. Preserve the dictated wording and paragraph breaks, keep the required Date, Re:, and Dear : fields, remove undictated template content, and attach the finished .docx. Staff instructions must be bold in square brackets. The full job instructions and reference files remain available above.</p>{selectedJob.letter_guidelines && <details><summary>Read the complete Letter Agent guidelines</summary><pre>{selectedJob.letter_guidelines}</pre></details>}</div>}
+            {mode === 'worker' && workerAssignmentActive && workerAssignment?.role !== 'proofreader' && selectedJob.job_type !== 'pdf_job' && selectedJob.job_type !== 'letter_job' && <div className="tm-human-reference-card" style={{ display: 'grid', gap: 8 }}>
               <strong>AI formatted draft for this audio</strong>
               <span>Get a first draft of {workerAssignment?.label ? workerAssignment.label.toLowerCase() : 'this audio'}, then copy it into Word or insert it into the editor below. Drafts use your TypeMyworDz credits: about {Math.max(1, Math.ceil(((workerAssignment?.end_seconds || 0) - (workerAssignment?.start_seconds || 0)) / 60) || 1)} credit{Math.max(1, Math.ceil(((workerAssignment?.end_seconds || 0) - (workerAssignment?.start_seconds || 0)) / 60) || 1) === 1 ? '' : 's'} for this {workerAssignment?.id && workerAssignment.id !== 'transcriber' ? 'part' : 'job'}. Generating it once is charged once.</span>
               {!(aiDraftLocal || selectedJob.ai_draft) && <div><button type="button" disabled={aiDraftBusy} onClick={requestAiDraft}>{aiDraftBusy ? 'Preparing your formatted draft…' : 'Get AI formatted draft'}</button></div>}

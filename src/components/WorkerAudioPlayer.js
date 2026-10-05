@@ -8,10 +8,18 @@ const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
 export default function WorkerAudioPlayer({ src, filename, title = 'Source recording', note, loading = false, error = '' }) {
   const audioRef = useRef(null);
   const [speed, setSpeed] = useState(1);
+  const [playbackError, setPlaybackError] = useState('');
 
   useEffect(() => {
+    setPlaybackError('');
     if (audioRef.current) audioRef.current.playbackRate = speed;
   }, [speed, src]);
+
+  const handlePlaybackError = (event) => {
+    const code = event.currentTarget?.error?.code;
+    const detail = code === 2 ? 'The recording could not be read from storage.' : code === 3 ? 'This recording could not be decoded in the browser.' : code === 4 ? 'This recording format is not supported in the browser.' : 'The recording could not be played.';
+    setPlaybackError(`${detail} Try downloading it or ask the admin to check the source file.`);
+  };
 
   const skip = (seconds) => {
     const el = audioRef.current;
@@ -26,7 +34,8 @@ export default function WorkerAudioPlayer({ src, filename, title = 'Source recor
       {note && <span>{note}</span>}
       {src ? (
         <>
-          <audio ref={audioRef} controls preload="auto" src={src} onLoadedMetadata={() => { if (audioRef.current) audioRef.current.playbackRate = speed; }} />
+          <audio ref={audioRef} controls preload="metadata" src={src} aria-label={`${title} audio`} onError={handlePlaybackError} onCanPlay={() => setPlaybackError('')} onLoadedMetadata={() => { if (audioRef.current) audioRef.current.playbackRate = speed; }} />
+          {playbackError && <span role="alert">{playbackError}</span>}
           <div className="tm-audio-tools">
             <button type="button" onClick={() => skip(-5)} aria-label="Back 5 seconds">Back 5s</button>
             <button type="button" onClick={() => skip(5)} aria-label="Forward 5 seconds">Forward 5s</button>
