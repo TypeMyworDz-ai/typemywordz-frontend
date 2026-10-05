@@ -46,6 +46,19 @@ const formatCountdown = (totalSeconds) => {
 const PAYOUT_STATUS_LABELS = { accruing: 'Accruing this half', invoiced: 'Pending payout', paid: 'Paid', all: 'All' };
 const JOB_TYPE_LABELS = { general_job: 'General Job', template_job: 'Template Job', letter_job: 'Letter Job', pdf_job: 'PDF image', human_transcription: 'Human transcription' };
 const jobTypeLabel = (job) => JOB_TYPE_LABELS[job?.job_type] || (job?.source_type === 'ai_proofreading' ? 'AI transcript proofreading' : 'Human transcription');
+const adminReviewerComplete = (job) => {
+  const choice = String(job?.reviewer_choice || '').toLowerCase();
+  const proofreaderDone = job?.proofreader_status === 'submitted';
+  if (job?.job_type === 'letter_job') return choice === 'human' ? proofreaderDone : choice === 'ai' && job?.letter_ai_review_status === 'completed';
+  if (job?.job_type === 'pdf_job') {
+    if (!job?.pdf_review) return true;
+    return choice === 'human'
+      ? proofreaderDone || (Boolean(job?.worker_uid) && job?.reviewer_status === 'completed')
+      : choice === 'ai' && job?.ai_agent_status === 'submitted';
+  }
+  if (choice === 'human') return proofreaderDone;
+  return choice === 'ai' && job?.ai_review_applied === true && Boolean(String(job?.ai_review?.combined_text || '').trim());
+};
 
 const ADMIN_QUEUE_LANES = [
   { id: 'needs_action', label: 'Needs action' },
@@ -727,6 +740,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
       {mode === 'worker' && workerBoardInfo.deadlineWarning && workerBoardInfo.deadlineReturns < 11 && <div className="tm-worker-board-notice tm-worker-deadline-warning" role="alert"><strong>Deadline reminder · {workerBoardInfo.deadlineReturns} returns</strong><span>One more missed deadline will pause Available Jobs access and send you to the Training Room for retraining. Claim only work you can complete on time.</span></div>}
 
+      {mode === 'worker' && <WorkerShiftPanel showMessage={showMessage} />}
+
       {mode === 'worker' && (
         <div className="tm-worker-rating-card" aria-label="Your average transcriber rating">
           <div className="tm-worker-rating-score">
@@ -760,6 +775,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       {mode === 'admin' && (
         <div className="tm-human-thread-tabs tm-worker-room-tabs" role="tablist" aria-label="Admin dashboard sections">
           <button type="button" role="tab" aria-selected={adminTab === 'queue'} className={adminTab === 'queue' ? 'active' : ''} onClick={() => setAdminTab('queue')}>Job Queue</button>
+          {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'shifts'} className={adminTab === 'shifts' ? 'active' : ''} onClick={() => setAdminTab('shifts')}>Shift attendance</button>}
           {!restricted && <button type="button" role="tab" aria-selected={adminTab === 'payouts'} className={adminTab === 'payouts' ? 'active' : ''} onClick={() => setAdminTab('payouts')}>Worker Payments · KES</button>}
           {!restricted && <button type="button" role="tab" aria-selected={adminTab === 'rates'} className={adminTab === 'rates' ? 'active' : ''} onClick={() => setAdminTab('rates')}>Worker rates</button>}
           {!restricted && <button type="button" role="tab" aria-selected={adminTab === 'cleanup'} className={adminTab === 'cleanup' ? 'active' : ''} onClick={() => setAdminTab('cleanup')}>Job cleanup</button>}
@@ -781,6 +797,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <AdminAudioJobsPanel category="template" showMessage={showMessage} onOpenQueue={(job) => { setAdminQueueType('template_job'); setAdminQueueLane(adminQueueLaneFor(job)); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'letter_jobs' && canManageLetterJobs ? (
         <LetterJobsAdminPanel showMessage={showMessage} />
+      ) : mode === 'admin' && adminTab === 'shifts' && canManageLetterJobs ? (
+        <AdminShiftAttendancePanel showMessage={showMessage} />
       ) : mode === 'worker' && workerTab === 'payments' ? (
         <div className="tm-human-chat-card tm-worker-payment-panel">
           <div className="tm-human-chat-head"><div><strong>Payment history</strong><span>Pay accrues in two halves of each month: the 1st-15th and the 16th to month end.</span></div><span className="tm-human-live-dot">KES</span></div>
@@ -1058,12 +1076,13 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               </div>
             )}
 
-            {mode === 'admin' && splitJob && ['split_assigned', 'split_in_progress', 'proofreading_available'].includes(selectedJob.status) && (selectedJob.segments || []).some((part) => part.status === 'submitted') && !['assigned', 'in_progress'].includes(selectedJob.proofreader_status) && <div className="tm-human-assign"><label>Assign a proofreader<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose a worker rated 4.5 or higher</option>{workers.filter((worker) => worker.can_proofread).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {Number(worker.rating).toFixed(1)}/5 · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign proofreading</button><p className="tm-tat-hint">Only workers rated 4.5/5 or higher can proofread. You can assign now, before every part is in. The proofreader gets one editor with all submitted parts, separated by dotted lines, and can load the rest as they arrive. They can submit only once every part is in.</p></div>}
-            {mode === 'admin' && selectedJob.job_type !== 'pdf_job' && ((splitJob && (selectedJob.segments || []).length > 0 && (selectedJob.segments || []).every((part) => part.status === 'submitted')) || (!splitJob && ['submitted', 'client_review', 'client_approved', 'released'].includes(selectedJob.status) && String(selectedJob.transcript || '').trim())) && <AdminAiReviewPanel job={selectedJob} act={act} busy={busy} splitJob={splitJob} onInsert={insertAiReviewedTranscript} allowApply={selectedJob.admin_uploaded === true && ['general_job', 'template_job'].includes(selectedJob.job_type)} />}
+            {mode === 'admin' && splitJob && ['split_assigned', 'split_in_progress', 'proofreading_available', 'submitted'].includes(selectedJob.status) && (selectedJob.segments || []).some((part) => part.status === 'submitted') && !['ai', 'human'].includes(selectedJob.reviewer_choice) && !['assigned', 'in_progress', 'submitted'].includes(selectedJob.proofreader_status) && <div className="tm-human-assign"><label>Assign a proofreader<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose a worker rated 4.5 or higher</option>{workers.filter((worker) => worker.can_proofread && worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {Number(worker.rating).toFixed(1)}/5 · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign human reviewer</button><p className="tm-tat-hint">Only workers rated 4.5/5 or higher can review. You can assign before every part is in. They will get one editor with all submitted parts and can submit after the full job is complete.</p></div>}
+            {mode === 'admin' && !splitJob && selectedJob.status === 'submitted' && selectedJob.job_type !== 'pdf_job' && selectedJob.job_type !== 'letter_job' && !['ai', 'human'].includes(selectedJob.reviewer_choice) && !['assigned', 'in_progress', 'submitted'].includes(selectedJob.proofreader_status) && <div className="tm-human-assign"><strong>Human reviewer</strong><p>Choose a qualified proofreader instead of the AI reviewer. The admin still makes the final decision.</p><label>Reviewer rated at least 4.5/5<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose a human reviewer</option>{workers.filter((worker) => worker.can_proofread && worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {Number(worker.rating).toFixed(1)}/5 · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign human reviewer</button></div>}
+            {mode === 'admin' && selectedJob.job_type !== 'pdf_job' && selectedJob.reviewer_choice !== 'human' && ((splitJob && (selectedJob.segments || []).length > 0 && (selectedJob.segments || []).every((part) => part.status === 'submitted')) || (!splitJob && ['submitted', 'client_review', 'client_approved', 'released'].includes(selectedJob.status) && String(selectedJob.transcript || '').trim())) && <AdminAiReviewPanel job={selectedJob} act={act} busy={busy} splitJob={splitJob} onInsert={insertAiReviewedTranscript} allowApply={selectedJob.status === 'submitted'} />}
             {mode === 'admin' && <AdminPartReview job={selectedJob} act={act} downloadProtectedFile={downloadProtectedFile} />}
 
 
-            {mode === 'admin' && selectedJob.status === 'submitted' && <div className="tm-human-review"><label>Worker rating<select value={rating} onChange={(event) => setRating(event.target.value)}><option value="5">5 — excellent</option><option value="4">4 — strong</option><option value="3">3 — acceptable</option><option value="2">2 — needs work</option><option value="1">1 — poor</option></select></label><textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder={selectedJob.admin_uploaded ? 'Internal review notes for this admin-uploaded job' : 'Notes for the client and worker'} /><button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating, feedback }) }, selectedJob.admin_uploaded ? 'Admin-uploaded work approved and completed.' : selectedJob.job_type === 'pdf_job' ? 'PDF transcription approved and completed.' : 'Sent to client for review.')}>{selectedJob.admin_uploaded ? 'Approve internal work' : selectedJob.job_type === 'pdf_job' ? 'Approve PDF transcription' : 'Send to client'}</button></div>}
+            {mode === 'admin' && selectedJob.status === 'submitted' && <div className="tm-human-review"><label>Worker rating<select value={rating} onChange={(event) => setRating(event.target.value)}><option value="5">5 — excellent</option><option value="4">4 — strong</option><option value="3">3 — acceptable</option><option value="2">2 — needs work</option><option value="1">1 — poor</option></select></label><textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder={selectedJob.admin_uploaded ? 'Internal review notes for this admin-uploaded job' : 'Notes for the client and worker'} /><button type="button" disabled={busy || !adminReviewerComplete(selectedJob)} title={!adminReviewerComplete(selectedJob) ? 'Complete the selected AI or human review before final admin approval.' : undefined} onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating, feedback }) }, selectedJob.admin_uploaded ? 'Admin-uploaded work approved and completed.' : selectedJob.job_type === 'pdf_job' ? 'PDF transcription approved and completed.' : 'Sent to client for review.')}>{selectedJob.admin_uploaded ? 'Approve internal work' : selectedJob.job_type === 'pdf_job' ? 'Approve PDF transcription' : 'Send to client'}</button></div>}
 
             {selectedJob.job_type === 'pdf_job' && !(mode === 'worker' && workerTab === 'available') && <div className="tm-human-pdf-image-card"><div><strong>{selectedJob.pdf_review ? 'Whole-file review: all pages' : 'Assigned image'}</strong><span>{selectedJob.pdf_image?.source_filename || selectedJob.pdf_image?.name}{selectedJob.pdf_image?.page_count > 1 && !selectedJob.pdf_review ? ` · Page ${selectedJob.pdf_image.page_number} of ${selectedJob.pdf_image.page_count}` : ''}</span></div>{pdfImageUrls.length > 1 ? pdfImageUrls.map((url, index) => <img key={url} src={url} alt={`Page ${index + 1} of ${pdfImageUrls.length}`} />) : pdfImageUrl ? <img src={pdfImageUrl} alt={`Transcribe ${selectedJob.pdf_image?.name || 'PDF Job'}`} /> : <p role={pdfImageError ? 'alert' : 'status'}>{pdfImageError || 'Loading the private image…'}</p>}</div>}
             {audioKey && <WorkerAudioPlayer src={audioUrl} loading={audioLoading} error={audioError} title={audioSegmentId ? 'Your part of the recording' : 'Source recording'} note={audioSegmentId ? 'Only your assigned part is played and downloaded here.' : 'Available to the client, admin and assigned worker.'} filename={audioSegmentId ? `${(workerAssignment?.label || 'part').replace(/[^A-Za-z0-9]+/g, '-').toLowerCase()}.mp3` : (selectedJob?.audio?.name || 'recording.mp3')} />}
@@ -1193,6 +1212,164 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       )}
     </section>
   );
+}
+
+function WorkerShiftPanel({ showMessage }) {
+  const { currentUser } = useAuth();
+  const [shift, setShift] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadShift = useCallback(async (quiet = false) => {
+    if (!currentUser) return;
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${BACKEND_URL}/human-transcription/worker/shift`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || 'Shift status could not be loaded.');
+      setShift(payload);
+      setError('');
+    } catch (loadError) {
+      if (!quiet) setError(loadError.message || 'Shift status could not be loaded.');
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    loadShift();
+    const timer = window.setInterval(() => loadShift(true), 30000);
+    return () => window.clearInterval(timer);
+  }, [loadShift]);
+
+  useEffect(() => {
+    if (!shift?.clocked_in || !currentUser) return undefined;
+    const timer = window.setInterval(async () => {
+      try {
+        const token = await currentUser.getIdToken();
+        const response = await fetch(`${BACKEND_URL}/human-transcription/worker/shift/presence`, {
+          method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: '{}',
+        });
+        if (response.ok) setShift(await response.json());
+      } catch { /* Presence is refreshed again on the next interval. */ }
+    }, 60000);
+    return () => window.clearInterval(timer);
+  }, [currentUser, shift?.clocked_in]);
+
+  const act = async (path) => {
+    if (busy || !currentUser) return;
+    setBusy(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${BACKEND_URL}${path}`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: '{}',
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || 'The shift update could not be saved.');
+      setShift(payload);
+      setError('');
+      showMessage?.(path.endsWith('clock-in') ? 'You are clocked in.' : 'You are clocked out.', 'success');
+    } catch (actionError) {
+      showMessage?.(actionError.message || 'The shift update could not be saved.', 'error');
+    } finally {
+      setBusy(false);
+      loadShift(true);
+    }
+  };
+
+  const onShift = Boolean(shift?.clocked_in);
+  const statusLabel = ({ online: 'On shift · online', clocked_in_idle: 'On shift · presence not refreshed', called_in_not_clocked_in: 'Admin call-in · clock in to start', not_arrived: 'Shift open · clock in to claim', clocked_out: 'Clocked out', missed: 'Shift ended · not clocked in', off_shift: 'Outside shift hours', retraining: 'Training Room' }[shift?.status] || 'Checking shift status');
+  return <section className={`tm-worker-shift-card${shift?.warning ? ' has-warning' : ''}`} aria-label="Your shift status">
+    <div className="tm-worker-shift-main">
+      <span className={`tm-worker-shift-indicator is-${shift?.status || 'loading'}`} aria-hidden="true" />
+      <div className="tm-worker-shift-copy">
+        <div className="tm-worker-shift-heading"><strong>{statusLabel}</strong>{shift?.misses_consecutive > 0 && <span className="tm-worker-shift-count">{shift.misses_consecutive}/6 missed</span>}</div>
+        <p>{shift?.message || 'Loading today’s shift details…'}</p>
+        {shift?.warning && <small className="tm-worker-shift-warning">Five missed shifts in a row. Attend your next scheduled shift to keep your work access.</small>}
+        {onShift && shift?.has_active_assignment && !shift?.scheduled_now && <small className="tm-worker-shift-warning">Finish your active job before clocking out. New work cannot be claimed after 8:00 p.m.</small>}
+        {error && <small className="tm-worker-shift-error" role="alert">{error}</small>}
+      </div>
+    </div>
+    <div className="tm-worker-shift-actions">
+      <span>Daily · 3:00 p.m.–8:00 p.m. Kenya time</span>
+      {shift?.can_clock_in && <button type="button" onClick={() => act('/human-transcription/worker/shift/clock-in')} disabled={busy}>{busy ? 'Saving…' : 'Clock in'}</button>}
+      {onShift && <button type="button" onClick={() => act('/human-transcription/worker/shift/clock-out')} disabled={busy || shift?.has_active_assignment} title={shift?.has_active_assignment ? 'Finish your active job before clocking out.' : undefined}>{busy ? 'Saving…' : 'Clock out'}</button>}
+    </div>
+  </section>;
+}
+
+function AdminShiftAttendancePanel({ showMessage }) {
+  const { currentUser } = useAuth();
+  const [workers, setWorkers] = useState([]);
+  const [date, setDate] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [workingUid, setWorkingUid] = useState('');
+  const [error, setError] = useState('');
+
+  const loadAttendance = useCallback(async (quiet = false) => {
+    if (!currentUser) return;
+    if (!quiet) setLoading(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${BACKEND_URL}/human-transcription/admin/shifts`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || 'Shift attendance could not be loaded.');
+      setWorkers(payload.workers || []);
+      setDate(payload.date || '');
+      setError('');
+    } catch (loadError) {
+      setError(loadError.message || 'Shift attendance could not be loaded.');
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    loadAttendance();
+    const timer = window.setInterval(() => loadAttendance(true), 30000);
+    return () => window.clearInterval(timer);
+  }, [loadAttendance]);
+
+  const callIn = async (worker) => {
+    if (workingUid || !currentUser) return;
+    if (!window.confirm(`Call ${worker.name} in for up to four hours? They will receive an alert and must clock in before claiming work.`)) return;
+    setWorkingUid(worker.uid);
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${BACKEND_URL}/human-transcription/admin/workers/${encodeURIComponent(worker.uid)}/shift-call-in`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'Admin call-in' }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || 'The worker could not be called in.');
+      showMessage?.(`${worker.name} has been called in and can clock in for four hours.`, 'success');
+      await loadAttendance(true);
+    } catch (callError) {
+      showMessage?.(callError.message || 'The worker could not be called in.', 'error');
+    } finally {
+      setWorkingUid('');
+    }
+  };
+
+  const statusText = (status) => ({ online: 'Online', clocked_in_idle: 'Clocked in · offline', called_in_not_clocked_in: 'Called in · not clocked in', not_arrived: 'Not arrived', missed: 'Missed shift', clocked_out: 'Clocked out', off_shift: 'Off shift', retraining: 'Training Room' }[status] || status || 'Unknown');
+  const onlineCount = workers.filter((worker) => worker.online).length;
+  const notArrivedCount = workers.filter((worker) => worker.status === 'not_arrived').length;
+  const trainingCount = workers.filter((worker) => worker.status === 'retraining').length;
+
+  return <section className="tm-admin-panel tm-human-shift-admin">
+    <div className="tm-admin-panel-head">
+      <div><p className="tm-admin-kicker">Africa/Nairobi · {date || 'today'}</p><h2 className="tm-admin-panel-title">Shift attendance</h2><p className="tm-admin-panel-note">Regular shifts run daily from 3:00 p.m. to 8:00 p.m. Kenya time. Online presence refreshes while a worker’s Work Room is open.</p></div>
+      <button type="button" className="tm-admin-btn" onClick={() => loadAttendance()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
+    </div>
+    <div className="tm-human-shift-summary"><span><strong>{onlineCount}</strong> online</span><span><strong>{notArrivedCount}</strong> not arrived</span><span><strong>{trainingCount}</strong> in retraining</span><small>Warning at 5 consecutive missed shifts · Training Room at 6</small></div>
+    {error && <p className="tm-letter-job-error" role="alert">{error}</p>}
+    {loading && !workers.length ? <div className="tm-admin-empty">Loading shift attendance…</div> : !workers.length ? <div className="tm-admin-empty">No approved workers are on the shift roster yet.</div> : <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Worker</th><th>Attendance</th><th>Recent presence</th><th>Missed shifts</th><th>Admin action</th></tr></thead><tbody>
+      {workers.map((worker) => <tr key={worker.uid}>
+        <td><strong>{worker.name}</strong><div className="tm-admin-name">{worker.email}{worker.rating != null ? ` · ${Number(worker.rating).toFixed(2)}/5` : ''}</div></td>
+        <td><span className={`tm-human-shift-status is-${worker.status}`}>{statusText(worker.status)}</span>{worker.message && <div className="tm-admin-name">{worker.message}</div>}</td>
+        <td>{worker.last_presence_at ? moneylessDate(worker.last_presence_at) : 'Not recorded'}{worker.call_in_expires_at && worker.call_in_active && <div className="tm-admin-name">Call-in ends {moneylessDate(worker.call_in_expires_at)}</div>}</td>
+        <td>{worker.misses_consecutive || 0} / 6{worker.warning && <div className="tm-worker-shift-warning">Warning issued</div>}</td>
+        <td>{worker.status === 'retraining' ? 'No call-in while retraining' : <button type="button" className="tm-admin-btn" disabled={workingUid === worker.uid || worker.online} onClick={() => callIn(worker)}>{workingUid === worker.uid ? 'Calling in…' : worker.call_in_active ? 'Extend call-in' : 'Call in'}</button>}</td>
+      </tr>)}
+    </tbody></table></div>}
+  </section>;
 }
 
 function AdminTranscriberRatePanel({ request, showMessage }) {
