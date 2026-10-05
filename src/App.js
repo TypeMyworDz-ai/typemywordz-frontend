@@ -644,7 +644,7 @@ function AppContent() {
   // and must never be routed through the ordinary client workspace first.
   useEffect(() => {
     if (!currentUser || !isTrainee) return;
-    if (currentView === 'human_transcripts') setCurrentView('trainee');
+    if (currentView === 'human_transcripts' || currentView === 'human_worker') setCurrentView('trainee');
     const params = new URLSearchParams(window.location.search);
     if (params.get('open') !== 'training-room') return;
     setCurrentView('trainee');
