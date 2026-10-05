@@ -45,7 +45,7 @@ test('creates one whole Letter Job from a complete recording', async () => {
   render(<LetterJobsAdminPanel />);
   const audio = new File(['synthetic audio'], 'dictated-letter.mp3', { type: 'audio/mpeg' });
   fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [audio] } });
-  fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '180' } });
+  fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '3' } });
   fireEvent.change(screen.getByLabelText('Job name'), { target: { value: 'Sample letter' } });
   fireEvent.click(screen.getByRole('button', { name: 'Create complete Letter Job' }));
   await waitFor(() => expect(global.fetch.mock.calls.some(([url, callOptions]) => String(url).endsWith('/admin/letter-jobs') && callOptions?.method === 'POST')).toBe(true));

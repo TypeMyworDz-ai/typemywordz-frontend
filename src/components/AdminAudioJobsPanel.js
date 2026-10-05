@@ -4,6 +4,7 @@ import './AdminAudioJobsPanel.css';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 const ADMIN_EMAILS = new Set(['typemywordz@gmail.com', 'info@typemywordz.ai']);
+const DEFAULT_ADMIN_NOTE = 'Client provided spellings and other instructions: None';
 const dateLabel = (value) => {
   if (!value) return '—';
   const date = new Date(value);
@@ -31,9 +32,9 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
   const [workingFile, setWorkingFile] = useState(null);
   const [fileKey, setFileKey] = useState(0);
   const [title, setTitle] = useState('');
-  const [seconds, setSeconds] = useState('');
+  const [minutes, setMinutes] = useState('');
   const [durationNote, setDurationNote] = useState('The length is detected when your browser can read the recording. Check it before creating the job.');
-  const [instructions, setInstructions] = useState('');
+  const [instructions, setInstructions] = useState(DEFAULT_ADMIN_NOTE);
   const [references, setReferences] = useState([]);
   const [referenceKey, setReferenceKey] = useState(0);
   const [templateFile, setTemplateFile] = useState(null);
@@ -66,7 +67,7 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
 
   const onAudioSelected = (file) => {
     setWorkingFile(file || null);
-    setSeconds('');
+    setMinutes('');
     setDurationNote('The length is detected when your browser can read the recording. Check it before creating the job.');
     if (!file || typeof window.Audio !== 'function' || !window.URL?.createObjectURL) return;
     const url = window.URL.createObjectURL(file);
@@ -74,13 +75,14 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
     probe.preload = 'metadata';
     probe.onloadedmetadata = () => {
       if (Number.isFinite(probe.duration) && probe.duration > 0) {
-        setSeconds(String(Math.ceil(probe.duration)));
-        setDurationNote(`Detected ${Math.ceil(probe.duration)} seconds. Adjust the length if needed.`);
-      } else setDurationNote('Enter the recording length in seconds.');
+        const detectedMinutes = Number((probe.duration / 60).toFixed(2));
+        setMinutes(String(detectedMinutes));
+        setDurationNote(`Detected ${detectedMinutes} minutes (${Math.ceil(probe.duration)} seconds). Adjust if needed.`);
+      } else setDurationNote('Enter the recording length in minutes.');
       window.URL.revokeObjectURL(url);
     };
     probe.onerror = () => {
-      setDurationNote('The browser could not read the duration. Enter the recording length in seconds.');
+      setDurationNote('The browser could not read the duration. Enter the recording length in minutes.');
       window.URL.revokeObjectURL(url);
     };
     probe.src = url;
@@ -92,14 +94,14 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
 
   const createJob = async (event) => {
     event.preventDefault();
-    if (!workingFile || uploading || !Number(seconds) || !templateFilePresent || !referencesValid) return;
+    if (!workingFile || uploading || !Number(minutes) || !templateFilePresent || !referencesValid) return;
     setUploading(true);
     try {
       const token = await currentUser.getIdToken();
       const form = new FormData();
       form.append('audio', workingFile, workingFile.name);
       form.append('title', title.trim() || workingFile.name);
-      form.append('seconds', String(seconds));
+      form.append('seconds', String(Number(minutes) * 60));
       form.append('instructions', instructions.trim());
       form.append('category', category);
       if (templateJob && templateFile) form.append('template_file', templateFile, templateFile.name);
@@ -111,7 +113,7 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
       if (!response.ok) throw new Error(payload.detail || 'The job could not be created.');
       setWorkingFile(null);
       setFileKey((value) => value + 1);
-      setTitle(''); setSeconds(''); setInstructions(''); setReferences([]); setTemplateFile(null);
+      setTitle(''); setMinutes(''); setInstructions(DEFAULT_ADMIN_NOTE); setReferences([]); setTemplateFile(null);
       setReferenceKey((value) => value + 1);
       setTemplateFileKey((value) => value + 1);
       setDurationNote('The length is detected when your browser can read the recording. Check it before creating the job.');
@@ -151,7 +153,7 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
         <div className="tm-admin-audio-fields">
           <label><span>Recording</span><input key={fileKey} type="file" accept=".mp3,.wav,.m4a,.mp4,.webm,.ogg,.flac,.aac,.mov,.mkv,.avi,audio/*,video/*" required onChange={(event) => onAudioSelected(event.target.files?.[0] || null)} /></label>
           <label><span>Job name</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Optional · defaults to the filename" maxLength={180} /></label>
-          <label><span>Recording length (seconds)</span><input type="number" min="1" step="1" value={seconds} onChange={(event) => setSeconds(event.target.value)} required /></label>
+          <label><span>Recording length (minutes)</span><input type="number" min="0.01" step="0.01" value={minutes} onChange={(event) => setMinutes(event.target.value)} required /></label>
           <p className="tm-admin-audio-duration" role="status">{durationNote}</p>
           <label className="tm-admin-audio-wide"><span>Admin notes and special instructions</span><textarea rows={4} maxLength={12000} value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder="Optional instructions that apply to this recording. The job type's hardcoded rules remain in force." /></label>
           {templateJob && <label className="tm-admin-audio-wide"><span>Job-specific Word template (.docx)</span><input key={templateFileKey} type="file" aria-label="Job-specific Word template" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required onChange={(event) => setTemplateFile(event.target.files?.[0] || null)} />
@@ -165,7 +167,7 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
             {!referencesValid && <small className="tm-admin-audio-error" role="alert">Attach no more than {maxReferences} supporting files.</small>}
           </label>
         </div>
-        <footer className="tm-admin-audio-form-footer"><span>{templateJob ? 'Template Agent: Claude Opus 5.5, with GPT-5.6 Sol fallback.' : 'General Agent: Claude Opus 5.5, with GPT-5.6 Sol fallback.'}</span><button type="submit" disabled={uploading || !workingFile || !Number(seconds) || !templateFilePresent || !referencesValid}>{uploading ? 'Uploading securely…' : `Create ${templateJob ? 'Template' : 'General'} Job`}</button></footer>
+        <footer className="tm-admin-audio-form-footer"><span>{templateJob ? 'Template Agent: Claude Opus 5.5, with GPT-5.6 Sol fallback.' : 'General Agent: Gemini 3.8 Flash, with Claude Opus 5.5 fallback.'}</span><button type="submit" disabled={uploading || !workingFile || !Number(minutes) || !templateFilePresent || !referencesValid}>{uploading ? 'Uploading securely…' : `Create ${templateJob ? 'Template' : 'General'} Job`}</button></footer>
       </form>
 
       <section className="tm-admin-audio-list" aria-labelledby="tm-admin-audio-list-title">

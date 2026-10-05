@@ -78,6 +78,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const { currentUser, refreshUserProfile } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [workers, setWorkers] = useState([]);
+  const [adminScheduledNow, setAdminScheduledNow] = useState(null);
   const [selectedId, setSelectedId] = useState('');
   const [messages, setMessages] = useState([]);
   const [messageText, setMessageText] = useState('');
@@ -117,9 +118,11 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [paymentHistory, setPaymentHistory] = useState(null);
   const [adminTab, setAdminTab] = useState('queue');
   const adminEmail = (currentUser?.email || '').trim().toLowerCase();
+  const isMainAdmin = adminEmail === 'typemywordz@gmail.com';
   const canManagePdfJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai'].includes(adminEmail);
   const canManageLetterJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai'].includes(adminEmail);
   const canAssignAiAgents = ['typemywordz@gmail.com', 'info@typemywordz.ai'].includes(adminEmail);
+  const adminAssignableWorkers = workers.filter((worker) => worker.approved !== false && (adminScheduledNow || worker.online));
   const [adminQueueLane, setAdminQueueLane] = useState('needs_action');
   const [adminQueueType, setAdminQueueType] = useState('all');
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -225,6 +228,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     try {
       const payload = await request('/human-transcription/workers');
       setWorkers(payload.workers || []);
+      setAdminScheduledNow(payload.scheduled_now !== false);
     } catch (error) {
       showMessage?.(error.message, 'error');
     }
@@ -288,6 +292,13 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   }, [request, selectedJob?.id, mode, workerTab, jobHasAssignedWorker]);
 
   useEffect(() => { loadJobs(); loadWorkers(); loadPayments(); loadAvailability(); }, [loadJobs, loadWorkers, loadPayments, loadAvailability]);
+  useEffect(() => {
+    if (mode !== 'admin') return undefined;
+    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') loadWorkers(); };
+    const timer = window.setInterval(refreshWhenVisible, 15000);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', refreshWhenVisible); };
+  }, [mode, loadWorkers]);
   useEffect(() => {
     setTemplateAgentGuidelines('');
     setTemplateAgentFiles([]);
@@ -411,11 +422,11 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     };
   }, [loadMessages, selectedJob?.id]);
 
-  // Short visible-tab polling keeps assignments, deadlines, submissions and
-  // client review states in sync without asking anyone to refresh manually.
+  // Visible-tab polling keeps assignments, deadlines, submissions and
+  // client review states in sync without frequent redundant requests.
   useEffect(() => {
     const refreshWhenVisible = () => { if (document.visibilityState === 'visible') loadJobs(); };
-    const interval = window.setInterval(refreshWhenVisible, 3000);
+    const interval = window.setInterval(refreshWhenVisible, 8000);
     window.addEventListener('focus', refreshWhenVisible);
     document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => {
@@ -734,7 +745,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           <h1>{mode === 'admin' ? 'Human work queue' : mode === 'worker' ? 'Your Work Room' : 'Your human-transcription work'}</h1>
           <p>{mode === 'admin' ? 'Approve client requests, monitor worker claims, review delivery and release credits only after approval.' : mode === 'worker' ? 'Claim one available job or slice at a time, submit it, then return for more work.' : 'Follow each request from quote to delivery. Credits remain untouched until the finished work is approved and released.'}</p>
         </div>
-        {mode === 'worker' && <label className="tm-worker-availability-toggle"><input type="checkbox" checked={workerAvailable} disabled={availabilitySaving} onChange={updateWorkerAvailability} /><span><strong>{workerAvailable ? 'Available for work' : 'Not accepting new work'}</strong><small>{availabilitySaving ? 'Saving…' : 'You can change this at any time.'}</small></span></label>}
+        {mode === 'worker' && <label className="tm-worker-availability-toggle"><input type="checkbox" checked={workerAvailable} disabled={availabilitySaving} onChange={updateWorkerAvailability} /><span><strong>{workerAvailable ? 'Available for work' : 'Not accepting new work'}</strong><small>{availabilitySaving ? 'Saving…' : 'Controls new queue work; it does not clock you in.'}</small></span></label>}
         <button className="tm-human-refresh" type="button" onClick={() => { loadJobs(); loadWorkers(); loadPayments(); loadAvailability(); }}>Refresh</button>
       </div>
 
@@ -775,15 +786,15 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       {mode === 'admin' && (
         <div className="tm-human-thread-tabs tm-worker-room-tabs" role="tablist" aria-label="Admin dashboard sections">
           <button type="button" role="tab" aria-selected={adminTab === 'queue'} className={adminTab === 'queue' ? 'active' : ''} onClick={() => setAdminTab('queue')}>Job Queue</button>
-          {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'shifts'} className={adminTab === 'shifts' ? 'active' : ''} onClick={() => setAdminTab('shifts')}>Shift attendance</button>}
+          {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'general_jobs'} className={adminTab === 'general_jobs' ? 'active' : ''} onClick={() => setAdminTab('general_jobs')}>General Jobs</button>}
+          {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'letter_jobs'} className={adminTab === 'letter_jobs' ? 'active' : ''} onClick={() => setAdminTab('letter_jobs')}>Letter Jobs</button>}
+          {canManagePdfJobs && <button type="button" role="tab" aria-selected={adminTab === 'text_messages'} className={adminTab === 'text_messages' ? 'active' : ''} onClick={() => setAdminTab('text_messages')}>Text Messages</button>}
+          {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'template_jobs'} className={adminTab === 'template_jobs' ? 'active' : ''} onClick={() => setAdminTab('template_jobs')}>Template Jobs</button>}
+          {canManagePdfJobs && <button type="button" role="tab" aria-selected={adminTab === 'pdf_jobs'} className={adminTab === 'pdf_jobs' ? 'active' : ''} onClick={() => setAdminTab('pdf_jobs')}>PDF Jobs</button>}
+          {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'shifts'} className={adminTab === 'shifts' ? 'active' : ''} onClick={() => setAdminTab('shifts')}>Shift attendance</button>}
           {!restricted && <button type="button" role="tab" aria-selected={adminTab === 'payouts'} className={adminTab === 'payouts' ? 'active' : ''} onClick={() => setAdminTab('payouts')}>Worker Payments · KES</button>}
           {!restricted && <button type="button" role="tab" aria-selected={adminTab === 'rates'} className={adminTab === 'rates' ? 'active' : ''} onClick={() => setAdminTab('rates')}>Worker rates</button>}
           {!restricted && <button type="button" role="tab" aria-selected={adminTab === 'cleanup'} className={adminTab === 'cleanup' ? 'active' : ''} onClick={() => setAdminTab('cleanup')}>Job cleanup</button>}
-          {canManagePdfJobs && <button type="button" role="tab" aria-selected={adminTab === 'pdf_jobs'} className={adminTab === 'pdf_jobs' ? 'active' : ''} onClick={() => setAdminTab('pdf_jobs')}>PDF Jobs</button>}
-          {canManagePdfJobs && <button type="button" role="tab" aria-selected={adminTab === 'text_messages'} className={adminTab === 'text_messages' ? 'active' : ''} onClick={() => setAdminTab('text_messages')}>Text Messages</button>}
-          {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'general_jobs'} className={adminTab === 'general_jobs' ? 'active' : ''} onClick={() => setAdminTab('general_jobs')}>General Jobs</button>}
-          {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'template_jobs'} className={adminTab === 'template_jobs' ? 'active' : ''} onClick={() => setAdminTab('template_jobs')}>Template Jobs</button>}
-          {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'letter_jobs'} className={adminTab === 'letter_jobs' ? 'active' : ''} onClick={() => setAdminTab('letter_jobs')}>Letter Jobs</button>}
         </div>
       )}
 
@@ -797,7 +808,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <AdminAudioJobsPanel category="template" showMessage={showMessage} onOpenQueue={(job) => { setAdminQueueType('template_job'); setAdminQueueLane(adminQueueLaneFor(job)); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'letter_jobs' && canManageLetterJobs ? (
         <LetterJobsAdminPanel showMessage={showMessage} />
-      ) : mode === 'admin' && adminTab === 'shifts' && canManageLetterJobs ? (
+      ) : mode === 'admin' && adminTab === 'shifts' && isMainAdmin ? (
         <AdminShiftAttendancePanel showMessage={showMessage} />
       ) : mode === 'worker' && workerTab === 'payments' ? (
         <div className="tm-human-chat-card tm-worker-payment-panel">
@@ -904,7 +915,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <section className="tm-ai-agent-panel" aria-label="AI first-draft agents">
                 <div className="tm-ai-agent-copy">
                   <strong>AI first draft <span>Human proofreading required</span></strong>
-                  <p>Choose a general or template-aware internal agent for an available job or part. Both audio agents use Claude Opus 5.5 first and GPT-5.6 Sol only as fallback. The draft stays out of the client view until an approved proofreader submits the checked version.</p>
+                  <p>Choose the job-specific internal agent for an available job or part. General Jobs use Gemini 3.8 Flash with Claude Opus 5.5 fallback; Template Jobs use Claude Opus 5.5 with GPT-5.6 Sol fallback. The draft stays out of the client view until an approved proofreader submits the checked version.</p>
                 </div>
                 {splitJob && <label className="tm-ai-agent-part">Part
                   <select value={aiAgentSegment || (selectedJob.segments || []).find((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid)?.id || ''} onChange={(event) => setAiAgentSegment(event.target.value)}>
@@ -1033,7 +1044,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <label>Worker
                 <select value={wholeWorker} onChange={(event) => setWholeWorker(event.target.value)}>
                   <option value="">Choose an approved worker</option>
-                  {workers.filter((worker) => worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.rating == null ? 'not rated' : `${Number(worker.rating).toFixed(1)}/5`} · {worker.email}</option>)}
+                  {adminAssignableWorkers.filter((worker) => worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.rating == null ? 'not rated' : `${Number(worker.rating).toFixed(1)}/5`} · {worker.email}</option>)}
                 </select>
               </label>
               <button type="button" disabled={busy || !wholeWorker} onClick={() => setWholeConfirm(true)}>Assign whole job</button>
@@ -1048,7 +1059,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <label>Supervised starter assessment
                 <select value={starterWorker} onChange={(event) => setStarterWorker(event.target.value)}>
                   <option value="">Choose an unrated or below-threshold worker</option>
-                  {workers.filter((worker) => worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}
+                  {adminAssignableWorkers.filter((worker) => worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}
                 </select>
               </label>
               <button type="button" disabled={busy || !starterWorker} onClick={assignSupervisedStarter}>Assign supervised starter</button>
@@ -1068,7 +1079,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 <label>Worker
                   <select value={starterWorker} onChange={(event) => setStarterWorker(event.target.value)}>
                     <option value="">Choose an unrated or below-threshold worker</option>
-                    {workers.filter((worker) => worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}
+                    {adminAssignableWorkers.filter((worker) => worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}
                   </select>
                 </label>
                 <button type="button" disabled={busy || !starterWorker || !starterSegment} onClick={assignSupervisedStarter}>Assign supervised starter part</button>
@@ -1076,8 +1087,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               </div>
             )}
 
-            {mode === 'admin' && splitJob && ['split_assigned', 'split_in_progress', 'proofreading_available', 'submitted'].includes(selectedJob.status) && (selectedJob.segments || []).some((part) => part.status === 'submitted') && !['ai', 'human'].includes(selectedJob.reviewer_choice) && !['assigned', 'in_progress', 'submitted'].includes(selectedJob.proofreader_status) && <div className="tm-human-assign"><label>Assign a proofreader<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose a worker rated 4.5 or higher</option>{workers.filter((worker) => worker.can_proofread && worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {Number(worker.rating).toFixed(1)}/5 · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign human reviewer</button><p className="tm-tat-hint">Only workers rated 4.5/5 or higher can review. You can assign before every part is in. They will get one editor with all submitted parts and can submit after the full job is complete.</p></div>}
-            {mode === 'admin' && !splitJob && selectedJob.status === 'submitted' && selectedJob.job_type !== 'pdf_job' && selectedJob.job_type !== 'letter_job' && !['ai', 'human'].includes(selectedJob.reviewer_choice) && !['assigned', 'in_progress', 'submitted'].includes(selectedJob.proofreader_status) && <div className="tm-human-assign"><strong>Human reviewer</strong><p>Choose a qualified proofreader instead of the AI reviewer. The admin still makes the final decision.</p><label>Reviewer rated at least 4.5/5<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose a human reviewer</option>{workers.filter((worker) => worker.can_proofread && worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {Number(worker.rating).toFixed(1)}/5 · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign human reviewer</button></div>}
+            {mode === 'admin' && splitJob && ['split_assigned', 'split_in_progress', 'proofreading_available', 'submitted'].includes(selectedJob.status) && (selectedJob.segments || []).some((part) => part.status === 'submitted') && !['ai', 'human'].includes(selectedJob.reviewer_choice) && !['assigned', 'in_progress', 'submitted'].includes(selectedJob.proofreader_status) && <div className="tm-human-assign"><label>Assign a proofreader<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose a worker rated 4.5 or higher</option>{adminAssignableWorkers.filter((worker) => worker.can_proofread && worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {Number(worker.rating).toFixed(1)}/5 · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign human reviewer</button><p className="tm-tat-hint">Only workers rated 4.5/5 or higher can review. You can assign before every part is in. They will get one editor with all submitted parts and can submit after the full job is complete.</p></div>}
+            {mode === 'admin' && !splitJob && selectedJob.status === 'submitted' && selectedJob.job_type !== 'pdf_job' && selectedJob.job_type !== 'letter_job' && !['ai', 'human'].includes(selectedJob.reviewer_choice) && !['assigned', 'in_progress', 'submitted'].includes(selectedJob.proofreader_status) && <div className="tm-human-assign"><strong>Human reviewer</strong><p>Choose a qualified proofreader instead of the AI reviewer. The admin still makes the final decision.</p><label>Reviewer rated at least 4.5/5<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose a human reviewer</option>{adminAssignableWorkers.filter((worker) => worker.can_proofread && worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {Number(worker.rating).toFixed(1)}/5 · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign human reviewer</button></div>}
             {mode === 'admin' && selectedJob.job_type !== 'pdf_job' && selectedJob.reviewer_choice !== 'human' && ((splitJob && (selectedJob.segments || []).length > 0 && (selectedJob.segments || []).every((part) => part.status === 'submitted')) || (!splitJob && ['submitted', 'client_review', 'client_approved', 'released'].includes(selectedJob.status) && String(selectedJob.transcript || '').trim())) && <AdminAiReviewPanel job={selectedJob} act={act} busy={busy} splitJob={splitJob} onInsert={insertAiReviewedTranscript} allowApply={selectedJob.status === 'submitted'} />}
             {mode === 'admin' && <AdminPartReview job={selectedJob} act={act} downloadProtectedFile={downloadProtectedFile} />}
 
@@ -1283,13 +1294,14 @@ function WorkerShiftPanel({ showMessage }) {
       <div className="tm-worker-shift-copy">
         <div className="tm-worker-shift-heading"><strong>{statusLabel}</strong>{shift?.misses_consecutive > 0 && <span className="tm-worker-shift-count">{shift.misses_consecutive}/6 missed</span>}</div>
         <p>{shift?.message || 'Loading today’s shift details…'}</p>
+        <small>Clock in to register attendance. “Available for work” is a separate setting for claiming queue jobs.</small>
         {shift?.warning && <small className="tm-worker-shift-warning">Five missed shifts in a row. Attend your next scheduled shift to keep your work access.</small>}
         {onShift && shift?.has_active_assignment && !shift?.scheduled_now && <small className="tm-worker-shift-warning">Finish your active job before clocking out. New work cannot be claimed after 8:00 p.m.</small>}
         {error && <small className="tm-worker-shift-error" role="alert">{error}</small>}
       </div>
     </div>
     <div className="tm-worker-shift-actions">
-      <span>Daily · 3:00 p.m.–8:00 p.m. Kenya time</span>
+      <span>Mon–Fri · 3:00 p.m.–8:00 p.m. Kenya time</span>
       {shift?.can_clock_in && <button type="button" onClick={() => act('/human-transcription/worker/shift/clock-in')} disabled={busy}>{busy ? 'Saving…' : 'Clock in'}</button>}
       {onShift && <button type="button" onClick={() => act('/human-transcription/worker/shift/clock-out')} disabled={busy || shift?.has_active_assignment} title={shift?.has_active_assignment ? 'Finish your active job before clocking out.' : undefined}>{busy ? 'Saving…' : 'Clock out'}</button>}
     </div>
@@ -1355,7 +1367,7 @@ function AdminShiftAttendancePanel({ showMessage }) {
 
   return <section className="tm-admin-panel tm-human-shift-admin">
     <div className="tm-admin-panel-head">
-      <div><p className="tm-admin-kicker">Africa/Nairobi · {date || 'today'}</p><h2 className="tm-admin-panel-title">Shift attendance</h2><p className="tm-admin-panel-note">Regular shifts run daily from 3:00 p.m. to 8:00 p.m. Kenya time. Online presence refreshes while a worker’s Work Room is open.</p></div>
+      <div><p className="tm-admin-kicker">Africa/Nairobi · {date || 'today'}</p><h2 className="tm-admin-panel-title">Shift attendance</h2><p className="tm-admin-panel-note">Regular shifts run Monday to Friday, 3:00 p.m. to 8:00 p.m. Kenya time. Online presence refreshes while a worker’s Work Room is open.</p></div>
       <button type="button" className="tm-admin-btn" onClick={() => loadAttendance()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
     </div>
     <div className="tm-human-shift-summary"><span><strong>{onlineCount}</strong> online</span><span><strong>{notArrivedCount}</strong> not arrived</span><span><strong>{trainingCount}</strong> in retraining</span><small>Warning at 5 consecutive missed shifts · Training Room at 6</small></div>

@@ -92,14 +92,13 @@ test('worker copies a formatted draft with the Word clipboard format', async () 
   }
 });
 
-test('admin AI-agent choices describe the Opus-first Sol-fallback route', async () => {
+test('admin AI-agent choices describe the General and Template model routes', async () => {
   setCurrentUserForTest({ uid: 'admin-1', email: 'typemywordz@gmail.com', getIdToken: async () => 'test-token' });
   render(<HumanJobWorkspace mode="admin" />);
 
   expect(await screen.findByRole('button', { name: 'Assign general agent' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Assign template-aware agent' })).toBeInTheDocument();
-  expect(screen.getByText(/Both audio agents use Claude Opus 5.5 first and GPT-5.6 Sol only as fallback\./)).toBeInTheDocument();
-  expect(screen.queryByText(/GPT Terra|Sonnet/)).not.toBeInTheDocument();
+  expect(screen.getByText(/General Jobs use Gemini 3.8 Flash with Claude Opus 5.5 fallback; Template Jobs use Claude Opus 5.5 with GPT-5.6 Sol fallback\./)).toBeInTheDocument();
 });
 
 test('admin sends extra template-job instructions and files with the template assignment', async () => {

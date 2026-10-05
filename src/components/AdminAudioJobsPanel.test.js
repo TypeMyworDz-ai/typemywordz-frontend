@@ -38,7 +38,7 @@ test('creates an admin General Job without a client quote or credit field', asyn
   render(<AdminAudioJobsPanel category="general" />);
   await screen.findByRole('heading', { name: 'General Jobs' });
   fireEvent.change(screen.getByLabelText('Recording'), { target: { files: [new File(['synthetic audio'], 'sample.mp3', { type: 'audio/mpeg' })] } });
-  fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '420' } });
+  fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '7' } });
   fireEvent.change(screen.getByLabelText('Job name'), { target: { value: 'Synthetic General QA' } });
   fireEvent.click(screen.getByRole('button', { name: 'Create General Job' }));
 
@@ -62,7 +62,7 @@ test('creates a Template Job with its job-specific Word template attached', asyn
   render(<AdminAudioJobsPanel category="template" />);
   await screen.findByRole('heading', { name: 'Template Jobs' });
   fireEvent.change(screen.getByLabelText('Recording'), { target: { files: [new File(['synthetic audio'], 'sample.mp3', { type: 'audio/mpeg' })] } });
-  fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '90' } });
+  fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '1.5' } });
   fireEvent.change(screen.getByLabelText('Job name'), { target: { value: 'Synthetic Template QA' } });
   const template = new File(['synthetic template'], 'client-template.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
   const supportingDoc = new File(['supporting reference'], 'background-reference.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
@@ -72,6 +72,7 @@ test('creates a Template Job with its job-specific Word template attached', asyn
 
   await waitFor(() => expect(global.fetch.mock.calls.some(([url, options]) => String(url).endsWith('/human-transcription/admin/audio-jobs') && options?.method === 'POST')).toBe(true));
   const [, options] = global.fetch.mock.calls.find(([url, callOptions]) => String(url).endsWith('/human-transcription/admin/audio-jobs') && callOptions?.method === 'POST');
+  expect(options.body.get('seconds')).toBe('90');
   expect(options.body.get('category')).toBe('template');
   expect(options.body.get('template_file').name).toBe('client-template.docx');
   expect(options.body.getAll('attachments').map((file) => file.name)).toContain('background-reference.docx');
