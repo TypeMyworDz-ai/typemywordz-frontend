@@ -75,7 +75,7 @@ export function AdminPartReview({ job, act, downloadProtectedFile }) {
 
 
 
-export function AdminAiReviewPanel({ job, act, busy, splitJob = true, onInsert }) {
+export function AdminAiReviewPanel({ job, act, busy, splitJob = true, onInsert, allowApply = false }) {
   const review = job.ai_review;
   const [note, setNote] = useState('');
   const flash = (message) => { setNote(message); window.setTimeout(() => setNote(''), 4000); };
@@ -106,6 +106,11 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true, onInsert }
     onInsert(review.combined_text);
     flash('Inserted into the editable proofreader transcript.');
   };
+  const applyReviewedTranscript = async () => {
+    if (!review?.combined_text || !allowApply) return;
+    if (!window.confirm('Replace this job transcript with the AI-reviewed version and move it to admin review? The final admin approval step will still remain.')) return;
+    await act(`/human-transcription/jobs/${job.id}/ai-review/apply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }, 'AI-reviewed transcript applied and ready for admin review.');
+  };
   const labelFor = (id) => (id === 'main' ? 'Full transcript' : ((job.segments || []).find((part) => part.id === id)?.label || id));
 
   const notesText = () => [
@@ -134,7 +139,7 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true, onInsert }
             minHeight={360}
             showCopyDownload={false}
             revision={`${job.id}-${(review.combined_text || '').length}`}
-            actionContent={<button type="button" className="tm-ai-output-button is-primary" disabled={busy || !onInsert || ['assigned', 'in_progress'].includes(job.proofreader_status)} onClick={useCombined}>Insert to the Editor for Proofreader</button>}
+            actionContent={<div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}><button type="button" className="tm-ai-output-button is-primary" disabled={busy || !onInsert || ['assigned', 'in_progress'].includes(job.proofreader_status)} onClick={useCombined}>Insert to the Editor for Proofreader</button>{allowApply && <button type="button" className="tm-ai-output-button" disabled={busy || running || !review?.combined_text || job.ai_review_applied === true} onClick={applyReviewedTranscript}>{job.ai_review_applied ? 'AI review applied' : 'Apply AI review to this job'}</button>}</div>}
           />
           {note && <span style={{ ...muted, color: '#267b40' }}>{note}</span>}
           {(review.changes || []).length > 0 && (

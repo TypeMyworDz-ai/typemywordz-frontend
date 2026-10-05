@@ -188,3 +188,28 @@ test('admin cannot take over a split job after any part is claimed', async () =>
   expect(await screen.findByRole('button', { name: 'Assign whole job to general agent' })).toBeDisabled();
   expect(screen.queryByRole('alertdialog', { name: 'Pause the parts and assign one whole-job draft?' })).not.toBeInTheDocument();
 });
+
+test('warns at ten deadline returns and blocks a third claim on the same whole job', async () => {
+  global.fetch = jest.fn((url) => {
+    const address = String(url);
+    if (address.includes('/human-transcription/jobs?scope=available')) return Promise.resolve(response({
+      jobs: [{
+        id: 'general-1', status: 'approved', job_type: 'general_job', job_category: 'general',
+        job_name: 'General interview', claimable_full_job: true, claim_attempt_count: 2,
+        max_claims_per_item: 2, can_claim: false,
+        claim_block_reason: 'You have already successfully claimed this job twice.',
+      }],
+      worker_rating_summary: { average: 4.5, count: 2 }, worker_can_view_available: true,
+      worker_active_assignment: false, worker_available: true, worker_can_claim: true,
+      worker_claim_block_reason: '', worker_deadline_return_count: 10, worker_deadline_warning: true,
+    }));
+    if (address.includes('/human-transcription/jobs?scope=assigned')) return Promise.resolve(response({ jobs: [] }));
+    if (address.endsWith('/human-transcription/worker/payment-history')) return Promise.resolve(response({ pending_payouts: [], paid: [], accruing: [] }));
+    if (address.includes('/human-transcription/workers')) return Promise.resolve(response({ workers: [] }));
+    return Promise.resolve(response({ jobs: [] }));
+  });
+  render(<HumanJobWorkspace mode="worker" />);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Deadline reminder · 10 returns');
+  expect(await screen.findByRole('button', { name: 'Claim job' })).toBeDisabled();
+  expect(screen.getByText(/already successfully claimed this job twice/)).toBeInTheDocument();
+});

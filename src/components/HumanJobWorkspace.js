@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import FinalTranscriptView from './FinalTranscriptView';
 import PdfJobsAdminPanel from './PdfJobsAdminPanel';
 import LetterJobsAdminPanel from './LetterJobsAdminPanel';
+import AdminAudioJobsPanel from './AdminAudioJobsPanel';
 import WordLikeEditor from './WordLikeEditor';
 import ConfirmDialog from './ConfirmDialog';
 import WorkerAudioPlayer from './WorkerAudioPlayer';
@@ -43,6 +44,9 @@ const formatCountdown = (totalSeconds) => {
 };
 
 const PAYOUT_STATUS_LABELS = { accruing: 'Accruing this half', invoiced: 'Pending payout', paid: 'Paid', all: 'All' };
+const JOB_TYPE_LABELS = { general_job: 'General Job', template_job: 'Template Job', letter_job: 'Letter Job', pdf_job: 'PDF image', human_transcription: 'Human transcription' };
+const jobTypeLabel = (job) => JOB_TYPE_LABELS[job?.job_type] || (job?.source_type === 'ai_proofreading' ? 'AI transcript proofreading' : 'Human transcription');
+
 const ADMIN_QUEUE_LANES = [
   { id: 'needs_action', label: 'Needs action' },
   { id: 'in_progress', label: 'In progress' },
@@ -58,7 +62,7 @@ const adminQueueLaneFor = (job) => {
 };
 
 export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', onInitialJobHandled, restricted = false }) {
-  const { currentUser } = useAuth();
+  const { currentUser, refreshUserProfile } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [selectedId, setSelectedId] = useState('');
@@ -94,7 +98,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   // Job-specific conversation access is admin/worker only. Client questions
   // use the separate direct-message channel.
   const [workerTab, setWorkerTab] = useState('available');
-  const [workerBoardInfo, setWorkerBoardInfo] = useState({ canView: true, canClaim: true, activeAssignment: false, blockReason: '' });
+  const [workerBoardInfo, setWorkerBoardInfo] = useState({ canView: true, canClaim: true, activeAssignment: false, blockReason: '', deadlineReturns: 0, deadlineWarning: false });
   const [starterWorker, setStarterWorker] = useState('');
   const [starterSegment, setStarterSegment] = useState('');
   const [paymentHistory, setPaymentHistory] = useState(null);
@@ -122,15 +126,18 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   }, []);
 
   const token = useCallback(() => currentUser?.getIdToken(), [currentUser]);
+  const adminQueueMatchesType = useCallback((job) => {
+    if (adminQueueType === 'all') return job.job_type !== 'letter_job';
+    if (['general_job', 'template_job', 'letter_job'].includes(adminQueueType)) return job.job_type === adminQueueType;
+    return (job.source_type || 'human_transcription') === adminQueueType;
+  }, [adminQueueType]);
   const adminQueueCounts = useMemo(() => jobs.reduce((counts, job) => {
-    const matchesType = adminQueueType === 'all' ? job.job_type !== 'letter_job' : adminQueueType === 'letter_job' ? job.job_type === 'letter_job' : (job.source_type || 'human_transcription') === adminQueueType;
-    if (matchesType) counts[adminQueueLaneFor(job)] += 1;
+    if (adminQueueMatchesType(job)) counts[adminQueueLaneFor(job)] += 1;
     return counts;
-  }, { needs_action: 0, in_progress: 0, submitted: 0, finished: 0 }), [adminQueueType, jobs]);
+  }, { needs_action: 0, in_progress: 0, submitted: 0, finished: 0 }), [adminQueueMatchesType, jobs]);
   const adminQueueJobs = useMemo(() => jobs.filter((job) =>
-    (adminQueueType === 'all' ? job.job_type !== 'letter_job' : adminQueueType === 'letter_job' ? job.job_type === 'letter_job' : (job.source_type || 'human_transcription') === adminQueueType)
-    && adminQueueLaneFor(job) === adminQueueLane
-  ), [adminQueueLane, adminQueueType, jobs]);
+    adminQueueMatchesType(job) && adminQueueLaneFor(job) === adminQueueLane
+  ), [adminQueueLane, adminQueueMatchesType, jobs]);
   const jobsForCurrentView = mode === 'admin' && adminTab === 'queue' ? adminQueueJobs : jobs;
   const selectedJob = useMemo(() => jobsForCurrentView.find((job) => job.id === selectedId) || jobsForCurrentView[0] || null, [jobsForCurrentView, selectedId]);
   const workerAssignment = selectedJob?.worker_assignment || null;
@@ -181,11 +188,16 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           canClaim: payload.worker_can_claim === true,
           activeAssignment: payload.worker_active_assignment === true,
           blockReason: payload.worker_claim_block_reason || '',
+          deadlineReturns: Number(payload.worker_deadline_return_count || 0),
+          deadlineWarning: payload.worker_deadline_warning === true,
         });
       }
       setJobsFetchedAt(Date.now());
       lastSyncErrorAtRef.current = 0;
     } catch (error) {
+      if (mode === 'worker' && /available-work access|approved workers|training room/i.test(String(error.message || ''))) {
+        refreshUserProfile().catch(() => {});
+      }
       if (requestId === jobsRequestIdRef.current && Date.now() - lastSyncErrorAtRef.current > 30000) {
         lastSyncErrorAtRef.current = Date.now();
         showMessage?.(error.message, 'error');
@@ -193,7 +205,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     } finally {
       if (requestId === jobsRequestIdRef.current) setLoading(false);
     }
-  }, [mode, request, showMessage, workerTab]);
+  }, [mode, refreshUserProfile, request, showMessage, workerTab]);
 
   const loadWorkers = useCallback(async () => {
     if (mode !== 'admin') return;
@@ -509,7 +521,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   };
 
   const claimWork = async (segmentId = '') => {
-    if (!selectedJob || busy || !selectedJob.can_claim) return;
+    const part = segmentId ? (selectedJob?.claimable_parts || []).find((item) => item.id === segmentId) : null;
+    if (!selectedJob || busy || !selectedJob.can_claim || (part && part.can_claim === false)) return;
     setBusy(true);
     try {
       await request(`/human-transcription/jobs/${selectedJob.id}/claim`, {
@@ -712,6 +725,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <button className="tm-human-refresh" type="button" onClick={() => { loadJobs(); loadWorkers(); loadPayments(); loadAvailability(); }}>Refresh</button>
       </div>
 
+      {mode === 'worker' && workerBoardInfo.deadlineWarning && workerBoardInfo.deadlineReturns < 11 && <div className="tm-worker-board-notice tm-worker-deadline-warning" role="alert"><strong>Deadline reminder · {workerBoardInfo.deadlineReturns} returns</strong><span>One more missed deadline will pause Available Jobs access and send you to the Training Room for retraining. Claim only work you can complete on time.</span></div>}
+
       {mode === 'worker' && (
         <div className="tm-worker-rating-card" aria-label="Your average transcriber rating">
           <div className="tm-worker-rating-score">
@@ -750,6 +765,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           {!restricted && <button type="button" role="tab" aria-selected={adminTab === 'cleanup'} className={adminTab === 'cleanup' ? 'active' : ''} onClick={() => setAdminTab('cleanup')}>Job cleanup</button>}
           {canManagePdfJobs && <button type="button" role="tab" aria-selected={adminTab === 'pdf_jobs'} className={adminTab === 'pdf_jobs' ? 'active' : ''} onClick={() => setAdminTab('pdf_jobs')}>PDF Jobs</button>}
           {canManagePdfJobs && <button type="button" role="tab" aria-selected={adminTab === 'text_messages'} className={adminTab === 'text_messages' ? 'active' : ''} onClick={() => setAdminTab('text_messages')}>Text Messages</button>}
+          {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'general_jobs'} className={adminTab === 'general_jobs' ? 'active' : ''} onClick={() => setAdminTab('general_jobs')}>General Jobs</button>}
+          {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'template_jobs'} className={adminTab === 'template_jobs' ? 'active' : ''} onClick={() => setAdminTab('template_jobs')}>Template Jobs</button>}
           {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'letter_jobs'} className={adminTab === 'letter_jobs' ? 'active' : ''} onClick={() => setAdminTab('letter_jobs')}>Letter Jobs</button>}
         </div>
       )}
@@ -758,6 +775,10 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <PdfJobsAdminPanel showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('pdf_job'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'text_messages' && canManagePdfJobs ? (
         <PdfJobsAdminPanel category="text_messages" showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('text_messages'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
+      ) : mode === 'admin' && adminTab === 'general_jobs' && canManageLetterJobs ? (
+        <AdminAudioJobsPanel category="general" showMessage={showMessage} onOpenQueue={(job) => { setAdminQueueType('general_job'); setAdminQueueLane(adminQueueLaneFor(job)); setAdminTab('queue'); }} />
+      ) : mode === 'admin' && adminTab === 'template_jobs' && canManageLetterJobs ? (
+        <AdminAudioJobsPanel category="template" showMessage={showMessage} onOpenQueue={(job) => { setAdminQueueType('template_job'); setAdminQueueLane(adminQueueLaneFor(job)); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'letter_jobs' && canManageLetterJobs ? (
         <LetterJobsAdminPanel showMessage={showMessage} />
       ) : mode === 'worker' && workerTab === 'payments' ? (
@@ -799,6 +820,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <option value="ai_proofreading">AI transcript proofreading</option>
               <option value="pdf_job">PDF Jobs</option>
               <option value="text_messages">Text Messages</option>
+              <option value="general_job">General Jobs</option>
+              <option value="template_job">Template Jobs</option>
               <option value="letter_job">Letter Jobs</option>
             </select>
           </label>
@@ -825,7 +848,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 if (job.proofreader_name || job.proofreader_email) names.push(`Proofreader: ${job.proofreader_name || job.proofreader_email}`);
                 return <small className="tm-human-claimed" style={{ color: names.length ? '#4b2a8a' : '#858a95', fontWeight: 600 }}>{names.length ? `Claimed by ${names.join(' | ')}` : 'Not claimed yet'}</small>;
               })()}
-              <small>{mode === 'worker' ? `${job.job_type === 'pdf_job' ? 'PDF image · KES 100' : moneylessDate(job.createdAt)}${job.job_type === 'pdf_job' ? ` · ${moneylessDate(job.createdAt)}` : ''}` : `${job.quote_credits || 0} credits · ${moneylessDate(job.createdAt)}`}</small>
+              <small>{mode === 'worker' ? `${job.job_type === 'pdf_job' ? 'PDF image · KES 100' : jobTypeLabel(job)} · ${moneylessDate(job.createdAt)}` : `${job.quote_credits || 0} credits · ${moneylessDate(job.createdAt)}`}</small>
             </button>
           ))}
           {!jobsForCurrentView.length && <div className="tm-human-empty">{mode === 'admin' ? 'No jobs match this status and type.' : mode === 'worker' && workerTab === 'available' ? 'No new work is available right now. This board refreshes automatically.' : 'No human work is waiting here.'}</div>}
@@ -834,7 +857,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <div className="tm-human-job-detail">
           {!selectedJob ? <div className="tm-human-empty">Choose a job to see its details.</div> : <>
             <div className="tm-human-detail-head">
-              <div><span className="tm-human-status">{STATUS_LABELS[selectedJob.status] || selectedJob.status}</span><h2>{selectedJob.job_name || selectedJob.pdf_image?.name || selectedJob.audio?.name || (selectedJob.source_type === 'ai_proofreading' ? 'AI transcript for proofreading' : 'Human-transcription request')}</h2><p>{selectedJob.job_type === 'letter_job' ? `Letter Job · Complete recording · ${selectedJob.minutes || 0} minutes` : selectedJob.job_type === 'pdf_job' ? (selectedJob.job_category === 'text_messages' ? 'Text message screenshot · KES 100 per submitted image' : 'PDF image transcription · KES 100 per submitted image') : `${selectedJob.source_type === 'ai_proofreading' ? 'AI transcript proofreading' : 'New human transcript'} · ${selectedJob.minutes || 0} minutes${mode !== 'worker' ? ` · ${selectedJob.quote_credits || 0} credits` : ''} · ${selectedJob.turnaround || 'standard'} delivery`}</p>{mode === 'worker' && workerAssignment?.label && <p><strong>{workerAssignment.label}</strong>{workerAssignment.role === 'proofreader' ? ' · Proofread the combined text below and check the handoff between parts. You can submit once every part is in.' : selectedJob.job_type === 'pdf_job' ? ' · Transcribe the single assigned image and submit the finished Word file or transcript.' : ` · Work from ${formatCountdown(workerAssignment.start_seconds || 0)} to ${formatCountdown(workerAssignment.end_seconds || 0)} in the source recording.`}</p>}</div>
+              <div><span className="tm-human-status">{STATUS_LABELS[selectedJob.status] || selectedJob.status}</span><h2>{selectedJob.job_name || selectedJob.pdf_image?.name || selectedJob.audio?.name || (selectedJob.source_type === 'ai_proofreading' ? 'AI transcript for proofreading' : 'Human-transcription request')}</h2><p>{selectedJob.job_type === 'letter_job' ? `Letter Job · Complete recording · ${selectedJob.minutes || 0} minutes` : selectedJob.job_type === 'pdf_job' ? (selectedJob.job_category === 'text_messages' ? 'Text message screenshot · KES 100 per submitted image' : 'PDF image transcription · KES 100 per submitted image') : `${jobTypeLabel(selectedJob)} · ${selectedJob.minutes || 0} minutes${mode !== 'worker' ? ` · ${selectedJob.quote_credits || 0} credits` : ''} · ${selectedJob.turnaround || 'standard'} delivery`}</p>{mode === 'worker' && workerAssignment?.label && <p><strong>{workerAssignment.label}</strong>{workerAssignment.role === 'proofreader' ? ' · Proofread the combined text below and check the handoff between parts. You can submit once every part is in.' : selectedJob.job_type === 'pdf_job' ? ' · Transcribe the single assigned image and submit the finished Word file or transcript.' : ` · Work from ${formatCountdown(workerAssignment.start_seconds || 0)} to ${formatCountdown(workerAssignment.end_seconds || 0)} in the source recording.`}</p>}</div>
               <div className="tm-human-detail-actions">
                 {mode === 'admin' && selectedJob.status === 'pending_admin' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/approve`, { method: 'POST' })}>Approve request</button>}
                 {renderSubmitButton('top')}
@@ -896,7 +919,13 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                       const unclaimed = siblings.every((item) => item.status === 'approved');
                       return <button type="button" disabled={busy || !unclaimed} title={unclaimed ? undefined : 'Available only while no page has been claimed.'} onClick={() => assignWholeFileAi(selectedJob.job_category === 'text_messages' ? 'text-messages-gemini' : 'pdf-gemini', siblings.map((item) => item.id))}>{`Assign whole file (${siblings.length} pages)`}</button>;
                     })()}
-                  </>) : <>
+                  </>) : selectedJob.admin_uploaded === true ? <>
+                    {selectedJob.job_category === 'template' ? (
+                      <button type="button" disabled={busy || !hasJobDocxTemplate || (!splitJob && selectedJob.status !== 'approved') || (splitJob && !(selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))} title={!hasJobDocxTemplate ? 'Attach exactly one job-specific .docx template first.' : undefined} onClick={() => assignAiAgent('template-claude')}>Assign Template Agent</button>
+                    ) : (
+                      <button type="button" disabled={busy || (!splitJob && selectedJob.status !== 'approved') || (splitJob && !(selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))} onClick={() => assignAiAgent('general-gpt')}>Assign General Agent</button>
+                    )}
+                  </> : <>
                     <button type="button" disabled={busy || (!splitJob && selectedJob.status !== 'approved') || (splitJob && !(selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))} onClick={() => assignAiAgent('general-gpt')}>Assign general agent</button>
                     <button type="button" disabled={busy || !hasJobDocxTemplate || (!splitJob && selectedJob.status !== 'approved') || (splitJob && !(selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))} title={!hasJobDocxTemplate ? 'Attach exactly one job-specific .docx template first.' : undefined} onClick={() => assignAiAgent('template-claude')}>Assign template-aware agent</button>
                   </>}
@@ -904,8 +933,14 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 {mode === 'admin' && splitJob && selectedJob.job_type !== 'pdf_job' && <div className="tm-ai-agent-takeover">
                   <p>Whole-job takeover pauses all split parts and prepares one draft from the full recording. It is available only before any part is claimed or submitted; a failed AI run restores the original parts.</p>
                   <div className="tm-ai-agent-buttons">
-                    <button type="button" disabled={busy || !aiWholeJobEligible || ['queued', 'processing'].includes(selectedJob.ai_agent_status)} onClick={() => { setAiWholeAgent('general-gpt'); setAiWholeConfirm(true); }}>Assign whole job to general agent</button>
-                    <button type="button" disabled={busy || !aiWholeJobEligible || !hasJobDocxTemplate || ['queued', 'processing'].includes(selectedJob.ai_agent_status)} title={!hasJobDocxTemplate ? 'Attach exactly one job-specific .docx template first.' : undefined} onClick={() => { setAiWholeAgent('template-claude'); setAiWholeConfirm(true); }}>Assign whole job to template-aware agent</button>
+                    {selectedJob.admin_uploaded === true ? (selectedJob.job_category === 'template' ? (
+                      <button type="button" disabled={busy || !aiWholeJobEligible || !hasJobDocxTemplate || ['queued', 'processing'].includes(selectedJob.ai_agent_status)} title={!hasJobDocxTemplate ? 'Attach exactly one job-specific .docx template first.' : undefined} onClick={() => { setAiWholeAgent('template-claude'); setAiWholeConfirm(true); }}>Assign whole job to Template Agent</button>
+                    ) : (
+                      <button type="button" disabled={busy || !aiWholeJobEligible || ['queued', 'processing'].includes(selectedJob.ai_agent_status)} onClick={() => { setAiWholeAgent('general-gpt'); setAiWholeConfirm(true); }}>Assign whole job to General Agent</button>
+                    )) : <>
+                      <button type="button" disabled={busy || !aiWholeJobEligible || ['queued', 'processing'].includes(selectedJob.ai_agent_status)} onClick={() => { setAiWholeAgent('general-gpt'); setAiWholeConfirm(true); }}>Assign whole job to general agent</button>
+                      <button type="button" disabled={busy || !aiWholeJobEligible || !hasJobDocxTemplate || ['queued', 'processing'].includes(selectedJob.ai_agent_status)} title={!hasJobDocxTemplate ? 'Attach exactly one job-specific .docx template first.' : undefined} onClick={() => { setAiWholeAgent('template-claude'); setAiWholeConfirm(true); }}>Assign whole job to template-aware agent</button>
+                    </>}
                   </div>
                   {!aiWholeJobEligible && <small role="status">Whole-job takeover is locked because at least one part has been claimed/submitted, or proofreading has started.</small>}
                 </div>}
@@ -920,16 +955,17 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <section className="tm-human-claim-panel" aria-label="Claim available work">
                 <div>
                   <h3>Claim this work</h3>
-                  <p>{selectedJob.job_type === 'letter_job' ? 'This is one complete letter. Claim the whole job, follow the Letter Job guidelines, and return a finished Word .docx document.' : selectedJob.job_type === 'pdf_job' ? 'Each listing is one image and may be claimed by one worker. Your deadline begins when you claim it; the image opens after the claim.' : 'Claim one job or slice at a time. Your turnaround deadline begins as soon as you claim it. After submitting, you can return here for another available slice.'}</p>
+                  <p>{selectedJob.job_type === 'letter_job' ? 'This is one complete letter. Claim the whole job, follow the Letter Job guidelines, and return a finished Word .docx document.' : selectedJob.job_type === 'pdf_job' ? 'Each listing is one image and may be claimed by one worker. Your deadline begins when you claim it; the image opens after the claim.' : selectedJob.job_type === 'template_job' ? 'Follow the supplied .docx template and job notes. Your deadline begins when you claim this job or part.' : 'Claim one job or slice at a time. Your turnaround deadline begins as soon as you claim it. After submitting, you can return here for another available slice.'}</p>
                 </div>
                 {!selectedJob.can_claim && selectedJob.claim_block_reason && <p className="tm-human-claim-blocked" role="status">{selectedJob.claim_block_reason}</p>}
-                {selectedJob.claimable_full_job && (
+                {selectedJob.claimable_full_job && <>
                   <button type="button" disabled={busy || !selectedJob.can_claim} onClick={() => claimWork()}>{selectedJob.job_type === 'pdf_job' ? 'Claim image' : 'Claim job'}</button>
-                )}
+                  <small>{selectedJob.claim_attempt_count || 0}/{selectedJob.max_claims_per_item || 2} successful personal claims used. A third claim is blocked.</small>
+                </>}
                 {(selectedJob.claimable_parts || []).map((part) => (
                   <div className="tm-human-claim-part" key={part.id}>
-                    <span><strong>{part.label || 'Available part'}</strong><small>{part.minutes || 0} minutes of audio</small></span>
-                    <button type="button" disabled={busy || !selectedJob.can_claim} onClick={() => claimWork(part.id)}>Claim part</button>
+                    <span><strong>{part.label || 'Available part'}</strong><small>{part.minutes || 0} minutes of audio · {part.claim_attempt_count || 0}/{selectedJob.max_claims_per_item || 2} personal claims used</small>{part.can_claim === false && part.claim_block_reason && <small className="tm-human-claim-blocked">{part.claim_block_reason}</small>}</span>
+                    <button type="button" disabled={busy || !selectedJob.can_claim || part.can_claim === false} onClick={() => claimWork(part.id)}>Claim part</button>
                   </div>
                 ))}
               </section>
@@ -1023,11 +1059,11 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             )}
 
             {mode === 'admin' && splitJob && ['split_assigned', 'split_in_progress', 'proofreading_available'].includes(selectedJob.status) && (selectedJob.segments || []).some((part) => part.status === 'submitted') && !['assigned', 'in_progress'].includes(selectedJob.proofreader_status) && <div className="tm-human-assign"><label>Assign a proofreader<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose a worker rated 4.5 or higher</option>{workers.filter((worker) => worker.can_proofread).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {Number(worker.rating).toFixed(1)}/5 · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign proofreading</button><p className="tm-tat-hint">Only workers rated 4.5/5 or higher can proofread. You can assign now, before every part is in. The proofreader gets one editor with all submitted parts, separated by dotted lines, and can load the rest as they arrive. They can submit only once every part is in.</p></div>}
-            {mode === 'admin' && selectedJob.job_type !== 'pdf_job' && ((splitJob && (selectedJob.segments || []).length > 0 && (selectedJob.segments || []).every((part) => part.status === 'submitted')) || (!splitJob && ['submitted', 'client_review', 'client_approved', 'released'].includes(selectedJob.status) && String(selectedJob.transcript || '').trim())) && <AdminAiReviewPanel job={selectedJob} act={act} busy={busy} splitJob={splitJob} onInsert={insertAiReviewedTranscript} />}
+            {mode === 'admin' && selectedJob.job_type !== 'pdf_job' && ((splitJob && (selectedJob.segments || []).length > 0 && (selectedJob.segments || []).every((part) => part.status === 'submitted')) || (!splitJob && ['submitted', 'client_review', 'client_approved', 'released'].includes(selectedJob.status) && String(selectedJob.transcript || '').trim())) && <AdminAiReviewPanel job={selectedJob} act={act} busy={busy} splitJob={splitJob} onInsert={insertAiReviewedTranscript} allowApply={selectedJob.admin_uploaded === true && ['general_job', 'template_job'].includes(selectedJob.job_type)} />}
             {mode === 'admin' && <AdminPartReview job={selectedJob} act={act} downloadProtectedFile={downloadProtectedFile} />}
 
 
-            {mode === 'admin' && selectedJob.status === 'submitted' && <div className="tm-human-review"><label>Worker rating<select value={rating} onChange={(event) => setRating(event.target.value)}><option value="5">5 — excellent</option><option value="4">4 — strong</option><option value="3">3 — acceptable</option><option value="2">2 — needs work</option><option value="1">1 — poor</option></select></label><textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder={selectedJob.job_type === 'pdf_job' ? 'Internal review notes for this image job' : 'Notes for the client and worker'} /><button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating, feedback }) }, selectedJob.job_type === 'pdf_job' ? 'PDF transcription approved and completed.' : 'Sent to client for review.')}>{selectedJob.job_type === 'pdf_job' ? 'Approve PDF transcription' : 'Send to client'}</button></div>}
+            {mode === 'admin' && selectedJob.status === 'submitted' && <div className="tm-human-review"><label>Worker rating<select value={rating} onChange={(event) => setRating(event.target.value)}><option value="5">5 — excellent</option><option value="4">4 — strong</option><option value="3">3 — acceptable</option><option value="2">2 — needs work</option><option value="1">1 — poor</option></select></label><textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder={selectedJob.admin_uploaded ? 'Internal review notes for this admin-uploaded job' : 'Notes for the client and worker'} /><button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating, feedback }) }, selectedJob.admin_uploaded ? 'Admin-uploaded work approved and completed.' : selectedJob.job_type === 'pdf_job' ? 'PDF transcription approved and completed.' : 'Sent to client for review.')}>{selectedJob.admin_uploaded ? 'Approve internal work' : selectedJob.job_type === 'pdf_job' ? 'Approve PDF transcription' : 'Send to client'}</button></div>}
 
             {selectedJob.job_type === 'pdf_job' && !(mode === 'worker' && workerTab === 'available') && <div className="tm-human-pdf-image-card"><div><strong>{selectedJob.pdf_review ? 'Whole-file review: all pages' : 'Assigned image'}</strong><span>{selectedJob.pdf_image?.source_filename || selectedJob.pdf_image?.name}{selectedJob.pdf_image?.page_count > 1 && !selectedJob.pdf_review ? ` · Page ${selectedJob.pdf_image.page_number} of ${selectedJob.pdf_image.page_count}` : ''}</span></div>{pdfImageUrls.length > 1 ? pdfImageUrls.map((url, index) => <img key={url} src={url} alt={`Page ${index + 1} of ${pdfImageUrls.length}`} />) : pdfImageUrl ? <img src={pdfImageUrl} alt={`Transcribe ${selectedJob.pdf_image?.name || 'PDF Job'}`} /> : <p role={pdfImageError ? 'alert' : 'status'}>{pdfImageError || 'Loading the private image…'}</p>}</div>}
             {audioKey && <WorkerAudioPlayer src={audioUrl} loading={audioLoading} error={audioError} title={audioSegmentId ? 'Your part of the recording' : 'Source recording'} note={audioSegmentId ? 'Only your assigned part is played and downloaded here.' : 'Available to the client, admin and assigned worker.'} filename={audioSegmentId ? `${(workerAssignment?.label || 'part').replace(/[^A-Za-z0-9]+/g, '-').toLowerCase()}.mp3` : (selectedJob?.audio?.name || 'recording.mp3')} />}
