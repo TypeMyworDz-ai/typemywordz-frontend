@@ -59,8 +59,8 @@ export default function LetterJobsAdminPanel({ showMessage }) {
   const [workerChoices, setWorkerChoices] = useState({});
   const [reviewerChoices, setReviewerChoices] = useState({});
   const [releaseConfirmId, setReleaseConfirmId] = useState('');
-  const eligibleWorkers = workers.filter((worker) => scheduledNow === true || worker.online);
-  const qualifiedReviewers = eligibleWorkers.filter((worker) => worker.can_proofread && worker.available !== false);
+  const eligibleWorkers = workers.filter((worker) => scheduledNow === true || worker.online === true);
+  const qualifiedReviewers = eligibleWorkers.filter((worker) => worker.can_proofread);
 
   const loadJobs = useCallback(async (quiet = false) => {
     if (!currentUser || !isAdmin) return;
@@ -92,7 +92,7 @@ export default function LetterJobsAdminPanel({ showMessage }) {
       const response = await fetch(`${BACKEND_URL}/human-transcription/admin/worker-options`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
       const payload = await response.json().catch(() => ({}));
       if (response.ok) {
-        setWorkers((payload.workers || []).filter((worker) => worker.available !== false));
+        setWorkers(payload.workers || []);
         setScheduledNow(payload.scheduled_now === true);
       }
     } catch { /* the assignment control stays empty if worker status is unavailable */ }

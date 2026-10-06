@@ -59,6 +59,14 @@ const adminReviewerComplete = (job) => {
   if (choice === 'human') return proofreaderDone;
   return choice === 'ai' && job?.ai_review_applied === true && Boolean(String(job?.ai_review?.combined_text || '').trim());
 };
+const canFinishAdminAiDraft = (job) => {
+  if (!job?.admin_uploaded || job?.ai_agent_status !== 'submitted') return false;
+  if (job?.reviewer_choice === 'human' || ['assigned', 'in_progress', 'submitted'].includes(job?.proofreader_status)) return false;
+  if (!['submitted', 'proofreading_available'].includes(job?.status)) return false;
+  const segments = Array.isArray(job?.segments) ? job.segments : [];
+  if (segments.length) return segments.every((part) => part?.status === 'submitted' && Boolean(String(part?.transcript || '').trim()));
+  return job?.job_type === 'pdf_job' && Boolean(job?.pdf_review) && Boolean(String(job?.transcript || '').trim());
+};
 
 const ADMIN_QUEUE_LANES = [
   { id: 'needs_action', label: 'Needs action' },
@@ -91,6 +99,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [aiDraftLocal, setAiDraftLocal] = useState('');
   const [wholeWorker, setWholeWorker] = useState('');
   const [wholeConfirm, setWholeConfirm] = useState(false);
+  const [finishAiConfirm, setFinishAiConfirm] = useState(false);
   const [aiWholeConfirm, setAiWholeConfirm] = useState(false);
   const [aiWholeAgent, setAiWholeAgent] = useState('');
   const [templateAgentGuidelines, setTemplateAgentGuidelines] = useState('');
@@ -100,7 +109,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [rating, setRating] = useState('5');
   const [proofreaderWorker, setProofreaderWorker] = useState('');
   const [aiAgentSegment, setAiAgentSegment] = useState('');
-  const [workerAvailable, setWorkerAvailable] = useState(true);
+  const [workerAvailable, setWorkerAvailable] = useState(false);
   const [availabilitySaving, setAvailabilitySaving] = useState(false);
   const [extensionMinutes, setExtensionMinutes] = useState('5');
   const [loading, setLoading] = useState(true);
@@ -112,7 +121,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   // Job-specific conversation access is admin/worker only. Client questions
   // use the separate direct-message channel.
   const [workerTab, setWorkerTab] = useState('available');
-  const [workerBoardInfo, setWorkerBoardInfo] = useState({ canView: true, canClaim: true, activeAssignment: false, blockReason: '', deadlineReturns: 0, deadlineWarning: false });
+  const [workerBoardInfo, setWorkerBoardInfo] = useState({ canView: true, canClaim: true, activeAssignment: false, blockReason: '', deadlineReturns: 0, deadlineWarning: false, offShiftClaim: false });
   const [starterWorker, setStarterWorker] = useState('');
   const [starterSegment, setStarterSegment] = useState('');
   const [paymentHistory, setPaymentHistory] = useState(null);
@@ -122,7 +131,9 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const canManagePdfJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai'].includes(adminEmail);
   const canManageLetterJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai'].includes(adminEmail);
   const canAssignAiAgents = ['typemywordz@gmail.com', 'info@typemywordz.ai'].includes(adminEmail);
-  const adminAssignableWorkers = workers.filter((worker) => worker.approved !== false && (adminScheduledNow || worker.online));
+  const adminAssignableWorkers = workers.filter((worker) => (
+    worker.approved !== false && (adminScheduledNow === true || worker.online === true)
+  ));
   const [adminQueueLane, setAdminQueueLane] = useState('needs_action');
   const [adminQueueType, setAdminQueueType] = useState('all');
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -206,6 +217,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           blockReason: payload.worker_claim_block_reason || '',
           deadlineReturns: Number(payload.worker_deadline_return_count || 0),
           deadlineWarning: payload.worker_deadline_warning === true,
+          offShiftClaim: payload.worker_shift_status?.off_shift_self_claim === true,
         });
       }
       setJobsFetchedAt(Date.now());
@@ -264,7 +276,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       });
       setWorkerAvailable(payload.available !== false);
       await loadJobs();
-      showMessage?.(nextAvailable ? 'You are available for new work.' : 'You will not receive new work until you turn availability back on.', 'success');
+      showMessage?.(nextAvailable ? 'Off-shift queue claiming is on. Keep the Work Room open while you are available.' : 'Off-shift queue claiming is paused. Scheduled-shift claims are unaffected.', 'success');
     } catch (error) {
       showMessage?.(error.message || 'Your availability could not be changed.', 'error');
     } finally {
@@ -454,6 +466,19 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       showMessage?.(error.message, 'error');
       return false;
     } finally { setBusy(false); }
+  };
+
+  const finishAiDraft = async () => {
+    if (!selectedJob || busy || !canFinishAdminAiDraft(selectedJob)) return;
+    const finished = await act(
+      `/human-transcription/jobs/${selectedJob.id}/ai-agent/finish`,
+      { method: 'POST' },
+      'AI draft finished and moved to the Finished lane. No client charge or notification was issued.',
+    );
+    if (finished) {
+      setFinishAiConfirm(false);
+      setAdminQueueLane('finished');
+    }
   };
 
   const saveSharedTranscript = (text, html) => act(
@@ -745,13 +770,13 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           <h1>{mode === 'admin' ? 'Human work queue' : mode === 'worker' ? 'Your Work Room' : 'Your human-transcription work'}</h1>
           <p>{mode === 'admin' ? 'Approve client requests, monitor worker claims, review delivery and release credits only after approval.' : mode === 'worker' ? 'Claim one available job or slice at a time, submit it, then return for more work.' : 'Follow each request from quote to delivery. Credits remain untouched until the finished work is approved and released.'}</p>
         </div>
-        {mode === 'worker' && <label className="tm-worker-availability-toggle"><input type="checkbox" checked={workerAvailable} disabled={availabilitySaving} onChange={updateWorkerAvailability} /><span><strong>{workerAvailable ? 'Available for work' : 'Not accepting new work'}</strong><small>{availabilitySaving ? 'Saving…' : 'Controls new queue work; it does not clock you in.'}</small></span></label>}
+        {mode === 'worker' && <label className="tm-worker-availability-toggle"><input type="checkbox" checked={workerAvailable} disabled={availabilitySaving} onChange={updateWorkerAvailability} /><span><strong>{workerAvailable ? 'Available for off-shift work' : 'Off-shift work paused'}</strong><small>{availabilitySaving ? 'Saving…' : 'When on, you can claim queue jobs outside your shift while this Work Room is open. It does not record attendance.'}</small></span></label>}
         <button className="tm-human-refresh" type="button" onClick={() => { loadJobs(); loadWorkers(); loadPayments(); loadAvailability(); }}>Refresh</button>
       </div>
 
       {mode === 'worker' && workerBoardInfo.deadlineWarning && workerBoardInfo.deadlineReturns < 11 && <div className="tm-worker-board-notice tm-worker-deadline-warning" role="alert"><strong>Deadline reminder · {workerBoardInfo.deadlineReturns} returns</strong><span>One more missed deadline will pause Available Jobs access and send you to the Training Room for retraining. Claim only work you can complete on time.</span></div>}
 
-      {mode === 'worker' && <WorkerShiftPanel showMessage={showMessage} />}
+      {mode === 'worker' && <WorkerShiftPanel showMessage={showMessage} onPresence={loadJobs} offShiftAvailability={workerAvailable} />}
 
       {mode === 'worker' && (
         <div className="tm-worker-rating-card" aria-label="Your average transcriber rating">
@@ -862,6 +887,12 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           <span>{workerBoardInfo.blockReason} Payment History and Finished Jobs remain available.</span>
         </div>
       )}
+      {mode === 'worker' && workerTab === 'available' && workerBoardInfo.offShiftClaim && (
+        <div className="tm-worker-board-notice tm-worker-offshift-notice" role="note">
+          <strong>Off-shift claiming is enabled</strong>
+          <span>You are online in the Work Room and opted in. These jobs are outside the regular Monday–Friday, 3:00 p.m.–8:00 p.m. shift; the listed turnaround still applies.</span>
+        </div>
+      )}
       <div className="tm-human-workspace-grid">
         <aside className="tm-human-job-list">
           <div className="tm-human-list-head"><strong>{jobsForCurrentView.length} job{jobsForCurrentView.length === 1 ? '' : 's'}</strong><span>Live updates</span></div>
@@ -914,8 +945,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             {mode === 'admin' && selectedJob && canAssignAiAgents && (
               <section className="tm-ai-agent-panel" aria-label="AI first-draft agents">
                 <div className="tm-ai-agent-copy">
-                  <strong>AI first draft <span>Human proofreading required</span></strong>
-                  <p>Choose the job-specific internal agent for an available job or part. General Jobs use Gemini 3.8 Flash with Claude Opus 5.5 fallback; Template Jobs use Claude Opus 5.5 with GPT-5.6 Sol fallback. The draft stays out of the client view until an approved proofreader submits the checked version.</p>
+                  <strong>AI first draft <span>Private internal draft</span></strong>
+                  <p>Choose the job-specific internal agent for an available job or part. General Jobs use Claude Sonnet 5.5 with Gemini 3.8 Flash fallback; Template Jobs use Claude Opus 5.5 with GPT-5.6 Sol fallback. The draft stays private until you assign proofreading or finish eligible admin-uploaded work.</p>
                 </div>
                 {splitJob && <label className="tm-ai-agent-part">Part
                   <select value={aiAgentSegment || (selectedJob.segments || []).find((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid)?.id || ''} onChange={(event) => setAiAgentSegment(event.target.value)}>
@@ -975,8 +1006,9 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 </div>}
                 {selectedJob.ai_agent_status === 'submitted' && selectedJob.ai_agent_id === 'template-claude' && <button type="button" onClick={() => downloadProtectedFile(`/human-transcription/admin/jobs/${selectedJob.id}/ai-agent/template-docx`, selectedJob.ai_agent_docx?.name || `${selectedJob.job_name || 'transcript'}-formatted-draft.docx`, 'The private template-formatted Word draft is not available.')}>Download template-formatted Word draft (.docx)</button>}
                 {selectedJob.ai_agent_status && <p className={`tm-ai-agent-state is-${selectedJob.ai_agent_status}`} role="status">
-                  {['queued', 'processing'].includes(selectedJob.ai_agent_status) ? `${selectedJob.ai_agent_name || 'AI agent'} is preparing a private draft…` : selectedJob.ai_agent_status === 'submitted' ? `${selectedJob.ai_agent_name || 'AI agent'} submitted a draft. Assign an approved human proofreader before review or release.` : selectedJob.ai_agent_status === 'failed' ? `The last AI run failed: ${selectedJob.ai_agent_error || 'Retry the agent or assign a human worker.'}` : ''}
+                  {['queued', 'processing'].includes(selectedJob.ai_agent_status) ? `${selectedJob.ai_agent_name || 'AI agent'} is preparing a private draft…` : selectedJob.ai_agent_status === 'submitted' ? (canFinishAdminAiDraft(selectedJob) ? `${selectedJob.ai_agent_name || 'AI agent'} submitted a complete private draft. Assign a human proofreader, or finish this internal job without charging or notifying a client.` : `${selectedJob.ai_agent_name || 'AI agent'} submitted a draft. Assign an approved human proofreader before review or release.`) : selectedJob.ai_agent_status === 'failed' ? `The last AI run failed: ${selectedJob.ai_agent_error || 'Retry the agent or assign a human worker.'}` : ''}
                 </p>}
+                {canFinishAdminAiDraft(selectedJob) && <button type="button" className="tm-admin-btn" disabled={busy} onClick={() => setFinishAiConfirm(true)}>Finish internal job</button>}
               </section>
             )}
 
@@ -1044,7 +1076,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <label>Worker
                 <select value={wholeWorker} onChange={(event) => setWholeWorker(event.target.value)}>
                   <option value="">Choose an approved worker</option>
-                  {adminAssignableWorkers.filter((worker) => worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.rating == null ? 'not rated' : `${Number(worker.rating).toFixed(1)}/5`} · {worker.email}</option>)}
+                  {adminAssignableWorkers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.rating == null ? 'not rated' : `${Number(worker.rating).toFixed(1)}/5`} · {worker.email}</option>)}
                 </select>
               </label>
               <button type="button" disabled={busy || !wholeWorker} onClick={() => setWholeConfirm(true)}>Assign whole job</button>
@@ -1052,6 +1084,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             </div>}
             <ConfirmDialog open={wholeConfirm} title="Assign the whole job to this worker?" body="The job leaves the Available Jobs board and the worker does the full recording. Use this for urgent work." confirmLabel="Assign whole job" busy={busy} onConfirm={assignWholeJob} onCancel={() => setWholeConfirm(false)} />
             <ConfirmDialog open={aiWholeConfirm} title="Pause the parts and assign one whole-job draft?" body={`${aiWholeAgent === 'template-claude' ? 'The template-aware agent' : 'The general agent'} will prepare one private draft from the full recording. This is allowed only when no part has been claimed or submitted. If the AI run fails, the original parts are restored. An approved human proofreader must still check the draft before it can reach the client.`} confirmLabel="Pause parts and continue" busy={busy} onConfirm={confirmAiWholeJob} onCancel={() => { setAiWholeConfirm(false); setAiWholeAgent(''); }} />
+            <ConfirmDialog open={finishAiConfirm} title="Finish this internal job?" body="This moves the completed admin-uploaded AI draft to the Finished lane. It will not be sent to a client, charge credits, or send a client notification. You can assign a human proofreader instead if you want another review." confirmLabel="Finish internal job" busy={busy} onConfirm={finishAiDraft} onCancel={() => setFinishAiConfirm(false)} />
 
             {mode === 'admin' && !splitJob && selectedJob.status === 'approved' && <div className="tm-human-assign">
               <strong>Available to workers</strong>
@@ -1059,7 +1092,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <label>Supervised starter assessment
                 <select value={starterWorker} onChange={(event) => setStarterWorker(event.target.value)}>
                   <option value="">Choose an unrated or below-threshold worker</option>
-                  {adminAssignableWorkers.filter((worker) => worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}
+                  {adminAssignableWorkers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}
                 </select>
               </label>
               <button type="button" disabled={busy || !starterWorker} onClick={assignSupervisedStarter}>Assign supervised starter</button>
@@ -1079,7 +1112,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 <label>Worker
                   <select value={starterWorker} onChange={(event) => setStarterWorker(event.target.value)}>
                     <option value="">Choose an unrated or below-threshold worker</option>
-                    {adminAssignableWorkers.filter((worker) => worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}
+                    {adminAssignableWorkers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}
                   </select>
                 </label>
                 <button type="button" disabled={busy || !starterWorker || !starterSegment} onClick={assignSupervisedStarter}>Assign supervised starter part</button>
@@ -1087,8 +1120,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               </div>
             )}
 
-            {mode === 'admin' && splitJob && ['split_assigned', 'split_in_progress', 'proofreading_available', 'submitted'].includes(selectedJob.status) && (selectedJob.segments || []).some((part) => part.status === 'submitted') && !['ai', 'human'].includes(selectedJob.reviewer_choice) && !['assigned', 'in_progress', 'submitted'].includes(selectedJob.proofreader_status) && <div className="tm-human-assign"><label>Assign a proofreader<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose a worker rated 4.5 or higher</option>{adminAssignableWorkers.filter((worker) => worker.can_proofread && worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {Number(worker.rating).toFixed(1)}/5 · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign human reviewer</button><p className="tm-tat-hint">Only workers rated 4.5/5 or higher can review. You can assign before every part is in. They will get one editor with all submitted parts and can submit after the full job is complete.</p></div>}
-            {mode === 'admin' && !splitJob && selectedJob.status === 'submitted' && selectedJob.job_type !== 'pdf_job' && selectedJob.job_type !== 'letter_job' && !['ai', 'human'].includes(selectedJob.reviewer_choice) && !['assigned', 'in_progress', 'submitted'].includes(selectedJob.proofreader_status) && <div className="tm-human-assign"><strong>Human reviewer</strong><p>Choose a qualified proofreader instead of the AI reviewer. The admin still makes the final decision.</p><label>Reviewer rated at least 4.5/5<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose a human reviewer</option>{adminAssignableWorkers.filter((worker) => worker.can_proofread && worker.available !== false).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {Number(worker.rating).toFixed(1)}/5 · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign human reviewer</button></div>}
+            {mode === 'admin' && splitJob && ['split_assigned', 'split_in_progress', 'proofreading_available', 'submitted'].includes(selectedJob.status) && (selectedJob.segments || []).some((part) => part.status === 'submitted') && !['ai', 'human'].includes(selectedJob.reviewer_choice) && !['assigned', 'in_progress', 'submitted'].includes(selectedJob.proofreader_status) && <div className="tm-human-assign"><label>Assign a proofreader<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose a worker rated 4.5 or higher</option>{adminAssignableWorkers.filter((worker) => worker.can_proofread).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {Number(worker.rating).toFixed(1)}/5 · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign human reviewer</button><p className="tm-tat-hint">Only workers rated 4.5/5 or higher can review. You can assign before every part is in. They will get one editor with all submitted parts and can submit after the full job is complete.</p></div>}
+            {mode === 'admin' && !splitJob && selectedJob.status === 'submitted' && selectedJob.job_type !== 'pdf_job' && selectedJob.job_type !== 'letter_job' && !['ai', 'human'].includes(selectedJob.reviewer_choice) && !['assigned', 'in_progress', 'submitted'].includes(selectedJob.proofreader_status) && <div className="tm-human-assign"><strong>Human reviewer</strong><p>Choose a qualified proofreader instead of the AI reviewer. The admin still makes the final decision.</p><label>Reviewer rated at least 4.5/5<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose a human reviewer</option>{adminAssignableWorkers.filter((worker) => worker.can_proofread).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {Number(worker.rating).toFixed(1)}/5 · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign human reviewer</button></div>}
             {mode === 'admin' && selectedJob.job_type !== 'pdf_job' && selectedJob.reviewer_choice !== 'human' && ((splitJob && (selectedJob.segments || []).length > 0 && (selectedJob.segments || []).every((part) => part.status === 'submitted')) || (!splitJob && ['submitted', 'client_review', 'client_approved', 'released'].includes(selectedJob.status) && String(selectedJob.transcript || '').trim())) && <AdminAiReviewPanel job={selectedJob} act={act} busy={busy} splitJob={splitJob} onInsert={insertAiReviewedTranscript} allowApply={selectedJob.status === 'submitted'} />}
             {mode === 'admin' && <AdminPartReview job={selectedJob} act={act} downloadProtectedFile={downloadProtectedFile} />}
 
@@ -1225,7 +1258,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   );
 }
 
-function WorkerShiftPanel({ showMessage }) {
+function WorkerShiftPanel({ showMessage, onPresence, offShiftAvailability }) {
   const { currentUser } = useAuth();
   const [shift, setShift] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -1252,18 +1285,30 @@ function WorkerShiftPanel({ showMessage }) {
   }, [loadShift]);
 
   useEffect(() => {
-    if (!shift?.clocked_in || !currentUser) return undefined;
-    const timer = window.setInterval(async () => {
+    if (!currentUser) return undefined;
+    const canRefreshPresence = shift?.clocked_in
+      || (shift?.scheduled_now === false && shift?.call_in_active !== true && offShiftAvailability === true);
+    if (!canRefreshPresence) return undefined;
+    let active = true;
+    const ping = async () => {
       try {
         const token = await currentUser.getIdToken();
         const response = await fetch(`${BACKEND_URL}/human-transcription/worker/shift/presence`, {
           method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: '{}',
         });
-        if (response.ok) setShift(await response.json());
+        if (response.ok && active) {
+          setShift(await response.json());
+          onPresence?.();
+        }
       } catch { /* Presence is refreshed again on the next interval. */ }
-    }, 60000);
-    return () => window.clearInterval(timer);
-  }, [currentUser, shift?.clocked_in]);
+    };
+    ping();
+    const timer = window.setInterval(ping, 60000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [currentUser, shift?.clocked_in, shift?.scheduled_now, shift?.call_in_active, offShiftAvailability, onPresence]);
 
   const act = async (path) => {
     if (busy || !currentUser) return;
@@ -1287,16 +1332,18 @@ function WorkerShiftPanel({ showMessage }) {
   };
 
   const onShift = Boolean(shift?.clocked_in);
-  const statusLabel = ({ online: 'On shift · online', clocked_in_idle: 'On shift · presence not refreshed', called_in_not_clocked_in: 'Admin call-in · clock in to start', not_arrived: 'Shift open · clock in to claim', clocked_out: 'Clocked out', missed: 'Shift ended · not clocked in', off_shift: 'Outside shift hours', retraining: 'Training Room' }[shift?.status] || 'Checking shift status');
+  const statusLabel = shift?.off_shift_self_claim
+    ? 'Outside shift · online and available'
+    : ({ online: 'On shift · online', clocked_in_idle: 'On shift · presence not refreshed', called_in_not_clocked_in: 'Admin call-in · clock in to start', not_arrived: 'Shift open · clock in to claim', clocked_out: 'Clocked out', missed: 'Shift ended · not clocked in', off_shift: 'Outside shift hours', retraining: 'Training Room' }[shift?.status] || 'Checking shift status');
   return <section className={`tm-worker-shift-card${shift?.warning ? ' has-warning' : ''}`} aria-label="Your shift status">
     <div className="tm-worker-shift-main">
       <span className={`tm-worker-shift-indicator is-${shift?.status || 'loading'}`} aria-hidden="true" />
       <div className="tm-worker-shift-copy">
         <div className="tm-worker-shift-heading"><strong>{statusLabel}</strong>{shift?.misses_consecutive > 0 && <span className="tm-worker-shift-count">{shift.misses_consecutive}/6 missed</span>}</div>
         <p>{shift?.message || 'Loading today’s shift details…'}</p>
-        <small>Clock in to register attendance. “Available for work” is a separate setting for claiming queue jobs.</small>
+        <small>Clock in to record attendance during a scheduled shift. The availability toggle is only for off-shift queue claims; keep this Work Room open so your online status can be confirmed.</small>
         {shift?.warning && <small className="tm-worker-shift-warning">Five missed shifts in a row. Attend your next scheduled shift to keep your work access.</small>}
-        {onShift && shift?.has_active_assignment && !shift?.scheduled_now && <small className="tm-worker-shift-warning">Finish your active job before clocking out. New work cannot be claimed after 8:00 p.m.</small>}
+        {onShift && shift?.has_active_assignment && !shift?.scheduled_now && <small className="tm-worker-shift-warning">Finish your active job before clocking out. Afterward, off-shift queue claims require availability on and the Work Room open.</small>}
         {error && <small className="tm-worker-shift-error" role="alert">{error}</small>}
       </div>
     </div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import HumanJobWorkspace from './HumanJobWorkspace';
 import * as transcriptExport from '../utils/transcriptExport';
 import { setCurrentUserForTest } from '../contexts/AuthContext';
@@ -16,7 +16,7 @@ jest.mock('./TranscriptEditor', () => function TranscriptEditorMock() {
   return <div>Transcript editor</div>;
 });
 
-const response = (payload) => ({ ok: true, text: async () => JSON.stringify(payload) });
+const response = (payload) => ({ ok: true, text: async () => JSON.stringify(payload), json: async () => payload, blob: async () => new Blob([]) });
 
 beforeEach(() => {
   setCurrentUserForTest({ uid: 'worker-1', email: 'worker@example.com', getIdToken: async () => 'test-token' });
@@ -98,7 +98,82 @@ test('admin AI-agent choices describe the General and Template model routes', as
 
   expect(await screen.findByRole('button', { name: 'Assign general agent' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Assign template-aware agent' })).toBeInTheDocument();
-  expect(screen.getByText(/General Jobs use Gemini 3.8 Flash with Claude Opus 5.5 fallback; Template Jobs use Claude Opus 5.5 with GPT-5.6 Sol fallback\./)).toBeInTheDocument();
+  expect(screen.getByText(/General Jobs use Claude Sonnet 5.5 with Gemini 3.8 Flash fallback; Template Jobs use Claude Opus 5.5 with GPT-5.6 Sol fallback\./)).toBeInTheDocument();
+});
+
+test('admin assignment dropdown includes an online worker even with off-shift opt-in paused', async () => {
+  setCurrentUserForTest({ uid: 'admin-1', email: 'typemywordz@gmail.com', getIdToken: async () => 'test-token' });
+  global.fetch = jest.fn((url) => {
+    const address = String(url);
+    if (address.includes('/human-transcription/jobs?scope=admin')) return Promise.resolve(response({ jobs: [{
+      id: 'admin-upload', status: 'approved', job_type: 'human_transcription', admin_uploaded: true,
+      audio: { name: 'sample.mp3' }, minutes: 2, quote_credits: 0,
+    }] }));
+    if (address.endsWith('/human-transcription/workers')) return Promise.resolve(response({
+      scheduled_now: false,
+      workers: [{ uid: 'worker-online', name: 'Online Worker', email: 'worker@example.com', approved: true, online: true, available: false }],
+    }));
+    if (address.includes('/messages')) return Promise.resolve(response({ messages: [] }));
+    return Promise.resolve(response({}));
+  });
+  render(<HumanJobWorkspace mode="admin" />);
+
+  const workerSelect = await screen.findByLabelText('Worker');
+  expect(Array.from(workerSelect.options).some((option) => option.value === 'worker-online')).toBe(true);
+});
+
+test('worker can opt into off-shift claims while online without clocking in', async () => {
+  let presenceSeen = false;
+  const shift = {
+    status: 'off_shift', scheduled_now: false, call_in_active: false, clocked_in: false,
+    off_shift_claim_enabled: true, off_shift_self_claim: false,
+    message: 'Outside regular shift hours.',
+  };
+  global.fetch = jest.fn((url, options = {}) => {
+    const address = String(url);
+    if (address.endsWith('/human-transcription/worker/availability')) return Promise.resolve(response({ available: true }));
+    if (address.endsWith('/human-transcription/worker/shift')) return Promise.resolve(response(shift));
+    if (address.endsWith('/human-transcription/worker/shift/presence')) {
+      presenceSeen = true;
+      return Promise.resolve(response({ ...shift, off_shift_self_claim: true, can_claim: true, workroom_online: true }));
+    }
+    if (address.includes('/human-transcription/jobs?scope=available')) return Promise.resolve(response({
+      jobs: [], worker_can_view_available: true, worker_can_claim: presenceSeen,
+      worker_available: true, worker_shift_status: { off_shift_self_claim: presenceSeen },
+    }));
+    if (address.includes('/messages')) return Promise.resolve(response({ messages: [] }));
+    return Promise.resolve(response({}));
+  });
+  render(<HumanJobWorkspace mode="worker" />);
+
+  expect(await screen.findByText('Off-shift claiming is enabled')).toBeInTheDocument();
+  expect(screen.getByText(/online and available/)).toBeInTheDocument();
+  expect(global.fetch.mock.calls.some(([url, options]) => String(url).endsWith('/human-transcription/worker/shift/presence') && options.method === 'POST')).toBe(true);
+});
+
+test('admin can finish a complete internal AI draft after confirming no client delivery', async () => {
+  setCurrentUserForTest({ uid: 'admin-1', email: 'typemywordz@gmail.com', getIdToken: async () => 'test-token' });
+  const job = {
+    id: 'draft-job', status: 'proofreading_available', job_type: 'human_transcription', admin_uploaded: true,
+    audio: { name: 'sample.mp3' }, minutes: 2, quote_credits: 0,
+    ai_agent_status: 'submitted', ai_agent_id: 'general-gpt', ai_agent_name: 'General Transcription Agent',
+    segments: [{ id: 'part-1', status: 'submitted', transcript: 'Complete private draft.' }],
+  };
+  global.fetch = jest.fn((url, options = {}) => {
+    const address = String(url);
+    if (address.includes('/human-transcription/jobs?scope=admin')) return Promise.resolve(response({ jobs: [job] }));
+    if (address.endsWith('/human-transcription/workers')) return Promise.resolve(response({ workers: [], scheduled_now: true }));
+    if (address.includes('/messages')) return Promise.resolve(response({ messages: [] }));
+    if (address.endsWith('/ai-agent/finish')) return Promise.resolve(response({ status: 'released', client_charged: false, client_notified: false }));
+    return Promise.resolve(response({}));
+  });
+  render(<HumanJobWorkspace mode="admin" />);
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Finish internal job' }));
+  const dialog = await screen.findByRole('alertdialog');
+  expect(dialog).toHaveTextContent('will not be sent to a client, charge credits, or send a client notification');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Finish internal job' }));
+  await waitFor(() => expect(global.fetch.mock.calls.some(([url, options]) => String(url).endsWith('/ai-agent/finish') && options.method === 'POST')).toBe(true));
 });
 
 test('admin sends extra template-job instructions and files with the template assignment', async () => {

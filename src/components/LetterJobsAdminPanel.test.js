@@ -56,6 +56,21 @@ test('creates one whole Letter Job from a complete recording', async () => {
   expect(options.headers['Content-Type']).toBeUndefined();
 });
 
+test('off-shift admin assignment lists an online worker with self-claim availability off', async () => {
+  global.fetch = jest.fn((url) => {
+    const address = String(url);
+    if (address.includes('/admin/letter-jobs')) return Promise.resolve(response({ jobs: [availableJob] }));
+    if (address.includes('/worker-options')) return Promise.resolve(response({
+      scheduled_now: false,
+      workers: [{ uid: 'online-worker', name: 'Online Worker', email: 'worker@example.com', available: false, online: true }],
+    }));
+    return Promise.resolve(response({ status: 'queued' }));
+  });
+  render(<LetterJobsAdminPanel />);
+  const select = await screen.findByRole('combobox', { name: 'Choose a worker for Letter 1' });
+  expect(Array.from(select.options).some((option) => option.value === 'online-worker')).toBe(true);
+});
+
 test('assigns the complete recording to the dedicated Letter Agent', async () => {
   global.fetch = jest.fn((url) => {
     if (String(url).includes('/admin/letter-jobs')) return Promise.resolve(response({ jobs: [availableJob] }));
