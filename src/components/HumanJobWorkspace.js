@@ -118,6 +118,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [editorHtml, setEditorHtml] = useState('');
   const [aiDraftBusy, setAiDraftBusy] = useState(false);
   const [aiDraftLocal, setAiDraftLocal] = useState('');
+  const [aiProofreadBusy, setAiProofreadBusy] = useState(false);
+  const [aiProofreadLocal, setAiProofreadLocal] = useState('');
   const [wholeWorker, setWholeWorker] = useState('');
   const [wholeConfirm, setWholeConfirm] = useState(false);
   const [finishJobConfirm, setFinishJobConfirm] = useState(false);
@@ -369,6 +371,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       setEditorText(selectedJob.transcript || '');
       setEditorHtml(selectedJob.transcript_html || '');
       setAiDraftLocal('');
+      setAiProofreadLocal('');
+      setAiProofreadBusy(false);
       setWholeWorker('');
       setProofreaderWorker(selectedJob.proofreader_uid || '');
       setStarterWorker('');
@@ -774,9 +778,27 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     try {
       const payload = await request(`/human-transcription/jobs/${selectedJob.id}/ai-draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ segment_id: workerAssignment?.id && workerAssignment.id !== 'transcriber' ? workerAssignment.id : '' }) });
       setAiDraftLocal(payload.draft || '');
-      showMessage?.(payload.already_generated ? 'Your saved AI formatted draft is shown below. You were not charged again.' : `AI formatted draft ready. ${payload.credits_charged || 0} credits were used.`, 'success');
+      setAiProofreadLocal(payload.proofread || '');
+      showMessage?.(payload.already_generated ? 'Your saved AI formatted draft is shown below. Draft generation is free.' : 'AI formatted draft ready. No credits were used.', 'success');
       await loadJobs();
     } catch (error) { showMessage?.(error.message, 'error'); } finally { setAiDraftBusy(false); }
+  };
+
+  const requestAiProofread = async () => {
+    if (!selectedJob || aiProofreadBusy) return;
+    setAiProofreadBusy(true);
+    try {
+      const payload = await request(`/human-transcription/jobs/${selectedJob.id}/ai-draft/proofread`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ segment_id: workerAssignment?.id && workerAssignment.id !== 'transcriber' ? workerAssignment.id : '' }),
+      });
+      setAiProofreadLocal(payload.proofread || '');
+      if (Number(payload.credits_charged || 0) > 0) {
+        try { await refreshUserProfile?.(); } catch { /* The proofread is saved; the account view can refresh on its next poll. */ }
+      }
+      showMessage?.(payload.already_proofread ? 'Your saved proofread version is ready. No additional credit was used.' : 'Proofread version ready. One credit was used; your original draft is unchanged.', 'success');
+      await loadJobs();
+    } catch (error) { showMessage?.(error.message, 'error'); } finally { setAiProofreadBusy(false); }
   };
 
   const extendTat = (segmentId = '', target = '') => act(`/human-transcription/jobs/${selectedJob.id}/extend-tat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minutes: Number(extensionMinutes), segment_id: segmentId, target }) });
@@ -867,7 +889,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       {mode === 'worker' && (
         <div className="tm-worker-policy-note" role="note">
           <strong>How hired work must be prepared:</strong>
-          <span>Once hired, keep enough TypeMyworDz credits to create an AI formatted draft for your assigned job. Edit it in Word, then paste it into the TypeMyworDz editor and submit. Keep the research notes and spellings section at the end of your work; the proofreader and admin need them to verify names. Do not attach documents unless a job is a TEMPLATE JOB or the admin requests one.</span>
+          <span>Once hired, generate a free AI formatted draft for your assigned job. Optional AI proofreading costs 1 credit. Edit the version you choose in Word, then paste it into the TypeMyworDz editor and submit. Keep the research notes and spellings section at the end of your work; the proofreader and admin need them to verify names. Do not attach documents unless a job is a TEMPLATE JOB or the admin requests one.</span>
         </div>
       )}
 
@@ -1023,7 +1045,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <section className="tm-ai-agent-panel" aria-label="AI first-draft agents">
                 <div className="tm-ai-agent-copy">
                   <strong>AI first draft <span>Private internal draft</span></strong>
-                  <p>Choose the job-specific internal agent for an available job or part. General Jobs use ChatGPT 5.6 Terra with Gemini 3.8 Flash fallback; Template Jobs use Claude Opus 5.5 with GPT-5.6 Sol fallback. The draft stays private until you assign proofreading or finish eligible admin-uploaded work.</p>
+                  <p>Choose the job-specific internal agent for an available job or part. General Jobs use Claude Sonnet 5.5 with Gemini 3.8 Flash fallback; Template Jobs use Claude Opus 5.5 with GPT-5.6 Sol fallback. The draft stays private until you assign proofreading or finish eligible admin-uploaded work.</p>
                 </div>
                 {splitJob && <label className="tm-ai-agent-part">Part
                   <select value={aiAgentSegment || (selectedJob.segments || []).find((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid)?.id || ''} onChange={(event) => setAiAgentSegment(event.target.value)}>
@@ -1221,13 +1243,26 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             {mode === 'worker' && workerAssignmentActive && selectedJob.job_type === 'letter_job' && <div className="tm-human-reference-card tm-letter-guidelines" role="note"><strong>Letter Job guidelines</strong><p>Use the standard Letter Standard Indentation template. Preserve the dictated wording and paragraph breaks, keep the required Date, Re:, and Dear : fields, remove undictated template content, and attach the finished .docx. Staff instructions must be bold in square brackets. The full job instructions and reference files remain available above.</p>{selectedJob.letter_guidelines && <details><summary>Read the complete Letter Agent guidelines</summary><pre>{selectedJob.letter_guidelines}</pre></details>}</div>}
             {mode === 'worker' && workerAssignmentActive && workerAssignment?.role !== 'proofreader' && selectedJob.job_type !== 'pdf_job' && selectedJob.job_type !== 'letter_job' && <div className="tm-human-reference-card" style={{ display: 'grid', gap: 8 }}>
               <strong>AI formatted draft for this audio</strong>
-              <span>Get a first draft of {workerAssignment?.label ? workerAssignment.label.toLowerCase() : 'this audio'}, then copy it into Word or insert it into the editor below. Drafts use your TypeMyworDz credits: about {Math.max(1, Math.ceil(((workerAssignment?.end_seconds || 0) - (workerAssignment?.start_seconds || 0)) / 60) || 1)} credit{Math.max(1, Math.ceil(((workerAssignment?.end_seconds || 0) - (workerAssignment?.start_seconds || 0)) / 60) || 1) === 1 ? '' : 's'} for this {workerAssignment?.id && workerAssignment.id !== 'transcriber' ? 'part' : 'job'}. Generating it once is charged once.</span>
-              {!(aiDraftLocal || selectedJob.ai_draft) && <div><button type="button" disabled={aiDraftBusy} onClick={requestAiDraft}>{aiDraftBusy ? 'Preparing your formatted draft…' : 'Get AI formatted draft'}</button></div>}
+              <span>Get a free first draft of {workerAssignment?.label ? workerAssignment.label.toLowerCase() : 'this audio'}, then copy it into Word or insert it into the editor below. Draft generation does not use credits.</span>
+              {!(aiDraftLocal || selectedJob.ai_draft) && <div><button type="button" disabled={aiDraftBusy} onClick={requestAiDraft}>{aiDraftBusy ? 'Preparing your formatted draft…' : 'Get free AI formatted draft'}</button></div>}
               {(aiDraftLocal || selectedJob.ai_draft) && <>
                 <div style={{ whiteSpace: 'pre-wrap', maxHeight: 280, overflow: 'auto', background: '#fafbfa', border: '1px solid #e5e9e5', borderRadius: 6, padding: 12, fontSize: 14, lineHeight: '100%' }}>{aiDraftLocal || selectedJob.ai_draft}</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button type="button" onClick={async () => { try { await copyForWord(aiDraftLocal || selectedJob.ai_draft); showMessage?.('Draft copied for Word with tabs and single spacing.', 'success'); } catch { showMessage?.('Copy failed. Select the text and copy it manually.', 'error'); } }}>Copy for Word</button>
-                  <button type="button" onClick={() => { editorRef.current?.insertText(aiDraftLocal || selectedJob.ai_draft); showMessage?.('Draft inserted into the editor.', 'success'); }}>Insert into editor</button>
+                  <button type="button" onClick={async () => { try { await copyForWord(aiDraftLocal || selectedJob.ai_draft); showMessage?.('Draft copied for Word with tabs and single spacing.', 'success'); } catch { showMessage?.('Copy failed. Select the text and copy it manually.', 'error'); } }}>Copy original draft for Word</button>
+                  <button type="button" onClick={() => { editorRef.current?.insertText(aiDraftLocal || selectedJob.ai_draft); showMessage?.('Original draft inserted into the editor.', 'success'); }}>Insert original draft</button>
+                </div>
+                <div className="tm-worker-ai-proofread" style={{ display: 'grid', gap: 8, paddingTop: 8 }}>
+                  <strong>Proofread this draft here before you start transcribing</strong>
+                  <span>Claude Sonnet 5.5 checks the draft, with ChatGPT 5.6 Terra as backup. A successful proofreading uses 1 credit. Your original draft stays available and is never replaced automatically.</span>
+                  {!(aiProofreadLocal || selectedJob.ai_draft_proofread) && <button type="button" disabled={aiProofreadBusy} onClick={requestAiProofread}>{aiProofreadBusy ? 'Proofreading your draft…' : 'Proofread this draft · 1 credit'}</button>}
+                  {(aiProofreadLocal || selectedJob.ai_draft_proofread) && <>
+                    <strong>Proofread version</strong>
+                    <div style={{ whiteSpace: 'pre-wrap', maxHeight: 280, overflow: 'auto', background: '#fafbfa', border: '1px solid #e5e9e5', borderRadius: 6, padding: 12, fontSize: 14, lineHeight: '100%' }}>{aiProofreadLocal || selectedJob.ai_draft_proofread}</div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button type="button" onClick={async () => { try { await copyForWord(aiProofreadLocal || selectedJob.ai_draft_proofread); showMessage?.('Proofread version copied for Word.', 'success'); } catch { showMessage?.('Copy failed. Select the text and copy it manually.', 'error'); } }}>Copy proofread version</button>
+                      <button type="button" onClick={() => { editorRef.current?.insertText(aiProofreadLocal || selectedJob.ai_draft_proofread); showMessage?.('Proofread version inserted into the editor.', 'success'); }}>Insert proofread text into editor</button>
+                    </div>
+                  </>}
                 </div>
               </>}
             </div>}
@@ -1238,7 +1273,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 {selectedJob.job_type !== 'pdf_job' && <a href="/guidelines" target="_blank" rel="noopener noreferrer">TypeMyworDz General Guidelines (opens in a new tab)</a>}
                 <button type="button" onClick={() => downloadProtectedFile('/human-transcription/trainee/training/materials/formatting-default.docx', 'TypeMyworDz Default Document settings.docx', 'The default document settings file could not be downloaded.')}>Download: TypeMyworDz Default Document settings</button>
               </div>
-              <span style={{ fontSize: 12, color: '#7b857d' }}>Reminder: create your draft with the TypeMyworDz AI above and edit it in Word. Work done without an in-app AI formatted draft may be declined.</span>
+              <span style={{ fontSize: 12, color: '#7b857d' }}>Reminder: create your free draft with the TypeMyworDz AI above, optionally proofread it for one credit, and edit it in Word. Work done without an in-app AI formatted draft may be declined.</span>
             </div>}
             {!(mode === 'worker' && workerTab === 'available') && selectedJob.instruction_attachments?.length > 0 && <div className="tm-human-reference-card"><strong>Reference files from the client</strong><span>Use these notes, spellings, and supporting documents while working.</span><div className="tm-human-reference-list">{selectedJob.instruction_attachments.map((item, index) => <button type="button" key={`${item.name}-${index}`} onClick={() => downloadProtectedFile(`/human-transcription/jobs/${selectedJob.id}/instruction/${index}`, item.name, 'The reference file could not be downloaded.')}>Download: {item.name}</button>)}</div></div>}
             {mode === 'worker' && workerAssignment?.role === 'proofreader' && (selectedJob.proofreader_parts || []).length > 0 && (

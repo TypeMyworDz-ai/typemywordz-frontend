@@ -50,7 +50,8 @@ beforeEach(() => {
         worker_claim_block_reason: 'Finish your current assignment before claiming another.',
       }));
     }
-    if (address.includes('/human-transcription/jobs/job-1/ai-draft')) return Promise.resolve(response({ draft: '\tFirst.  Second.', credits_charged: 1 }));
+    if (address.includes('/human-transcription/jobs/job-1/ai-draft/proofread')) return Promise.resolve(response({ proofread: '\tFirst.  Second proofread.', credits_charged: 1 }));
+    if (address.includes('/human-transcription/jobs/job-1/ai-draft')) return Promise.resolve(response({ draft: '\tFirst.  Second.', credits_charged: 0 }));
     if (address.endsWith('/human-transcription/worker/availability')) return Promise.resolve(response({ available: true }));
     if (address.endsWith('/human-transcription/worker/payment-history')) return Promise.resolve(response({ pending_payouts: [], paid: [], accruing: [] }));
     if (address.includes('/messages')) return Promise.resolve(response({ messages: [], thread: 'worker' }));
@@ -84,12 +85,34 @@ test('worker copies a formatted draft with the Word clipboard format', async () 
     const inProgressTab = await screen.findByRole('tab', { name: 'In Progress' });
     await waitFor(() => expect(inProgressTab).toHaveAttribute('aria-selected', 'true'));
     await screen.findByText('Part 2');
-    fireEvent.click(screen.getByRole('button', { name: 'Get AI formatted draft' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Copy for Word' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Get free AI formatted draft' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Copy original draft for Word' }));
     await waitFor(() => expect(copy).toHaveBeenCalledWith('\tFirst.  Second.'));
   } finally {
     copy.mockRestore();
   }
+});
+
+test('worker can proofread the draft for one credit and insert only the separate proofread version', async () => {
+  document.execCommand = jest.fn(() => false);
+  render(<HumanJobWorkspace mode="worker" initialJobId="job-1" />);
+  const inProgressTab = await screen.findByRole('tab', { name: 'In Progress' });
+  await waitFor(() => expect(inProgressTab).toHaveAttribute('aria-selected', 'true'));
+  await screen.findByText('Part 2');
+  fireEvent.click(screen.getByRole('button', { name: 'Get free AI formatted draft' }));
+  expect(await screen.findByText(/First\.\s+Second\./)).toBeInTheDocument();
+  expect(screen.getByText(/Draft generation does not use credits/)).toBeInTheDocument();
+  expect(screen.getByText('Proofread this draft here before you start transcribing')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Proofread this draft · 1 credit' }));
+  expect(await screen.findByText('Proofread version')).toBeInTheDocument();
+  expect(screen.getByText(/Second proofread\./)).toBeInTheDocument();
+  expect(screen.getByText(/First\.\s+Second\./)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Insert proofread text into editor' }));
+  expect(screen.getByRole('textbox', { name: 'Transcript editor' })).toHaveTextContent('Second proofread.');
+  expect(global.fetch).toHaveBeenCalledWith(
+    expect.stringContaining('/human-transcription/jobs/job-1/ai-draft/proofread'),
+    expect.objectContaining({ method: 'POST' }),
+  );
 });
 
 test('admin AI-agent choices describe the General and Template model routes', async () => {
@@ -98,7 +121,7 @@ test('admin AI-agent choices describe the General and Template model routes', as
 
   expect(await screen.findByRole('button', { name: 'Assign general agent' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Assign template-aware agent' })).toBeInTheDocument();
-  expect(screen.getByText(/General Jobs use ChatGPT 5.6 Terra with Gemini 3.8 Flash fallback; Template Jobs use Claude Opus 5.5 with GPT-5.6 Sol fallback\./)).toBeInTheDocument();
+  expect(screen.getByText(/General Jobs use Claude Sonnet 5.5 with Gemini 3.8 Flash fallback; Template Jobs use Claude Opus 5.5 with GPT-5.6 Sol fallback\./)).toBeInTheDocument();
 });
 
 test('off-shift assignment dropdown requires a worker who is both clocked in and online', async () => {
