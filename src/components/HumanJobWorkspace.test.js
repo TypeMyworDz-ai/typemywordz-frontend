@@ -326,3 +326,47 @@ test('warns at ten deadline returns and blocks a third claim on the same whole j
   expect(await screen.findByRole('button', { name: 'Claim job' })).toBeDisabled();
   expect(screen.getByText(/already successfully claimed this job twice/)).toBeInTheDocument();
 });
+
+test('Human Work sub-admin sees only their own payment tab and shift reminder', async () => {
+  setCurrentUserForTest({ uid: 'subadmin-1', email: 'info@typemywordz.ai', getIdToken: async () => 'test-token' });
+  global.fetch = jest.fn((url) => {
+    const address = String(url);
+    if (address.includes('/human-transcription/jobs?scope=admin')) return Promise.resolve(response({ jobs: [] }));
+    if (address.endsWith('/human-transcription/workers')) return Promise.resolve(response({ workers: [], scheduled_now: true }));
+    if (address.endsWith('/human-transcription/subadmin/payment-history')) return Promise.resolve(response({
+      earnings: [{ earning_id: 'earned-1', shift_date: '2026-10-05', job_name: 'Interview', category: 'image_human', quantity: 30, measure: 'words', rate_kes_per_unit: 0.001, amount_kes: 0.03, payout_status: 'accruing' }],
+      payouts: [], totals: { accruing_kes: 0.03, pending_kes: 0, paid_kes: 0 },
+    }));
+    return Promise.resolve(response({}));
+  });
+  render(<HumanJobWorkspace mode="admin" restricted />);
+
+  expect(await screen.findByRole('heading', { name: 'Human Work Queue' })).toBeInTheDocument();
+  expect(screen.getByText(/Keep all shift work inside the TypeMyworDz system/)).toBeInTheDocument();
+  const paymentsTab = screen.getByRole('tab', { name: 'My payments · KES' });
+  expect(screen.queryByRole('tab', { name: 'Shift attendance' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('tab', { name: 'Sub-admin payments' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('tab', { name: 'Worker payments · KES' })).not.toBeInTheDocument();
+  fireEvent.click(paymentsTab);
+  expect(await screen.findByRole('heading', { name: 'Your payment record' })).toBeInTheDocument();
+  expect(await screen.findAllByText('KES 0.030')).toHaveLength(2);
+  expect(global.fetch).toHaveBeenCalledWith(
+    expect.stringContaining('/human-transcription/subadmin/payment-history'),
+    expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer test-token' }) }),
+  );
+});
+
+test('main admin alone sees sub-admin payroll management and rate tabs', async () => {
+  setCurrentUserForTest({ uid: 'admin-1', email: 'typemywordz@gmail.com', getIdToken: async () => 'test-token' });
+  global.fetch = jest.fn((url) => {
+    const address = String(url);
+    if (address.includes('/human-transcription/jobs?scope=admin')) return Promise.resolve(response({ jobs: [] }));
+    if (address.endsWith('/human-transcription/workers')) return Promise.resolve(response({ workers: [], scheduled_now: true }));
+    return Promise.resolve(response({}));
+  });
+  render(<HumanJobWorkspace mode="admin" />);
+  expect(await screen.findByRole('tab', { name: 'Sub-admin payments' })).toBeInTheDocument();
+  expect(screen.getByRole('tab', { name: 'Sub-admin rates' })).toBeInTheDocument();
+  expect(screen.getByRole('tab', { name: 'Shift attendance' })).toBeInTheDocument();
+  expect(screen.queryByRole('tab', { name: 'My payments · KES' })).not.toBeInTheDocument();
+});
