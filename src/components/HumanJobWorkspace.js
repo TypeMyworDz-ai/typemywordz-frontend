@@ -113,6 +113,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [messageFile, setMessageFile] = useState(null);
   const [finalAttachment, setFinalAttachment] = useState(null);
   const [proofRatings, setProofRatings] = useState({});
+  const [adminPartRatings, setAdminPartRatings] = useState({});
   const [editorText, setEditorText] = useState('');
   const [editorHtml, setEditorHtml] = useState('');
   const [aiDraftBusy, setAiDraftBusy] = useState(false);
@@ -197,6 +198,12 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     || (selectedJob.segments || []).some((part) => part?.worker_uid)
   ));
   const splitJob = ['dual', 'multi'].includes(String(selectedJob?.split_mode || '').toLowerCase());
+  const canRateSubmittedWorker = mode === 'admin' && Boolean(selectedJob) && (
+    splitJob
+      ? (selectedJob.segments || []).some((part) => part.status === 'submitted' && part.worker_uid)
+      : Boolean(selectedJob.worker_uid || (selectedJob.proofreader_status === 'submitted' && selectedJob.proofreader_uid))
+        && ['submitted', 'client_review', 'client_approved', 'released'].includes(selectedJob.status)
+  );
   const aiWholeJobEligible = Boolean(splitJob && selectedJob && !jobHasAssignedWorker && !selectedJob.proofreader_status
     && (selectedJob.segments || []).length > 0
     && (selectedJob.segments || []).every((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid));
@@ -227,7 +234,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     const requestId = jobsRequestIdRef.current + 1;
     jobsRequestIdRef.current = requestId;
     try {
-      const scope = mode === 'admin' ? 'admin' : mode === 'worker' ? (workerTab === 'available' ? 'available' : workerTab === 'finished' ? 'finished' : 'assigned') : 'mine';
+      const scope = mode === 'admin' ? (adminTab === 'archived' ? 'archived' : 'admin') : mode === 'worker' ? (workerTab === 'available' ? 'available' : workerTab === 'finished' ? 'finished' : 'assigned') : 'mine';
       const payload = await request(`/human-transcription/jobs?scope=${scope}`);
       if (requestId !== jobsRequestIdRef.current) return;
       setJobs(payload.jobs || []);
@@ -255,7 +262,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     } finally {
       if (requestId === jobsRequestIdRef.current) setLoading(false);
     }
-  }, [mode, refreshUserProfile, request, showMessage, workerTab]);
+  }, [adminTab, mode, refreshUserProfile, request, showMessage, workerTab]);
 
   const loadWorkers = useCallback(async () => {
     if (mode !== 'admin') return;
@@ -488,6 +495,43 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       showMessage?.(error.message, 'error');
       return false;
     } finally { setBusy(false); }
+  };
+
+  const saveWorkerRatingAndNotes = async () => {
+    if (!selectedJob || mode !== 'admin' || busy) return;
+    const splitParts = splitJob
+      ? (selectedJob.segments || []).filter((part) => part.status === 'submitted' && part.worker_uid)
+      : [];
+    const targets = splitJob
+      ? splitParts.map((part) => ({
+        segment_id: part.id,
+        rating: Number(adminPartRatings[part.id]?.rating || selectedJob.part_ratings?.[part.id]?.rating || rating),
+        note: String(adminPartRatings[part.id]?.note ?? selectedJob.part_ratings?.[part.id]?.note ?? '').trim(),
+      }))
+      : selectedJob.worker_uid
+        ? [{ segment_id: '', rating: Number(rating), note: String(feedback || '').trim() }]
+        : selectedJob.proofreader_status === 'submitted' && selectedJob.proofreader_uid
+          ? [{ segment_id: 'proofreader', rating: Number(rating), note: String(feedback || '').trim() }]
+          : [];
+    if (!targets.length) {
+      showMessage?.('There is no submitted worker assignment to rate yet.', 'error');
+      return;
+    }
+    setBusy(true);
+    try {
+      for (const target of targets) {
+        await request(`/human-transcription/jobs/${selectedJob.id}/rate-part`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(target),
+        });
+      }
+      await loadJobs();
+      showMessage?.('Worker rating and comments saved. Job status was not changed.', 'success');
+    } catch (error) {
+      showMessage?.(error.message || 'The worker rating could not be saved.', 'error');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const finishJob = async () => {
@@ -839,6 +883,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       {mode === 'admin' && (
         <div className="tm-human-thread-tabs tm-worker-room-tabs" role="tablist" aria-label="Admin dashboard sections">
           <button type="button" role="tab" aria-selected={adminTab === 'queue'} className={adminTab === 'queue' ? 'active' : ''} onClick={() => setAdminTab('queue')}>Job Queue</button>
+          <button type="button" role="tab" aria-selected={adminTab === 'archived'} className={adminTab === 'archived' ? 'active' : ''} onClick={() => setAdminTab('archived')}>Archived Jobs</button>
           {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'general_jobs'} className={adminTab === 'general_jobs' ? 'active' : ''} onClick={() => setAdminTab('general_jobs')}>General Jobs</button>}
           {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'letter_jobs'} className={adminTab === 'letter_jobs' ? 'active' : ''} onClick={() => setAdminTab('letter_jobs')}>Letter Jobs</button>}
           {canManagePdfJobs && <button type="button" role="tab" aria-selected={adminTab === 'text_messages'} className={adminTab === 'text_messages' ? 'active' : ''} onClick={() => setAdminTab('text_messages')}>Text Messages</button>}
@@ -895,6 +940,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <AdminJobCleanupPanel request={request} showMessage={showMessage} />
       ) : (
       <>
+      {mode === 'admin' && adminTab === 'archived' && <div className="tm-admin-archived-note" role="note"><strong>Archived after three days</strong><span>These older jobs are hidden from active queues, not deleted. Their files, payment history, and worker conversations remain available here.</span></div>}
       {mode === 'admin' && adminTab === 'queue' && (
         <div className="tm-admin-queue-controls" aria-label="Filter human-work jobs">
           <div className="tm-admin-queue-lanes" role="tablist" aria-label="Job status">
@@ -942,7 +988,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <small>{mode === 'worker' ? `${job.job_type === 'pdf_job' ? 'PDF image · KES 100' : jobTypeLabel(job)} · ${moneylessDate(job.createdAt)}` : `${job.quote_credits || 0} credits · ${moneylessDate(job.createdAt)}`}</small>
             </button>
           ))}
-          {!jobsForCurrentView.length && <div className="tm-human-empty">{mode === 'admin' ? 'No jobs match this status and type.' : mode === 'worker' && workerTab === 'available' ? 'No new work is available right now. This board refreshes automatically.' : 'No human work is waiting here.'}</div>}
+          {!jobsForCurrentView.length && <div className="tm-human-empty">{mode === 'admin' && adminTab === 'archived' ? 'No jobs have reached the three-day archive yet.' : mode === 'admin' ? 'No jobs match this status and type.' : mode === 'worker' && workerTab === 'available' ? 'No new work is available right now. This board refreshes automatically.' : 'No human work is waiting here.'}</div>}
         </aside>
 
         <div className="tm-human-job-detail">
@@ -977,7 +1023,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <section className="tm-ai-agent-panel" aria-label="AI first-draft agents">
                 <div className="tm-ai-agent-copy">
                   <strong>AI first draft <span>Private internal draft</span></strong>
-                  <p>Choose the job-specific internal agent for an available job or part. General Jobs use Claude Sonnet 5.5 with Gemini 3.8 Flash fallback; Template Jobs use Claude Opus 5.5 with GPT-5.6 Sol fallback. The draft stays private until you assign proofreading or finish eligible admin-uploaded work.</p>
+                  <p>Choose the job-specific internal agent for an available job or part. General Jobs use ChatGPT 5.6 Terra with Gemini 3.8 Flash fallback; Template Jobs use Claude Opus 5.5 with GPT-5.6 Sol fallback. The draft stays private until you assign proofreading or finish eligible admin-uploaded work.</p>
                 </div>
                 {splitJob && <label className="tm-ai-agent-part">Part
                   <select value={aiAgentSegment || (selectedJob.segments || []).find((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid)?.id || ''} onChange={(event) => setAiAgentSegment(event.target.value)}>
@@ -1166,7 +1212,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             {mode === 'admin' && <AdminPartReview job={selectedJob} act={act} downloadProtectedFile={downloadProtectedFile} />}
 
 
-            {mode === 'admin' && selectedJob.status === 'submitted' && <div className="tm-human-review"><label>Worker rating<select value={rating} onChange={(event) => setRating(event.target.value)}><option value="5">5 — excellent</option><option value="4">4 — strong</option><option value="3">3 — acceptable</option><option value="2">2 — needs work</option><option value="1">1 — poor</option></select></label><textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder={selectedJob.admin_uploaded ? 'Internal review notes for this admin-uploaded job' : 'Notes for the client and worker'} /><button type="button" disabled={busy || !adminReviewerComplete(selectedJob)} title={!adminReviewerComplete(selectedJob) ? 'Complete the selected AI or human review before final admin approval.' : undefined} onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating, feedback }) }, selectedJob.admin_uploaded ? 'Admin-uploaded work approved and completed.' : selectedJob.job_type === 'pdf_job' ? 'PDF transcription approved and completed.' : 'Sent to client for review.')}>{selectedJob.admin_uploaded ? 'Approve internal work' : selectedJob.job_type === 'pdf_job' ? 'Approve PDF transcription' : 'Send to client'}</button></div>}
+            {canRateSubmittedWorker && <div className="tm-human-review tm-human-rating-panel"><strong className="tm-human-rating-title">Worker rating and comments</strong>{splitJob ? <div className="tm-human-rating-parts">{(selectedJob.segments || []).filter((part) => part.status === 'submitted' && part.worker_uid).map((part) => { const current = adminPartRatings[part.id] || selectedJob.part_ratings?.[part.id] || {}; return <div key={part.id} className="tm-human-rating-part"><strong>{part.label || 'Submitted part'}</strong><select aria-label={`Worker rating for ${part.label || part.id}`} value={current.rating || '5'} onChange={(event) => setAdminPartRatings((previous) => ({ ...previous, [part.id]: { ...current, rating: event.target.value } }))}><option value="5">5 — excellent</option><option value="4">4 — strong</option><option value="3">3 — acceptable</option><option value="2">2 — needs work</option><option value="1">1 — poor</option></select><input aria-label={`Worker comments for ${part.label || part.id}`} value={current.note || ''} onChange={(event) => setAdminPartRatings((previous) => ({ ...previous, [part.id]: { ...current, note: event.target.value } }))} placeholder="Comments (optional)" /></div>; })}</div> : <><label>Worker rating<select value={rating} onChange={(event) => setRating(event.target.value)}><option value="5">5 — excellent</option><option value="4">4 — strong</option><option value="3">3 — acceptable</option><option value="2">2 — needs work</option><option value="1">1 — poor</option></select></label><textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder="Comments for this worker" /></>}<button type="button" disabled={busy} onClick={saveWorkerRatingAndNotes}>Save worker rating and comments</button><p>Saving feedback does not approve, finish, or change the job.</p></div>}
+            {mode === 'admin' && selectedJob.status === 'submitted' && !selectedJob.admin_uploaded && <div className="tm-human-review tm-human-review-actions"><strong>Job completion</strong><p>Complete the required AI or human review before sending this work to the client.</p><button type="button" disabled={busy || !adminReviewerComplete(selectedJob)} title={!adminReviewerComplete(selectedJob) ? 'Complete the selected AI or human review before sending this work to the client.' : undefined} onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }, selectedJob.job_type === 'pdf_job' ? 'PDF transcription approved and completed.' : 'Sent to client for review.')}>{selectedJob.job_type === 'pdf_job' ? 'Approve PDF transcription' : 'Send to client'}</button></div>}
             {mode === 'admin' && canFinishHumanJob(selectedJob) && <div className="tm-human-review"><button type="button" className="tm-admin-btn" disabled={busy} onClick={() => setFinishJobConfirm(true)}>Finish Job</button><p className="tm-tat-hint">Finish complete work without assigning a reviewer. Active proofreading assignments must be completed or taken back first.</p></div>}
 
             {selectedJob.job_type === 'pdf_job' && !(mode === 'worker' && workerTab === 'available') && <div className="tm-human-pdf-image-card"><div><strong>{selectedJob.pdf_review ? 'Whole-file review: all pages' : 'Assigned image'}</strong><span>{selectedJob.pdf_image?.source_filename || selectedJob.pdf_image?.name}{selectedJob.pdf_image?.page_count > 1 && !selectedJob.pdf_review ? ` · Page ${selectedJob.pdf_image.page_number} of ${selectedJob.pdf_image.page_count}` : ''}</span></div>{pdfImageUrls.length > 1 ? pdfImageUrls.map((url, index) => <img key={url} src={url} alt={`Page ${index + 1} of ${pdfImageUrls.length}`} />) : pdfImageUrl ? <img src={pdfImageUrl} alt={`Transcribe ${selectedJob.pdf_image?.name || 'PDF Job'}`} /> : <p role={pdfImageError ? 'alert' : 'status'}>{pdfImageError || 'Loading the private image…'}</p>}</div>}
