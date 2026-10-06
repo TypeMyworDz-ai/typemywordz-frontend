@@ -77,6 +77,15 @@ const canFinishAdminAiDraft = (job) => {
   if (segments.length) return segments.every((part) => part?.status === 'submitted' && Boolean(String(part?.transcript || '').trim()));
   return job?.job_type === 'pdf_job' && Boolean(job?.pdf_review) && Boolean(String(job?.transcript || '').trim());
 };
+const canFinishHumanJob = (job) => {
+  if (!job || !['submitted', 'proofreading_available'].includes(job.status)) return false;
+  if (['assigned', 'in_progress'].includes(job.proofreader_status)) return false;
+  if (['queued', 'processing'].includes(job.reviewer_status) || ['queued', 'processing'].includes(job.letter_ai_review_status)) return false;
+  const segments = Array.isArray(job.segments) ? job.segments : [];
+  if (segments.length) return segments.every((part) => part?.status === 'submitted' && (Boolean(String(part?.transcript || part?.transcript_html || '').trim()) || Boolean(part?.final_attachment?.storage_path)));
+  return Boolean(String(job.transcript || job.transcript_html || '').trim() || job.final_attachment?.storage_path);
+};
+const finishIsInternal = (job) => Boolean(job?.admin_uploaded === true || ['pdf_job', 'letter_job'].includes(job?.job_type));
 
 const ADMIN_QUEUE_LANES = [
   { id: 'needs_action', label: 'Needs action' },
@@ -86,6 +95,7 @@ const ADMIN_QUEUE_LANES = [
 ];
 const adminQueueLaneFor = (job) => {
   const status = String(job?.status || '').toLowerCase();
+  if (job?.admin_finishedAt) return 'finished';
   if (['submitted', 'client_review'].includes(status)) return 'submitted';
   if (['released', 'cancelled'].includes(status)) return 'finished';
   if (['assigned', 'in_progress', 'split_assigned', 'split_in_progress', 'proofreading_assigned', 'proofreading_in_progress'].includes(status)) return 'in_progress';
@@ -109,7 +119,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [aiDraftLocal, setAiDraftLocal] = useState('');
   const [wholeWorker, setWholeWorker] = useState('');
   const [wholeConfirm, setWholeConfirm] = useState(false);
-  const [finishAiConfirm, setFinishAiConfirm] = useState(false);
+  const [finishJobConfirm, setFinishJobConfirm] = useState(false);
   const [aiWholeConfirm, setAiWholeConfirm] = useState(false);
   const [aiWholeAgent, setAiWholeAgent] = useState('');
   const [templateAgentGuidelines, setTemplateAgentGuidelines] = useState('');
@@ -480,15 +490,19 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     } finally { setBusy(false); }
   };
 
-  const finishAiDraft = async () => {
-    if (!selectedJob || busy || !canFinishAdminAiDraft(selectedJob)) return;
+  const finishJob = async () => {
+    if (!selectedJob || busy || !canFinishHumanJob(selectedJob)) return;
+    const internal = finishIsInternal(selectedJob);
+    const successMessage = internal
+      ? 'Job finished and moved to the Finished lane. No client charge or notification was issued.'
+      : 'Admin review is complete. The client has been notified; credits remain untouched until they approve.';
     const finished = await act(
-      `/human-transcription/jobs/${selectedJob.id}/ai-agent/finish`,
+      `/human-transcription/jobs/${selectedJob.id}/finish`,
       { method: 'POST' },
-      'AI draft finished and moved to the Finished lane. No client charge or notification was issued.',
+      successMessage,
     );
     if (finished) {
-      setFinishAiConfirm(false);
+      setFinishJobConfirm(false);
       setAdminQueueLane('finished');
     }
   };
@@ -1023,9 +1037,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 </div>}
                 {selectedJob.ai_agent_status === 'submitted' && selectedJob.ai_agent_id === 'template-claude' && <button type="button" onClick={() => downloadProtectedFile(`/human-transcription/admin/jobs/${selectedJob.id}/ai-agent/template-docx`, selectedJob.ai_agent_docx?.name || `${selectedJob.job_name || 'transcript'}-formatted-draft.docx`, 'The private template-formatted Word draft is not available.')}>Download template-formatted Word draft (.docx)</button>}
                 {selectedJob.ai_agent_status && <p className={`tm-ai-agent-state is-${selectedJob.ai_agent_status}`} role="status">
-                  {['queued', 'processing'].includes(selectedJob.ai_agent_status) ? `${selectedJob.ai_agent_name || 'AI agent'} is preparing a private draft…` : selectedJob.ai_agent_status === 'submitted' ? (canFinishAdminAiDraft(selectedJob) ? `${selectedJob.ai_agent_name || 'AI agent'} submitted a complete private draft. Assign a human proofreader, or finish this internal job without charging or notifying a client.` : `${selectedJob.ai_agent_name || 'AI agent'} submitted a draft. Assign an approved human proofreader before review or release.`) : selectedJob.ai_agent_status === 'failed' ? `The last AI run failed: ${selectedJob.ai_agent_error || 'Retry the agent or assign a human worker.'}` : ''}
+                  {['queued', 'processing'].includes(selectedJob.ai_agent_status) ? `${selectedJob.ai_agent_name || 'AI agent'} is preparing a private draft…` : selectedJob.ai_agent_status === 'submitted' ? (canFinishAdminAiDraft(selectedJob) ? `${selectedJob.ai_agent_name || 'AI agent'} submitted a complete private draft. Assign a human proofreader, or finish this internal job without charging or notifying a client.` : `${selectedJob.ai_agent_name || 'AI agent'} submitted a draft. You can assign an AI reviewer, choose a human proofreader, or review it yourself and finish the complete job.`) : selectedJob.ai_agent_status === 'failed' ? `The last AI run failed: ${selectedJob.ai_agent_error || 'Retry the agent or assign a human worker.'}` : ''}
                 </p>}
-                {canFinishAdminAiDraft(selectedJob) && <button type="button" className="tm-admin-btn" disabled={busy} onClick={() => setFinishAiConfirm(true)}>Finish internal job</button>}
               </section>
             )}
 
@@ -1101,7 +1114,17 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             </div>}
             <ConfirmDialog open={wholeConfirm} title="Assign the whole job to this worker?" body="The job leaves the Available Jobs board and the worker does the full recording. Use this for urgent work." confirmLabel="Assign whole job" busy={busy} onConfirm={assignWholeJob} onCancel={() => setWholeConfirm(false)} />
             <ConfirmDialog open={aiWholeConfirm} title="Pause the parts and assign one whole-job draft?" body={`${aiWholeAgent === 'template-claude' ? 'The template-aware agent' : 'The general agent'} will prepare one private draft from the full recording. This is allowed only when no part has been claimed or submitted. If the AI run fails, the original parts are restored. An approved human proofreader must still check the draft before it can reach the client.`} confirmLabel="Pause parts and continue" busy={busy} onConfirm={confirmAiWholeJob} onCancel={() => { setAiWholeConfirm(false); setAiWholeAgent(''); }} />
-            <ConfirmDialog open={finishAiConfirm} title="Finish this internal job?" body="This moves the completed admin-uploaded AI draft to the Finished lane. It will not be sent to a client, charge credits, or send a client notification. You can assign a human proofreader instead if you want another review." confirmLabel="Finish internal job" busy={busy} onConfirm={finishAiDraft} onCancel={() => setFinishAiConfirm(false)} />
+            <ConfirmDialog
+              open={finishJobConfirm}
+              title="Finish this job?"
+              body={finishIsInternal(selectedJob)
+                ? 'This moves the completed work to the Finished lane. It will not charge credits or send a client notification.'
+                : 'This completes admin proofreading and moves the job to Finished. The client will be notified to review it; credits are not charged unless the client approves and the work is released.'}
+              confirmLabel="Finish Job"
+              busy={busy}
+              onConfirm={finishJob}
+              onCancel={() => setFinishJobConfirm(false)}
+            />
 
             {mode === 'admin' && !splitJob && selectedJob.status === 'approved' && <div className="tm-human-assign">
               <strong>Available to workers</strong>
@@ -1144,6 +1167,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
 
             {mode === 'admin' && selectedJob.status === 'submitted' && <div className="tm-human-review"><label>Worker rating<select value={rating} onChange={(event) => setRating(event.target.value)}><option value="5">5 — excellent</option><option value="4">4 — strong</option><option value="3">3 — acceptable</option><option value="2">2 — needs work</option><option value="1">1 — poor</option></select></label><textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder={selectedJob.admin_uploaded ? 'Internal review notes for this admin-uploaded job' : 'Notes for the client and worker'} /><button type="button" disabled={busy || !adminReviewerComplete(selectedJob)} title={!adminReviewerComplete(selectedJob) ? 'Complete the selected AI or human review before final admin approval.' : undefined} onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating, feedback }) }, selectedJob.admin_uploaded ? 'Admin-uploaded work approved and completed.' : selectedJob.job_type === 'pdf_job' ? 'PDF transcription approved and completed.' : 'Sent to client for review.')}>{selectedJob.admin_uploaded ? 'Approve internal work' : selectedJob.job_type === 'pdf_job' ? 'Approve PDF transcription' : 'Send to client'}</button></div>}
+            {mode === 'admin' && canFinishHumanJob(selectedJob) && <div className="tm-human-review"><button type="button" className="tm-admin-btn" disabled={busy} onClick={() => setFinishJobConfirm(true)}>Finish Job</button><p className="tm-tat-hint">Finish complete work without assigning a reviewer. Active proofreading assignments must be completed or taken back first.</p></div>}
 
             {selectedJob.job_type === 'pdf_job' && !(mode === 'worker' && workerTab === 'available') && <div className="tm-human-pdf-image-card"><div><strong>{selectedJob.pdf_review ? 'Whole-file review: all pages' : 'Assigned image'}</strong><span>{selectedJob.pdf_image?.source_filename || selectedJob.pdf_image?.name}{selectedJob.pdf_image?.page_count > 1 && !selectedJob.pdf_review ? ` · Page ${selectedJob.pdf_image.page_number} of ${selectedJob.pdf_image.page_count}` : ''}</span></div>{pdfImageUrls.length > 1 ? pdfImageUrls.map((url, index) => <img key={url} src={url} alt={`Page ${index + 1} of ${pdfImageUrls.length}`} />) : pdfImageUrl ? <img src={pdfImageUrl} alt={`Transcribe ${selectedJob.pdf_image?.name || 'PDF Job'}`} /> : <p role={pdfImageError ? 'alert' : 'status'}>{pdfImageError || 'Loading the private image…'}</p>}</div>}
             {audioKey && <WorkerAudioPlayer src={audioUrl} loading={audioLoading} error={audioError} title={audioSegmentId ? 'Your part of the recording' : 'Source recording'} note={audioSegmentId ? 'Only your assigned part is played and downloaded here.' : 'Available to the client, admin and assigned worker.'} filename={audioSegmentId ? `${(workerAssignment?.label || 'part').replace(/[^A-Za-z0-9]+/g, '-').toLowerCase()}.mp3` : (selectedJob?.audio?.name || 'recording.mp3')} />}
