@@ -52,7 +52,7 @@ import GuidelinesPage from './components/GuidelinesPage';
 import NotificationsCenter, { NotificationAlert } from './components/NotificationsCenter';
 import { isPaidAIUser } from './aiAccess';
 import { db } from './firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { isAdminEmail, isHumanJobAdminEmail, hasFreeAccess } from './adminEmails';
 import { recordPageView } from './analyticsService';
 import * as recordingBackup from './utils/recordingBackup';
@@ -657,7 +657,7 @@ function AppContent() {
 
   const refreshCredits = useCallback(async () => {
     if (!currentUser) { setCreditBalance(null); return null; }
-    const bal = await fetchCreditBalance(currentUser.uid, currentUser.email);
+    const bal = await fetchCreditBalance(currentUser.uid, currentUser.email, currentUser);
     setCreditBalance(bal);
     return bal;
   }, [currentUser]);
@@ -685,7 +685,7 @@ function AppContent() {
         if (cancelled) return;
         const backfillResult = await runCreditBackfill(currentUser.uid, currentUser.email);
         if (cancelled) return;
-        const bal = await fetchCreditBalance(currentUser.uid, currentUser.email);
+        const bal = await fetchCreditBalance(currentUser.uid, currentUser.email, currentUser);
         if (cancelled) return;
         if (bal) setCreditBalance(bal);
         // A genuinely fresh, unpaid free account with a zero balance and no
@@ -699,6 +699,35 @@ function AppContent() {
     })();
     return () => { cancelled = true; };
   }, [currentUser, userProfile]);
+
+  // Credit mutations update the signed-in user's Firestore profile. Listen for
+  // those changes and then ask the backend for the authoritative spendable
+  // balance, so AI-use charges appear without a manual refresh.
+  useEffect(() => {
+    if (!currentUser?.uid) return undefined;
+    let lastSignature = null;
+    const creditFields = [
+      'planCredits', 'topUpCredits', 'planCreditsExpireAt', 'humanWorkAiCreditsUsed',
+      'humanWorkAiCalls', 'askTypeMyworDzCreditsUsed', 'askTypeMyworDzQueries',
+    ];
+    return onSnapshot(doc(db, 'users', currentUser.uid), (snapshot) => {
+      const profile = snapshot.exists() ? snapshot.data() : {};
+      const signature = JSON.stringify(creditFields.map((field) => {
+        const value = profile[field];
+        return value && typeof value.toMillis === 'function' ? value.toMillis() : value ?? null;
+      }));
+      if (lastSignature === null) {
+        lastSignature = signature;
+        return;
+      }
+      if (signature !== lastSignature) {
+        lastSignature = signature;
+        refreshCredits();
+      }
+    }, (error) => {
+      console.warn('Live credit updates could not be watched:', error);
+    });
+  }, [currentUser, refreshCredits]);
 
   // NEW: State to prevent duplicate payment verification
   const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);

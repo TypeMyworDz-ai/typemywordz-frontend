@@ -35,10 +35,18 @@ export const runCreditBackfill = async (uid, email) => {
 };
 
 // What this account can spend right now.
-export const fetchCreditBalance = async (uid, email) => {
+export const fetchCreditBalance = async (uid, email, authUser = null) => {
   try {
+    const isBillableMainAdmin = String(email || '').trim().toLowerCase() === 'typemywordz@gmail.com';
+    const params = { user_id: uid, user_email: email };
+    const headers = {};
+    if (isBillableMainAdmin && authUser?.getIdToken) {
+      params.billable_ai_balance = 'true';
+      headers.Authorization = `Bearer ${await authUser.getIdToken()}`;
+    }
     const res = await fetch(
-      `${BACKEND_URL}/credits/balance?${qs({ user_id: uid, user_email: email })}`
+      `${BACKEND_URL}/credits/balance?${qs(params)}`,
+      { headers },
     );
     if (!res.ok) return null;
     return await res.json();
