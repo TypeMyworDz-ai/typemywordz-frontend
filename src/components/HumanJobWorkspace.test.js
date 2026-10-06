@@ -101,7 +101,7 @@ test('admin AI-agent choices describe the General and Template model routes', as
   expect(screen.getByText(/General Jobs use Claude Sonnet 5.5 with Gemini 3.8 Flash fallback; Template Jobs use Claude Opus 5.5 with GPT-5.6 Sol fallback\./)).toBeInTheDocument();
 });
 
-test('admin assignment dropdown includes an online worker even with off-shift opt-in paused', async () => {
+test('off-shift assignment dropdown requires a worker who is both clocked in and online', async () => {
   setCurrentUserForTest({ uid: 'admin-1', email: 'typemywordz@gmail.com', getIdToken: async () => 'test-token' });
   global.fetch = jest.fn((url) => {
     const address = String(url);
@@ -111,7 +111,11 @@ test('admin assignment dropdown includes an online worker even with off-shift op
     }] }));
     if (address.endsWith('/human-transcription/workers')) return Promise.resolve(response({
       scheduled_now: false,
-      workers: [{ uid: 'worker-online', name: 'Online Worker', email: 'worker@example.com', approved: true, online: true, available: false }],
+      workers: [
+        { uid: 'worker-online', name: 'Online Worker', email: 'worker@example.com', approved: true, call_in_active: true, online: true, clocked_in: true },
+        { uid: 'worker-not-clocked-in', name: 'Not Clocked In', email: 'not-clocked@example.com', approved: true, call_in_active: true, online: true, clocked_in: false },
+        { uid: 'worker-not-called-in', name: 'Not Called In', email: 'not-called@example.com', approved: true, call_in_active: false, online: true, clocked_in: true },
+      ],
     }));
     if (address.includes('/messages')) return Promise.resolve(response({ messages: [] }));
     return Promise.resolve(response({}));
@@ -120,35 +124,70 @@ test('admin assignment dropdown includes an online worker even with off-shift op
 
   const workerSelect = await screen.findByLabelText('Worker');
   expect(Array.from(workerSelect.options).some((option) => option.value === 'worker-online')).toBe(true);
+  expect(Array.from(workerSelect.options).some((option) => option.value === 'worker-not-clocked-in')).toBe(false);
+  expect(Array.from(workerSelect.options).some((option) => option.value === 'worker-not-called-in')).toBe(false);
 });
 
-test('worker can opt into off-shift claims while online without clocking in', async () => {
+test('Available for work only controls online presence and does not enable off-shift claims', async () => {
+  let availability = false;
   let presenceSeen = false;
   const shift = {
     status: 'off_shift', scheduled_now: false, call_in_active: false, clocked_in: false,
-    off_shift_claim_enabled: true, off_shift_self_claim: false,
-    message: 'Outside regular shift hours.',
+    online: false, off_shift_claim_enabled: false, off_shift_self_claim: false,
+    message: 'There are no regular weekend shifts.',
   };
   global.fetch = jest.fn((url, options = {}) => {
     const address = String(url);
-    if (address.endsWith('/human-transcription/worker/availability')) return Promise.resolve(response({ available: true }));
+    if (address.endsWith('/human-transcription/worker/availability')) {
+      if (options.method === 'POST') availability = JSON.parse(options.body).available;
+      return Promise.resolve(response({ available: availability }));
+    }
     if (address.endsWith('/human-transcription/worker/shift')) return Promise.resolve(response(shift));
     if (address.endsWith('/human-transcription/worker/shift/presence')) {
       presenceSeen = true;
-      return Promise.resolve(response({ ...shift, off_shift_self_claim: true, can_claim: true, workroom_online: true }));
+      return Promise.resolve(response({ ...shift, online: true, workroom_online: true, available_for_work: true, can_claim: false }));
     }
     if (address.includes('/human-transcription/jobs?scope=available')) return Promise.resolve(response({
-      jobs: [], worker_can_view_available: true, worker_can_claim: presenceSeen,
-      worker_available: true, worker_shift_status: { off_shift_self_claim: presenceSeen },
+      jobs: [], worker_can_view_available: true, worker_can_claim: false,
+      worker_available: availability, worker_shift_status: { off_shift_self_claim: false },
     }));
     if (address.includes('/messages')) return Promise.resolve(response({ messages: [] }));
     return Promise.resolve(response({}));
   });
   render(<HumanJobWorkspace mode="worker" />);
 
-  expect(await screen.findByText('Off-shift claiming is enabled')).toBeInTheDocument();
-  expect(screen.getByText(/online and available/)).toBeInTheDocument();
+  const availableSwitch = await screen.findByRole('switch', { name: 'Available for work' });
+  fireEvent.click(availableSwitch);
+  await waitFor(() => expect(presenceSeen).toBe(true));
+  expect(await screen.findByText('Online · not clocked in')).toBeInTheDocument();
+  expect(screen.getByText(/does not record attendance or allow claims/i)).toBeInTheDocument();
+  expect(screen.queryByText('Off-shift claiming is enabled')).not.toBeInTheDocument();
+  expect(availability).toBe(true);
   expect(global.fetch.mock.calls.some(([url, options]) => String(url).endsWith('/human-transcription/worker/shift/presence') && options.method === 'POST')).toBe(true);
+});
+
+test('shift attendance shows online presence separately from missed attendance and keeps call-in available', async () => {
+  setCurrentUserForTest({ uid: 'admin-1', email: 'typemywordz@gmail.com', getIdToken: async () => 'test-token' });
+  global.fetch = jest.fn((url) => {
+    const address = String(url);
+    if (address.includes('/human-transcription/jobs?scope=admin')) return Promise.resolve(response({ jobs: [] }));
+    if (address.endsWith('/human-transcription/workers')) return Promise.resolve(response({ workers: [], scheduled_now: false }));
+    if (address.endsWith('/human-transcription/admin/shifts')) return Promise.resolve(response({
+      date: '2026-10-06', workers: [{
+        uid: 'worker-1', name: 'Presence Worker', email: 'worker@example.com', online: true,
+        clocked_in: false, status: 'missed', call_in_active: false, misses_consecutive: 1,
+      }],
+    }));
+    if (address.includes('/messages')) return Promise.resolve(response({ messages: [] }));
+    return Promise.resolve(response({}));
+  });
+  render(<HumanJobWorkspace mode="admin" />);
+
+  fireEvent.click(await screen.findByRole('tab', { name: 'Shift attendance' }));
+  const workerRow = await screen.findByRole('row', { name: /Presence Worker/ });
+  expect(within(workerRow).getByText('Online')).toBeInTheDocument();
+  expect(within(workerRow).getByText('Missed shift')).toBeInTheDocument();
+  expect(within(workerRow).getByRole('button', { name: 'Call in' })).toBeEnabled();
 });
 
 test('admin can finish a complete internal AI draft after confirming no client delivery', async () => {

@@ -121,7 +121,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   // Job-specific conversation access is admin/worker only. Client questions
   // use the separate direct-message channel.
   const [workerTab, setWorkerTab] = useState('available');
-  const [workerBoardInfo, setWorkerBoardInfo] = useState({ canView: true, canClaim: true, activeAssignment: false, blockReason: '', deadlineReturns: 0, deadlineWarning: false, offShiftClaim: false });
+  const [workerBoardInfo, setWorkerBoardInfo] = useState({ canView: true, canClaim: true, activeAssignment: false, blockReason: '', deadlineReturns: 0, deadlineWarning: false });
   const [starterWorker, setStarterWorker] = useState('');
   const [starterSegment, setStarterSegment] = useState('');
   const [paymentHistory, setPaymentHistory] = useState(null);
@@ -132,7 +132,9 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const canManageLetterJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai'].includes(adminEmail);
   const canAssignAiAgents = ['typemywordz@gmail.com', 'info@typemywordz.ai'].includes(adminEmail);
   const adminAssignableWorkers = workers.filter((worker) => (
-    worker.approved !== false && (adminScheduledNow === true || worker.online === true)
+    worker.approved !== false && (
+      adminScheduledNow === true || (worker.call_in_active === true && worker.clocked_in === true && worker.online === true)
+    )
   ));
   const [adminQueueLane, setAdminQueueLane] = useState('needs_action');
   const [adminQueueType, setAdminQueueType] = useState('all');
@@ -217,7 +219,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           blockReason: payload.worker_claim_block_reason || '',
           deadlineReturns: Number(payload.worker_deadline_return_count || 0),
           deadlineWarning: payload.worker_deadline_warning === true,
-          offShiftClaim: payload.worker_shift_status?.off_shift_self_claim === true,
         });
       }
       setJobsFetchedAt(Date.now());
@@ -276,7 +277,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       });
       setWorkerAvailable(payload.available !== false);
       await loadJobs();
-      showMessage?.(nextAvailable ? 'Off-shift queue claiming is on. Keep the Work Room open while you are available.' : 'Off-shift queue claiming is paused. Scheduled-shift claims are unaffected.', 'success');
+      showMessage?.(nextAvailable ? 'You are marked online. Clock-in and shift rules still control work claims.' : 'You are marked offline. You can still clock in or out as needed.', 'success');
     } catch (error) {
       showMessage?.(error.message || 'Your availability could not be changed.', 'error');
     } finally {
@@ -770,13 +771,14 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           <h1>{mode === 'admin' ? 'Human work queue' : mode === 'worker' ? 'Your Work Room' : 'Your human-transcription work'}</h1>
           <p>{mode === 'admin' ? 'Approve client requests, monitor worker claims, review delivery and release credits only after approval.' : mode === 'worker' ? 'Claim one available job or slice at a time, submit it, then return for more work.' : 'Follow each request from quote to delivery. Credits remain untouched until the finished work is approved and released.'}</p>
         </div>
-        {mode === 'worker' && <label className="tm-worker-availability-toggle"><input type="checkbox" checked={workerAvailable} disabled={availabilitySaving} onChange={updateWorkerAvailability} /><span><strong>{workerAvailable ? 'Available for off-shift work' : 'Off-shift work paused'}</strong><small>{availabilitySaving ? 'Saving…' : 'When on, you can claim queue jobs outside your shift while this Work Room is open. It does not record attendance.'}</small></span></label>}
+        {mode === 'worker' && <label className="tm-worker-availability-toggle"><input type="checkbox" role="switch" aria-label="Available for work" checked={workerAvailable} disabled={availabilitySaving} onChange={updateWorkerAvailability} /><span><strong>Available for work <em>{workerAvailable ? 'On' : 'Off'}</em></strong><small>{availabilitySaving ? 'Saving…' : 'This only shows admins whether you are online. It does not clock you in or allow work claims.'}</small></span></label>}
         <button className="tm-human-refresh" type="button" onClick={() => { loadJobs(); loadWorkers(); loadPayments(); loadAvailability(); }}>Refresh</button>
       </div>
 
+      {mode === 'admin' && adminScheduledNow === false && <p className="tm-tat-hint">Outside regular shift hours, worker assignment is limited to approved workers with an active admin call-in who are clocked in and currently online.</p>}
       {mode === 'worker' && workerBoardInfo.deadlineWarning && workerBoardInfo.deadlineReturns < 11 && <div className="tm-worker-board-notice tm-worker-deadline-warning" role="alert"><strong>Deadline reminder · {workerBoardInfo.deadlineReturns} returns</strong><span>One more missed deadline will pause Available Jobs access and send you to the Training Room for retraining. Claim only work you can complete on time.</span></div>}
 
-      {mode === 'worker' && <WorkerShiftPanel showMessage={showMessage} onPresence={loadJobs} offShiftAvailability={workerAvailable} />}
+      {mode === 'worker' && <WorkerShiftPanel showMessage={showMessage} onPresence={loadJobs} availableForWork={workerAvailable} />}
 
       {mode === 'worker' && (
         <div className="tm-worker-rating-card" aria-label="Your average transcriber rating">
@@ -885,12 +887,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <div className="tm-worker-board-notice" role="status">
           <strong>{workerBoardInfo.canView ? 'New claims are paused' : 'Available Jobs are not open yet'}</strong>
           <span>{workerBoardInfo.blockReason} Payment History and Finished Jobs remain available.</span>
-        </div>
-      )}
-      {mode === 'worker' && workerTab === 'available' && workerBoardInfo.offShiftClaim && (
-        <div className="tm-worker-board-notice tm-worker-offshift-notice" role="note">
-          <strong>Off-shift claiming is enabled</strong>
-          <span>You are online in the Work Room and opted in. These jobs are outside the regular Monday–Friday, 3:00 p.m.–8:00 p.m. shift; the listed turnaround still applies.</span>
         </div>
       )}
       <div className="tm-human-workspace-grid">
@@ -1258,7 +1254,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   );
 }
 
-function WorkerShiftPanel({ showMessage, onPresence, offShiftAvailability }) {
+function WorkerShiftPanel({ showMessage, onPresence, availableForWork }) {
   const { currentUser } = useAuth();
   const [shift, setShift] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -1286,8 +1282,7 @@ function WorkerShiftPanel({ showMessage, onPresence, offShiftAvailability }) {
 
   useEffect(() => {
     if (!currentUser) return undefined;
-    const canRefreshPresence = shift?.clocked_in
-      || (shift?.scheduled_now === false && shift?.call_in_active !== true && offShiftAvailability === true);
+    const canRefreshPresence = shift?.clocked_in || availableForWork === true;
     if (!canRefreshPresence) return undefined;
     let active = true;
     const ping = async () => {
@@ -1308,7 +1303,7 @@ function WorkerShiftPanel({ showMessage, onPresence, offShiftAvailability }) {
       active = false;
       window.clearInterval(timer);
     };
-  }, [currentUser, shift?.clocked_in, shift?.scheduled_now, shift?.call_in_active, offShiftAvailability, onPresence]);
+  }, [currentUser, shift?.clocked_in, availableForWork, onPresence]);
 
   const act = async (path) => {
     if (busy || !currentUser) return;
@@ -1332,18 +1327,18 @@ function WorkerShiftPanel({ showMessage, onPresence, offShiftAvailability }) {
   };
 
   const onShift = Boolean(shift?.clocked_in);
-  const statusLabel = shift?.off_shift_self_claim
-    ? 'Outside shift · online and available'
-    : ({ online: 'On shift · online', clocked_in_idle: 'On shift · presence not refreshed', called_in_not_clocked_in: 'Admin call-in · clock in to start', not_arrived: 'Shift open · clock in to claim', clocked_out: 'Clocked out', missed: 'Shift ended · not clocked in', off_shift: 'Outside shift hours', retraining: 'Training Room' }[shift?.status] || 'Checking shift status');
+  const statusLabel = shift?.online === true
+    ? (shift?.clocked_in ? (shift?.scheduled_now ? 'On shift · online' : 'Outside shift · online') : 'Online · not clocked in')
+    : ({ online: 'Online', clocked_in_idle: 'Clocked in · offline', called_in_not_clocked_in: 'Admin call-in · clock in to start', not_arrived: 'Shift open · clock in to claim', clocked_out: 'Clocked out', missed: 'Shift ended · not clocked in', off_shift: 'Outside shift hours', retraining: 'Training Room' }[shift?.status] || 'Checking shift status');
   return <section className={`tm-worker-shift-card${shift?.warning ? ' has-warning' : ''}`} aria-label="Your shift status">
     <div className="tm-worker-shift-main">
-      <span className={`tm-worker-shift-indicator is-${shift?.status || 'loading'}`} aria-hidden="true" />
+      <span className={`tm-worker-shift-indicator is-${shift?.online === true ? 'online' : shift?.status || 'loading'}`} aria-hidden="true" />
       <div className="tm-worker-shift-copy">
         <div className="tm-worker-shift-heading"><strong>{statusLabel}</strong>{shift?.misses_consecutive > 0 && <span className="tm-worker-shift-count">{shift.misses_consecutive}/6 missed</span>}</div>
         <p>{shift?.message || 'Loading today’s shift details…'}</p>
-        <small>Clock in to record attendance during a scheduled shift. The availability toggle is only for off-shift queue claims; keep this Work Room open so your online status can be confirmed.</small>
+        <small>The Available for work switch only shows admins whether you are online. It does not record attendance or allow claims. During a scheduled shift, clock in; outside shift hours, an admin call-in and clock-in are required.</small>
         {shift?.warning && <small className="tm-worker-shift-warning">Five missed shifts in a row. Attend your next scheduled shift to keep your work access.</small>}
-        {onShift && shift?.has_active_assignment && !shift?.scheduled_now && <small className="tm-worker-shift-warning">Finish your active job before clocking out. Afterward, off-shift queue claims require availability on and the Work Room open.</small>}
+        {onShift && shift?.has_active_assignment && <small className="tm-worker-shift-warning">Finish your active job before clocking out.</small>}
         {error && <small className="tm-worker-shift-error" role="alert">{error}</small>}
       </div>
     </div>
@@ -1383,7 +1378,9 @@ function AdminShiftAttendancePanel({ showMessage }) {
 
   useEffect(() => {
     loadAttendance();
-    const timer = window.setInterval(() => loadAttendance(true), 30000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') loadAttendance(true);
+    }, 10000);
     return () => window.clearInterval(timer);
   }, [loadAttendance]);
 
@@ -1407,14 +1404,14 @@ function AdminShiftAttendancePanel({ showMessage }) {
     }
   };
 
-  const statusText = (status) => ({ online: 'Online', clocked_in_idle: 'Clocked in · offline', called_in_not_clocked_in: 'Called in · not clocked in', not_arrived: 'Not arrived', missed: 'Missed shift', clocked_out: 'Clocked out', off_shift: 'Off shift', retraining: 'Training Room' }[status] || status || 'Unknown');
+  const statusText = (status) => ({ online: 'Clocked in', clocked_in_idle: 'Clocked in', called_in_not_clocked_in: 'Called in · not clocked in', not_arrived: 'Not arrived', missed: 'Missed shift', clocked_out: 'Clocked out', off_shift: 'Off shift', retraining: 'Training Room' }[status] || status || 'Unknown');
   const onlineCount = workers.filter((worker) => worker.online).length;
   const notArrivedCount = workers.filter((worker) => worker.status === 'not_arrived').length;
   const trainingCount = workers.filter((worker) => worker.status === 'retraining').length;
 
   return <section className="tm-admin-panel tm-human-shift-admin">
     <div className="tm-admin-panel-head">
-      <div><p className="tm-admin-kicker">Africa/Nairobi · {date || 'today'}</p><h2 className="tm-admin-panel-title">Shift attendance</h2><p className="tm-admin-panel-note">Regular shifts run Monday to Friday, 3:00 p.m. to 8:00 p.m. Kenya time. Online presence refreshes while a worker’s Work Room is open.</p></div>
+      <div><p className="tm-admin-kicker">Africa/Nairobi · {date || 'today'}</p><h2 className="tm-admin-panel-title">Shift attendance</h2><p className="tm-admin-panel-note">Regular shifts run Monday to Friday, 3:00 p.m. to 8:00 p.m. Kenya time. Online requires the toggle to be on and a fresh Work Room heartbeat; shift attendance and call-in remain separate.</p></div>
       <button type="button" className="tm-admin-btn" onClick={() => loadAttendance()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
     </div>
     <div className="tm-human-shift-summary"><span><strong>{onlineCount}</strong> online</span><span><strong>{notArrivedCount}</strong> not arrived</span><span><strong>{trainingCount}</strong> in retraining</span><small>Warning at 5 consecutive missed shifts · Training Room at 6</small></div>
@@ -1422,10 +1419,10 @@ function AdminShiftAttendancePanel({ showMessage }) {
     {loading && !workers.length ? <div className="tm-admin-empty">Loading shift attendance…</div> : !workers.length ? <div className="tm-admin-empty">No approved workers are on the shift roster yet.</div> : <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Worker</th><th>Attendance</th><th>Recent presence</th><th>Missed shifts</th><th>Admin action</th></tr></thead><tbody>
       {workers.map((worker) => <tr key={worker.uid}>
         <td><strong>{worker.name}</strong><div className="tm-admin-name">{worker.email}{worker.rating != null ? ` · ${Number(worker.rating).toFixed(2)}/5` : ''}</div></td>
-        <td><span className={`tm-human-shift-status is-${worker.status}`}>{statusText(worker.status)}</span>{worker.message && <div className="tm-admin-name">{worker.message}</div>}</td>
+        <td><span className={`tm-human-shift-status ${worker.online ? 'is-online' : 'is-offline'}`}>{worker.online ? 'Online' : 'Offline'}</span><div className="tm-admin-name">{statusText(worker.status)}</div>{worker.message && <div className="tm-admin-name">{worker.message}</div>}</td>
         <td>{worker.last_presence_at ? moneylessDate(worker.last_presence_at) : 'Not recorded'}{worker.call_in_expires_at && worker.call_in_active && <div className="tm-admin-name">Call-in ends {moneylessDate(worker.call_in_expires_at)}</div>}</td>
         <td>{worker.misses_consecutive || 0} / 6{worker.warning && <div className="tm-worker-shift-warning">Warning issued</div>}</td>
-        <td>{worker.status === 'retraining' ? 'No call-in while retraining' : <button type="button" className="tm-admin-btn" disabled={workingUid === worker.uid || worker.online} onClick={() => callIn(worker)}>{workingUid === worker.uid ? 'Calling in…' : worker.call_in_active ? 'Extend call-in' : 'Call in'}</button>}</td>
+        <td>{worker.status === 'retraining' ? 'No call-in while retraining' : <button type="button" className="tm-admin-btn" disabled={workingUid === worker.uid || (worker.call_in_active && worker.clocked_in)} onClick={() => callIn(worker)}>{workingUid === worker.uid ? 'Calling in…' : worker.call_in_active ? 'Extend call-in' : 'Call in'}</button>}</td>
       </tr>)}
     </tbody></table></div>}
   </section>;

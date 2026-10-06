@@ -56,19 +56,25 @@ test('creates one whole Letter Job from a complete recording', async () => {
   expect(options.headers['Content-Type']).toBeUndefined();
 });
 
-test('off-shift admin assignment lists an online worker with self-claim availability off', async () => {
+test('off-shift Letter assignment includes only workers who are clocked in and online', async () => {
   global.fetch = jest.fn((url) => {
     const address = String(url);
     if (address.includes('/admin/letter-jobs')) return Promise.resolve(response({ jobs: [availableJob] }));
     if (address.includes('/worker-options')) return Promise.resolve(response({
       scheduled_now: false,
-      workers: [{ uid: 'online-worker', name: 'Online Worker', email: 'worker@example.com', available: false, online: true }],
+      workers: [
+        { uid: 'ready-worker', name: 'Ready Worker', email: 'worker@example.com', available: true, call_in_active: true, online: true, clocked_in: true },
+        { uid: 'online-only-worker', name: 'Online Only', email: 'online@example.com', available: true, call_in_active: true, online: true, clocked_in: false },
+        { uid: 'not-called-in', name: 'Not Called In', email: 'not-called@example.com', available: true, call_in_active: false, online: true, clocked_in: true },
+      ],
     }));
     return Promise.resolve(response({ status: 'queued' }));
   });
   render(<LetterJobsAdminPanel />);
   const select = await screen.findByRole('combobox', { name: 'Choose a worker for Letter 1' });
-  expect(Array.from(select.options).some((option) => option.value === 'online-worker')).toBe(true);
+  expect(Array.from(select.options).some((option) => option.value === 'ready-worker')).toBe(true);
+  expect(Array.from(select.options).some((option) => option.value === 'online-only-worker')).toBe(false);
+  expect(Array.from(select.options).some((option) => option.value === 'not-called-in')).toBe(false);
 });
 
 test('assigns the complete recording to the dedicated Letter Agent', async () => {

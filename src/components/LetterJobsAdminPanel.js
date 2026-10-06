@@ -59,7 +59,7 @@ export default function LetterJobsAdminPanel({ showMessage }) {
   const [workerChoices, setWorkerChoices] = useState({});
   const [reviewerChoices, setReviewerChoices] = useState({});
   const [releaseConfirmId, setReleaseConfirmId] = useState('');
-  const eligibleWorkers = workers.filter((worker) => scheduledNow === true || worker.online === true);
+  const eligibleWorkers = workers.filter((worker) => scheduledNow === true || (worker.call_in_active === true && worker.clocked_in === true && worker.online === true));
   const qualifiedReviewers = eligibleWorkers.filter((worker) => worker.can_proofread);
 
   const loadJobs = useCallback(async (quiet = false) => {
@@ -284,8 +284,8 @@ export default function LetterJobsAdminPanel({ showMessage }) {
             <td>{job.worker_name || job.worker_email || job.letter_agent_name || 'Unassigned'}{job.letter_agent_model_ids?.length > 0 && <div className="tm-admin-name">{job.letter_agent_model_ids.join(' + ')}</div>}</td>
             <td><div className="tm-letter-job-actions">
               {job.status === 'approved' && <>
-                {eligibleWorkers.length > 0 && <div className="tm-letter-job-assign"><select aria-label={`Choose a worker for ${job.job_name || job.audio?.name || 'Letter Job'}`} value={workerChoices[job.id] || ''} onChange={(event) => setWorkerChoices((current) => ({ ...current, [job.id]: event.target.value }))}><option value="">Choose one worker</option>{eligibleWorkers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name || worker.email}</option>)}</select><button type="button" className="tm-admin-btn" disabled={!workerChoices[job.id] || working === job.id} onClick={() => assignWorker(job)}>{working === job.id ? 'Assigning…' : 'Assign whole job'}</button></div>}
-                {scheduledNow === false && eligibleWorkers.length === 0 && <small>Outside regular shift hours, only workers currently online in the Work Room can be assigned. An admin can call a worker in so they can clock in first.</small>}
+                {eligibleWorkers.length > 0 && <div className="tm-letter-job-assign"><select aria-label={`Choose a worker for ${job.job_name || job.audio?.name || 'Letter Job'}`} value={workerChoices[job.id] || ''} onChange={(event) => setWorkerChoices((current) => ({ ...current, [job.id]: event.target.value }))}><option value="">Choose one worker</option>{eligibleWorkers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name || worker.email}{scheduledNow === false ? ' · called in, clocked in and online' : ''}</option>)}</select><button type="button" className="tm-admin-btn" disabled={!workerChoices[job.id] || working === job.id} onClick={() => assignWorker(job)}>{working === job.id ? 'Assigning…' : 'Assign whole job'}</button></div>}
+                {scheduledNow === false && eligibleWorkers.length === 0 && <small>Outside regular shift hours, only workers with an active call-in who are clocked in and online in the Work Room can be assigned. Call the worker in first; they must clock in.</small>}
                 <button type="button" className="tm-admin-btn tm-letter-agent-btn" disabled={working === job.id} onClick={() => assignAgent(job)}>{working === job.id ? 'Queuing…' : 'Assign Letter Agent'}</button>
               </>}
               {job.status === 'submitted' && job.final_attachment?.name && <button type="button" className="tm-admin-link-button" onClick={() => downloadFile(`/human-transcription/jobs/${job.id}/final-attachment`, job.final_attachment.name, 'The submitted Word document is not available.')}>Download submitted Word document</button>}
