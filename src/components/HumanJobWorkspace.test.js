@@ -98,7 +98,7 @@ test('admin AI-agent choices describe the General and Template model routes', as
 
   expect(await screen.findByRole('button', { name: 'Assign general agent' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Assign template-aware agent' })).toBeInTheDocument();
-  expect(screen.getByText(/General Jobs use Claude Sonnet 5.5 with Gemini 3.8 Flash fallback; Template Jobs use Claude Opus 5.5 with GPT-5.6 Sol fallback\./)).toBeInTheDocument();
+  expect(screen.getByText(/General Jobs use ChatGPT 5.6 Terra with Gemini 3.8 Flash fallback; Template Jobs use Claude Opus 5.5 with GPT-5.6 Sol fallback\./)).toBeInTheDocument();
 });
 
 test('off-shift assignment dropdown requires a worker who is both clocked in and online', async () => {
@@ -394,4 +394,49 @@ test('main admin alone sees sub-admin payroll management and rate tabs', async (
   expect(screen.getByRole('tab', { name: 'Sub-admin rates' })).toBeInTheDocument();
   expect(screen.getByRole('tab', { name: 'Shift attendance' })).toBeInTheDocument();
   expect(screen.queryByRole('tab', { name: 'My payments · KES' })).not.toBeInTheDocument();
+});
+
+test('admin can save worker feedback without changing job completion', async () => {
+  setCurrentUserForTest({ uid: 'admin-1', email: 'typemywordz@gmail.com', getIdToken: async () => 'test-token' });
+  const submittedJob = {
+    id: 'submitted-job', status: 'submitted', job_type: 'human_transcription', job_name: 'Submitted audio',
+    worker_uid: 'worker-1', worker_name: 'Worker One', worker_email: 'worker@example.com', transcript: 'Completed transcript.',
+    minutes: 2, quote_credits: 0, createdAt: '2026-10-06T12:00:00Z', segments: [],
+  };
+  global.fetch = jest.fn((url) => {
+    const address = String(url);
+    if (address.includes('/human-transcription/jobs?scope=admin')) return Promise.resolve(response({ jobs: [submittedJob] }));
+    if (address.includes('/human-transcription/jobs/submitted-job/messages')) return Promise.resolve(response({ messages: [], thread: 'worker' }));
+    if (address.endsWith('/human-transcription/worker/payment-history')) return Promise.resolve(response({ pending_payouts: [], paid: [], accruing: [] }));
+    return Promise.resolve(response({}));
+  });
+
+  render(<HumanJobWorkspace mode="admin" />);
+  fireEvent.click(await screen.findByRole('tab', { name: /Submitted/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /Submitted audio/ }));
+  expect(await screen.findByRole('button', { name: 'Save worker rating and comments' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Finish Job' })).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText('Worker rating'), { target: { value: '4' } });
+  fireEvent.change(screen.getByPlaceholderText('Comments for this worker'), { target: { value: 'Clear and accurate.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save worker rating and comments' }));
+
+  await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+    expect.stringContaining('/human-transcription/jobs/submitted-job/rate-part'),
+    expect.objectContaining({ method: 'POST', body: JSON.stringify({ segment_id: '', rating: 4, note: 'Clear and accurate.' }) }),
+  ));
+  expect(global.fetch.mock.calls.some(([url]) => String(url).includes('/review') || String(url).includes('/finish-job'))).toBe(false);
+});
+
+test('admin Archived Jobs tab requests the retained archived job list', async () => {
+  setCurrentUserForTest({ uid: 'admin-1', email: 'typemywordz@gmail.com', getIdToken: async () => 'test-token' });
+  render(<HumanJobWorkspace mode="admin" />);
+  const archivedTab = await screen.findByRole('tab', { name: 'Archived Jobs' });
+  fireEvent.click(archivedTab);
+  expect(await screen.findByText('Archived after three days')).toBeInTheDocument();
+  await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+    expect.stringContaining('/human-transcription/jobs?scope=archived'),
+    expect.any(Object),
+  ));
+  expect(screen.getByText('No jobs have reached the three-day archive yet.')).toBeInTheDocument();
 });
