@@ -190,7 +190,7 @@ test('shift attendance shows online presence separately from missed attendance a
   expect(within(workerRow).getByRole('button', { name: 'Call in' })).toBeEnabled();
 });
 
-test('admin can finish a complete internal AI draft after confirming no client delivery', async () => {
+test('admin can finish complete internal AI work after confirming no client delivery', async () => {
   setCurrentUserForTest({ uid: 'admin-1', email: 'typemywordz@gmail.com', getIdToken: async () => 'test-token' });
   const job = {
     id: 'draft-job', status: 'proofreading_available', job_type: 'human_transcription', admin_uploaded: true,
@@ -203,16 +203,41 @@ test('admin can finish a complete internal AI draft after confirming no client d
     if (address.includes('/human-transcription/jobs?scope=admin')) return Promise.resolve(response({ jobs: [job] }));
     if (address.endsWith('/human-transcription/workers')) return Promise.resolve(response({ workers: [], scheduled_now: true }));
     if (address.includes('/messages')) return Promise.resolve(response({ messages: [] }));
-    if (address.endsWith('/ai-agent/finish')) return Promise.resolve(response({ status: 'released', client_charged: false, client_notified: false }));
+    if (address.endsWith('/finish')) return Promise.resolve(response({ status: 'released', client_charged: false, client_notified: false }));
     return Promise.resolve(response({}));
   });
   render(<HumanJobWorkspace mode="admin" />);
 
-  fireEvent.click(await screen.findByRole('button', { name: 'Finish internal job' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Finish Job' }));
   const dialog = await screen.findByRole('alertdialog');
-  expect(dialog).toHaveTextContent('will not be sent to a client, charge credits, or send a client notification');
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Finish internal job' }));
-  await waitFor(() => expect(global.fetch.mock.calls.some(([url, options]) => String(url).endsWith('/ai-agent/finish') && options.method === 'POST')).toBe(true));
+  expect(dialog).toHaveTextContent('will not charge credits or send a client notification');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Finish Job' }));
+  await waitFor(() => expect(global.fetch.mock.calls.some(([url, options]) => String(url).endsWith('/human-transcription/jobs/draft-job/finish') && options.method === 'POST')).toBe(true));
+});
+
+test('admin can finish client work without bypassing client approval or charging credits', async () => {
+  setCurrentUserForTest({ uid: 'admin-1', email: 'typemywordz@gmail.com', getIdToken: async () => 'test-token' });
+  const job = {
+    id: 'client-job', status: 'submitted', job_type: 'general_job', client_uid: 'client-1',
+    transcript: 'Completed and proofread transcript.', audio: { name: 'client-audio.mp3' }, minutes: 2,
+  };
+  global.fetch = jest.fn((url, options = {}) => {
+    const address = String(url);
+    if (address.includes('/human-transcription/jobs?scope=admin')) return Promise.resolve(response({ jobs: [job] }));
+    if (address.endsWith('/human-transcription/workers')) return Promise.resolve(response({ workers: [], scheduled_now: true }));
+    if (address.includes('/messages')) return Promise.resolve(response({ messages: [] }));
+    if (address.endsWith('/human-transcription/jobs/client-job/finish')) return Promise.resolve(response({ status: 'client_review', client_review_required: true, client_charged: false }));
+    return Promise.resolve(response({}));
+  });
+  render(<HumanJobWorkspace mode="admin" />);
+
+  fireEvent.click(await screen.findByRole('tab', { name: /Submitted/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Finish Job' }));
+  const dialog = await screen.findByRole('alertdialog');
+  expect(dialog).toHaveTextContent('The client will be notified to review it');
+  expect(dialog).toHaveTextContent('credits are not charged unless the client approves');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Finish Job' }));
+  await waitFor(() => expect(global.fetch.mock.calls.some(([url, options]) => String(url).endsWith('/human-transcription/jobs/client-job/finish') && options.method === 'POST')).toBe(true));
 });
 
 test('admin sends extra template-job instructions and files with the template assignment', async () => {
