@@ -114,9 +114,11 @@ const adminQueueLaneFor = (job) => {
   return 'needs_action';
 };
 
+const EMPTY_JOBS = [];
+
 export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', onInitialJobHandled, restricted = false }) {
   const { currentUser, refreshUserProfile } = useAuth();
-  const [jobs, setJobs] = useState([]);
+  const [jobsStore, setJobsStore] = useState({});
   const [workers, setWorkers] = useState([]);
   const [adminScheduledNow, setAdminScheduledNow] = useState(null);
   const [selectedId, setSelectedId] = useState('');
@@ -161,6 +163,14 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [starterSegment, setStarterSegment] = useState('');
   const [paymentHistory, setPaymentHistory] = useState(null);
   const [adminTab, setAdminTab] = useState('queue');
+  // Jobs are stored per scope so switching tabs never shows another tab's list.
+  const jobsScope = mode === 'admin' ? (adminTab === 'archived' ? 'archived' : 'admin') : mode === 'worker' ? (workerTab === 'available' ? 'available' : workerTab === 'finished' ? 'finished' : 'assigned') : 'mine';
+  const jobs = jobsStore[jobsScope] || EMPTY_JOBS;
+  const scopeLoading = jobsStore[jobsScope] === undefined;
+  const jobsScopeRef = useRef(jobsScope);
+  jobsScopeRef.current = jobsScope;
+  const busyRef = useRef(false);
+  busyRef.current = busy;
   const adminEmail = (currentUser?.email || '').trim().toLowerCase();
   const isMainAdmin = adminEmail === 'typemywordz@gmail.com';
   const isHumanSubadmin = mode === 'admin' && !isMainAdmin && restricted && ['info@typemywordz.ai'].includes(adminEmail);
@@ -180,6 +190,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const draftAssignmentKeyRef = useRef('');
   const lastSyncErrorAtRef = useRef(0);
   const jobsRequestIdRef = useRef(0);
+  const jobsAppliedIdRef = useRef(0);
+  const pollInFlightRef = useRef(false);
   const handledInitialJobIdRef = useRef('');
 
   // The server tells us how many seconds are left as of the last refresh;
@@ -249,11 +261,15 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const loadJobs = useCallback(async () => {
     const requestId = jobsRequestIdRef.current + 1;
     jobsRequestIdRef.current = requestId;
+    const scope = mode === 'admin' ? (adminTab === 'archived' ? 'archived' : 'admin') : mode === 'worker' ? (workerTab === 'available' ? 'available' : workerTab === 'finished' ? 'finished' : 'assigned') : 'mine';
     try {
-      const scope = mode === 'admin' ? (adminTab === 'archived' ? 'archived' : 'admin') : mode === 'worker' ? (workerTab === 'available' ? 'available' : workerTab === 'finished' ? 'finished' : 'assigned') : 'mine';
       const payload = await request(`/human-transcription/jobs?scope=${scope}`);
-      if (requestId !== jobsRequestIdRef.current) return;
-      setJobs(payload.jobs || []);
+      // Only discard a response that is older than one already shown, or one
+      // for a tab the user has since left. A slow poll never blocks newer data.
+      if (requestId < jobsAppliedIdRef.current && scope === jobsScopeRef.current) return;
+      jobsAppliedIdRef.current = Math.max(jobsAppliedIdRef.current, requestId);
+      setJobsStore((previous) => ({ ...previous, [scope]: payload.jobs || [] }));
+      if (scope !== jobsScopeRef.current) return;
       if (mode === 'worker') {
         if (payload.worker_rating_summary) setWorkerRatingSummary(payload.worker_rating_summary);
         setWorkerBoardInfo({
@@ -271,12 +287,12 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       if (mode === 'worker' && /available-work access|approved workers|training room/i.test(String(error.message || ''))) {
         refreshUserProfile().catch(() => {});
       }
-      if (requestId === jobsRequestIdRef.current && Date.now() - lastSyncErrorAtRef.current > 30000) {
+      if (scope === jobsScopeRef.current && Date.now() - lastSyncErrorAtRef.current > 30000) {
         lastSyncErrorAtRef.current = Date.now();
         showMessage?.(error.message, 'error');
       }
     } finally {
-      if (requestId === jobsRequestIdRef.current) setLoading(false);
+      setLoading(false);
     }
   }, [adminTab, mode, refreshUserProfile, request, showMessage, workerTab]);
 
@@ -482,18 +498,54 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   }, [loadMessages, selectedJob?.id]);
 
   // Visible-tab polling keeps assignments, deadlines, submissions and
-  // client review states in sync without frequent redundant requests.
+  // client review states in sync. Each poll starts only after the previous one
+  // finished, so a slow server can never pile up overlapping requests.
   useEffect(() => {
-    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') loadJobs(); };
-    const interval = window.setInterval(refreshWhenVisible, 8000);
-    window.addEventListener('focus', refreshWhenVisible);
-    document.addEventListener('visibilitychange', refreshWhenVisible);
+    let stopped = false;
+    let timer = null;
+    const poll = async () => {
+      if (stopped) return;
+      if (document.visibilityState === 'visible' && !pollInFlightRef.current) {
+        pollInFlightRef.current = true;
+        try { await loadJobs(); } finally { pollInFlightRef.current = false; }
+      }
+      if (!stopped) timer = window.setTimeout(poll, 4000);
+    };
+    const wake = () => {
+      if (document.visibilityState !== 'visible' || pollInFlightRef.current) return;
+      window.clearTimeout(timer);
+      poll();
+    };
+    timer = window.setTimeout(poll, 4000);
+    window.addEventListener('focus', wake);
+    document.addEventListener('visibilitychange', wake);
     return () => {
-      window.clearInterval(interval);
-      window.removeEventListener('focus', refreshWhenVisible);
-      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      stopped = true;
+      window.clearTimeout(timer);
+      window.removeEventListener('focus', wake);
+      document.removeEventListener('visibilitychange', wake);
     };
   }, [loadJobs]);
+
+  // Every button shows a spinner as soon as it is clicked and keeps it until
+  // the action it started finishes (the button re-enables) or about a second.
+  const pendingButtons = useRef(new Set());
+  const markButtonPending = (event) => {
+    const button = event.target?.closest?.('button');
+    if (!button || button.disabled || button.dataset.noPending || button.closest('.tm-human-job-row')) return;
+    button.classList.add('tm-btn-pending');
+    pendingButtons.current.add(button);
+    const started = Date.now();
+    const release = window.setInterval(() => {
+      const elapsed = Date.now() - started;
+      const waiting = (busyRef.current || button.disabled) && elapsed < 60000;
+      if ((elapsed >= 700 && !waiting) || !button.isConnected) {
+        window.clearInterval(release);
+        button.classList.remove('tm-btn-pending');
+        pendingButtons.current.delete(button);
+      }
+    }, 150);
+  };
 
   const remainingSecondsFor = (job) => {
     if (!job || typeof job.time_remaining_seconds !== 'number') return null;
@@ -871,10 +923,18 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     );
   };
 
-  if (loading) return <div className="tm-human-workspace-loading">Loading human work…</div>;
+  if (loading && scopeLoading) return (
+    <section className="tm-human-workspace" aria-busy="true" aria-label="Loading human work">
+      <div className="tm-human-progress" role="progressbar" aria-label="Loading"><span /></div>
+      <div className="tm-human-skeleton tm-human-skeleton-title" />
+      <div className="tm-human-skeleton tm-human-skeleton-line" />
+      <div className="tm-human-skeleton-grid"><div className="tm-human-skeleton tm-human-skeleton-card" /><div className="tm-human-skeleton tm-human-skeleton-card tall" /></div>
+    </section>
+  );
 
   return (
-    <section className="tm-human-workspace">
+    <section className={`tm-human-workspace${busy ? ' is-busy' : ''}`} onClickCapture={markButtonPending}>
+      {(busy || scopeLoading) && <div className="tm-human-progress" role="progressbar" aria-label={busy ? 'Working' : 'Loading jobs'}><span /></div>}
       <div className="tm-human-workspace-head">
         <div>
           {onBack && <button className="tm-human-back" type="button" onClick={onBack}>← Back to workspace</button>}
@@ -909,7 +969,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       {mode === 'worker' && (
         <div className="tm-worker-policy-note" role="note">
           <strong>How hired work must be prepared:</strong>
-          <span>Once hired, generate a free AI formatted draft for your assigned job. Optional AI proofreading costs 5 credits. Edit the version you choose in Word, then paste it into the TypeMyworDz editor and submit. Keep the research notes and spellings section at the end of your work; the proofreader and admin need them to verify names. Do not attach documents unless a job is a TEMPLATE JOB or the admin requests one.</span>
+          <span>Once hired, generate an AI formatted draft for your assigned job; it uses credits equal to the assigned audio minutes plus 1 credit. Optional AI proofreading costs 5 credits. Edit the version you choose in Word, then paste it into the TypeMyworDz editor and submit. Keep the research notes and spellings section at the end of your work; the proofreader and admin need them to verify names. Do not attach documents unless a job is a TEMPLATE JOB or the admin requests one.</span>
         </div>
       )}
 
@@ -2130,18 +2190,26 @@ function AdminSubadminPaymentsPanel({ request, showMessage }) {
   );
 }
 
+function ratesFromServer(data) {
+  return {
+    audio_human_kes_per_minute: String(data.audio_human_kes_per_minute ?? 10),
+    audio_ai_kes_per_minute: String(data.audio_ai_kes_per_minute ?? 20),
+    image_human_usd_cents_per_word: String(data.image_human_usd_cents_per_word ?? 0.15),
+    image_ai_usd_cents_per_word: String(data.image_ai_usd_cents_per_word ?? 0.2),
+    usd_to_kes_rate: String(data.usd_to_kes_rate ?? 129),
+  };
+}
+
 function AdminSubadminRatesPanel({ request, showMessage }) {
   const [rates, setRates] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [recalc, setRecalc] = useState({ start_date: nairobiDateIso(), end_date: nairobiDateIso() });
+  const [recalcPreview, setRecalcPreview] = useState(null);
+  const [recalcBusy, setRecalcBusy] = useState(false);
   const load = useCallback(async () => {
     try {
       const data = await request('/api/admin/subadmin-rates');
-      setRates({
-        audio_human_kes_per_minute: String(data.audio_human_kes_per_minute ?? 10),
-        audio_ai_kes_per_minute: String(data.audio_ai_kes_per_minute ?? 20),
-        image_human_cents_per_word: String(data.image_human_cents_per_word ?? 0.1),
-        image_ai_cents_per_word: String(data.image_ai_cents_per_word ?? 0.2),
-      });
+      setRates(ratesFromServer(data));
     } catch (error) { showMessage?.(error.message, 'error'); }
   }, [request, showMessage]);
   useEffect(() => { load(); }, [load]);
@@ -2153,30 +2221,61 @@ function AdminSubadminRatesPanel({ request, showMessage }) {
       const data = await request('/api/admin/subadmin-rates', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
         audio_human_kes_per_minute: Number(rates.audio_human_kes_per_minute),
         audio_ai_kes_per_minute: Number(rates.audio_ai_kes_per_minute),
-        image_human_cents_per_word: Number(rates.image_human_cents_per_word),
-        image_ai_cents_per_word: Number(rates.image_ai_cents_per_word),
+        image_human_usd_cents_per_word: Number(rates.image_human_usd_cents_per_word),
+        image_ai_usd_cents_per_word: Number(rates.image_ai_usd_cents_per_word),
+        usd_to_kes_rate: Number(rates.usd_to_kes_rate),
       }) });
-      setRates({
-        audio_human_kes_per_minute: String(data.audio_human_kes_per_minute), audio_ai_kes_per_minute: String(data.audio_ai_kes_per_minute),
-        image_human_cents_per_word: String(data.image_human_cents_per_word), image_ai_cents_per_word: String(data.image_ai_cents_per_word),
-      });
+      setRates(ratesFromServer(data));
+      setRecalcPreview(null);
       showMessage?.('Sub-admin rates saved for future earnings.', 'success');
     } catch (error) { showMessage?.(error.message, 'error'); }
     finally { setSaving(false); }
   };
+  const runRecalculate = async (apply) => {
+    setRecalcBusy(true);
+    try {
+      const data = await request('/api/admin/subadmin-earnings/recalculate-images', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...recalc, apply }) });
+      setRecalcPreview(apply ? { ...data, done: true } : data);
+      showMessage?.(apply ? `Updated ${data.changed_count} image earnings.` : `${data.changed_count} image earnings would change.`, 'success');
+    } catch (error) { showMessage?.(error.message, 'error'); }
+    finally { setRecalcBusy(false); }
+  };
   if (!rates) return <div className="tm-human-chat-card tm-human-empty">Loading sub-admin rates…</div>;
   const setRate = (key, value) => setRates((current) => ({ ...current, [key]: value }));
+  const fx = Number(rates.usd_to_kes_rate) || 0;
+  const kesPerWord = (cents) => ((Number(cents) || 0) / 100 * fx).toFixed(4);
   return (
     <form className="tm-human-chat-card tm-subadmin-rates" onSubmit={save}>
-      <div className="tm-human-chat-head"><div><strong>Sub-admin rates</strong><span>Changing rates applies to future approved earnings only.</span></div></div>
+      <div className="tm-human-chat-head"><div><strong>Sub-admin rates</strong><span>Saving changes the rate for new earnings. Use the correction tool below for earnings that are still accruing.</span></div></div>
       <div className="tm-subadmin-rate-grid">
         <label>Human-submitted audio <span>KES per minute</span><input type="number" min="0" max="10000" step="1" required value={rates.audio_human_kes_per_minute} onChange={(event) => setRate('audio_human_kes_per_minute', event.target.value)} /></label>
         <label>AI-assisted audio <span>KES per minute</span><input type="number" min="0" max="10000" step="1" required value={rates.audio_ai_kes_per_minute} onChange={(event) => setRate('audio_ai_kes_per_minute', event.target.value)} /></label>
-        <label>Human-submitted images <span>KES cents per word</span><input type="number" min="0" max="1000" step="0.1" required value={rates.image_human_cents_per_word} onChange={(event) => setRate('image_human_cents_per_word', event.target.value)} /></label>
-        <label>AI-assisted images <span>KES cents per word</span><input type="number" min="0" max="1000" step="0.1" required value={rates.image_ai_cents_per_word} onChange={(event) => setRate('image_ai_cents_per_word', event.target.value)} /></label>
+        <label>Human-submitted images <span>US cents per word (≈ KES {kesPerWord(rates.image_human_usd_cents_per_word)})</span><input type="number" min="0" max="1000" step="0.01" required value={rates.image_human_usd_cents_per_word} onChange={(event) => setRate('image_human_usd_cents_per_word', event.target.value)} /></label>
+        <label>AI-assisted images <span>US cents per word (≈ KES {kesPerWord(rates.image_ai_usd_cents_per_word)})</span><input type="number" min="0" max="1000" step="0.01" required value={rates.image_ai_usd_cents_per_word} onChange={(event) => setRate('image_ai_usd_cents_per_word', event.target.value)} /></label>
+        <label>Exchange rate <span>KES per 1 US dollar</span><input type="number" min="1" max="1000" step="0.01" required value={rates.usd_to_kes_rate} onChange={(event) => setRate('usd_to_kes_rate', event.target.value)} /></label>
       </div>
-      <p className="tm-subadmin-rate-note">The current image rates equal KES 0.001 and KES 0.002 per word. Earnings keep three decimal places so fractions of a shilling are not rounded away.</p>
+      <p className="tm-subadmin-rate-note">Image work is priced in US cents per word and converted to shillings with the exchange rate above. Earnings keep three decimal places so fractions of a shilling are not rounded away.</p>
       <div className="tm-subadmin-rate-actions"><button type="submit" className="tm-admin-payout-search-btn" disabled={saving}>{saving ? 'Saving…' : 'Save rates'}</button><button type="button" onClick={load} disabled={saving}>Reload</button></div>
+      <div className="tm-subadmin-recalc">
+        <strong>Correct image earnings</strong>
+        <p>Re-prices image earnings that are still accruing (not yet in an invoice) using the saved rates. Audio earnings are never changed. Save the rates first, preview, then apply.</p>
+        <div className="tm-subadmin-recalc-row">
+          <label>From<input type="date" value={recalc.start_date} onChange={(event) => { setRecalc((previous) => ({ ...previous, start_date: event.target.value })); setRecalcPreview(null); }} /></label>
+          <label>To<input type="date" value={recalc.end_date} onChange={(event) => { setRecalc((previous) => ({ ...previous, end_date: event.target.value })); setRecalcPreview(null); }} /></label>
+          <button type="button" onClick={() => runRecalculate(false)} disabled={recalcBusy || saving}>{recalcBusy ? 'Working…' : 'Preview changes'}</button>
+          <button type="button" className="tm-admin-payout-search-btn" onClick={() => runRecalculate(true)} disabled={recalcBusy || saving || !recalcPreview || recalcPreview.done || !recalcPreview.changed_count}>Apply corrections</button>
+        </div>
+        {recalcPreview && (
+          <div className="tm-subadmin-recalc-result" role="status">
+            <p><strong>{recalcPreview.done ? 'Applied' : 'Preview'}:</strong> {recalcPreview.changed_count} image earnings, KES {recalcPreview.old_total_kes.toFixed(3)} to KES {recalcPreview.new_total_kes.toFixed(3)}{recalcPreview.skipped_invoiced_count ? `. ${recalcPreview.skipped_invoiced_count} already invoiced were left untouched.` : '.'}</p>
+            {recalcPreview.changes.length > 0 && (
+              <table className="tm-admin-payout-table"><thead><tr><th>Sub-admin</th><th>Type</th><th>Words</th><th>Old</th><th>New</th></tr></thead><tbody>
+                {recalcPreview.changes.map((change) => <tr key={change.earning_id}><td>{change.subadmin_email}</td><td>{change.category === 'image_ai' ? 'AI image' : 'Human image'}</td><td>{change.words}</td><td>KES {change.old_amount_kes.toFixed(3)}</td><td>KES {change.new_amount_kes.toFixed(3)}</td></tr>)}
+              </tbody></table>
+            )}
+          </div>
+        )}
+      </div>
     </form>
   );
 }
