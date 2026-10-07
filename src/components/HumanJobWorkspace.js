@@ -52,6 +52,18 @@ const formatCountdown = (totalSeconds) => {
   const pad = (n) => String(n).padStart(2, '0');
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 };
+const workerDraftCreditEstimate = (job, assignment) => {
+  const finiteNonnegative = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+  };
+  const start = finiteNonnegative(assignment?.start_seconds);
+  const fallbackEnd = finiteNonnegative(job?.seconds) || finiteNonnegative(job?.minutes) * 60;
+  const end = finiteNonnegative(assignment?.end_seconds ?? fallbackEnd);
+  const seconds = Math.max(0, end - start);
+  const audioMinutes = Math.max(1, Math.ceil(seconds / 60));
+  return { audioMinutes, totalCredits: audioMinutes + 1 };
+};
 
 const PAYOUT_STATUS_LABELS = { accruing: 'Accruing this half', invoiced: 'Pending payout', paid: 'Paid', all: 'All' };
 const JOB_TYPE_LABELS = { general_job: 'General Job', template_job: 'Template Job', letter_job: 'Letter Job', pdf_job: 'PDF image', human_transcription: 'Human transcription' };
@@ -195,6 +207,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const selectedJob = useMemo(() => jobsForCurrentView.find((job) => job.id === selectedId) || jobsForCurrentView[0] || null, [jobsForCurrentView, selectedId]);
   const workerAssignment = selectedJob?.worker_assignment || null;
   const workerAssignmentActive = mode === 'worker' && ['assigned', 'in_progress'].includes(workerAssignment?.status);
+  const workerDraftEstimate = workerDraftCreditEstimate(selectedJob, workerAssignment);
   const jobHasAssignedWorker = Boolean(selectedJob && (
     selectedJob.worker_uid || selectedJob.proofreader_uid || (selectedJob.assigned_worker_uids || []).length
     || (selectedJob.segments || []).some((part) => part?.worker_uid)
@@ -779,7 +792,13 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       const payload = await request(`/human-transcription/jobs/${selectedJob.id}/ai-draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ segment_id: workerAssignment?.id && workerAssignment.id !== 'transcriber' ? workerAssignment.id : '' }) });
       setAiDraftLocal(payload.draft || '');
       setAiProofreadLocal(payload.proofread || '');
-      showMessage?.(payload.already_generated ? 'Your saved AI formatted draft is shown below. Draft generation is free.' : 'AI formatted draft ready. No credits were used.', 'success');
+      const charged = Number(payload.credits_charged || 0);
+      if (charged > 0) {
+        try { await refreshUserProfile?.(); } catch { /* The draft is saved; profile data can refresh on its next poll. */ }
+        showMessage?.(`Formatted draft ready. ${charged} credits used.`, 'success');
+      } else {
+        showMessage?.(payload.already_generated ? 'Your saved formatted draft is ready. No extra credits were used.' : 'Formatted draft ready.', 'success');
+      }
       await loadJobs();
     } catch (error) { showMessage?.(error.message, 'error'); } finally { setAiDraftBusy(false); }
   };
@@ -1243,8 +1262,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             {mode === 'worker' && workerAssignmentActive && selectedJob.job_type === 'letter_job' && <div className="tm-human-reference-card tm-letter-guidelines" role="note"><strong>Letter Job guidelines</strong><p>Use the standard Letter Standard Indentation template. Preserve the dictated wording and paragraph breaks, keep the required Date, Re:, and Dear : fields, remove undictated template content, and attach the finished .docx. Staff instructions must be bold in square brackets. The full job instructions and reference files remain available above.</p>{selectedJob.letter_guidelines && <details><summary>Read the complete Letter Agent guidelines</summary><pre>{selectedJob.letter_guidelines}</pre></details>}</div>}
             {mode === 'worker' && workerAssignmentActive && workerAssignment?.role !== 'proofreader' && selectedJob.job_type !== 'pdf_job' && selectedJob.job_type !== 'letter_job' && <div className="tm-human-reference-card" style={{ display: 'grid', gap: 8 }}>
               <strong>AI formatted draft for this audio</strong>
-              <span>Get a free first draft of {workerAssignment?.label ? workerAssignment.label.toLowerCase() : 'this audio'}, then copy it into Word or insert it into the editor below. Draft generation does not use credits.</span>
-              {!(aiDraftLocal || selectedJob.ai_draft) && <div><button type="button" disabled={aiDraftBusy} onClick={requestAiDraft}>{aiDraftBusy ? 'Preparing your formatted draft…' : 'Get free AI formatted draft'}</button></div>}
+              <span>Generate a formatted draft of {workerAssignment?.label ? workerAssignment.label.toLowerCase() : 'this audio'}, then copy it into Word or insert it into the editor. It costs {workerDraftEstimate.totalCredits} credits: {workerDraftEstimate.audioMinutes} per started audio minute (rounded up) plus 1 formatting credit. A successful proofreading costs 1 additional credit.</span>
+              {!(aiDraftLocal || selectedJob.ai_draft) && <div><button type="button" disabled={aiDraftBusy} onClick={requestAiDraft}>{aiDraftBusy ? 'Preparing your formatted draft…' : `Generate formatted draft · ${workerDraftEstimate.totalCredits} credits`}</button></div>}
               {(aiDraftLocal || selectedJob.ai_draft) && <>
                 <div style={{ whiteSpace: 'pre-wrap', maxHeight: 280, overflow: 'auto', background: '#fafbfa', border: '1px solid #e5e9e5', borderRadius: 6, padding: 12, fontSize: 14, lineHeight: '100%' }}>{aiDraftLocal || selectedJob.ai_draft}</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -1253,7 +1272,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 </div>
                 <div className="tm-worker-ai-proofread" style={{ display: 'grid', gap: 8, paddingTop: 8 }}>
                   <strong>Proofread this draft here before you start transcribing</strong>
-                  <span>Claude Sonnet 5.5 checks the draft, with ChatGPT 5.6 Terra as backup. A successful proofreading uses 1 credit. Your original draft stays available and is never replaced automatically.</span>
+                  <span>The proofreader checks the draft against the TypeMyworDz guidelines, job notes, reference files, and an independent audio comparison. A successful proofreading uses 1 credit. Your original draft stays available and is never replaced automatically.</span>
                   {!(aiProofreadLocal || selectedJob.ai_draft_proofread) && <button type="button" disabled={aiProofreadBusy} onClick={requestAiProofread}>{aiProofreadBusy ? 'Proofreading your draft…' : 'Proofread this draft · 1 credit'}</button>}
                   {(aiProofreadLocal || selectedJob.ai_draft_proofread) && <>
                     <strong>Proofread version</strong>
@@ -1273,7 +1292,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 {selectedJob.job_type !== 'pdf_job' && <a href="/guidelines" target="_blank" rel="noopener noreferrer">TypeMyworDz General Guidelines (opens in a new tab)</a>}
                 <button type="button" onClick={() => downloadProtectedFile('/human-transcription/trainee/training/materials/formatting-default.docx', 'TypeMyworDz Default Document settings.docx', 'The default document settings file could not be downloaded.')}>Download: TypeMyworDz Default Document settings</button>
               </div>
-              <span style={{ fontSize: 12, color: '#7b857d' }}>Reminder: create your free draft with the TypeMyworDz AI above, optionally proofread it for one credit, and edit it in Word. Work done without an in-app AI formatted draft may be declined.</span>
+              <span style={{ fontSize: 12, color: '#7b857d' }}>Reminder: generate the formatted draft above, optionally proofread it for one credit, and edit it in Word. Work done without an in-app AI formatted draft may be declined.</span>
             </div>}
             {!(mode === 'worker' && workerTab === 'available') && selectedJob.instruction_attachments?.length > 0 && <div className="tm-human-reference-card"><strong>Reference files from the client</strong><span>Use these notes, spellings, and supporting documents while working.</span><div className="tm-human-reference-list">{selectedJob.instruction_attachments.map((item, index) => <button type="button" key={`${item.name}-${index}`} onClick={() => downloadProtectedFile(`/human-transcription/jobs/${selectedJob.id}/instruction/${index}`, item.name, 'The reference file could not be downloaded.')}>Download: {item.name}</button>)}</div></div>}
             {mode === 'worker' && workerAssignment?.role === 'proofreader' && (selectedJob.proofreader_parts || []).length > 0 && (

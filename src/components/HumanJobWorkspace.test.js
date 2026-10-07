@@ -85,7 +85,7 @@ test('worker copies a formatted draft with the Word clipboard format', async () 
     const inProgressTab = await screen.findByRole('tab', { name: 'In Progress' });
     await waitFor(() => expect(inProgressTab).toHaveAttribute('aria-selected', 'true'));
     await screen.findByText('Part 2');
-    fireEvent.click(screen.getByRole('button', { name: 'Get free AI formatted draft' }));
+    fireEvent.click(screen.getByRole('button', { name: /Generate formatted draft/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Copy original draft for Word' }));
     await waitFor(() => expect(copy).toHaveBeenCalledWith('\tFirst.  Second.'));
   } finally {
@@ -99,9 +99,10 @@ test('worker can proofread the draft for one credit and insert only the separate
   const inProgressTab = await screen.findByRole('tab', { name: 'In Progress' });
   await waitFor(() => expect(inProgressTab).toHaveAttribute('aria-selected', 'true'));
   await screen.findByText('Part 2');
-  fireEvent.click(screen.getByRole('button', { name: 'Get free AI formatted draft' }));
+  fireEvent.click(screen.getByRole('button', { name: /Generate formatted draft/ }));
   expect(await screen.findByText(/First\.\s+Second\./)).toBeInTheDocument();
-  expect(screen.getByText(/Draft generation does not use credits/)).toBeInTheDocument();
+  expect(screen.getByText(/costs 6 credits: 5 per started audio minute \(rounded up\) plus 1 formatting credit/)).toBeInTheDocument();
+  expect(screen.queryByText(/Claude Sonnet 5\.5|Claude Haiku 4\.5|ChatGPT 5\.6 Terra|Gemini 3\.8/)).not.toBeInTheDocument();
   expect(screen.getByText('Proofread this draft here before you start transcribing')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Proofread this draft · 1 credit' }));
   expect(await screen.findByText('Proofread version')).toBeInTheDocument();
