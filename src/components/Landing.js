@@ -442,6 +442,7 @@ const Landing = () => {
         <span className="tm-sitefoot-links">
           <Link to="/faq">Help and FAQ</Link>
           <a href="/cost-calculator.html">What it costs</a>
+          <a href="/compare.html">Compare transcription tools</a>
           <a href="/tools/">Free tools</a>
           <Link to="/privacy-policy">Privacy &amp; Security</Link>
           <Link to="/terms">Terms of Service</Link>

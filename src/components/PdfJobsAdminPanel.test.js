@@ -113,7 +113,7 @@ test.each([
 test.each([
   ['pdf'],
   ['text_messages'],
-])('creates an ordered whole-upload %s review after every image has text', async (category) => {
+])('creates an ordered whole-upload %s proofreading job after every image has text', async (category) => {
   global.fetch = jest.fn((url) => {
     const address = String(url);
     if (address.endsWith('/human-transcription/admin/pdf-jobs')) return Promise.resolve(response({ jobs: uploadJobs(category, 'submitted') }));
@@ -122,7 +122,7 @@ test.each([
   });
 
   render(<PdfJobsAdminPanel category={category} />);
-  const reviewButton = await screen.findByRole('button', { name: 'Create whole-upload review job' });
+  const reviewButton = await screen.findByRole('button', { name: 'Create whole-upload proofread job' });
   expect(reviewButton).toHaveClass('tm-pdf-jobs-btn-ai');
   fireEvent.click(reviewButton);
   await waitFor(() => {

@@ -50,7 +50,7 @@ beforeEach(() => {
         worker_claim_block_reason: 'Finish your current assignment before claiming another.',
       }));
     }
-    if (address.includes('/human-transcription/jobs/job-1/ai-draft/proofread')) return Promise.resolve(response({ proofread: '\tFirst.  Second proofread.', credits_charged: 1 }));
+    if (address.includes('/human-transcription/jobs/job-1/ai-draft/proofread')) return Promise.resolve(response({ proofread: '\tFirst.  Second proofread.', credits_charged: 5 }));
     if (address.includes('/human-transcription/jobs/job-1/ai-draft')) return Promise.resolve(response({ draft: '\tFirst.  Second.', credits_charged: 0 }));
     if (address.endsWith('/human-transcription/worker/availability')) return Promise.resolve(response({ available: true }));
     if (address.endsWith('/human-transcription/worker/payment-history')) return Promise.resolve(response({ pending_payouts: [], paid: [], accruing: [] }));
@@ -93,7 +93,7 @@ test('worker copies a formatted draft with the Word clipboard format', async () 
   }
 });
 
-test('worker can proofread the draft for one credit and insert only the separate proofread version', async () => {
+test('worker can proofread the draft for five credits and insert only the separate proofread version', async () => {
   document.execCommand = jest.fn(() => false);
   render(<HumanJobWorkspace mode="worker" initialJobId="job-1" />);
   const inProgressTab = await screen.findByRole('tab', { name: 'In Progress' });
@@ -105,7 +105,7 @@ test('worker can proofread the draft for one credit and insert only the separate
   expect(document.querySelector('.tm-worker-ai-text-preview')).toHaveStyle({ tabSize: '0.5in' });
   expect(screen.queryByText(/Claude Sonnet 5\.5|Claude Haiku 4\.5|ChatGPT 5\.6 Terra|GPT-5\.6 Luna|Gemini 3\.5 Flash-Lite|Gemini 3\.8/)).not.toBeInTheDocument();
   expect(screen.getByText('Proofread this draft here before you start transcribing')).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Proofread this draft · 1 credit' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Proofread this draft · 5 credits' }));
   expect(await screen.findByText('Proofread version')).toBeInTheDocument();
   expect(screen.getByText(/Second proofread\./)).toBeInTheDocument();
   expect(document.querySelectorAll('.tm-worker-ai-text-preview')).toHaveLength(2);
@@ -261,7 +261,7 @@ test('admin can finish client work without bypassing client approval or charging
   fireEvent.click(await screen.findByRole('tab', { name: /Submitted/ }));
   fireEvent.click(await screen.findByRole('button', { name: 'Finish Job' }));
   const dialog = await screen.findByRole('alertdialog');
-  expect(dialog).toHaveTextContent('The client will be notified to review it');
+  expect(dialog).toHaveTextContent('The client will be notified to check the transcript');
   expect(dialog).toHaveTextContent('credits are not charged unless the client approves');
   fireEvent.click(within(dialog).getByRole('button', { name: 'Finish Job' }));
   await waitFor(() => expect(global.fetch.mock.calls.some(([url, options]) => String(url).endsWith('/human-transcription/jobs/client-job/finish') && options.method === 'POST')).toBe(true));

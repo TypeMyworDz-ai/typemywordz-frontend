@@ -11,11 +11,11 @@ const statusLabel = (job) => {
   if (job.status === 'approved' && job.letter_agent_status === 'failed') return 'Ready to reassign';
   if (job.status === 'approved') return 'Ready for assignment';
   if (job.status === 'assigned' || job.status === 'in_progress') return job.letter_agent_status === 'processing' || job.letter_agent_status === 'queued' ? 'Letter Agent working' : 'Worker assigned';
-  if (job.status === 'submitted' && job.reviewer_choice === 'human' && job.proofreader_status === 'submitted') return 'Human review complete · awaiting admin';
-  if (job.status === 'submitted' && job.letter_ai_review_status === 'completed') return 'AI review complete · awaiting admin';
-  if (['proofreading_assigned', 'proofreading_in_progress'].includes(job.status)) return 'Human reviewer working';
-  if (job.status === 'submitted' && ['assigned', 'in_progress'].includes(job.proofreader_status)) return 'Human reviewer working';
-  if (job.status === 'submitted') return 'Choose AI or human review';
+  if (job.status === 'submitted' && job.reviewer_choice === 'human' && job.proofreader_status === 'submitted') return 'Human proofreading complete · awaiting admin';
+  if (job.status === 'submitted' && job.letter_ai_review_status === 'completed') return 'AI proofreading complete · awaiting admin';
+  if (['proofreading_assigned', 'proofreading_in_progress'].includes(job.status)) return 'Human proofreader working';
+  if (job.status === 'submitted' && ['assigned', 'in_progress'].includes(job.proofreader_status)) return 'Human proofreader working';
+  if (job.status === 'submitted') return 'Choose AI or human proofreader';
   if (job.status === 'released') return 'Released';
   return job.status || '—';
 };
@@ -194,7 +194,7 @@ export default function LetterJobsAdminPanel({ showMessage }) {
     if (working) return;
     setWorking(job.id);
     try {
-      await postJson(`/human-transcription/jobs/${job.id}/letter-ai-review`, undefined, 'The Letter AI reviewer has been queued. Final admin approval will still be required.');
+      await postJson(`/human-transcription/jobs/${job.id}/letter-ai-review`, undefined, 'The Letter AI proofreader has been queued. Final admin approval is still required.');
       await loadJobs(true);
     } catch (error) { showMessage?.(error.message, 'error'); }
     finally { setWorking(''); }
@@ -207,7 +207,7 @@ export default function LetterJobsAdminPanel({ showMessage }) {
     try {
       await postJson(`/human-transcription/jobs/${job.id}/assign-proofreader`, {
         worker_uid: worker.uid, worker_email: worker.email, worker_name: worker.name,
-      }, 'The Letter Job was assigned to a qualified human reviewer. Final admin approval is still required.');
+      }, 'The Letter Job was assigned to a qualified human proofreader. Final admin approval is still required.');
       await loadJobs(true);
     } catch (error) { showMessage?.(error.message, 'error'); }
     finally { setWorking(''); }
@@ -217,7 +217,7 @@ export default function LetterJobsAdminPanel({ showMessage }) {
     if (working || releaseConfirmId !== job.id) return;
     setWorking(job.id);
     try {
-      const feedback = job.reviewer_choice === 'human' ? 'Human-reviewed Letter Job checked by admin.' : 'AI-reviewed Letter Job checked by admin.';
+      const feedback = job.reviewer_choice === 'human' ? 'Human-proofread Letter Job checked by admin.' : 'AI-proofread Letter Job checked by admin.';
       await postJson(`/human-transcription/jobs/${job.id}/review`, { feedback }, 'Letter Job approved and marked released.');
       setReleaseConfirmId('');
       await loadJobs(true);
@@ -249,7 +249,7 @@ export default function LetterJobsAdminPanel({ showMessage }) {
         <div>
           <p className="tm-admin-kicker">Complete audio · one assignment</p>
           <h2 className="tm-admin-panel-title">Letter Jobs</h2>
-          <p className="tm-admin-panel-note">Upload a dictated letter recording, then assign the entire job to one worker or the dedicated Letter Agent. After submission, choose an AI reviewer or a qualified human reviewer; you make the final approval. Letter Agent drafts use Claude Opus 5.5 first and GPT-5.6 Sol only as fallback; the AI reviewer uses Claude Sonnet 5.5 with GPT-5.6 Terra as fallback. The Letter Standard Indentation template and letter-only guidelines are built in. No letter is split into slices.</p>
+          <p className="tm-admin-panel-note">Upload a dictated letter recording, then assign the entire job to one worker or the dedicated Letter Agent. After submission, choose AI proofreading or a qualified human proofreader; you make the final approval. Letter Agent drafts use Claude Opus 5.5 first and GPT-5.6 Sol only as fallback; AI proofreading uses Claude Sonnet 5.5 with Gemini 3.5 Flash-Lite as fallback. The Letter Standard Indentation template and letter-only guidelines are built in. No letter is split into slices.</p>
         </div>
       </div>
       <form onSubmit={createJob}>
@@ -270,17 +270,17 @@ export default function LetterJobsAdminPanel({ showMessage }) {
         </label>
         {references.length > 0 && <div className="tm-pdf-jobs-selected">{references.map((file, index) => <div className="tm-pdf-jobs-file" key={`${file.name}-${index}`}><span>{file.name}</span><small>{formatBytes(file.size)}</small><button type="button" onClick={() => { setReferences((previous) => previous.filter((_, fileIndex) => fileIndex !== index)); setReferenceInputKey((value) => value + 1); }}>Remove</button></div>)}</div>}
         <label className="tm-letter-job-instructions"><strong>Admin notes and special instructions</strong><textarea rows={3} value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder="Add job-specific spellings, names, or layout directions. These supplement the permanent Letter Job guidelines." /></label>
-        <div className="tm-pdf-jobs-actions"><span>Only the final admin review releases a submitted .docx. AI drafting and AI review do not approve or release the letter.</span><button type="submit" className="tm-admin-btn" disabled={!audioFile || !Number(minutes) || uploading}>{uploading ? 'Creating Letter Job…' : 'Create complete Letter Job'}</button></div>
+        <div className="tm-pdf-jobs-actions"><span>Only your final admin approval releases a submitted .docx. AI drafting and AI proofreading do not approve or release the letter.</span><button type="submit" className="tm-admin-btn" disabled={!audioFile || !Number(minutes) || uploading}>{uploading ? 'Creating Letter Job…' : 'Create complete Letter Job'}</button></div>
       </form>
     </section>
 
     <section className="tm-admin-panel tm-pdf-jobs-list">
-      <div className="tm-admin-panel-head"><div><h2 className="tm-admin-panel-title">Letter Job queue</h2><p className="tm-admin-panel-note">Assign one whole job, choose an AI or human reviewer after submission, then approve it manually.</p></div><button type="button" className="tm-admin-btn" onClick={() => loadJobs()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button></div>
+      <div className="tm-admin-panel-head"><div><h2 className="tm-admin-panel-title">Letter Job queue</h2><p className="tm-admin-panel-note">Assign one whole job, choose AI proofreading or a human proofreader after submission, then approve it manually.</p></div><button type="button" className="tm-admin-btn" onClick={() => loadJobs()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button></div>
       {loading && !jobs.length ? <div className="tm-admin-empty">Loading Letter Jobs…</div> : !jobs.length ? <div className="tm-admin-empty">No Letter Jobs have been uploaded yet.</div> : (
         <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Letter / recording</th><th>Status</th><th>Assignment</th><th>Actions</th><th>Added</th></tr></thead><tbody>
           {jobs.map((job) => <tr key={job.id}>
             <td><strong>{job.job_name || job.audio?.name || 'Letter Job'}</strong><div className="tm-admin-name">{job.minutes || 0} min · {job.audio?.name || 'Source recording'}</div>{job.instruction_attachments?.length > 0 && <div className="tm-admin-name">{job.instruction_attachments.length} reference file{job.instruction_attachments.length === 1 ? '' : 's'}</div>}</td>
-            <td>{statusLabel(job)}<div className="tm-admin-name">{job.letter_agent_status && job.letter_agent_status !== 'available' ? `Letter Agent: ${job.letter_agent_status}` : ''}{job.letter_ai_review_status && job.letter_ai_review_status !== 'not_started' ? ` · AI review: ${job.letter_ai_review_status}` : ''}</div>{job.letter_agent_error && <div className="tm-letter-job-error" role="alert">{job.letter_agent_error}</div>}{job.letter_ai_review_error && <div className="tm-letter-job-error" role="alert">{job.letter_ai_review_error}</div>}</td>
+            <td>{statusLabel(job)}<div className="tm-admin-name">{job.letter_agent_status && job.letter_agent_status !== 'available' ? `Letter Agent: ${job.letter_agent_status}` : ''}{job.letter_ai_review_status && job.letter_ai_review_status !== 'not_started' ? ` · AI proofreading: ${job.letter_ai_review_status}` : ''}</div>{job.letter_agent_error && <div className="tm-letter-job-error" role="alert">{job.letter_agent_error}</div>}{job.letter_ai_review_error && <div className="tm-letter-job-error" role="alert">{job.letter_ai_review_error}</div>}</td>
             <td>{job.worker_name || job.worker_email || job.letter_agent_name || 'Unassigned'}{job.letter_agent_model_ids?.length > 0 && <div className="tm-admin-name">{job.letter_agent_model_ids.join(' + ')}</div>}</td>
             <td><div className="tm-letter-job-actions">
               {job.status === 'approved' && <>
@@ -289,15 +289,15 @@ export default function LetterJobsAdminPanel({ showMessage }) {
                 <button type="button" className="tm-admin-btn tm-letter-agent-btn" disabled={working === job.id} onClick={() => assignAgent(job)}>{working === job.id ? 'Queuing…' : 'Assign Letter Agent'}</button>
               </>}
               {job.status === 'submitted' && job.final_attachment?.name && <button type="button" className="tm-admin-link-button" onClick={() => downloadFile(`/human-transcription/jobs/${job.id}/final-attachment`, job.final_attachment.name, 'The submitted Word document is not available.')}>Download submitted Word document</button>}
-              {job.status === 'submitted' && aiReviewerComplete(job) && job.letter_ai_review_attachment?.name && <button type="button" className="tm-admin-link-button" onClick={() => downloadFile(`/human-transcription/admin/jobs/${job.id}/letter-ai-review-docx`, job.letter_ai_review_attachment.name, 'The AI-reviewed Word document is not available.')}>Download AI-reviewed Word document</button>}
-              {['proofreading_assigned', 'proofreading_in_progress'].includes(job.status) && <span className="tm-letter-review-running" role="status">The human reviewer is working on this letter.</span>}
-              {job.status === 'submitted' && reviewerWorkRunning(job) && <span className="tm-letter-review-running" role="status">{humanReviewerActive(job) ? 'The human reviewer is working on this letter.' : 'The AI reviewer is checking the letter.'}</span>}
-              {job.status === 'submitted' && !reviewerWorkRunning(job) && !humanReviewerComplete(job) && !aiReviewerComplete(job) && <div className="tm-letter-review-choice"><strong>Choose a reviewer</strong><button type="button" className="tm-admin-btn tm-letter-agent-btn" disabled={working === job.id} onClick={() => retryReview(job)}>{working === job.id ? 'Queuing…' : job.letter_ai_review_status === 'failed' ? 'Retry AI reviewer' : 'Run AI reviewer'}</button></div>}
-              {job.status === 'submitted' && !reviewerWorkRunning(job) && !humanReviewerComplete(job) && <div className="tm-letter-review-choice"><label htmlFor={`letter-reviewer-${job.id}`}><strong>Human reviewer</strong><small>Choose an available worker rated at least 4.5/5.</small></label>{qualifiedReviewers.length ? <><select id={`letter-reviewer-${job.id}`} aria-label={`Choose a human reviewer for ${job.job_name || job.audio?.name || 'Letter Job'}`} value={reviewerChoices[job.id] || ''} onChange={(event) => setReviewerChoices((current) => ({ ...current, [job.id]: event.target.value }))}><option value="">Choose a qualified reviewer</option>{qualifiedReviewers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name || worker.email} · {Number(worker.rating).toFixed(2)}/5</option>)}</select><button type="button" className="tm-admin-btn" disabled={!reviewerChoices[job.id] || working === job.id} onClick={() => assignHumanReviewer(job)}>{working === job.id ? 'Assigning…' : 'Assign human reviewer'}</button></> : <span className="tm-letter-review-running">No available proofreader meets the 4.5/5 rating requirement.</span>}</div>}
+              {job.status === 'submitted' && aiReviewerComplete(job) && job.letter_ai_review_attachment?.name && <button type="button" className="tm-admin-link-button" onClick={() => downloadFile(`/human-transcription/admin/jobs/${job.id}/letter-ai-review-docx`, job.letter_ai_review_attachment.name, 'The AI-proofread Word document is not available.')}>Download AI-proofread Word document</button>}
+              {['proofreading_assigned', 'proofreading_in_progress'].includes(job.status) && <span className="tm-letter-review-running" role="status">The human proofreader is working on this letter.</span>}
+              {job.status === 'submitted' && reviewerWorkRunning(job) && <span className="tm-letter-review-running" role="status">{humanReviewerActive(job) ? 'The human proofreader is working on this letter.' : 'The AI proofreader is checking the letter.'}</span>}
+              {job.status === 'submitted' && !reviewerWorkRunning(job) && !humanReviewerComplete(job) && !aiReviewerComplete(job) && <div className="tm-letter-review-choice"><strong>Choose a proofreader</strong><button type="button" className="tm-admin-btn tm-letter-agent-btn" disabled={working === job.id} onClick={() => retryReview(job)}>{working === job.id ? 'Queuing…' : job.letter_ai_review_status === 'failed' ? 'Retry AI proofreading' : 'Run AI proofreading'}</button></div>}
+              {job.status === 'submitted' && !reviewerWorkRunning(job) && !humanReviewerComplete(job) && <div className="tm-letter-review-choice"><label htmlFor={`letter-reviewer-${job.id}`}><strong>Human proofreader</strong><small>Choose an available worker rated at least 4.5/5.</small></label>{qualifiedReviewers.length ? <><select id={`letter-reviewer-${job.id}`} aria-label={`Choose a human proofreader for ${job.job_name || job.audio?.name || 'Letter Job'}`} value={reviewerChoices[job.id] || ''} onChange={(event) => setReviewerChoices((current) => ({ ...current, [job.id]: event.target.value }))}><option value="">Choose a qualified proofreader</option>{qualifiedReviewers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name || worker.email} · {Number(worker.rating).toFixed(2)}/5</option>)}</select><button type="button" className="tm-admin-btn" disabled={!reviewerChoices[job.id] || working === job.id} onClick={() => assignHumanReviewer(job)}>{working === job.id ? 'Assigning…' : 'Assign human proofreader'}</button></> : <span className="tm-letter-review-running">No available proofreader meets the 4.5/5 rating requirement.</span>}</div>}
               {job.status === 'submitted' && letterReviewComplete(job) && <>
-                {releaseConfirmId === job.id ? <div className="tm-letter-release-confirm" role="group" aria-label="Confirm letter release"><span>{job.reviewer_choice === 'human' ? 'Confirm you reviewed the human reviewer’s submission.' : 'Confirm you reviewed the AI-reviewed Word document.'}</span><button type="button" className="tm-admin-btn" disabled={working === job.id} onClick={() => releaseJob(job)}>Confirm release</button><button type="button" className="tm-admin-link-button" onClick={() => setReleaseConfirmId('')}>Cancel</button></div> : <button type="button" className="tm-admin-btn" onClick={() => setReleaseConfirmId(job.id)}>Approve &amp; release</button>}
+                {releaseConfirmId === job.id ? <div className="tm-letter-release-confirm" role="group" aria-label="Confirm letter release"><span>{job.reviewer_choice === 'human' ? 'Confirm you checked the human proofreader’s submission.' : 'Confirm you checked the AI-proofread Word document.'}</span><button type="button" className="tm-admin-btn" disabled={working === job.id} onClick={() => releaseJob(job)}>Confirm release</button><button type="button" className="tm-admin-link-button" onClick={() => setReleaseConfirmId('')}>Cancel</button></div> : <button type="button" className="tm-admin-btn" onClick={() => setReleaseConfirmId(job.id)}>Approve &amp; release</button>}
               </>}
-              {job.status === 'released' && <span className="tm-letter-review-running">Human-approved and released.</span>}
+              {job.status === 'released' && <span className="tm-letter-review-running">Letter approved and released.</span>}
             </div></td>
             <td>{dateLabel(job.createdAt)}</td>
           </tr>)}

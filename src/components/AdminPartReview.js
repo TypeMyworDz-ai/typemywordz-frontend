@@ -90,7 +90,7 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true, onInsert, 
     if (running) return;
     setRunning(true);
     try {
-      await act(`/human-transcription/jobs/${job.id}/ai-review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }, 'The AI review is ready.');
+      await act(`/human-transcription/jobs/${job.id}/ai-review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }, 'AI-proofread transcript is ready.');
     } finally {
       setRunning(false);
     }
@@ -98,7 +98,7 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true, onInsert, 
   const applyRatings = async () => {
     for (const part of review.parts || []) {
       // eslint-disable-next-line no-await-in-loop
-      await act(`/human-transcription/jobs/${job.id}/rate-part`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ segment_id: part.segment_id, rating: part.rating, note: `AI review: ${part.notes || part.accuracy || ''}`.slice(0, 1800), source: 'ai' }) }, `Applied the AI rating to ${part.segment_id}.`);
+      await act(`/human-transcription/jobs/${job.id}/rate-part`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ segment_id: part.segment_id, rating: part.rating, note: `AI proofread: ${part.notes || part.accuracy || ''}`.slice(0, 1800), source: 'ai' }) }, `Applied the AI proofreader's rating to ${part.segment_id}.`);
     }
   };
   const useCombined = () => {
@@ -108,8 +108,8 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true, onInsert, 
   };
   const applyReviewedTranscript = async () => {
     if (!review?.combined_text || !allowApply) return;
-    if (!window.confirm('Replace this job transcript with the AI-reviewed version and move it to admin review? The final admin approval step will still remain.')) return;
-    await act(`/human-transcription/jobs/${job.id}/ai-review/apply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }, 'AI-reviewed transcript applied and ready for admin review.');
+    if (!window.confirm('Replace this job transcript with the AI-proofread version and move it to admin approval? The final approval step will still remain.')) return;
+    await act(`/human-transcription/jobs/${job.id}/ai-review/apply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }, 'AI-proofread transcript applied and ready for admin approval.');
   };
   const labelFor = (id) => (id === 'main' ? 'Full transcript' : ((job.segments || []).find((part) => part.id === id)?.label || id));
 
@@ -122,24 +122,24 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true, onInsert, 
 
   return (
     <div className="tm-human-assign" style={box}>
-      <div><strong>AI reviewer</strong><div style={muted}>{splitJob ? 'Reviews every submitted part and combines them into one transcript.' : 'Reviews the submitted transcript.'} It uses GPT-5.6 Luna, with Gemini 3.8 Flash as fallback, and checks client spellings, job instructions, reference files, worker research notes, company guidelines and relevant web research. The final admin approval remains required.</div></div>
+      <div><strong>AI proofreader</strong><div style={muted}>{splitJob ? 'Proofreads every submitted part and combines them into one transcript.' : 'Proofreads the submitted transcript.'} It uses Claude Sonnet 5.5 first, with Gemini 3.5 Flash-Lite as fallback, and checks client spellings, job instructions, reference files, worker research notes, company guidelines and grounded web research. Unverified terms are preserved unless the source audio or client references support a correction. The final admin approval remains required.</div></div>
       <style>{`@keyframes tmAiSpin{to{transform:rotate(360deg)}}.tm-ai-spin{display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid rgba(91,45,158,.25);border-top-color:#5b2d9e;border-radius:50%;animation:tmAiSpin .8s linear infinite}`}</style>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-        <button type="button" disabled={busy || running} aria-busy={running} onClick={run}>{running ? <><span className="tm-ai-spin" aria-hidden="true" />Reviewing with AI...</> : (review ? 'Run the AI review again' : (splitJob ? 'Review and combine with AI' : 'Review with AI'))}</button>
-        {running && <span role="status" style={{ ...muted, color: '#4b2a8a' }}>Working for {elapsed}s. Researching spellings and checking every part. This usually takes one to three minutes. Please keep this page open.</span>}
+        <button type="button" disabled={busy || running} aria-busy={running} onClick={run}>{running ? <><span className="tm-ai-spin" aria-hidden="true" />Proofreading...</> : (review ? 'Proofread again' : (splitJob ? 'Proofread and combine' : 'Proofread with AI'))}</button>
+        {running && <span role="status" style={{ ...muted, color: '#4b2a8a' }}>Working for {elapsed}s. Checking each part against the audio and references. Please keep this page open.</span>}
       </div>
       {review && (
         <div style={{ display: 'grid', gap: 10 }}>
           {review.summary && <p style={{ margin: 0 }}>{review.summary}</p>}
           <AIOutputWindow
-            title="AI-reviewed transcript"
-            description="Check the reviewed text, then insert it into the editable proofreader transcript below."
+            title="AI-proofread transcript"
+            description="Check the proofread text, then insert it into the editable proofreader transcript below."
             text={review.combined_text || ''}
-            fileName={`${job.job_name || job.title || 'transcript'} - AI review`}
+            fileName={`${job.job_name || job.title || 'transcript'} - AI proofread`}
             minHeight={360}
             showCopyDownload={false}
             revision={`${job.id}-${(review.combined_text || '').length}`}
-            actionContent={<div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}><button type="button" className="tm-ai-output-button is-primary" disabled={busy || !onInsert || ['assigned', 'in_progress'].includes(job.proofreader_status)} onClick={useCombined}>Insert to the Editor for Proofreader</button>{allowApply && <button type="button" className="tm-ai-output-button" disabled={busy || running || !review?.combined_text || job.ai_review_applied === true} onClick={applyReviewedTranscript}>{job.ai_review_applied ? 'AI review applied' : 'Apply AI review to this job'}</button>}</div>}
+            actionContent={<div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}><button type="button" className="tm-ai-output-button is-primary" disabled={busy || !onInsert || ['assigned', 'in_progress'].includes(job.proofreader_status)} onClick={useCombined}>Insert into the proofreader editor</button>{allowApply && <button type="button" className="tm-ai-output-button" disabled={busy || running || !review?.combined_text || job.ai_review_applied === true} onClick={applyReviewedTranscript}>{job.ai_review_applied ? 'AI proofread applied' : 'Apply AI proofread to this job'}</button>}</div>}
           />
           {note && <span style={{ ...muted, color: '#267b40' }}>{note}</span>}
           {(review.changes || []).length > 0 && (
@@ -164,7 +164,7 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true, onInsert, 
           )}
           {(review.issues || []).length > 0 && <div><strong style={{ fontSize: 13 }}>Open issues</strong><ul style={{ margin: '4px 0 0 18px', padding: 0, fontSize: 13 }}>{review.issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></div>}
           {review.research && <details><summary style={{ cursor: 'pointer', fontSize: 13 }}>Spelling research</summary><pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, margin: '6px 0 0' }}>{review.research}</pre></details>}
-          <div style={muted}>Reviewed with {review.model}.</div>
+          <div style={muted}>Proofread with {review.model}.</div>
         </div>
       )}
     </div>

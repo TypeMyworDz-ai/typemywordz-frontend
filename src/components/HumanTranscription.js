@@ -173,7 +173,7 @@ export default function HumanTranscription({ onBack, onOpenFiles, onTopUp, showM
         <div className="tm-human-card-top">
           <div>
             <p className="tm-human-eyebrow">1 · Add your recording</p>
-            <h2>Start with the file you want reviewed</h2>
+            <h2>Start with the file you want proofread</h2>
           </div>
           <span className="tm-human-step-note">Audio and video up to 500 MB</span>
         </div>
