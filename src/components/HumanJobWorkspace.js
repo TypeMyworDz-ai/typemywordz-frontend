@@ -4,6 +4,7 @@ import FinalTranscriptView from './FinalTranscriptView';
 import PdfJobsAdminPanel from './PdfJobsAdminPanel';
 import LetterJobsAdminPanel from './LetterJobsAdminPanel';
 import AdminAudioJobsPanel from './AdminAudioJobsPanel';
+import { ImageJobQueueActions, LetterJobQueueActions } from './ImageAndLetterQueueActions';
 import WordLikeEditor from './WordLikeEditor';
 import ConfirmDialog from './ConfirmDialog';
 import WorkerAudioPlayer from './WorkerAudioPlayer';
@@ -1010,7 +1011,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       ) : mode === 'admin' && adminTab === 'template_jobs' && canManageLetterJobs ? (
         <AdminAudioJobsPanel category="template" showMessage={showMessage} onOpenQueue={(job) => { setAdminQueueType('template_job'); setAdminQueueLane(adminQueueLaneFor(job)); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'letter_jobs' && canManageLetterJobs ? (
-        <LetterJobsAdminPanel showMessage={showMessage} />
+        <LetterJobsAdminPanel showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('letter_job'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'shifts' && isMainAdmin ? (
         <AdminShiftAttendancePanel showMessage={showMessage} />
       ) : mode === 'admin' && adminTab === 'my_subadmin_payments' && isHumanSubadmin ? (
@@ -1087,7 +1088,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 if (job.proofreader_name || job.proofreader_email) names.push(`Proofreader: ${job.proofreader_name || job.proofreader_email}`);
                 return <small className="tm-human-claimed" style={{ color: names.length ? '#4b2a8a' : '#858a95', fontWeight: 600 }}>{names.length ? `Claimed by ${names.join(' | ')}` : 'Not claimed yet'}</small>;
               })()}
-              <small>{mode === 'worker' ? `${job.job_type === 'pdf_job' ? 'PDF image · KES 100' : jobTypeLabel(job)} · ${moneylessDate(job.createdAt)}` : `${job.quote_credits || 0} credits · ${moneylessDate(job.createdAt)}`}</small>
+              <small>{mode === 'worker' ? `${job.job_type === 'pdf_job' ? (job.pdf_review ? 'Whole-file proofread' : job.job_category === 'text_messages' ? 'Text Messages image · KES 50' : 'PDF image · KES 100') : jobTypeLabel(job)} · ${moneylessDate(job.createdAt)}` : `${job.quote_credits || 0} credits · ${moneylessDate(job.createdAt)}`}</small>
             </button>
           ))}
           {!jobsForCurrentView.length && <div className="tm-human-empty">{mode === 'admin' && adminTab === 'archived' ? 'No jobs have reached the three-day archive yet.' : mode === 'admin' ? 'No jobs match this status and type.' : mode === 'worker' && workerTab === 'available' ? 'No new work is available right now. This board refreshes automatically.' : 'No human work is waiting here.'}</div>}
@@ -1096,7 +1097,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <div className="tm-human-job-detail">
           {!selectedJob ? <div className="tm-human-empty">Choose a job to see its details.</div> : <>
             <div className="tm-human-detail-head">
-              <div><span className="tm-human-status">{STATUS_LABELS[selectedJob.status] || selectedJob.status}</span><h2>{selectedJob.job_name || selectedJob.pdf_image?.name || selectedJob.audio?.name || (selectedJob.source_type === 'ai_proofreading' ? 'AI transcript for proofreading' : 'Human-transcription request')}</h2><p>{selectedJob.job_type === 'letter_job' ? `Letter Job · Complete recording · ${selectedJob.minutes || 0} minutes` : selectedJob.job_type === 'pdf_job' ? (selectedJob.job_category === 'text_messages' ? 'Text message screenshot · KES 100 per submitted image' : 'PDF image transcription · KES 100 per submitted image') : `${jobTypeLabel(selectedJob)} · ${selectedJob.minutes || 0} minutes${mode !== 'worker' ? ` · ${selectedJob.quote_credits || 0} credits` : ''} · ${selectedJob.turnaround || 'standard'} delivery`}</p>{mode === 'worker' && workerAssignment?.label && <p><strong>{workerAssignment.label}</strong>{workerAssignment.role === 'proofreader' ? ' · Proofread the combined text below and check the handoff between parts. You can submit once every part is in.' : selectedJob.job_type === 'pdf_job' ? ' · Transcribe the single assigned image and submit the finished Word file or transcript.' : ` · Work from ${formatCountdown(workerAssignment.start_seconds || 0)} to ${formatCountdown(workerAssignment.end_seconds || 0)} in the source recording.`}</p>}</div>
+              <div><span className="tm-human-status">{STATUS_LABELS[selectedJob.status] || selectedJob.status}</span><h2>{selectedJob.job_name || selectedJob.pdf_image?.name || selectedJob.audio?.name || (selectedJob.source_type === 'ai_proofreading' ? 'AI transcript for proofreading' : 'Human-transcription request')}</h2><p>{selectedJob.job_type === 'letter_job' ? `Letter Job · Complete recording · ${selectedJob.minutes || 0} minutes` : selectedJob.job_type === 'pdf_job' ? (selectedJob.job_category === 'text_messages' ? 'Text message screenshot · KES 50 per submitted image' : 'PDF image transcription · KES 100 per submitted image') : `${jobTypeLabel(selectedJob)} · ${selectedJob.minutes || 0} minutes${mode !== 'worker' ? ` · ${selectedJob.quote_credits || 0} credits` : ''} · ${selectedJob.turnaround || 'standard'} delivery`}</p>{mode === 'worker' && workerAssignment?.label && <p><strong>{workerAssignment.label}</strong>{workerAssignment.role === 'proofreader' ? ' · Proofread the combined text below and check the handoff between parts. You can submit once every part is in.' : selectedJob.job_type === 'pdf_job' ? ' · Transcribe the single assigned image and submit the finished Word file or transcript.' : ` · Work from ${formatCountdown(workerAssignment.start_seconds || 0)} to ${formatCountdown(workerAssignment.end_seconds || 0)} in the source recording.`}</p>}</div>
               <div className="tm-human-detail-actions">
                 {mode === 'admin' && selectedJob.status === 'pending_admin' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/approve`, { method: 'POST' })}>Approve request</button>}
                 {mode === 'client' && selectedJob.status === 'client_review' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/client-approve`, { method: 'POST' })}>Approve completed work</button>}
@@ -1120,7 +1121,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               </section>
             )}
 
-            {mode === 'admin' && selectedJob && canAssignAiAgents && (
+            {mode === 'admin' && selectedJob && selectedJob.job_type !== 'letter_job' && canAssignAiAgents && (
               <section className="tm-ai-agent-panel" aria-label="AI first-draft agents">
                 <div className="tm-ai-agent-copy">
                   <strong>AI first draft <span>Private internal draft</span></strong>
@@ -1150,7 +1151,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 </div>}
                 <div className="tm-ai-agent-buttons">
                   {selectedJob.job_type === 'pdf_job' ? (<>
-                    <button type="button" disabled={busy || ['queued', 'processing'].includes(selectedJob.ai_agent_status) || (!splitJob && selectedJob.status !== 'approved') || (splitJob && !(selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))} onClick={() => assignAiAgent(selectedJob.job_category === 'text_messages' ? 'text-messages-gemini' : 'pdf-gemini')}>{['queued', 'processing'].includes(selectedJob.ai_agent_status) ? 'AI agent is drafting…' : selectedJob.job_category === 'text_messages' ? 'Assign Text Messages Agent' : 'Assign PDF Agent (Gemini 3.8)'}</button>
+                    <button type="button" disabled={busy || ['queued', 'processing'].includes(selectedJob.ai_agent_status) || (!splitJob && selectedJob.status !== 'approved') || (splitJob && !(selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))} onClick={() => assignAiAgent(selectedJob.job_category === 'text_messages' ? 'text-messages-gemini' : 'pdf-gemini')}>{['queued', 'processing'].includes(selectedJob.ai_agent_status) ? 'AI agent is drafting…' : selectedJob.pdf_review ? 'Assign AI proofreader' : selectedJob.job_category === 'text_messages' ? 'Assign Text Messages Agent' : 'Assign PDF Agent (Gemini 3.8)'}</button>
                     {(() => {
                       const siblings = selectedJob.pdf_review || !selectedJob.pdf_batch_id ? [] : jobs.filter((item) => item.job_type === 'pdf_job' && !item.pdf_review && item.pdf_batch_id === selectedJob.pdf_batch_id).sort((first, second) => (first.pdf_image?.page_number || 0) - (second.pdf_image?.page_number || 0));
                       if (siblings.length < 2) return null;
@@ -1248,8 +1249,10 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <p className="tm-tat-reassigned-note">This job was automatically returned from {selectedJob.last_auto_reassigned_worker_name} after the deadline passed. It is available on the workers’ claim board again; the next deadline starts when claimed.</p>
             )}
 
-            {mode === 'admin' && selectedJob.job_type !== 'pdf_job' && ((!splitJob && selectedJob.status === 'approved') || (splitJob && !selectedJob.proofreader_status && (selectedJob.segments || []).every((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))) && <div className="tm-human-assign">
-              <strong>Urgent: give the whole job to one worker</strong>
+            {mode === 'admin' && canManagePdfJobs && selectedJob.job_type === 'pdf_job' && <ImageJobQueueActions job={selectedJob} jobs={jobs} showMessage={showMessage} onChanged={loadJobs} />}
+            {mode === 'admin' && canManageLetterJobs && selectedJob.job_type === 'letter_job' && <LetterJobQueueActions job={selectedJob} workers={workers} scheduledNow={adminScheduledNow} showMessage={showMessage} onChanged={loadJobs} />}
+            {mode === 'admin' && ((!splitJob && selectedJob.status === 'approved') || (splitJob && !selectedJob.proofreader_status && (selectedJob.segments || []).every((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid))) && <div className="tm-human-assign">
+              <strong>{['pdf_job', 'letter_job'].includes(selectedJob.job_type) ? 'Assign to a worker' : 'Urgent: give the whole job to one worker'}</strong>
               <label>Worker
                 <select value={wholeWorker} onChange={(event) => setWholeWorker(event.target.value)}>
                   <option value="">Choose an approved worker</option>

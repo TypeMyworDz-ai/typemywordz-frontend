@@ -1,33 +1,15 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import './AdminAudioJobsPanel.css';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 const ADMIN_EMAILS = new Set(['typemywordz@gmail.com', 'info@typemywordz.ai']);
 const DEFAULT_ADMIN_NOTE = 'Client provided spellings and other instructions: None';
-const dateLabel = (value) => {
-  if (!value) return '—';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-};
-
-function jobStatus(job) {
-  if (job.ai_agent_status === 'failed') return 'Ready to retry';
-  if (job.status === 'approved') return 'Available to claim';
-  if (['split_assigned', 'split_in_progress'].includes(job.status)) return 'Parts available';
-  if (['assigned', 'in_progress'].includes(job.status)) return 'Worker assigned';
-  if (job.status === 'submitted') return 'Submitted for review';
-  if (job.status === 'released') return 'Reviewed';
-  return job.status || '—';
-}
-
 export default function AdminAudioJobsPanel({ category = 'general', showMessage, onOpenQueue }) {
   const { currentUser } = useAuth();
   const templateJob = category === 'template';
   const email = (currentUser?.email || '').trim().toLowerCase();
   const isAdmin = ADMIN_EMAILS.has(email);
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [workingFile, setWorkingFile] = useState(null);
   const [fileKey, setFileKey] = useState(0);
@@ -39,31 +21,6 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
   const [referenceKey, setReferenceKey] = useState(0);
   const [templateFile, setTemplateFile] = useState(null);
   const [templateFileKey, setTemplateFileKey] = useState(0);
-
-  const loadJobs = useCallback(async (quiet = false) => {
-    if (!currentUser || !isAdmin) return;
-    if (!quiet) setLoading(true);
-    try {
-      const token = await currentUser.getIdToken();
-      const response = await fetch(`${BACKEND_URL}/human-transcription/jobs?scope=admin`, {
-        headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.detail || 'Admin-uploaded jobs could not be loaded.');
-      setJobs((payload.jobs || []).filter((job) => job.admin_uploaded === true && job.job_category === category));
-    } catch (error) {
-      if (!quiet) showMessage?.(error.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [currentUser, isAdmin, category, showMessage]);
-
-  useEffect(() => {
-    loadJobs();
-    if (!currentUser || !isAdmin) return undefined;
-    const timer = window.setInterval(() => loadJobs(true), 15000);
-    return () => window.clearInterval(timer);
-  }, [currentUser, isAdmin, loadJobs]);
 
   const onAudioSelected = (file) => {
     setWorkingFile(file || null);
@@ -119,7 +76,6 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
       setDurationNote('The length is detected when your browser can read the recording. Check it before creating the job.');
       const parts = Number(payload.parts_count || 0);
       showMessage?.(`${templateJob ? 'Template' : 'General'} Job created${parts ? ` with ${parts} available parts` : ' and added to Available Jobs'}.`, 'success');
-      await loadJobs(true);
     } catch (error) {
       showMessage?.(error.message, 'error');
     } finally {
@@ -137,10 +93,10 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
           <p className="tm-admin-audio-eyebrow">Human Work · Admin uploads</p>
           <h2 id="tm-admin-audio-title">{titleText}</h2>
           <p>{templateJob
-            ? 'Upload a recording with its Word template and any reference material. Eligible workers can claim the job directly; the Template Agent and AI proofreader remain available in the queue.'
-            : 'Upload a recording and instructions. Eligible workers can claim the work directly; the General Agent and AI proofreader remain available in the queue.'}</p>
+            ? 'Upload a recording with its Word template and any reference material. Once uploaded, the job appears under Needs action in the Job Queue, where you assign workers or the Template Agent, proofread and review.'
+            : 'Upload a recording and instructions. Once uploaded, the job appears under Needs action in the Job Queue, where you assign workers or the General Agent, proofread and review.'}</p>
         </div>
-        <button type="button" className="tm-admin-audio-secondary" onClick={() => onOpenQueue?.(jobs[0])}>Open Job Queue</button>
+        <button type="button" className="tm-admin-audio-secondary" onClick={() => onOpenQueue?.({ status: 'approved' })}>Go to Job Queue</button>
       </header>
 
       <div className="tm-admin-audio-policy" role="note">
@@ -169,11 +125,6 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
         </div>
         <footer className="tm-admin-audio-form-footer"><span>{templateJob ? 'Template Agent: Claude Opus 5.5, with GPT-5.6 Sol fallback.' : 'General Agent: Claude Sonnet 5.5, with Gemini 3.8 Flash fallback.'}</span><button type="submit" disabled={uploading || !workingFile || !Number(minutes) || !templateFilePresent || !referencesValid}>{uploading ? 'Uploading securely…' : `Create ${templateJob ? 'Template' : 'General'} Job`}</button></footer>
       </form>
-
-      <section className="tm-admin-audio-list" aria-labelledby="tm-admin-audio-list-title">
-        <div className="tm-admin-audio-list-head"><div><h3 id="tm-admin-audio-list-title">Recent {titleText.toLowerCase()}</h3><p>New work appears on the main Job Queue and eligible workers' Available Jobs board.</p></div><button type="button" className="tm-admin-audio-secondary" onClick={() => loadJobs()}>Refresh</button></div>
-        {loading ? <p className="tm-admin-audio-empty">Loading recent uploads…</p> : jobs.length ? <div className="tm-admin-audio-table" role="list">{jobs.slice(0, 25).map((job) => <article className="tm-admin-audio-row" role="listitem" key={job.id}><div><strong>{job.job_name || job.audio?.name || titleText}</strong><span>{job.minutes || 0} min · {job.segments?.length ? `${job.segments.length} parts` : 'whole recording'} · {dateLabel(job.createdAt)}</span></div><span className="tm-admin-audio-status">{jobStatus(job)}</span></article>)}</div> : <p className="tm-admin-audio-empty">No admin uploads in this category yet.</p>}
-      </section>
     </section>
   );
 }
