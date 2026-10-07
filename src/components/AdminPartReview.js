@@ -122,7 +122,7 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true, onInsert, 
 
   return (
     <div className="tm-human-assign" style={box}>
-      <div><strong>AI reviewer</strong><div style={muted}>{splitJob ? 'Reviews every submitted part and combines them into one transcript.' : 'Reviews the submitted transcript.'} It uses Claude Sonnet 5.5, with GPT-5.6 Terra as fallback, and checks client spellings, job instructions, reference files, worker research notes, company guidelines and relevant web research. The final admin approval remains required.</div></div>
+      <div><strong>AI reviewer</strong><div style={muted}>{splitJob ? 'Reviews every submitted part and combines them into one transcript.' : 'Reviews the submitted transcript.'} It uses GPT-5.6 Luna, with Gemini 3.8 Flash as fallback, and checks client spellings, job instructions, reference files, worker research notes, company guidelines and relevant web research. The final admin approval remains required.</div></div>
       <style>{`@keyframes tmAiSpin{to{transform:rotate(360deg)}}.tm-ai-spin{display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid rgba(91,45,158,.25);border-top-color:#5b2d9e;border-radius:50%;animation:tmAiSpin .8s linear infinite}`}</style>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <button type="button" disabled={busy || running} aria-busy={running} onClick={run}>{running ? <><span className="tm-ai-spin" aria-hidden="true" />Reviewing with AI...</> : (review ? 'Run the AI review again' : (splitJob ? 'Review and combine with AI' : 'Review with AI'))}</button>

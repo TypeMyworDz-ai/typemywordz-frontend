@@ -27,6 +27,26 @@ afterEach(() => {
   else delete global.fetch;
 });
 
+test('shows Gemini 3.5 Flash-Lite among standard models in client settings', async () => {
+  global.fetch = jest.fn(async () => ({
+    json: async () => ({
+      default: 'gemini-3.5-flash-lite',
+      models: [{
+        id: 'gemini-3.5-flash-lite', provider: 'gemini', label: 'Gemini 3.5 Flash-Lite',
+        blurb: 'Google\'s economical 3.5 model for fast, high-volume work.',
+        tier: 'standard', credits: 2, transcript_only: true,
+      }],
+      locked: [],
+    }),
+  }));
+
+  render(<Settings userPlan="basic" userEmail="client@example.com" canUseAI />);
+
+  expect(await screen.findByText('Gemini 3.5 Flash-Lite')).toBeInTheDocument();
+  expect(screen.getByText('Included with your plan')).toBeInTheDocument();
+  expect(screen.getByText('Transcripts only')).toBeInTheDocument();
+});
+
 test('lets a client bind a single key and stores it for their browser account', () => {
   render(<Settings userPlan="free" userEmail="client@example.com" />);
 
