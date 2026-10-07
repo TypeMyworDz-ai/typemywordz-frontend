@@ -1099,7 +1099,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <div><span className="tm-human-status">{STATUS_LABELS[selectedJob.status] || selectedJob.status}</span><h2>{selectedJob.job_name || selectedJob.pdf_image?.name || selectedJob.audio?.name || (selectedJob.source_type === 'ai_proofreading' ? 'AI transcript for proofreading' : 'Human-transcription request')}</h2><p>{selectedJob.job_type === 'letter_job' ? `Letter Job · Complete recording · ${selectedJob.minutes || 0} minutes` : selectedJob.job_type === 'pdf_job' ? (selectedJob.job_category === 'text_messages' ? 'Text message screenshot · KES 100 per submitted image' : 'PDF image transcription · KES 100 per submitted image') : `${jobTypeLabel(selectedJob)} · ${selectedJob.minutes || 0} minutes${mode !== 'worker' ? ` · ${selectedJob.quote_credits || 0} credits` : ''} · ${selectedJob.turnaround || 'standard'} delivery`}</p>{mode === 'worker' && workerAssignment?.label && <p><strong>{workerAssignment.label}</strong>{workerAssignment.role === 'proofreader' ? ' · Proofread the combined text below and check the handoff between parts. You can submit once every part is in.' : selectedJob.job_type === 'pdf_job' ? ' · Transcribe the single assigned image and submit the finished Word file or transcript.' : ` · Work from ${formatCountdown(workerAssignment.start_seconds || 0)} to ${formatCountdown(workerAssignment.end_seconds || 0)} in the source recording.`}</p>}</div>
               <div className="tm-human-detail-actions">
                 {mode === 'admin' && selectedJob.status === 'pending_admin' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/approve`, { method: 'POST' })}>Approve request</button>}
-                {renderSubmitButton('top')}
                 {mode === 'client' && selectedJob.status === 'client_review' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/client-approve`, { method: 'POST' })}>Approve completed work</button>}
                 {mode === 'admin' && selectedJob.status === 'client_review' && <button type="button" title="Some clients are fully hands-off and trust an admin's review instead of logging in to approve it themselves." onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/client-approve`, { method: 'POST' })}>Approve on client's behalf</button>}
                 {mode === 'admin' && selectedJob.status === 'client_approved' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/release`, { method: 'POST' })}>Release completed work</button>}
@@ -2194,9 +2193,8 @@ function ratesFromServer(data) {
   return {
     audio_human_kes_per_minute: String(data.audio_human_kes_per_minute ?? 10),
     audio_ai_kes_per_minute: String(data.audio_ai_kes_per_minute ?? 20),
-    image_human_usd_cents_per_word: String(data.image_human_usd_cents_per_word ?? 0.15),
-    image_ai_usd_cents_per_word: String(data.image_ai_usd_cents_per_word ?? 0.2),
-    usd_to_kes_rate: String(data.usd_to_kes_rate ?? 129),
+    image_human_kes_per_word: String(data.image_human_kes_per_word ?? 0.2),
+    image_ai_kes_per_word: String(data.image_ai_kes_per_word ?? 0.15),
   };
 }
 
@@ -2221,9 +2219,8 @@ function AdminSubadminRatesPanel({ request, showMessage }) {
       const data = await request('/api/admin/subadmin-rates', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
         audio_human_kes_per_minute: Number(rates.audio_human_kes_per_minute),
         audio_ai_kes_per_minute: Number(rates.audio_ai_kes_per_minute),
-        image_human_usd_cents_per_word: Number(rates.image_human_usd_cents_per_word),
-        image_ai_usd_cents_per_word: Number(rates.image_ai_usd_cents_per_word),
-        usd_to_kes_rate: Number(rates.usd_to_kes_rate),
+        image_human_kes_per_word: Number(rates.image_human_kes_per_word),
+        image_ai_kes_per_word: Number(rates.image_ai_kes_per_word),
       }) });
       setRates(ratesFromServer(data));
       setRecalcPreview(null);
@@ -2242,19 +2239,16 @@ function AdminSubadminRatesPanel({ request, showMessage }) {
   };
   if (!rates) return <div className="tm-human-chat-card tm-human-empty">Loading sub-admin rates…</div>;
   const setRate = (key, value) => setRates((current) => ({ ...current, [key]: value }));
-  const fx = Number(rates.usd_to_kes_rate) || 0;
-  const kesPerWord = (cents) => ((Number(cents) || 0) / 100 * fx).toFixed(4);
   return (
     <form className="tm-human-chat-card tm-subadmin-rates" onSubmit={save}>
       <div className="tm-human-chat-head"><div><strong>Sub-admin rates</strong><span>Saving changes the rate for new earnings. Use the correction tool below for earnings that are still accruing.</span></div></div>
       <div className="tm-subadmin-rate-grid">
         <label>Human-submitted audio <span>KES per minute</span><input type="number" min="0" max="10000" step="1" required value={rates.audio_human_kes_per_minute} onChange={(event) => setRate('audio_human_kes_per_minute', event.target.value)} /></label>
         <label>AI-assisted audio <span>KES per minute</span><input type="number" min="0" max="10000" step="1" required value={rates.audio_ai_kes_per_minute} onChange={(event) => setRate('audio_ai_kes_per_minute', event.target.value)} /></label>
-        <label>Human-submitted images <span>US cents per word (≈ KES {kesPerWord(rates.image_human_usd_cents_per_word)})</span><input type="number" min="0" max="1000" step="0.01" required value={rates.image_human_usd_cents_per_word} onChange={(event) => setRate('image_human_usd_cents_per_word', event.target.value)} /></label>
-        <label>AI-assisted images <span>US cents per word (≈ KES {kesPerWord(rates.image_ai_usd_cents_per_word)})</span><input type="number" min="0" max="1000" step="0.01" required value={rates.image_ai_usd_cents_per_word} onChange={(event) => setRate('image_ai_usd_cents_per_word', event.target.value)} /></label>
-        <label>Exchange rate <span>KES per 1 US dollar</span><input type="number" min="1" max="1000" step="0.01" required value={rates.usd_to_kes_rate} onChange={(event) => setRate('usd_to_kes_rate', event.target.value)} /></label>
+        <label>Human-submitted images <span>KES per word</span><input type="number" min="0" max="1000" step="0.001" required value={rates.image_human_kes_per_word} onChange={(event) => setRate('image_human_kes_per_word', event.target.value)} /></label>
+        <label>AI agent images <span>KES per word</span><input type="number" min="0" max="1000" step="0.001" required value={rates.image_ai_kes_per_word} onChange={(event) => setRate('image_ai_kes_per_word', event.target.value)} /></label>
       </div>
-      <p className="tm-subadmin-rate-note">Image work is priced in US cents per word and converted to shillings with the exchange rate above. Earnings keep three decimal places so fractions of a shilling are not rounded away.</p>
+      <p className="tm-subadmin-rate-note">Image work is paid per word: human-submitted work and AI agent work have separate rates. AI proofreading never counts as AI agent work. Earnings keep three decimal places.</p>
       <div className="tm-subadmin-rate-actions"><button type="submit" className="tm-admin-payout-search-btn" disabled={saving}>{saving ? 'Saving…' : 'Save rates'}</button><button type="button" onClick={load} disabled={saving}>Reload</button></div>
       <div className="tm-subadmin-recalc">
         <strong>Correct image earnings</strong>
@@ -2270,7 +2264,7 @@ function AdminSubadminRatesPanel({ request, showMessage }) {
             <p><strong>{recalcPreview.done ? 'Applied' : 'Preview'}:</strong> {recalcPreview.changed_count} image earnings, KES {recalcPreview.old_total_kes.toFixed(3)} to KES {recalcPreview.new_total_kes.toFixed(3)}{recalcPreview.skipped_invoiced_count ? `. ${recalcPreview.skipped_invoiced_count} already invoiced were left untouched.` : '.'}</p>
             {recalcPreview.changes.length > 0 && (
               <table className="tm-admin-payout-table"><thead><tr><th>Sub-admin</th><th>Type</th><th>Words</th><th>Old</th><th>New</th></tr></thead><tbody>
-                {recalcPreview.changes.map((change) => <tr key={change.earning_id}><td>{change.subadmin_email}</td><td>{change.category === 'image_ai' ? 'AI image' : 'Human image'}</td><td>{change.words}</td><td>KES {change.old_amount_kes.toFixed(3)}</td><td>KES {change.new_amount_kes.toFixed(3)}</td></tr>)}
+                {recalcPreview.changes.map((change) => <tr key={change.earning_id}><td>{change.subadmin_email}</td><td>{change.old_category && change.old_category !== change.category ? `${change.old_category === 'image_ai' ? 'AI' : 'Human'} → ${change.category === 'image_ai' ? 'AI' : 'Human'} image` : (change.category === 'image_ai' ? 'AI image' : 'Human image')}</td><td>{change.words}</td><td>KES {change.old_amount_kes.toFixed(3)}</td><td>KES {change.new_amount_kes.toFixed(3)}</td></tr>)}
               </tbody></table>
             )}
           </div>
