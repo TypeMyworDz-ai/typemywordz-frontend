@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import './LetterJobsAdminPanel.css';
+import UploadResultBanner, { announceJobsChanged } from './UploadResultBanner';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 const LETTER_ADMIN_EMAILS = new Set(['typemywordz@gmail.com', 'info@typemywordz.ai']);
@@ -17,6 +18,7 @@ export default function LetterJobsAdminPanel({ showMessage, onOpenQueue }) {
   const email = (currentUser?.email || '').trim().toLowerCase();
   const isAdmin = LETTER_ADMIN_EMAILS.has(email);
   const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState(null);
   const [audioFile, setAudioFile] = useState(null);
   const [audioInputKey, setAudioInputKey] = useState(0);
   const [title, setTitle] = useState('');
@@ -52,6 +54,8 @@ export default function LetterJobsAdminPanel({ showMessage, onOpenQueue }) {
     event.preventDefault();
     if (!audioFile || uploading || !Number(minutes)) return;
     setUploading(true);
+    setResult(null);
+    const uploadedName = title.trim() || audioFile.name;
     try {
       const token = await currentUser.getIdToken();
       const form = new FormData();
@@ -66,9 +70,10 @@ export default function LetterJobsAdminPanel({ showMessage, onOpenQueue }) {
       setAudioFile(null); setAudioInputKey((value) => value + 1);
       setTitle(''); setMinutes(''); setDurationNote('Recording length is detected when the browser can read it; check or adjust the value.');
       setInstructions(DEFAULT_ADMIN_NOTE); setReferences([]); setReferenceInputKey((value) => value + 1);
-      showMessage?.('Letter Job created as one complete, unsplit job.', 'success');
+      setResult({ kind: 'success', title: uploadedName, detail: 'Letter Job created as one complete job. It is now under Needs action in the Job Queue.', at: Date.now() });
+      announceJobsChanged();
     } catch (error) {
-      showMessage?.(error.message, 'error');
+      setResult({ kind: 'error', title: uploadedName, detail: error.message, at: Date.now() });
     } finally {
       setUploading(false);
     }
@@ -86,6 +91,7 @@ export default function LetterJobsAdminPanel({ showMessage, onOpenQueue }) {
         </div>
         <button type="button" className="tm-admin-btn" onClick={() => onOpenQueue?.()}>Go to Job Queue</button>
       </div>
+      <UploadResultBanner working={uploading ? `Uploading "${audioFile?.name || 'your letter'}"…` : ''} result={result} onDismiss={() => setResult(null)} onOpenQueue={() => onOpenQueue?.()} />
       <form onSubmit={createJob}>
         <label className="tm-pdf-jobs-dropzone">
           <strong>Select the complete letter recording</strong>

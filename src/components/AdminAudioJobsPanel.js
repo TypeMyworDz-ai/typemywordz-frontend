@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import './AdminAudioJobsPanel.css';
+import UploadResultBanner, { announceJobsChanged } from './UploadResultBanner';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 const ADMIN_EMAILS = new Set(['typemywordz@gmail.com', 'info@typemywordz.ai']);
 const DEFAULT_ADMIN_NOTE = 'Client provided spellings and other instructions: None';
+const uploadedLabel = (file) => (file?.name ? `"${file.name}"` : 'your job');
+
 export default function AdminAudioJobsPanel({ category = 'general', showMessage, onOpenQueue }) {
   const { currentUser } = useAuth();
   const templateJob = category === 'template';
   const email = (currentUser?.email || '').trim().toLowerCase();
   const isAdmin = ADMIN_EMAILS.has(email);
   const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState(null);
   const [workingFile, setWorkingFile] = useState(null);
   const [fileKey, setFileKey] = useState(0);
   const [title, setTitle] = useState('');
@@ -53,6 +57,8 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
     event.preventDefault();
     if (!workingFile || uploading || !Number(minutes) || !templateFilePresent || !referencesValid) return;
     setUploading(true);
+    setResult(null);
+    const uploadedName = title.trim() || workingFile.name;
     try {
       const token = await currentUser.getIdToken();
       const form = new FormData();
@@ -75,9 +81,10 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
       setTemplateFileKey((value) => value + 1);
       setDurationNote('The length is detected when your browser can read the recording. Check it before creating the job.');
       const parts = Number(payload.parts_count || 0);
-      showMessage?.(`${templateJob ? 'Template' : 'General'} Job created${parts ? ` with ${parts} available parts` : ' and added to Available Jobs'}.`, 'success');
+      setResult({ kind: 'success', title: uploadedName, detail: `${templateJob ? 'Template' : 'General'} Job created${parts ? ` with ${parts} available parts` : ' and added to Available Jobs'}. It is now under Needs action in the Job Queue.`, at: Date.now() });
+      announceJobsChanged();
     } catch (error) {
-      showMessage?.(error.message, 'error');
+      setResult({ kind: 'error', title: uploadedName, detail: error.message, at: Date.now() });
     } finally {
       setUploading(false);
     }
@@ -103,6 +110,8 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
         <strong>No client quote or credits.</strong>
         <span>Worker pay is calculated when work is submitted. New uploads skip the initial approval queue, while final admin review remains in place.</span>
       </div>
+
+      <UploadResultBanner working={uploading ? `Uploading ${uploadedLabel(workingFile)}…` : ''} result={result} onDismiss={() => setResult(null)} onOpenQueue={() => onOpenQueue?.({ status: 'approved' })} />
 
       <form className="tm-admin-audio-form" onSubmit={createJob}>
         <div className="tm-admin-audio-form-head"><div><span className="tm-admin-audio-step">01</span><div><h3>Build a work item</h3><p>The recording is stored privately and becomes available to qualified workers after upload.</p></div></div></div>

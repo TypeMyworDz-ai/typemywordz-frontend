@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import UploadResultBanner, { announceJobsChanged } from './UploadResultBanner';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 const PDF_ADMIN_EMAILS = new Set(['info@typemywordz.ai', 'typemywordz@gmail.com']);
@@ -58,6 +59,7 @@ export default function PdfJobsAdminPanel({ showMessage, onOpenQueue, category =
   const [fileInputKey, setFileInputKey] = useState(0);
   const [note, setNote] = useState(DEFAULT_ADMIN_NOTE);
   const [stage, setStage] = useState('');
+  const [result, setResult] = useState(null);
   const [batches, setBatches] = useState([]);
   const [downloading, setDownloading] = useState('');
   const normalizedEmail = (currentUser?.email || '').trim().toLowerCase();
@@ -109,6 +111,7 @@ export default function PdfJobsAdminPanel({ showMessage, onOpenQueue, category =
   const uploadFiles = async (event) => {
     event.preventDefault();
     if (!files.length || uploading) return;
+    setResult(null);
     setStage(`Uploading ${files.length} file${files.length === 1 ? '' : 's'}…`);
     try {
       const token = await currentUser.getIdToken();
@@ -123,9 +126,11 @@ export default function PdfJobsAdminPanel({ showMessage, onOpenQueue, category =
       setFiles([]);
       setFileInputKey((value) => value + 1);
       setExtras([]); setExtraKey((value) => value + 1); setNote(DEFAULT_ADMIN_NOTE);
-      showMessage?.(`${payload.created_count || 0} job${payload.created_count === 1 ? '' : 's'} created and live under Needs action in the Job Queue.`, 'success');
+      const createdCount = payload.created_count || 0;
+      setResult({ kind: 'success', title: `${createdCount} job${createdCount === 1 ? '' : 's'} created`, detail: 'They are live under Needs action in the Job Queue, ready for workers or an AI agent.', at: Date.now() });
+      announceJobsChanged();
       await loadBatches();
-    } catch (error) { showMessage?.(error.message || 'The upload failed. Your images are still staged; try again.', 'error'); }
+    } catch (error) { setResult({ kind: 'error', title: 'your images are still staged', detail: error.message || 'The upload failed. Your images are still staged; try again.', at: Date.now() }); }
     finally { setStage(''); }
   };
 
@@ -154,6 +159,7 @@ export default function PdfJobsAdminPanel({ showMessage, onOpenQueue, category =
   return <div className="tm-pdf-jobs-panel">
     <section className="tm-admin-panel tm-pdf-jobs-upload">
       <div className="tm-admin-panel-head"><div><p className="tm-admin-kicker">{isText ? 'Text message screenshots' : 'Image transcription'}</p><h2 className="tm-admin-panel-title">{sectionTitle}</h2><p className="tm-admin-panel-note">{isText ? 'Upload or paste screenshots of text conversations. Every screenshot becomes one job. ' : 'Upload or paste images or PDFs. Every image or PDF page becomes one job. '}Images are compressed in your browser first so the upload is quick. New jobs appear under Needs action in the Job Queue, where you assign workers or AI agents, proofread, track progress and rate workers. Worker pay is {isText ? 'KES 50' : 'KES 100'} per image.</p></div><button type="button" className="tm-admin-btn tm-pdf-jobs-btn-secondary" onClick={onOpenQueue}>Go to Job Queue</button></div>
+      <UploadResultBanner working={stage.startsWith('Uploading') ? stage : ''} result={result} onDismiss={() => setResult(null)} onOpenQueue={onOpenQueue} />
       <form onSubmit={uploadFiles}>
         <label className="tm-pdf-jobs-dropzone"><strong>{isText ? 'Select screenshots or a PDF of screenshots' : 'Select images or PDFs'}</strong><span>JPG, PNG, WebP, TIFF, PDF or Word (.docx) · Images are shrunk automatically · 100 pages per PDF.</span><input key={fileInputKey} type="file" accept=".pdf,.docx,.doc,image/*" multiple onChange={(event) => { stageFiles(event.target.files); setFileInputKey((value) => value + 1); }} /></label>
         <div className="tm-pdf-jobs-paste" tabIndex={0} role="region" aria-label="Paste screenshots here" onPaste={stagePastedImages}><strong>Or paste screenshots</strong><span>Click this box, then press Ctrl+V. Pasted images are compressed right away; nothing is uploaded until you select Create image jobs.</span></div>

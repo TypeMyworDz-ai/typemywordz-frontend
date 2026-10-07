@@ -297,6 +297,14 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     }
   }, [adminTab, mode, refreshUserProfile, request, showMessage, workerTab]);
 
+  // Upload panels announce new work so the queue refreshes at once instead of
+  // waiting for the next background poll.
+  useEffect(() => {
+    const refreshNow = () => { loadJobs(); window.setTimeout(loadJobs, 1500); };
+    window.addEventListener('tm-human-jobs-changed', refreshNow);
+    return () => window.removeEventListener('tm-human-jobs-changed', refreshNow);
+  }, [loadJobs]);
+
   const loadWorkers = useCallback(async () => {
     if (mode !== 'admin') return;
     try {
