@@ -97,3 +97,39 @@ test('uses the last admin recording as the General Job source', async () => {
   expect(options.body.get('audio').name).toBe('recording-123.webm');
   expect(options.body.get('seconds')).toBe('120');
 });
+
+
+test('Stop recording attaches the new audio to the General Job upload form', async () => {
+  const descriptor = Object.getOwnPropertyDescriptor(window, 'MediaRecorder');
+  const devices = Object.getOwnPropertyDescriptor(navigator, 'mediaDevices');
+  class FakeRecorder {
+    static isTypeSupported = () => true;
+    constructor(stream, options = {}) { this.stream = stream; this.mimeType = options.mimeType; this.state = 'inactive'; }
+    start() { this.state = 'recording'; }
+    stop() { this.state = 'inactive'; this.ondataavailable({ data: new Blob([new Uint8Array(4096)], { type: this.mimeType }) }); this.onstop(); }
+  }
+  Object.defineProperty(window, 'MediaRecorder', { configurable: true, writable: true, value: FakeRecorder });
+  Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: jest.fn().mockResolvedValue({ getTracks: () => [{ stop: jest.fn() }] }) } });
+  global.fetch = jest.fn((url, options) => {
+    if (String(url).includes('/human-transcription/jobs?scope=admin')) return Promise.resolve(response({ jobs: [] }));
+    if (String(url).endsWith('/human-transcription/admin/audio-jobs') && options?.method === 'POST') return Promise.resolve(response({ job: { id: 'recorded-job' }, parts_count: 1 }));
+    return Promise.resolve(response({ jobs: [] }));
+  });
+  try {
+    render(<AdminAudioJobsPanel category="general" />);
+    await screen.findByRole('heading', { name: 'General Jobs' });
+    fireEvent.click(screen.getByRole('button', { name: 'Record audio' }));
+    await screen.findByRole('button', { name: 'Stop recording' });
+    fireEvent.click(screen.getByRole('button', { name: 'Stop recording' }));
+    expect(await screen.findByText(/Audio attached to this job: recording-/)).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton')).toHaveValue(0.02);
+    fireEvent.click(screen.getByRole('button', { name: 'Create General Job' }));
+    await waitFor(() => expect(global.fetch.mock.calls.some(([url, options]) => String(url).endsWith('/human-transcription/admin/audio-jobs') && options?.method === 'POST')).toBe(true));
+    const [, options] = global.fetch.mock.calls.find(([url, callOptions]) => String(url).endsWith('/human-transcription/admin/audio-jobs') && callOptions?.method === 'POST');
+    expect(options.body.get('audio').name).toMatch(/^recording-\d+\.webm$/);
+    expect(options.body.get('seconds')).toBe('1.2');
+  } finally {
+    if (descriptor) Object.defineProperty(window, 'MediaRecorder', descriptor); else delete window.MediaRecorder;
+    if (devices) Object.defineProperty(navigator, 'mediaDevices', devices); else delete navigator.mediaDevices;
+  }
+});

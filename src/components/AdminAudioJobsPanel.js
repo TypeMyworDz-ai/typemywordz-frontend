@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import './AdminAudioJobsPanel.css';
 import UploadResultBanner, { announceJobsChanged } from './UploadResultBanner';
+import JobAudioRecorder from './JobAudioRecorder';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 const ADMIN_EMAILS = new Set(['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com']);
 const DEFAULT_ADMIN_NOTE = 'Client provided spellings and other instructions: None';
 const uploadedLabel = (file) => (file?.name ? `"${file.name}"` : 'your job');
 
-export default function AdminAudioJobsPanel({ category = 'general', showMessage, onOpenQueue, recordedAudioFile = null }) {
+export default function AdminAudioJobsPanel({ category = 'general', showMessage, onOpenQueue, recordedAudioFile = null, onRecordedAudioReady }) {
   const { currentUser } = useAuth();
   const templateJob = category === 'template';
   const email = (currentUser?.email || '').trim().toLowerCase();
@@ -26,8 +27,15 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
   const [templateFile, setTemplateFile] = useState(null);
   const [templateFileKey, setTemplateFileKey] = useState(0);
 
-  const onAudioSelected = (file) => {
+  const onAudioSelected = (file, recordedSeconds = 0) => {
     setWorkingFile(file || null);
+    if (Number.isFinite(Number(recordedSeconds)) && Number(recordedSeconds) > 0) {
+      const seconds = Math.round(Number(recordedSeconds));
+      const recordedMinutes = Number((seconds / 60).toFixed(2));
+      setMinutes(String(recordedMinutes));
+      setDurationNote(`Recorded ${seconds} seconds (${recordedMinutes} minutes). Check or adjust it before creating the job.`);
+      return;
+    }
     setMinutes('');
     setDurationNote('The length is detected when your browser can read the recording. Check it before creating the job.');
     if (!file || typeof window.Audio !== 'function' || !window.URL?.createObjectURL) return;
@@ -117,6 +125,8 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
         <div className="tm-admin-audio-form-head"><div><span className="tm-admin-audio-step">01</span><div><h3>Build a work item</h3><p>The recording is stored privately and becomes available to qualified workers after upload.</p></div></div></div>
         <div className="tm-admin-audio-fields">
           <label><span>Recording</span><input key={fileKey} type="file" accept=".mp3,.wav,.m4a,.mp4,.webm,.ogg,.flac,.aac,.mov,.mkv,.avi,audio/*,video/*" onChange={(event) => onAudioSelected(event.target.files?.[0] || null)} /></label>
+          <JobAudioRecorder onRecordingReady={(file, seconds) => { onAudioSelected(file, seconds); onRecordedAudioReady?.(file); }} onRecordingError={(message) => showMessage?.(message, 'error')} />
+          {workingFile && <small className="tm-admin-audio-attached" role="status">Audio attached to this job: {workingFile.name}</small>}
           {recordedAudioFile && <div className="tm-admin-audio-recorded-choice"><button type="button" className="tm-admin-audio-secondary" onClick={() => onAudioSelected(recordedAudioFile)}>Use recorded audio</button><small role="status">Last recording: {recordedAudioFile.name}</small></div>}
           <label><span>Job name</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Optional · defaults to the filename" maxLength={180} /></label>
           <label><span>Recording length (minutes)</span><input type="number" min="0.01" step="0.01" value={minutes} onChange={(event) => setMinutes(event.target.value)} required /></label>

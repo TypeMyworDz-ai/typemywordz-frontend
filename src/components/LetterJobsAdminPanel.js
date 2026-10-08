@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import './LetterJobsAdminPanel.css';
 import UploadResultBanner, { announceJobsChanged } from './UploadResultBanner';
+import JobAudioRecorder from './JobAudioRecorder';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 const LETTER_ADMIN_EMAILS = new Set(['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com']);
@@ -13,7 +14,7 @@ const formatBytes = (bytes) => {
   return size < 1024 * 1024 ? `${Math.max(1, Math.round(size / 1024))} KB` : `${(size / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-export default function LetterJobsAdminPanel({ showMessage, onOpenQueue, recordedAudioFile = null }) {
+export default function LetterJobsAdminPanel({ showMessage, onOpenQueue, recordedAudioFile = null, onRecordedAudioReady }) {
   const { currentUser } = useAuth();
   const email = (currentUser?.email || '').trim().toLowerCase();
   const isAdmin = LETTER_ADMIN_EMAILS.has(email);
@@ -27,8 +28,15 @@ export default function LetterJobsAdminPanel({ showMessage, onOpenQueue, recorde
   const [instructions, setInstructions] = useState(DEFAULT_ADMIN_NOTE);
   const [references, setReferences] = useState([]);
   const [referenceInputKey, setReferenceInputKey] = useState(0);
-  const onAudioSelected = (file) => {
+  const onAudioSelected = (file, recordedSeconds = 0) => {
     setAudioFile(file || null);
+    if (Number.isFinite(Number(recordedSeconds)) && Number(recordedSeconds) > 0) {
+      const seconds = Math.round(Number(recordedSeconds));
+      const recordedMinutes = Number((seconds / 60).toFixed(2));
+      setMinutes(String(recordedMinutes));
+      setDurationNote(`Recorded ${seconds} seconds (${recordedMinutes} minutes). Check or adjust it before creating the job.`);
+      return;
+    }
     setMinutes('');
     setDurationNote('Recording length is detected when the browser can read it; check or adjust the value.');
     if (!file || typeof window.Audio !== 'function' || !window.URL?.createObjectURL) return;
@@ -98,6 +106,7 @@ export default function LetterJobsAdminPanel({ showMessage, onOpenQueue, recorde
           <span>MP3, WAV, M4A, MP4, WebM, OGG, FLAC, AAC, MOV, MKV or AVI. The recording remains one unsplit job.</span>
           <input key={audioInputKey} type="file" accept="audio/*,video/*,.mp3,.wav,.m4a,.mp4,.webm,.ogg,.flac,.aac,.mov,.mkv,.avi" onChange={(event) => onAudioSelected(event.target.files?.[0] || null)} />
         </label>
+        <JobAudioRecorder onRecordingReady={(file, seconds) => { onAudioSelected(file, seconds); onRecordedAudioReady?.(file); }} onRecordingError={(message) => showMessage?.(message, 'error')} />
         {recordedAudioFile && <div className="tm-pdf-jobs-selected"><button type="button" className="tm-admin-btn" onClick={() => onAudioSelected(recordedAudioFile)}>Use recorded audio</button><small role="status">Last recording: {recordedAudioFile.name}</small></div>}
         {audioFile && <div className="tm-pdf-jobs-selected"><div className="tm-pdf-jobs-file"><span>{audioFile.name}</span><small>{formatBytes(audioFile.size)}</small><button type="button" onClick={() => { setAudioFile(null); setAudioInputKey((value) => value + 1); setMinutes(''); }}>Remove</button></div></div>}
         <div className="tm-letter-job-fields">

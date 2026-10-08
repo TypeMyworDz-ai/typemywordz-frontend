@@ -117,7 +117,7 @@ const adminQueueLaneFor = (job) => {
 
 const EMPTY_JOBS = [];
 
-export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', onInitialJobHandled, restricted = false, ownerScope = 'mine', recordedAudioFile = null }) {
+export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', onInitialJobHandled, restricted = false, ownerScope = 'mine', recordedAudioFile = null, onRecordedAudioReady }) {
   const { currentUser, refreshUserProfile } = useAuth();
   const [jobsStore, setJobsStore] = useState({});
   const [workers, setWorkers] = useState([]);
@@ -1026,11 +1026,11 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       ) : mode === 'admin' && adminTab === 'text_messages' && canManagePdfJobs ? (
         <PdfJobsAdminPanel category="text_messages" recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('text_messages'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'general_jobs' && canManageLetterJobs ? (
-        <AdminAudioJobsPanel category="general" recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={(job) => { setAdminQueueType('general_job'); setAdminQueueLane(adminQueueLaneFor(job)); setAdminTab('queue'); }} />
+        <AdminAudioJobsPanel category="general" onRecordedAudioReady={onRecordedAudioReady} recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={(job) => { setAdminQueueType('general_job'); setAdminQueueLane(adminQueueLaneFor(job)); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'template_jobs' && canManageLetterJobs ? (
-        <AdminAudioJobsPanel category="template" recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={(job) => { setAdminQueueType('template_job'); setAdminQueueLane(adminQueueLaneFor(job)); setAdminTab('queue'); }} />
+        <AdminAudioJobsPanel category="template" onRecordedAudioReady={onRecordedAudioReady} recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={(job) => { setAdminQueueType('template_job'); setAdminQueueLane(adminQueueLaneFor(job)); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'letter_jobs' && canManageLetterJobs ? (
-        <LetterJobsAdminPanel recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('letter_job'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
+        <LetterJobsAdminPanel onRecordedAudioReady={onRecordedAudioReady} recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('letter_job'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'shifts' && isMainAdmin ? (
         <AdminShiftAttendancePanel showMessage={showMessage} />
       ) : mode === 'admin' && adminTab === 'my_subadmin_payments' && isHumanSubadmin ? (
