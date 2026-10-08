@@ -28,6 +28,7 @@ export const isAdminEmail = (email) => {
 export const HUMAN_JOB_ADMIN_EMAILS = [
   ...ADMIN_EMAILS,
   'info@typemywordz.ai',
+  'gracenyaitara@gmail.com',
 ];
 
 // Case-insensitive, whitespace-tolerant check, matching the backend's behaviour.
