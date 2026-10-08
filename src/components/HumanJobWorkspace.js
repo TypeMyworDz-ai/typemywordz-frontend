@@ -117,7 +117,7 @@ const adminQueueLaneFor = (job) => {
 
 const EMPTY_JOBS = [];
 
-export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', onInitialJobHandled, restricted = false, ownerScope = 'mine' }) {
+export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', onInitialJobHandled, restricted = false, ownerScope = 'mine', recordedAudioFile = null }) {
   const { currentUser, refreshUserProfile } = useAuth();
   const [jobsStore, setJobsStore] = useState({});
   const [workers, setWorkers] = useState([]);
@@ -1022,15 +1022,15 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       )}
 
       {mode === 'admin' && adminTab === 'pdf_jobs' && canManagePdfJobs ? (
-        <PdfJobsAdminPanel showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('pdf_job'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
+        <PdfJobsAdminPanel recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('pdf_job'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'text_messages' && canManagePdfJobs ? (
-        <PdfJobsAdminPanel category="text_messages" showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('text_messages'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
+        <PdfJobsAdminPanel category="text_messages" recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('text_messages'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'general_jobs' && canManageLetterJobs ? (
-        <AdminAudioJobsPanel category="general" showMessage={showMessage} onOpenQueue={(job) => { setAdminQueueType('general_job'); setAdminQueueLane(adminQueueLaneFor(job)); setAdminTab('queue'); }} />
+        <AdminAudioJobsPanel category="general" recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={(job) => { setAdminQueueType('general_job'); setAdminQueueLane(adminQueueLaneFor(job)); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'template_jobs' && canManageLetterJobs ? (
-        <AdminAudioJobsPanel category="template" showMessage={showMessage} onOpenQueue={(job) => { setAdminQueueType('template_job'); setAdminQueueLane(adminQueueLaneFor(job)); setAdminTab('queue'); }} />
+        <AdminAudioJobsPanel category="template" recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={(job) => { setAdminQueueType('template_job'); setAdminQueueLane(adminQueueLaneFor(job)); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'letter_jobs' && canManageLetterJobs ? (
-        <LetterJobsAdminPanel showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('letter_job'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
+        <LetterJobsAdminPanel recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('letter_job'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'shifts' && isMainAdmin ? (
         <AdminShiftAttendancePanel showMessage={showMessage} />
       ) : mode === 'admin' && adminTab === 'my_subadmin_payments' && isHumanSubadmin ? (
@@ -1144,7 +1144,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <section className="tm-ai-agent-panel" aria-label="AI first-draft agents">
                 <div className="tm-ai-agent-copy">
                   <strong>AI first draft <span>Private internal draft</span></strong>
-                  <p>Choose the job-specific internal agent for an available job or part. General Jobs use Claude Haiku 5.5 with Gemini 3.8 Flash fallback; Template Jobs use GPT-5.6 Sol with Claude Opus 5.5 fallback. The draft stays private until you assign proofreading or finish eligible admin-uploaded work.</p>
+                  <p>Choose the job-specific internal agent for an available job or part. General Jobs use GPT-5.6 Luna with DeepSeek V4 Flash fallback; Template Jobs use GPT-5.6 Sol with Claude Opus 5.5 fallback. The draft stays private until you assign proofreading or finish eligible admin-uploaded work.</p>
                 </div>
                 {splitJob && <label className="tm-ai-agent-part">Part
                   <select value={aiAgentSegment || (selectedJob.segments || []).find((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid)?.id || ''} onChange={(event) => setAiAgentSegment(event.target.value)}>

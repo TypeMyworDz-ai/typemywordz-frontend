@@ -77,3 +77,23 @@ test('creates a Template Job with its job-specific Word template attached', asyn
   expect(options.body.get('template_file').name).toBe('client-template.docx');
   expect(options.body.getAll('attachments').map((file) => file.name)).toContain('background-reference.docx');
 });
+
+
+test('uses the last admin recording as the General Job source', async () => {
+  global.fetch = jest.fn((url, options) => {
+    if (String(url).includes('/human-transcription/jobs?scope=admin')) return Promise.resolve(response({ jobs: [] }));
+    if (String(url).endsWith('/human-transcription/admin/audio-jobs') && options?.method === 'POST') return Promise.resolve(response({ job: { id: 'general-recorded' }, parts_count: 1 }));
+    return Promise.resolve(response({ jobs: [] }));
+  });
+  const recorded = new File(['recorded voice'], 'recording-123.webm', { type: 'audio/webm' });
+  render(<AdminAudioJobsPanel category="general" recordedAudioFile={recorded} />);
+  await screen.findByRole('heading', { name: 'General Jobs' });
+  fireEvent.click(screen.getByRole('button', { name: 'Use recorded audio' }));
+  expect(screen.getByText('Last recording: recording-123.webm')).toBeInTheDocument();
+  fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '2' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Create General Job' }));
+  await waitFor(() => expect(global.fetch.mock.calls.some(([url, options]) => String(url).endsWith('/human-transcription/admin/audio-jobs') && options?.method === 'POST')).toBe(true));
+  const [, options] = global.fetch.mock.calls.find(([url, callOptions]) => String(url).endsWith('/human-transcription/admin/audio-jobs') && callOptions?.method === 'POST');
+  expect(options.body.get('audio').name).toBe('recording-123.webm');
+  expect(options.body.get('seconds')).toBe('120');
+});

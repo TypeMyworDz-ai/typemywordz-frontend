@@ -13,7 +13,7 @@ const formatBytes = (bytes) => {
   return size < 1024 * 1024 ? `${Math.max(1, Math.round(size / 1024))} KB` : `${(size / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-export default function LetterJobsAdminPanel({ showMessage, onOpenQueue }) {
+export default function LetterJobsAdminPanel({ showMessage, onOpenQueue, recordedAudioFile = null }) {
   const { currentUser } = useAuth();
   const email = (currentUser?.email || '').trim().toLowerCase();
   const isAdmin = LETTER_ADMIN_EMAILS.has(email);
@@ -98,6 +98,7 @@ export default function LetterJobsAdminPanel({ showMessage, onOpenQueue }) {
           <span>MP3, WAV, M4A, MP4, WebM, OGG, FLAC, AAC, MOV, MKV or AVI. The recording remains one unsplit job.</span>
           <input key={audioInputKey} type="file" accept="audio/*,video/*,.mp3,.wav,.m4a,.mp4,.webm,.ogg,.flac,.aac,.mov,.mkv,.avi" onChange={(event) => onAudioSelected(event.target.files?.[0] || null)} />
         </label>
+        {recordedAudioFile && <div className="tm-pdf-jobs-selected"><button type="button" className="tm-admin-btn" onClick={() => onAudioSelected(recordedAudioFile)}>Use recorded audio</button><small role="status">Last recording: {recordedAudioFile.name}</small></div>}
         {audioFile && <div className="tm-pdf-jobs-selected"><div className="tm-pdf-jobs-file"><span>{audioFile.name}</span><small>{formatBytes(audioFile.size)}</small><button type="button" onClick={() => { setAudioFile(null); setAudioInputKey((value) => value + 1); setMinutes(''); }}>Remove</button></div></div>}
         <div className="tm-letter-job-fields">
           <label><strong>Job name</strong><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={audioFile?.name || 'For example, Client letter · October 2026'} /></label>

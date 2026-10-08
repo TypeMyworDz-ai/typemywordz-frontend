@@ -8,7 +8,7 @@ const ADMIN_EMAILS = new Set(['typemywordz@gmail.com', 'info@typemywordz.ai', 'g
 const DEFAULT_ADMIN_NOTE = 'Client provided spellings and other instructions: None';
 const uploadedLabel = (file) => (file?.name ? `"${file.name}"` : 'your job');
 
-export default function AdminAudioJobsPanel({ category = 'general', showMessage, onOpenQueue }) {
+export default function AdminAudioJobsPanel({ category = 'general', showMessage, onOpenQueue, recordedAudioFile = null }) {
   const { currentUser } = useAuth();
   const templateJob = category === 'template';
   const email = (currentUser?.email || '').trim().toLowerCase();
@@ -116,7 +116,8 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
       <form className="tm-admin-audio-form" onSubmit={createJob}>
         <div className="tm-admin-audio-form-head"><div><span className="tm-admin-audio-step">01</span><div><h3>Build a work item</h3><p>The recording is stored privately and becomes available to qualified workers after upload.</p></div></div></div>
         <div className="tm-admin-audio-fields">
-          <label><span>Recording</span><input key={fileKey} type="file" accept=".mp3,.wav,.m4a,.mp4,.webm,.ogg,.flac,.aac,.mov,.mkv,.avi,audio/*,video/*" required onChange={(event) => onAudioSelected(event.target.files?.[0] || null)} /></label>
+          <label><span>Recording</span><input key={fileKey} type="file" accept=".mp3,.wav,.m4a,.mp4,.webm,.ogg,.flac,.aac,.mov,.mkv,.avi,audio/*,video/*" onChange={(event) => onAudioSelected(event.target.files?.[0] || null)} /></label>
+          {recordedAudioFile && <div className="tm-admin-audio-recorded-choice"><button type="button" className="tm-admin-audio-secondary" onClick={() => onAudioSelected(recordedAudioFile)}>Use recorded audio</button><small role="status">Last recording: {recordedAudioFile.name}</small></div>}
           <label><span>Job name</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Optional · defaults to the filename" maxLength={180} /></label>
           <label><span>Recording length (minutes)</span><input type="number" min="0.01" step="0.01" value={minutes} onChange={(event) => setMinutes(event.target.value)} required /></label>
           <p className="tm-admin-audio-duration" role="status">{durationNote}</p>
@@ -132,7 +133,7 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
             {!referencesValid && <small className="tm-admin-audio-error" role="alert">Attach no more than {maxReferences} supporting files.</small>}
           </label>
         </div>
-        <footer className="tm-admin-audio-form-footer"><span>{templateJob ? 'Template Agent: GPT-5.6 Sol, with Claude Opus 5.5 fallback.' : 'General Agent: Claude Haiku 5.5, with Gemini 3.8 Flash fallback.'}</span><button type="submit" disabled={uploading || !workingFile || !Number(minutes) || !templateFilePresent || !referencesValid}>{uploading ? 'Uploading securely…' : `Create ${templateJob ? 'Template' : 'General'} Job`}</button></footer>
+        <footer className="tm-admin-audio-form-footer"><span>{templateJob ? 'Template Agent: GPT-5.6 Sol, with Claude Opus 5.5 fallback.' : 'General Agent: GPT-5.6 Luna, with DeepSeek V4 Flash fallback.'}</span><button type="submit" disabled={uploading || !workingFile || !Number(minutes) || !templateFilePresent || !referencesValid}>{uploading ? 'Uploading securely…' : `Create ${templateJob ? 'Template' : 'General'} Job`}</button></footer>
       </form>
     </section>
   );

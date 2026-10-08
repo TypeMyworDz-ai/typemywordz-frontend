@@ -49,7 +49,7 @@ export async function compressImageFile(file) {
   } catch { return file; }
 }
 
-export default function PdfJobsAdminPanel({ showMessage, onOpenQueue, category = 'pdf' }) {
+export default function PdfJobsAdminPanel({ showMessage, onOpenQueue, category = 'pdf', recordedAudioFile = null }) {
   const { currentUser } = useAuth();
   const isText = category === 'text_messages';
   const sectionTitle = isText ? 'Text Messages' : 'PDF Jobs';
@@ -160,6 +160,7 @@ export default function PdfJobsAdminPanel({ showMessage, onOpenQueue, category =
     <section className="tm-admin-panel tm-pdf-jobs-upload">
       <div className="tm-admin-panel-head"><div><p className="tm-admin-kicker">{isText ? 'Text message screenshots' : 'Image transcription'}</p><h2 className="tm-admin-panel-title">{sectionTitle}</h2><p className="tm-admin-panel-note">{isText ? 'Upload or paste screenshots of text conversations. Every screenshot becomes one job. ' : 'Upload or paste images or PDFs. Every image or PDF page becomes one job. '}Images are compressed in your browser first so the upload is quick. New jobs appear under Needs action in the Job Queue, where you assign workers or AI agents, proofread, track progress and rate workers. Worker pay is {isText ? 'KES 50' : 'KES 100'} per image.</p></div><button type="button" className="tm-admin-btn tm-pdf-jobs-btn-secondary" onClick={onOpenQueue}>Go to Job Queue</button></div>
       <UploadResultBanner working={stage.startsWith('Uploading') ? stage : ''} result={result} onDismiss={() => setResult(null)} onOpenQueue={onOpenQueue} />
+      {recordedAudioFile && <p className="tm-pdf-jobs-stage" role="note">Your last recording is available for General, Template, and Letter Jobs. This category needs image or PDF source files.</p>}
       <form onSubmit={uploadFiles}>
         <label className="tm-pdf-jobs-dropzone"><strong>{isText ? 'Select screenshots or a PDF of screenshots' : 'Select images or PDFs'}</strong><span>JPG, PNG, WebP, TIFF, PDF or Word (.docx) · Images are shrunk automatically · 100 pages per PDF.</span><input key={fileInputKey} type="file" accept=".pdf,.docx,.doc,image/*" multiple onChange={(event) => { stageFiles(event.target.files); setFileInputKey((value) => value + 1); }} /></label>
         <div className="tm-pdf-jobs-paste" tabIndex={0} role="region" aria-label="Paste screenshots here" onPaste={stagePastedImages}><strong>Or paste screenshots</strong><span>Click this box, then press Ctrl+V. Pasted images are compressed right away; nothing is uploaded until you select Create image jobs.</span></div>
