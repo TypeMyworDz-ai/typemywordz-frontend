@@ -430,7 +430,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const hasAudio = Boolean(selectedJob?.audio);
   const audioHidden = mode === 'worker' && workerTab === 'available';
   const audioSegmentId = mode === 'worker' && workerAssignment?.role === 'transcriber' && workerAssignment?.id && !['transcriber', 'main'].includes(workerAssignment.id) ? workerAssignment.id : '';
-  const audioKey = audioJobId && hasAudio && !audioHidden ? `${audioJobId}|${audioSegmentId}` : '';
+  const audioLocked = mode === 'worker' && Boolean(selectedJob?.audio_locked);
+  const audioKey = audioJobId && hasAudio && !audioHidden && !audioLocked ? `${audioJobId}|${audioSegmentId}` : '';
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState('');
   useEffect(() => {
@@ -848,6 +849,16 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     return saved;
   };
 
+  const [unlockBusy, setUnlockBusy] = useState('');
+  const unlockWorkerAudio = async (key) => {
+    setUnlockBusy(key);
+    try {
+      await request(`/human-transcription/jobs/${selectedJob.id}/unlock-worker-audio`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) });
+      showMessage?.('The recording is now open for the worker.', 'success');
+      await loadJobs();
+    } catch (error) { showMessage?.(error.message, 'error'); } finally { setUnlockBusy(''); }
+  };
+
   const requestAiDraft = async () => {
     setAiDraftBusy(true);
     try {
@@ -1207,11 +1218,11 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 {!selectedJob.can_claim && selectedJob.claim_block_reason && <p className="tm-human-claim-blocked" role="status">{selectedJob.claim_block_reason}</p>}
                 {selectedJob.claimable_full_job && <>
                   <button type="button" disabled={busy || !selectedJob.can_claim} onClick={() => claimWork()}>{selectedJob.job_type === 'pdf_job' ? 'Claim image' : 'Claim job'}</button>
-                  <small>{selectedJob.claim_attempt_count || 0}/{selectedJob.max_claims_per_item || 2} successful personal claims used. A third claim is blocked.</small>
+                  <small>{selectedJob.claim_attempt_count || 0}/{selectedJob.max_claims_per_item || 1} personal claim used. A job can be claimed only once; a second claim is blocked.</small>
                 </>}
                 {(selectedJob.claimable_parts || []).map((part) => (
                   <div className="tm-human-claim-part" key={part.id}>
-                    <span><strong>{part.label || 'Available part'}</strong><small>{part.minutes || 0} minutes of audio · {part.claim_attempt_count || 0}/{selectedJob.max_claims_per_item || 2} personal claims used</small>{part.can_claim === false && part.claim_block_reason && <small className="tm-human-claim-blocked">{part.claim_block_reason}</small>}</span>
+                    <span><strong>{part.label || 'Available part'}</strong><small>{part.minutes || 0} minutes of audio · {part.claim_attempt_count || 0}/{selectedJob.max_claims_per_item || 1} personal claim used</small>{part.can_claim === false && part.claim_block_reason && <small className="tm-human-claim-blocked">{part.claim_block_reason}</small>}</span>
                     <button type="button" disabled={busy || !selectedJob.can_claim || part.can_claim === false} onClick={() => claimWork(part.id)}>Claim part</button>
                   </div>
                 ))}
@@ -1329,11 +1340,22 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             {mode === 'admin' && canFinishHumanJob(selectedJob) && <div className="tm-human-review"><button type="button" className="tm-admin-btn" disabled={busy} onClick={() => setFinishJobConfirm(true)}>Finish Job</button><p className="tm-tat-hint">Finish complete work without assigning a proofreader. Active proofreading assignments must be completed or taken back first.</p></div>}
 
             {selectedJob.job_type === 'pdf_job' && !(mode === 'worker' && workerTab === 'available') && <div className="tm-human-pdf-image-card"><div><strong>{selectedJob.pdf_review ? 'Whole-file review: all pages' : 'Assigned image'}</strong><span>{selectedJob.pdf_image?.source_filename || selectedJob.pdf_image?.name}{selectedJob.pdf_image?.page_count > 1 && !selectedJob.pdf_review ? ` · Page ${selectedJob.pdf_image.page_number} of ${selectedJob.pdf_image.page_count}` : ''}</span></div>{pdfImageUrls.length > 1 ? pdfImageUrls.map((url, index) => <img key={url} src={url} alt={`Page ${index + 1} of ${pdfImageUrls.length}`} />) : pdfImageUrl ? <img src={pdfImageUrl} alt={`Transcribe ${selectedJob.pdf_image?.name || 'PDF Job'}`} /> : <p role={pdfImageError ? 'alert' : 'status'}>{pdfImageError || 'Loading the private image…'}</p>}</div>}
+            {mode === 'worker' && audioLocked && hasAudio && !audioHidden && <div className="tm-human-reference-card" role="note" style={{ borderLeft: '4px solid #1f7a4d', display: 'grid', gap: 6 }}>
+              <strong>Your recording is locked for now</strong>
+              <span>You will be able to play and download the audio once you generate the formatted draft. Click Generate formatted draft below. If the draft fails, contact the admin and they will open the recording for you.</span>
+            </div>}
+            {mode === 'admin' && (selectedJob.audio_locked_assignments || []).length > 0 && <div className="tm-human-reference-card" role="note" style={{ display: 'grid', gap: 8 }}>
+              <strong>Recording locked for the worker</strong>
+              <span>The worker gets the recording after generating the formatted draft. If their draft keeps failing, open it for them.</span>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {(selectedJob.audio_locked_assignments || []).map((entry) => <button type="button" key={entry.key} disabled={unlockBusy === entry.key} onClick={() => unlockWorkerAudio(entry.key)}>{unlockBusy === entry.key ? 'Opening the recording…' : `Open recording for ${entry.label}`}</button>)}
+              </div>
+            </div>}
             {audioKey && <WorkerAudioPlayer src={audioUrl} loading={audioLoading} error={audioError} title={audioSegmentId ? 'Your part of the recording' : 'Source recording'} note={audioSegmentId ? 'Only your assigned part is played and downloaded here.' : 'Available to the client, admin and assigned worker.'} filename={audioSegmentId ? `${(workerAssignment?.label || 'part').replace(/[^A-Za-z0-9]+/g, '-').toLowerCase()}.mp3` : (selectedJob?.audio?.name || 'recording.mp3')} />}
             {mode === 'worker' && workerAssignmentActive && selectedJob.job_type === 'letter_job' && <div className="tm-human-reference-card tm-letter-guidelines" role="note"><strong>Letter Job guidelines</strong><p>Use the standard Letter Standard Indentation template. Preserve the dictated wording and paragraph breaks, keep the required Date, Re:, and Dear : fields, remove undictated template content, and attach the finished .docx. Staff instructions must be bold in square brackets. The full job instructions and reference files remain available above.</p>{selectedJob.letter_guidelines && <details><summary>Read the complete Letter Agent guidelines</summary><pre>{selectedJob.letter_guidelines}</pre></details>}</div>}
             {mode === 'worker' && workerAssignmentActive && workerAssignment?.role !== 'proofreader' && selectedJob.job_type !== 'pdf_job' && selectedJob.job_type !== 'letter_job' && <div className="tm-human-reference-card" style={{ display: 'grid', gap: 8 }}>
               <strong>AI formatted draft for this audio</strong>
-              <span>Generate a formatted draft of {workerAssignment?.label ? workerAssignment.label.toLowerCase() : 'this audio'}, then copy it into Word or insert it into the editor. It costs {workerDraftEstimate.totalCredits} credits: {workerDraftEstimate.audioMinutes} per started audio minute (rounded up) plus 1 formatting credit. A successful proofreading costs 5 additional credits.</span>
+              <span>Generate a formatted draft of {workerAssignment?.label ? workerAssignment.label.toLowerCase() : 'this audio'}, then copy it into Word or insert it into the editor. Your recording becomes available to play and download only after the draft is generated; if the draft fails, contact the admin. It costs {workerDraftEstimate.totalCredits} credits: {workerDraftEstimate.audioMinutes} per started audio minute (rounded up) plus 1 formatting credit. A successful proofreading costs 5 additional credits.</span>
               {!(aiDraftLocal || selectedJob.ai_draft) && <div><button type="button" disabled={aiDraftBusy} onClick={requestAiDraft}>{aiDraftBusy ? 'Preparing your formatted draft…' : `Generate formatted draft · ${workerDraftEstimate.totalCredits} credits`}</button></div>}
               {(aiDraftLocal || selectedJob.ai_draft) && <>
                 <div className="tm-worker-ai-text-preview" style={{ whiteSpace: 'pre-wrap', tabSize: '0.5in', maxHeight: 280, overflow: 'auto', background: '#fafbfa', border: '1px solid #e5e9e5', borderRadius: 6, padding: 12, fontSize: 14, lineHeight: '100%' }}>{aiDraftLocal || selectedJob.ai_draft}</div>

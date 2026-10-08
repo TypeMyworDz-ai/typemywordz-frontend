@@ -354,15 +354,15 @@ test('admin cannot take over a split job after any part is claimed', async () =>
   expect(screen.queryByRole('alertdialog', { name: 'Pause the parts and assign one whole-job draft?' })).not.toBeInTheDocument();
 });
 
-test('warns at ten deadline returns and blocks a third claim on the same whole job', async () => {
+test('warns at ten deadline returns and blocks a second claim on the same whole job', async () => {
   global.fetch = jest.fn((url) => {
     const address = String(url);
     if (address.includes('/human-transcription/jobs?scope=available')) return Promise.resolve(response({
       jobs: [{
         id: 'general-1', status: 'approved', job_type: 'general_job', job_category: 'general',
-        job_name: 'General interview', claimable_full_job: true, claim_attempt_count: 2,
-        max_claims_per_item: 2, can_claim: false,
-        claim_block_reason: 'You have already successfully claimed this job twice.',
+        job_name: 'General interview', claimable_full_job: true, claim_attempt_count: 1,
+        max_claims_per_item: 1, can_claim: false,
+        claim_block_reason: 'You have already claimed this job once. It cannot be claimed again.',
       }],
       worker_rating_summary: { average: 4.5, count: 2 }, worker_can_view_available: true,
       worker_active_assignment: false, worker_available: true, worker_can_claim: true,
@@ -376,7 +376,7 @@ test('warns at ten deadline returns and blocks a third claim on the same whole j
   render(<HumanJobWorkspace mode="worker" />);
   expect(await screen.findByRole('alert')).toHaveTextContent('Deadline reminder · 10 returns');
   expect(await screen.findByRole('button', { name: 'Claim job' })).toBeDisabled();
-  expect(screen.getByText(/already successfully claimed this job twice/)).toBeInTheDocument();
+  expect(screen.getByText(/already claimed this job once/)).toBeInTheDocument();
 });
 
 test('Human Work sub-admin sees only their own payment tab and shift reminder', async () => {
@@ -466,4 +466,28 @@ test('admin Archived Jobs tab requests the retained archived job list', async ()
     expect.any(Object),
   ));
   expect(screen.getByText('No jobs have reached the three-day archive yet.')).toBeInTheDocument();
+});
+
+test('worker sees a clear locked-recording notice and no audio request until the draft exists', async () => {
+  const base = global.fetch;
+  global.fetch = jest.fn((url, options) => {
+    const address = String(url);
+    if (address.includes('/human-transcription/jobs?scope=assigned')) {
+      return Promise.resolve(response({
+        jobs: [{
+          id: 'job-9', status: 'in_progress', audio: { name: 'rec.mp3' }, transcript: '', minutes: 5, audio_locked: true,
+          worker_assignment: { id: 'transcriber', role: 'transcriber', status: 'in_progress', label: 'Whole job' },
+          time_remaining_seconds: 240,
+        }],
+        worker_rating_summary: { average: 4.25, count: 2 },
+        worker_can_view_available: true, worker_active_assignment: true,
+        worker_available: true, worker_can_claim: false, worker_claim_block_reason: '',
+      }));
+    }
+    return base(url, options);
+  });
+  render(<HumanJobWorkspace mode="worker" initialJobId="job-9" />);
+  expect(await screen.findByText('Your recording is locked for now')).toBeInTheDocument();
+  expect(screen.getByText(/If the draft fails, contact the admin and they will open the recording/)).toBeInTheDocument();
+  expect(global.fetch.mock.calls.some(([url]) => String(url).includes('/jobs/job-9/audio'))).toBe(false);
 });
