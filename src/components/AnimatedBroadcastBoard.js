@@ -46,7 +46,7 @@ const MESSAGES = [
   },
   {
     kind: 'feature',
-    text: 'Work with your transcripts using Claude Sonnet.',
+    text: 'Work with your transcripts using Claude Haiku 5.5.',
     image: '/claude_logo.png',
     imageAlt: 'Claude',
     action: { label: 'Open Assistant', view: 'ai_assistant' }

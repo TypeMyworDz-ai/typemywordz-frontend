@@ -1133,7 +1133,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <section className="tm-ai-agent-panel" aria-label="AI first-draft agents">
                 <div className="tm-ai-agent-copy">
                   <strong>AI first draft <span>Private internal draft</span></strong>
-                  <p>Choose the job-specific internal agent for an available job or part. General Jobs use Gemini 3.8 Flash with Claude Sonnet 5.5 fallback; Template Jobs use Claude Opus 5.5 with GPT-5.6 Sol fallback. The draft stays private until you assign proofreading or finish eligible admin-uploaded work.</p>
+                  <p>Choose the job-specific internal agent for an available job or part. General Jobs use Claude Haiku 5.5 with Gemini 3.8 Flash fallback; Template Jobs use GPT-5.6 Sol with Claude Opus 5.5 fallback. The draft stays private until you assign proofreading or finish eligible admin-uploaded work.</p>
                 </div>
                 {splitJob && <label className="tm-ai-agent-part">Part
                   <select value={aiAgentSegment || (selectedJob.segments || []).find((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid)?.id || ''} onChange={(event) => setAiAgentSegment(event.target.value)}>

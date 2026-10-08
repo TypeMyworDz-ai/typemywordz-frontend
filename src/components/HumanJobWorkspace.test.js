@@ -103,7 +103,7 @@ test('worker can proofread the draft for five credits and insert only the separa
   expect(await screen.findByText(/First\.\s+Second\./)).toBeInTheDocument();
   expect(screen.getByText(/costs 6 credits: 5 per started audio minute \(rounded up\) plus 1 formatting credit/)).toBeInTheDocument();
   expect(document.querySelector('.tm-worker-ai-text-preview')).toHaveStyle({ tabSize: '0.5in' });
-  expect(screen.queryByText(/Claude Sonnet 5\.5|Claude Haiku 4\.5|ChatGPT 5\.6 Terra|GPT-5\.6 Luna|Gemini 3\.5 Flash-Lite|Gemini 3\.8/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Claude Sonnet 5\.5|Claude Haiku 5\.5|Claude Haiku 4\.5|ChatGPT 5\.6 Terra|GPT-5\.6 Luna|Gemini 3\.5 Flash-Lite|Gemini 3\.8/)).not.toBeInTheDocument();
   expect(screen.getByText('Proofread this draft here before you start transcribing')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Proofread this draft · 5 credits' }));
   expect(await screen.findByText('Proofread version')).toBeInTheDocument();
@@ -125,7 +125,7 @@ test('admin AI-agent choices describe the General and Template model routes', as
 
   expect(await screen.findByRole('button', { name: 'Assign general agent' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Assign template-aware agent' })).toBeInTheDocument();
-  expect(screen.getByText(/General Jobs use Gemini 3.8 Flash with Claude Sonnet 5.5 fallback; Template Jobs use Claude Opus 5.5 with GPT-5.6 Sol fallback\./)).toBeInTheDocument();
+  expect(screen.getByText(/General Jobs use Claude Haiku 5.5 with Gemini 3.8 Flash fallback; Template Jobs use GPT-5.6 Sol with Claude Opus 5.5 fallback\./)).toBeInTheDocument();
 });
 
 test('off-shift assignment dropdown requires a worker who is both clocked in and online', async () => {
