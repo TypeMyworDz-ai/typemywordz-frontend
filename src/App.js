@@ -263,6 +263,10 @@ function AppContent() {
   };
   // State declarations
   const [selectedFile, setSelectedFile] = useState(null);
+  // Keep the last valid admin microphone recording available to compatible
+  // Human Work upload panels while the app stays open. It is owned by the
+  // admin UID and never exposed to another signed-in account.
+  const [adminRecordedAudio, setAdminRecordedAudio] = useState(null);
   const [jobId, setJobId] = useState(null);
   const [status, setStatus] = useState('idle');
   const [transcription, setTranscription] = useState('');
@@ -1260,7 +1264,8 @@ function AppContent() {
     console.log('DEBUG: beginRecording called.');
     // Always reset UI when starting a new recording, effectively deselecting options
     // This also stops any ongoing transcription.
-    resetTranscriptionProcessUI(); 
+    resetTranscriptionProcessUI();
+    setAdminRecordedAudio(null);
     setSelectedFile(null); // Clear any previously selected file
     setRecMarks([]);
     setManualPaused(false);
@@ -1441,6 +1446,7 @@ function AppContent() {
         if (measured.duration > 0) {
           setAudioDuration(measured.duration);
         }
+        if (isHumanJobAdminEmail(currentUser?.email)) setAdminRecordedAudio({ uid: currentUser.uid, file });
         setSelectedFile(file);
         setTakeSaved(false);
         setManualPaused(false);
@@ -1468,7 +1474,7 @@ function AppContent() {
       console.error('DEBUG: Could not access microphone:', error); // NEW LOG
       showMessage('Could not access microphone: ' + error.message, 'error');
     }
-  }, [resetTranscriptionProcessUI, showMessage, measureAudio, stopRecordingMonitor]);
+  }, [resetTranscriptionProcessUI, showMessage, measureAudio, stopRecordingMonitor, currentUser]);
 
   // Point K. Starting a new recording throws away the last one, and clients
   // were losing work that way. If there is a take in hand that has not been
@@ -1513,11 +1519,12 @@ function AppContent() {
     recordingExtensionRef.current = (name.split('.').pop() || 'webm');
     if (measured.duration > 0) setAudioDuration(measured.duration);
     setSelectedFile(file);
+    if (isHumanJobAdminEmail(currentUser?.email)) setAdminRecordedAudio({ uid: currentUser.uid, file });
     setTakeSaved(false);
     setRecPreviewUrl((old) => { if (old) URL.revokeObjectURL(old); return URL.createObjectURL(blob); });
     setRecordingChoice(true);
     return true;
-  }, [measureAudio, showMessage]);
+  }, [measureAudio, showMessage, currentUser]);
 
   const recoverBackup = useCallback(async () => {
     const found = await recordingBackup.loadBackup();
@@ -1531,6 +1538,7 @@ function AppContent() {
     resetTranscriptionProcessUI();
     setSelectedFile(null);
     recordedAudioBlobRef.current = null;
+    setAdminRecordedAudio(null);
     setTakeSaved(false);
     setConfirmDiscard(false);
     setRecMarks([]);
@@ -2868,7 +2876,7 @@ return (
         ) : currentView === 'human_worker' ? (
           <HumanJobWorkspace mode="worker" initialJobId={selectedHumanJobId} initialSegmentId={selectedHumanSegmentId} onInitialJobHandled={() => { setSelectedHumanJobId(''); setSelectedHumanSegmentId(''); }} onBack={() => setCurrentView('transcribe')} showMessage={showMessage} />
         ) : currentView === 'human_ops' ? (
-          <HumanJobWorkspace mode="admin" initialJobId={selectedHumanJobId} initialSegmentId={selectedHumanSegmentId} onInitialJobHandled={() => { setSelectedHumanJobId(''); setSelectedHumanSegmentId(''); }} restricted={!isAdmin} onBack={() => setCurrentView('transcribe')} showMessage={showMessage} />
+          <HumanJobWorkspace mode="admin" recordedAudioFile={adminRecordedAudio?.uid === currentUser?.uid && isHumanJobAdminEmail(currentUser?.email) ? adminRecordedAudio.file : null} initialJobId={selectedHumanJobId} initialSegmentId={selectedHumanSegmentId} onInitialJobHandled={() => { setSelectedHumanJobId(''); setSelectedHumanSegmentId(''); }} restricted={!isAdmin} onBack={() => setCurrentView('transcribe')} showMessage={showMessage} />
         ) : currentView === 'human_job' ? (
           <HumanJobWorkspace mode="client" initialJobId={selectedHumanJobId} initialSegmentId={selectedHumanSegmentId} onInitialJobHandled={() => { setSelectedHumanJobId(''); setSelectedHumanSegmentId(''); }} onBack={() => setCurrentView('dashboard')} showMessage={showMessage} />
         ) : currentView === 'pricing' ? (
