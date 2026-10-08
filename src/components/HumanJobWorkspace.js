@@ -117,7 +117,7 @@ const adminQueueLaneFor = (job) => {
 
 const EMPTY_JOBS = [];
 
-export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', onInitialJobHandled, restricted = false }) {
+export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', onInitialJobHandled, restricted = false, ownerScope = 'mine' }) {
   const { currentUser, refreshUserProfile } = useAuth();
   const [jobsStore, setJobsStore] = useState({});
   const [workers, setWorkers] = useState([]);
@@ -174,10 +174,10 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   busyRef.current = busy;
   const adminEmail = (currentUser?.email || '').trim().toLowerCase();
   const isMainAdmin = adminEmail === 'typemywordz@gmail.com';
-  const isHumanSubadmin = mode === 'admin' && !isMainAdmin && restricted && ['info@typemywordz.ai'].includes(adminEmail);
-  const canManagePdfJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai'].includes(adminEmail);
-  const canManageLetterJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai'].includes(adminEmail);
-  const canAssignAiAgents = ['typemywordz@gmail.com', 'info@typemywordz.ai'].includes(adminEmail);
+  const isHumanSubadmin = mode === 'admin' && !isMainAdmin && restricted && ['info@typemywordz.ai', 'gracenyaitara@gmail.com'].includes(adminEmail);
+  const canManagePdfJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com'].includes(adminEmail);
+  const canManageLetterJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com'].includes(adminEmail);
+  const canAssignAiAgents = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com'].includes(adminEmail);
   const adminAssignableWorkers = workers.filter((worker) => (
     worker.approved !== false && (
       adminScheduledNow === true || (worker.call_in_active === true && worker.clocked_in === true && worker.online === true)
@@ -264,7 +264,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     jobsRequestIdRef.current = requestId;
     const scope = mode === 'admin' ? (adminTab === 'archived' ? 'archived' : 'admin') : mode === 'worker' ? (workerTab === 'available' ? 'available' : workerTab === 'finished' ? 'finished' : 'assigned') : 'mine';
     try {
-      const payload = await request(`/human-transcription/jobs?scope=${scope}`);
+      const payload = await request(`/human-transcription/jobs?scope=${scope}${mode === 'admin' && ownerScope === 'all' ? '&owner=all' : ''}`);
       // Only discard a response that is older than one already shown, or one
       // for a tab the user has since left. A slow poll never blocks newer data.
       if (requestId < jobsAppliedIdRef.current && scope === jobsScopeRef.current) return;

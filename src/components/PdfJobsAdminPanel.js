@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import UploadResultBanner, { announceJobsChanged } from './UploadResultBanner';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
-const PDF_ADMIN_EMAILS = new Set(['info@typemywordz.ai', 'typemywordz@gmail.com']);
+const PDF_ADMIN_EMAILS = new Set(['info@typemywordz.ai', 'typemywordz@gmail.com', 'gracenyaitara@gmail.com']);
 const DEFAULT_ADMIN_NOTE = 'Client provided spellings and other instructions: None';
 const MAX_LONG_EDGE = 2000;
 const JPEG_QUALITY = 0.82;

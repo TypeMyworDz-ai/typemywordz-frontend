@@ -4,7 +4,7 @@ import './AdminAudioJobsPanel.css';
 import UploadResultBanner, { announceJobsChanged } from './UploadResultBanner';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
-const ADMIN_EMAILS = new Set(['typemywordz@gmail.com', 'info@typemywordz.ai']);
+const ADMIN_EMAILS = new Set(['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com']);
 const DEFAULT_ADMIN_NOTE = 'Client provided spellings and other instructions: None';
 const uploadedLabel = (file) => (file?.name ? `"${file.name}"` : 'your job');
 

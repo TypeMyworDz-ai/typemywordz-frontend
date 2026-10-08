@@ -527,7 +527,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
         )}
 
         {activeTab === 'human' && (
-          <HumanJobWorkspace mode="admin" showMessage={showMessage} />
+          <HumanJobWorkspace mode="admin" ownerScope="all" showMessage={showMessage} />
         )}
 
         {activeTab === 'ask' && <AdminAskPanel currentUser={currentUser} showMessage={showMessage} />}
