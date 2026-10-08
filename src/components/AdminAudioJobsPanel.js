@@ -132,7 +132,7 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
             {!referencesValid && <small className="tm-admin-audio-error" role="alert">Attach no more than {maxReferences} supporting files.</small>}
           </label>
         </div>
-        <footer className="tm-admin-audio-form-footer"><span>{templateJob ? 'Template Agent: Claude Opus 5.5, with GPT-5.6 Sol fallback.' : 'General Agent: Claude Sonnet 5.5, with Gemini 3.8 Flash fallback.'}</span><button type="submit" disabled={uploading || !workingFile || !Number(minutes) || !templateFilePresent || !referencesValid}>{uploading ? 'Uploading securely…' : `Create ${templateJob ? 'Template' : 'General'} Job`}</button></footer>
+        <footer className="tm-admin-audio-form-footer"><span>{templateJob ? 'Template Agent: Claude Opus 5.5, with GPT-5.6 Sol fallback.' : 'General Agent: Gemini 3.8 Flash, with Claude Sonnet 5.5 fallback.'}</span><button type="submit" disabled={uploading || !workingFile || !Number(minutes) || !templateFilePresent || !referencesValid}>{uploading ? 'Uploading securely…' : `Create ${templateJob ? 'Template' : 'General'} Job`}</button></footer>
       </form>
     </section>
   );
