@@ -79,20 +79,34 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true, onInsert, 
   const review = job.ai_review;
   const [note, setNote] = useState('');
   const flash = (message) => { setNote(message); window.setTimeout(() => setNote(''), 4000); };
-  const [running, setRunning] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
+  const [starting, setStarting] = useState(false);
+  const [now, setNow] = useState(Date.now());
+  const run_ = job.ai_review_run || {};
+  const startedMs = run_.startedAt ? Date.parse(run_.startedAt) : 0;
+  const serverRunning = ['queued', 'processing'].includes(run_.status) && startedMs > 0 && (now - startedMs) < 30 * 60 * 1000;
+  const running = starting || serverRunning;
+  const failedMessage = !running && run_.status === 'failed' ? (run_.error || 'AI proofreading could not be completed.') : '';
+  const elapsed = startedMs ? Math.max(0, Math.round((now - startedMs) / 1000)) : 0;
+  const percent = Math.max(2, Math.min(100, Number(run_.progress) || 2));
   useEffect(() => {
-    if (!running) { setElapsed(0); return undefined; }
-    const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+    if (!running) return undefined;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [running]);
+  const wasRunning = React.useRef(false);
+  useEffect(() => {
+    if (wasRunning.current && !serverRunning && run_.status === 'completed') flash('AI-proofread transcript is ready.');
+    wasRunning.current = serverRunning;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverRunning, run_.status]);
   const run = async () => {
     if (running) return;
-    setRunning(true);
+    setStarting(true);
+    setNow(Date.now());
     try {
-      await act(`/human-transcription/jobs/${job.id}/ai-review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }, 'AI-proofread transcript is ready.');
+      await act(`/human-transcription/jobs/${job.id}/ai-review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }, 'AI proofreading started. You can leave this page; progress shows here.');
     } finally {
-      setRunning(false);
+      window.setTimeout(() => setStarting(false), 5000);
     }
   };
   const applyRatings = async () => {
@@ -126,8 +140,14 @@ export function AdminAiReviewPanel({ job, act, busy, splitJob = true, onInsert, 
       <style>{`@keyframes tmAiSpin{to{transform:rotate(360deg)}}.tm-ai-spin{display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid rgba(91,45,158,.25);border-top-color:#5b2d9e;border-radius:50%;animation:tmAiSpin .8s linear infinite}`}</style>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <button type="button" disabled={busy || running} aria-busy={running} onClick={run}>{running ? <><span className="tm-ai-spin" aria-hidden="true" />Proofreading...</> : (review ? 'Proofread again' : (splitJob ? 'Proofread and combine' : 'Proofread with AI'))}</button>
-        {running && <span role="status" style={{ ...muted, color: '#4b2a8a' }}>Working for {elapsed}s. Checking each part against the audio and references. Please keep this page open.</span>}
+        {running && <span role="status" style={{ ...muted, color: '#4b2a8a' }}>{run_.stage || 'Starting'} ({elapsed}s). It keeps running if you leave or reload this page.</span>}
       </div>
+      {running && (
+        <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-label="AI proofreading progress" style={{ height: 8, background: '#e9e4f5', borderRadius: 999, overflow: 'hidden' }}>
+          <div style={{ width: `${percent}%`, height: '100%', background: '#5b2d9e', transition: 'width .6s ease' }} />
+        </div>
+      )}
+      {failedMessage && <div role="alert" style={{ color: '#9a2b2b', fontSize: 13 }}>{failedMessage} No credits were taken. You can try again.</div>}
       {review && (
         <div style={{ display: 'grid', gap: 10 }}>
           {review.summary && <p style={{ margin: 0 }}>{review.summary}</p>}
