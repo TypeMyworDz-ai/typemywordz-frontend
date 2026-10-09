@@ -73,6 +73,8 @@ let notificationSoundUntil = 0;
 let notificationSources = [];
 let notificationSoundPending = false;
 let notificationStopCount = 0;
+const NOTIFICATION_SYNC_CHANNEL = 'tmwd-notification-sync';
+const NOTIFICATION_SYNC_KEY = 'tmwd_notification_dismiss_all';
 
 const notificationSoundsEnabled = () => {
   try { return window.localStorage.getItem(NOTIFICATION_SOUND_PREFERENCE_KEY) !== 'off'; } catch { return true; }
@@ -292,6 +294,8 @@ function AppContent() {
   const notificationDismissedLocalRef = useRef(new Set());
   const notificationPollInFlightRef = useRef(false);
   const notificationUidRef = useRef('');
+  const notificationsRef = useRef([]);
+  useEffect(() => { notificationsRef.current = notifications; }, [notifications]);
 
   // A referral link looks like typemywordz.ai/?ref=CODE. Whoever clicked it
   // might not sign up for several minutes, so the code is stashed until a
@@ -398,6 +402,8 @@ function AppContent() {
         return total + (isMessage ? Math.max(1, Number(item.unread_count) || 1) : 1);
       }, 0);
       setNotifications(items);
+      // Another tab or browser may have cancelled the alerts; silence this one too.
+      if (!items.some((item) => !item.read_at)) stopNotificationSound();
       setUnreadMessageCount(Math.max(0, (Number(data.unread_count) || 0) - locallyDismissedUnread));
       setNotificationsLoading(false);
 
@@ -432,10 +438,14 @@ function AppContent() {
     refreshUnreadMessageCount();
     const refresh = () => refreshUnreadMessageCount();
     const interval = window.setInterval(refresh, 5000);
+    // While a sound is playing, check more often so a cancel made in another
+    // browser silences this one within a couple of seconds.
+    const fastInterval = window.setInterval(() => { if (notificationSources.length) refresh(); }, 1500);
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
     return () => {
       window.clearInterval(interval);
+      window.clearInterval(fastInterval);
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', refresh);
     };
@@ -593,22 +603,72 @@ function AppContent() {
   // account starts seeing Upgrade and See plans.
   const hasComplimentaryAccess = hasFreeAccess(currentUser?.email);
 
+  // Cancel clears every alert and silences every sound, in this tab, in the
+  // account's other tabs (BroadcastChannel plus a storage event as a fallback)
+  // and, through the server, in any other browser signed in to the account.
+  const silenceAlertsLocally = useCallback((ids) => {
+    stopNotificationSound();
+    const readAt = new Date().toISOString();
+    const idSet = new Set(ids);
+    ids.forEach((id) => notificationDismissedLocalRef.current.add(id));
+    setNotifications((previous) => previous.map((entry) => (idSet.has(entry.id) && !entry.read_at ? { ...entry, read_at: readAt } : entry)));
+  }, []);
+
+  useEffect(() => {
+    const uid = currentUser?.uid;
+    if (!uid) return undefined;
+    const handle = (payload) => {
+      if (!payload || payload.uid !== uid) return;
+      silenceAlertsLocally(Array.isArray(payload.ids) ? payload.ids : []);
+      refreshUnreadMessageCount();
+    };
+    let channel = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        channel = new BroadcastChannel(NOTIFICATION_SYNC_CHANNEL);
+        channel.onmessage = (event) => handle(event.data);
+      }
+    } catch { channel = null; }
+    const onStorage = (event) => {
+      if (event.key !== NOTIFICATION_SYNC_KEY || !event.newValue) return;
+      try { handle(JSON.parse(event.newValue)); } catch { /* ignore a malformed sync note */ }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      if (channel) channel.close();
+    };
+  }, [currentUser, silenceAlertsLocally, refreshUnreadMessageCount]);
+
   const dismissNotification = useCallback((item) => {
     stopNotificationSound();
-    const notificationId = item?.id;
-    if (!notificationId) return;
-    notificationDismissedLocalRef.current.add(notificationId);
-    const readAt = new Date().toISOString();
-    setNotifications((previous) => previous.map((entry) => entry.id === notificationId ? { ...entry, read_at: readAt } : entry));
-    const isMessage = item?.kind === 'direct_message' || item?.kind === 'job_message';
-    const unreadToClear = isMessage ? Math.max(1, Number(item.unread_count) || 1) : 1;
+    const active = notificationsRef.current.filter((entry) => !entry.read_at);
+    const targets = item?.id && !active.some((entry) => entry.id === item.id) ? [...active, item] : active;
+    const ids = targets.map((entry) => entry.id).filter(Boolean);
+    if (!ids.length) return;
+    silenceAlertsLocally(ids);
+    const unreadToClear = targets.reduce((total, entry) => {
+      const isMessage = entry.kind === 'direct_message' || entry.kind === 'job_message';
+      return total + (isMessage ? Math.max(1, Number(entry.unread_count) || 1) : 1);
+    }, 0);
     setUnreadMessageCount((previous) => Math.max(0, previous - unreadToClear));
-    if (currentUser) {
-      currentUser.getIdToken().then((token) => fetch(`${RAILWAY_BACKEND_URL}/api/notifications/${encodeURIComponent(notificationId)}/read`, {
-        method: 'POST', headers: { Authorization: `Bearer ${token}` },
-      })).then(() => refreshUnreadMessageCount()).catch(() => {});
-    }
-  }, [currentUser, refreshUnreadMessageCount]);
+    if (!currentUser) return;
+    const note = { uid: currentUser.uid, ids, at: Date.now() };
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        const channel = new BroadcastChannel(NOTIFICATION_SYNC_CHANNEL);
+        channel.postMessage(note);
+        channel.close();
+      }
+    } catch { /* the storage event below covers it */ }
+    try { window.localStorage.setItem(NOTIFICATION_SYNC_KEY, JSON.stringify(note)); } catch { /* optional */ }
+    currentUser.getIdToken().then((token) => fetch(`${RAILWAY_BACKEND_URL}/api/notifications/read-all`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ ids }),
+    }).then((response) => {
+      if (response.ok) return null;
+      return Promise.all(ids.map((id) => fetch(`${RAILWAY_BACKEND_URL}/api/notifications/${encodeURIComponent(id)}/read`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })));
+    })).then(() => refreshUnreadMessageCount()).catch(() => {});
+  }, [currentUser, refreshUnreadMessageCount, silenceAlertsLocally]);
 
   const openNotification = useCallback((item) => {
     stopNotificationSound();
