@@ -111,6 +111,7 @@ const adminQueueLaneFor = (job) => {
   if (job?.admin_finishedAt) return 'finished';
   if (['submitted', 'client_review'].includes(status)) return 'submitted';
   if (['released', 'cancelled'].includes(status)) return 'finished';
+  if (job?.routing_status === 'pending') return 'needs_action';
   if (['assigned', 'in_progress', 'split_assigned', 'split_in_progress', 'proofreading_assigned', 'proofreading_in_progress'].includes(status)) return 'in_progress';
   return 'needs_action';
 };
@@ -817,6 +818,30 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         : 'AI formatted draft queued. It will stay private until an approved human proofreader submits the final work.');
   };
 
+  const routeJob = async (destination) => {
+    if (!selectedJob || busy) return;
+    const isImage = selectedJob.job_type === 'pdf_job';
+    const agentId = isImage
+      ? (selectedJob.job_category === 'text_messages' ? 'text-messages-gemini' : 'pdf-gemini')
+      : (selectedJob.job_category === 'template' ? 'template-claude' : 'general-gpt');
+    if (destination === 'ai') {
+      if (agentId === 'template-claude' && !hasJobDocxTemplate) { showMessage?.('Attach exactly one job-specific .docx template first.', 'error'); return; }
+      if (!window.confirm('Give this whole job to the AI agent? It will not appear in the workers\' Available Jobs. You can still send it to workers later if the AI run fails.')) return;
+    }
+    setBusy(true);
+    try {
+      await request(`/human-transcription/jobs/${selectedJob.id}/routing`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ destination }) });
+      await loadJobs();
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+      setBusy(false);
+      return;
+    }
+    setBusy(false);
+    if (destination === 'workers') { showMessage?.('The job is live. Workers can now claim its parts from Available Jobs.', 'success'); return; }
+    await assignAiAgent(agentId, Boolean(splitJob));
+  };
+
   const assignWholeFileAi = async (agentId, ids) => {
     if (busy || ids.length < 2) return;
     if (!window.confirm(`Give all ${ids.length} pages of this file to the AI agent as one job? Each page still gets its own private draft.`)) return;
@@ -1140,11 +1165,24 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               </section>
             )}
 
+            {mode === 'admin' && selectedJob && selectedJob.job_type !== 'letter_job' && ['pending', 'ai'].includes(selectedJob.routing_status) && (
+              <section className="tm-routing-card" aria-label="Choose who works on this job">
+                <div>
+                  <strong>Who should work on this job?</strong>
+                  <p>{selectedJob.routing_status === 'ai' ? 'This job is held back from workers while it is with an AI agent. If the run fails you can still send it to workers.' : 'Nobody can see or claim this job yet. Send it live so workers can claim its parts, or give the whole job to an AI agent.'}</p>
+                </div>
+                <div className="tm-routing-actions">
+                  <button type="button" className="tm-routing-primary" disabled={busy} onClick={() => routeJob('workers')}>Send to worker queue</button>
+                  {selectedJob.routing_status === 'pending' && <button type="button" disabled={busy} onClick={() => routeJob('ai')}>Give whole job to AI agent</button>}
+                </div>
+              </section>
+            )}
+
             {mode === 'admin' && selectedJob && selectedJob.job_type !== 'letter_job' && canAssignAiAgents && (
               <section className="tm-ai-agent-panel" aria-label="AI first-draft agents">
                 <div className="tm-ai-agent-copy">
                   <strong>AI first draft <span>Private internal draft</span></strong>
-                  <p>Choose the job-specific internal agent for an available job or part. General Jobs use GPT-5.6 Luna with DeepSeek V4 Flash fallback; Template Jobs use GPT-5.6 Sol with Claude Opus 5.5 fallback. The draft stays private until you assign proofreading or finish eligible admin-uploaded work.</p>
+                  <p>Choose the job-specific internal agent for an available job or part. General Jobs use Gemini 3.8 Flash with GPT-5.6 Terra fallback; Template Jobs use GPT-5.6 Sol with Claude Opus 5.5 fallback. The draft stays private until you assign proofreading or finish eligible admin-uploaded work.</p>
                 </div>
                 {splitJob && <label className="tm-ai-agent-part">Part
                   <select value={aiAgentSegment || (selectedJob.segments || []).find((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid)?.id || ''} onChange={(event) => setAiAgentSegment(event.target.value)}>

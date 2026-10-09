@@ -80,3 +80,10 @@
 .tm-subadmin-recalc{display:grid;gap:10px;margin:22px 18px 18px;padding:16px;border:1px solid #e5e6ea;border-radius:10px;background:#fafafb}.tm-subadmin-recalc p{margin:0;color:#68716b;font-size:13px;line-height:1.55}.tm-subadmin-recalc-row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.tm-subadmin-recalc-row label{display:grid;gap:5px;color:#5e636d;font-size:12px;font-weight:700}.tm-subadmin-recalc-row input{border:1px solid #d9dbe1;border-radius:6px;padding:9px;background:#fff;font:inherit}.tm-subadmin-recalc-row button:not(.tm-admin-payout-search-btn){border:1px solid #d9dbe1;background:#fff;border-radius:7px;padding:10px 14px;font:700 12px inherit;cursor:pointer}.tm-subadmin-recalc-row button:disabled{opacity:.55;cursor:not-allowed}
 
 .tm-human-refresh{align-self:flex-start;padding:9px 16px}.tm-human-detail-actions{align-self:flex-start}.tm-human-detail-actions button{align-self:flex-start}
+
+.tm-routing-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin: 16px 0; padding: 16px 18px; border: 1px solid #d9d2ee; border-left: 4px solid #5b3a9e; border-radius: 8px; background: #faf8ff; }
+.tm-routing-card p { margin: 4px 0 0; color: #4b4560; font-size: 14px; max-width: 560px; }
+.tm-routing-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.tm-routing-actions button { padding: 9px 16px; border-radius: 6px; border: 1px solid #5b3a9e; background: #fff; color: #5b3a9e; font-weight: 600; cursor: pointer; }
+.tm-routing-actions button.tm-routing-primary { background: #2f9e5b; border-color: #2f9e5b; color: #fff; }
+.tm-routing-actions button:disabled { opacity: 0.55; cursor: not-allowed; }

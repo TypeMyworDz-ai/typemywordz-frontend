@@ -127,7 +127,7 @@ export default function PdfJobsAdminPanel({ showMessage, onOpenQueue, category =
       setFileInputKey((value) => value + 1);
       setExtras([]); setExtraKey((value) => value + 1); setNote(DEFAULT_ADMIN_NOTE);
       const createdCount = payload.created_count || 0;
-      setResult({ kind: 'success', title: `${createdCount} job${createdCount === 1 ? '' : 's'} created`, detail: 'They are live under Needs action in the Job Queue, ready for workers or an AI agent.', at: Date.now() });
+      setResult({ kind: 'success', title: `${createdCount} job${createdCount === 1 ? '' : 's'} created`, detail: 'They are under Needs action in the Job Queue, where you choose to send them to workers or give them to an AI agent.', at: Date.now() });
       announceJobsChanged();
       await loadBatches();
     } catch (error) { setResult({ kind: 'error', title: 'your images are still staged', detail: error.message || 'The upload failed. Your images are still staged; try again.', at: Date.now() }); }

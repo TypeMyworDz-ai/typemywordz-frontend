@@ -89,7 +89,7 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
       setTemplateFileKey((value) => value + 1);
       setDurationNote('The length is detected when your browser can read the recording. Check it before creating the job.');
       const parts = Number(payload.parts_count || 0);
-      setResult({ kind: 'success', title: uploadedName, detail: `${templateJob ? 'Template' : 'General'} Job created${parts ? ` with ${parts} available parts` : ' and added to Available Jobs'}. It is now under Needs action in the Job Queue.`, at: Date.now() });
+      setResult({ kind: 'success', title: uploadedName, detail: `${templateJob ? 'Template' : 'General'} Job created${parts ? ` with ${parts} parts` : ''}. It is under Needs action in the Job Queue, where you choose to send it to workers or give it to an AI agent.`, at: Date.now() });
       announceJobsChanged();
     } catch (error) {
       setResult({ kind: 'error', title: uploadedName, detail: error.message, at: Date.now() });
@@ -108,8 +108,8 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
           <p className="tm-admin-audio-eyebrow">Human Work · Admin uploads</p>
           <h2 id="tm-admin-audio-title">{titleText}</h2>
           <p>{templateJob
-            ? 'Upload a recording with its Word template and any reference material. Once uploaded, the job appears under Needs action in the Job Queue, where you assign workers or the Template Agent, proofread and review.'
-            : 'Upload a recording and instructions. Once uploaded, the job appears under Needs action in the Job Queue, where you assign workers or the General Agent, proofread and review.'}</p>
+            ? 'Upload a recording with its Word template and any reference material. Once uploaded, the job appears under Needs action in the Job Queue, where you choose to send it live to workers or give the whole job to the Template Agent.'
+            : 'Upload a recording and instructions. Once uploaded, the job appears under Needs action in the Job Queue, where you choose to send it live to workers or give the whole job to the General Agent.'}</p>
         </div>
         <button type="button" className="tm-admin-audio-secondary" onClick={() => onOpenQueue?.({ status: 'approved' })}>Go to Job Queue</button>
       </header>
