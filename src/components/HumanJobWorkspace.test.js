@@ -125,7 +125,7 @@ test('admin AI-agent choices describe the General and Template model routes', as
 
   expect(await screen.findByRole('button', { name: 'Assign general agent' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Assign template-aware agent' })).toBeInTheDocument();
-  expect(screen.getByText(/General Jobs use Gemini 3.8 Flash with GPT-5.6 Terra fallback; Template Jobs use GPT-5.6 Sol with Claude Opus 5.5 fallback\./)).toBeInTheDocument();
+  expect(screen.getByText(/General Jobs use Gemini 3.5 Flash-Lite with GPT-5.6 Luna fallback; Template Jobs use GPT-5.6 Sol with Claude Opus 5.5 fallback\./)).toBeInTheDocument();
 });
 
 test('off-shift assignment dropdown requires a worker who is both clocked in and online', async () => {
