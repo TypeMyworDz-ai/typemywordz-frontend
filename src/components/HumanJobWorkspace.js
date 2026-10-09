@@ -8,7 +8,7 @@ import { ImageJobQueueActions, LetterJobQueueActions } from './ImageAndLetterQue
 import WordLikeEditor from './WordLikeEditor';
 import ConfirmDialog from './ConfirmDialog';
 import WorkerAudioPlayer from './WorkerAudioPlayer';
-import { AdminPartReview, AdminAiReviewPanel } from './AdminPartReview';
+import { AdminPartReview } from './AdminPartReview';
 import { copyForWord } from '../utils/transcriptExport';
 import './HumanJobWorkspace.css';
 
@@ -781,14 +781,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     }, 'Proofreader assigned with the current edited transcript.');
   };
 
-  const insertAiReviewedTranscript = (text) => {
-    if (!editorRef.current?.replaceContent) {
-      showMessage?.('Open the shared editor first, then insert the proofread transcript.', 'error');
-      return;
-    }
-    editorRef.current.replaceContent(text);
-  };
-
   const assignAiAgent = async (agentId, wholeJob = false) => {
     if (!selectedJob || busy) return;
     const eligible = (selectedJob.segments || []).filter((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid);
@@ -1182,7 +1174,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <section className="tm-ai-agent-panel" aria-label="AI first-draft agents">
                 <div className="tm-ai-agent-copy">
                   <strong>AI first draft <span>Private internal draft</span></strong>
-                  <p>Choose the job-specific internal agent for an available job or part. General Jobs use Claude Sonnet 5.5 for audio up to 10 minutes and GPT-5.6 Terra for longer audio; Template Jobs use GPT-5.6 Sol with Claude Opus 5.5 fallback. The draft stays private until you assign proofreading or finish eligible admin-uploaded work.</p>
+                  <p>Choose the job-specific internal agent for an available job or part. General Jobs use GPT-5.6 Terra with Gemini 3.5 Flash-Lite, then Claude Sonnet 5.5, as fallbacks; Template Jobs use GPT-5.6 Sol with Claude Opus 5.5 fallback. The draft stays private until you assign proofreading or finish eligible admin-uploaded work.</p>
                 </div>
                 {splitJob && <label className="tm-ai-agent-part">Part
                   <select value={aiAgentSegment || (selectedJob.segments || []).find((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid)?.id || ''} onChange={(event) => setAiAgentSegment(event.target.value)}>
@@ -1369,7 +1361,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
             {mode === 'admin' && splitJob && ['split_assigned', 'split_in_progress', 'proofreading_available', 'submitted'].includes(selectedJob.status) && (selectedJob.segments || []).some((part) => part.status === 'submitted') && !['ai', 'human'].includes(selectedJob.reviewer_choice) && !['assigned', 'in_progress', 'submitted'].includes(selectedJob.proofreader_status) && <div className="tm-human-assign"><label>Assign a proofreader<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose a worker rated 4.5 or higher</option>{adminAssignableWorkers.filter((worker) => worker.can_proofread).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {Number(worker.rating).toFixed(1)}/5 · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign human proofreader</button><p className="tm-tat-hint">Only workers rated 4.5/5 or higher can proofread. You can assign before every part is in. They will get one editor with all submitted parts and can submit after the full job is complete.</p></div>}
             {mode === 'admin' && !splitJob && selectedJob.status === 'submitted' && selectedJob.job_type !== 'pdf_job' && selectedJob.job_type !== 'letter_job' && !['ai', 'human'].includes(selectedJob.reviewer_choice) && !['assigned', 'in_progress', 'submitted'].includes(selectedJob.proofreader_status) && <div className="tm-human-assign"><strong>Human proofreader</strong><p>Choose a qualified proofreader instead of AI proofreading. You still make the final approval decision.</p><label>Proofreader rated at least 4.5/5<select value={proofreaderWorker} onChange={(event) => setProofreaderWorker(event.target.value)}><option value="">Choose a human proofreader</option>{adminAssignableWorkers.filter((worker) => worker.can_proofread).map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {Number(worker.rating).toFixed(1)}/5 · {worker.email}</option>)}</select></label><button type="button" disabled={busy || !proofreaderWorker} onClick={assignProofreader}>Assign human proofreader</button></div>}
-            {mode === 'admin' && selectedJob.job_type !== 'pdf_job' && selectedJob.reviewer_choice !== 'human' && ((splitJob && (selectedJob.segments || []).length > 0 && (selectedJob.segments || []).every((part) => part.status === 'submitted')) || (!splitJob && ['submitted', 'client_review', 'client_approved', 'released'].includes(selectedJob.status) && String(selectedJob.transcript || '').trim())) && <AdminAiReviewPanel job={selectedJob} act={act} busy={busy} splitJob={splitJob} onInsert={insertAiReviewedTranscript} allowApply={selectedJob.status === 'submitted'} />}
             {mode === 'admin' && <AdminPartReview job={selectedJob} act={act} downloadProtectedFile={downloadProtectedFile} />}
 
 
