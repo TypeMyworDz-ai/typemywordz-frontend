@@ -13,6 +13,7 @@ import ConfirmDialog from './ConfirmDialog';
 import HumanJobWorkspace from './HumanJobWorkspace';
 import TraineeReviewDialog from './TraineeReviewDialog';
 import AdminAskPanel from './AdminAskPanel';
+import AdminModelRoutingPanel from './AdminModelRoutingPanel';
 import './AdminDashboard.css';
 
 const BACKEND_URL =
@@ -482,6 +483,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
             ['trainees', `Trainees${trainees.length ? ` · ${trainees.length}` : ''}`],
             ['workers', `Workers${workers.length ? ` · ${workers.length}` : ''}`],
             ['ask', 'Ask TypeMyworDz'],
+            ...(isAdminEmail(currentUser?.email) ? [['models', 'Model routing']] : []),
           ].map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={activeTab === id} className="tm-admin-tab" onClick={() => setActiveTab(id)}>{label}</button>
           ))}
@@ -531,6 +533,8 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
         )}
 
         {activeTab === 'ask' && <AdminAskPanel currentUser={currentUser} showMessage={showMessage} />}
+
+        {activeTab === 'models' && isAdminEmail(currentUser?.email) && <AdminModelRoutingPanel currentUser={currentUser} showMessage={showMessage} />}
 
         {activeTab === 'workers' && (
           <div className="tm-admin-panel">
