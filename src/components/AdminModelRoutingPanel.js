@@ -14,6 +14,7 @@ export default function AdminModelRoutingPanel({ currentUser, showMessage }) {
   const [draft, setDraft] = useState({});
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   const request = useCallback(async (method, body) => {
     const token = await currentUser.getIdToken();
@@ -29,12 +30,16 @@ export default function AdminModelRoutingPanel({ currentUser, showMessage }) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const payload = await request('GET');
+      if (!Array.isArray(payload.routes) || !payload.routes.length || !Array.isArray(payload.models) || !payload.models.length) {
+        throw new Error('The server returned incomplete model-routing settings. Please try again.');
+      }
       setRoutes(payload.routes || []);
       setModels(payload.models || []);
       setDraft(Object.fromEntries((payload.routes || []).map((route) => [route.key, [...route.models]])));
-    } catch (error) { showMessage?.(error.message, 'error'); } finally { setLoading(false); }
+    } catch (error) { setLoadError(error.message || 'Model settings are temporarily unavailable.'); showMessage?.(error.message, 'error'); } finally { setLoading(false); }
   }, [request, showMessage]);
 
   useEffect(() => { load(); }, [load]);
@@ -65,7 +70,13 @@ export default function AdminModelRoutingPanel({ currentUser, showMessage }) {
         Choose the model each kind of job tries first, then the models it falls back to if that one fails.
         Changes apply to the next job within about 30 seconds. Only the Super admin sees this section.
       </p>
-      {loading ? <p>Loading the current settings...</p> : (
+      {loading ? <p role="status">Loading the current settings...</p> : loadError ? (
+        <div role="alert" style={{ maxWidth: 680, padding: 16, border: '1px solid #e1c7b9', borderRadius: 10, background: '#fffaf6' }}>
+          <strong>Model settings are not available right now.</strong>
+          <p style={{ margin: '6px 0 12px' }}>{loadError}</p>
+          <button type="button" className="tm-admin-refresh" onClick={load}>Try again</button>
+        </div>
+      ) : (
         <div style={{ display: 'grid', gap: 14 }}>
           {routes.map((route) => {
             const current = draft[route.key] || [];
