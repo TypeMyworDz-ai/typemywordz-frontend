@@ -15,6 +15,7 @@ const actionLabel = (item) => {
   if (item.route === 'human_worker') return 'Open Work Room';
   if (item.route === 'human_ops') return 'Open job queue';
   if (item.route === 'human_job') return 'Open job';
+  if (item.route === 'trainee') return 'Open Training Room';
   return 'Open';
 };
 
