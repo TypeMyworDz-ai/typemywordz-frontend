@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { adminQueueLaneFor } from './adminQueueLanes';
 import { useAuth } from '../contexts/AuthContext';
 import FinalTranscriptView from './FinalTranscriptView';
 import PdfJobsAdminPanel from './PdfJobsAdminPanel';
@@ -106,16 +107,6 @@ const ADMIN_QUEUE_LANES = [
   { id: 'submitted', label: 'Submitted' },
   { id: 'finished', label: 'Finished' },
 ];
-const adminQueueLaneFor = (job) => {
-  const status = String(job?.status || '').toLowerCase();
-  if (job?.admin_finishedAt) return 'finished';
-  if (['submitted', 'client_review'].includes(status)) return 'submitted';
-  if (['released', 'cancelled'].includes(status)) return 'finished';
-  if (job?.routing_status === 'pending') return 'needs_action';
-  if (['assigned', 'in_progress', 'split_assigned', 'split_in_progress', 'proofreading_assigned', 'proofreading_in_progress'].includes(status)) return 'in_progress';
-  return 'needs_action';
-};
-
 const EMPTY_JOBS = [];
 
 export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', onInitialJobHandled, restricted = false, ownerScope = 'mine', recordedAudioFile = null, onRecordedAudioReady }) {
@@ -206,13 +197,14 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     if (['general_job', 'template_job', 'letter_job'].includes(adminQueueType)) return job.job_type === adminQueueType;
     return (job.source_type || 'human_transcription') === adminQueueType;
   }, [adminQueueType]);
+  const laneClock = Math.floor(nowTick / 60000);
   const adminQueueCounts = useMemo(() => jobs.reduce((counts, job) => {
-    if (adminQueueMatchesType(job)) counts[adminQueueLaneFor(job)] += 1;
+    if (adminQueueMatchesType(job)) counts[adminQueueLaneFor(job, laneClock * 60000)] += 1;
     return counts;
-  }, { needs_action: 0, in_progress: 0, submitted: 0, finished: 0 }), [adminQueueMatchesType, jobs]);
+  }, { needs_action: 0, in_progress: 0, submitted: 0, finished: 0 }), [adminQueueMatchesType, jobs, laneClock]);
   const adminQueueJobs = useMemo(() => jobs.filter((job) =>
-    adminQueueMatchesType(job) && adminQueueLaneFor(job) === adminQueueLane
-  ), [adminQueueLane, adminQueueMatchesType, jobs]);
+    adminQueueMatchesType(job) && adminQueueLaneFor(job, laneClock * 60000) === adminQueueLane
+  ), [adminQueueLane, adminQueueMatchesType, jobs, laneClock]);
   const jobsForCurrentView = mode === 'admin' && adminTab === 'queue' ? adminQueueJobs : jobs;
   const selectedJob = useMemo(() => jobsForCurrentView.find((job) => job.id === selectedId) || jobsForCurrentView[0] || null, [jobsForCurrentView, selectedId]);
   const workerAssignment = selectedJob?.worker_assignment || null;

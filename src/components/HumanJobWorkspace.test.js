@@ -23,7 +23,7 @@ beforeEach(() => {
   global.fetch = jest.fn((url) => {
     const address = String(url);
     if (address.includes('/human-transcription/jobs?scope=admin')) {
-      return Promise.resolve(response({ jobs: [{ id: 'admin-job', status: 'approved', job_type: 'human_transcription', audio: { name: 'admin-audio.mp3' }, minutes: 2, quote_credits: 4, createdAt: '2026-10-03T00:00:00Z' }] }));
+      return Promise.resolve(response({ jobs: [{ id: 'admin-job', status: 'approved', job_type: 'human_transcription', audio: { name: 'admin-audio.mp3' }, minutes: 2, quote_credits: 4, createdAt: new Date().toISOString() }] }));
     }
     if (address.includes('/human-transcription/jobs?scope=available')) {
       return Promise.resolve(response({
@@ -428,7 +428,7 @@ test('admin has no manual worker rating controls; ratings come only from the Rat
   const submittedJob = {
     id: 'submitted-job', status: 'submitted', job_type: 'human_transcription', job_name: 'Submitted audio',
     worker_uid: 'worker-1', worker_name: 'Worker One', worker_email: 'worker@example.com', transcript: 'Completed transcript.',
-    minutes: 2, quote_credits: 0, createdAt: '2026-10-06T12:00:00Z', segments: [],
+    minutes: 2, quote_credits: 0, createdAt: new Date().toISOString(), submittedAt: new Date().toISOString(), segments: [],
   };
   global.fetch = jest.fn((url) => {
     const address = String(url);
