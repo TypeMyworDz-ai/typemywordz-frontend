@@ -2,6 +2,7 @@
 // This list must stay in step with ADMIN_EMAILS in the backend (main.py).
 export const ADMIN_EMAILS = [
   'typemywordz@gmail.com',
+  'info@typemywordz.ai',
 ];
 
 // Complimentary accounts: free to use the app, but NOT admins.
@@ -27,8 +28,8 @@ export const isAdminEmail = (email) => {
 // Must stay in step with HUMAN_JOB_ADMIN_EMAILS in the backend (main.py).
 export const HUMAN_JOB_ADMIN_EMAILS = [
   ...ADMIN_EMAILS,
-  'info@typemywordz.ai',
   'gracenyaitara@gmail.com',
+  'donotgrowweary95@gmail.com',
 ];
 
 // Case-insensitive, whitespace-tolerant check, matching the backend's behaviour.

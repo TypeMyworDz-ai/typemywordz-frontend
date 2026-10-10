@@ -10,6 +10,7 @@ import RichTextEditor from './components/RichTextEditor';
 import TranscriptEditor from './components/TranscriptEditor';
 import EditorDemo from './components/EditorDemo';
 import TranscribeProgress from './components/TranscribeProgress';
+import RecordingPlayer from './components/RecordingPlayer';
 import FeedbackModal from './components/FeedbackModal';
 import FloatingWhatsApp from './components/FloatingWhatsApp';
 import { canUserTranscribe, updateUserUsage, saveTranscription, updateTranscription, updateUserPlan, saveFeedback, notifyFeedbackSubmitted } from './userService'; // Removed createUserProfile
@@ -1341,15 +1342,19 @@ function AppContent() {
     
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
+        // Automatic gain control is off on purpose: it keeps boosting the
+        // microphone, which is what produced the cranked-up, distorted takes.
+        // The sample rate is left to the device so the browser never has to
+        // resample the voice before encoding it.
         audio: {
-          sampleRate: 16000,
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: false
         } 
       });
       console.log('DEBUG: Microphone stream obtained.'); // NEW LOG
+      let recordedStream = stream;
 
       // Monitor the microphone without changing the recorded stream. The waveform
       // is always shown while recording; auto-pause is deliberately opt-in.
@@ -1361,6 +1366,25 @@ function AppContent() {
         analyser.fftSize = 512;
         analyser.smoothingTimeConstant = 0.72;
         source.connect(analyser);
+        // A limiter on the recorded path catches sudden loud peaks (a cough,
+        // someone leaning on the microphone) before they clip and distort.
+        try {
+          if (typeof audioContext.resume === 'function' && audioContext.state === 'suspended') audioContext.resume().catch(() => {});
+          const limiter = audioContext.createDynamicsCompressor();
+          limiter.threshold.value = -4;
+          limiter.knee.value = 0;
+          limiter.ratio.value = 20;
+          limiter.attack.value = 0.002;
+          limiter.release.value = 0.12;
+          const destination = audioContext.createMediaStreamDestination();
+          source.connect(limiter);
+          limiter.connect(destination);
+          if (destination.stream && destination.stream.getAudioTracks().length > 0) {
+            recordedStream = destination.stream;
+          }
+        } catch (limiterError) {
+          console.warn('DEBUG: Peak limiter unavailable, recording the plain microphone signal.', limiterError);
+        }
         recordingAudioContextRef.current = audioContext;
         recordingSourceRef.current = source;
         recordingAnalyserRef.current = analyser;
@@ -1422,15 +1446,15 @@ function AppContent() {
       
       // Browsers cannot record MP3. What they can record is Opus inside a
       // WebM file, and on Apple devices AAC inside an MP4 file. For a single
-      // voice, Opus at 32 kbps is clear and roughly a tenth the size of the
-      // old recordings. AAC needs more room to sound the same, so it gets 64.
+      // voice, Opus at 48 kbps is clean and still a small fraction of the
+      // size of the old recordings. AAC needs more room to sound the same, so it gets 64.
       // The old list ended in audio/wav, which no browser can record at all.
       const RECORDING_FORMATS = [
-        { mimeType: 'audio/webm;codecs=opus', bits: 32000,  extension: 'webm' },
-        { mimeType: 'audio/ogg;codecs=opus',  bits: 32000,  extension: 'ogg'  },
+        { mimeType: 'audio/webm;codecs=opus', bits: 48000,  extension: 'webm' },
+        { mimeType: 'audio/ogg;codecs=opus',  bits: 48000,  extension: 'ogg'  },
         { mimeType: 'audio/mp4;codecs=mp4a.40.2', bits: 64000, extension: 'm4a' },
         { mimeType: 'audio/mp4',              bits: 64000,  extension: 'm4a' },
-        { mimeType: 'audio/webm',             bits: 32000,  extension: 'webm' },
+        { mimeType: 'audio/webm',             bits: 48000,  extension: 'webm' },
       ];
       const chosen =
         RECORDING_FORMATS.find((f) =>
@@ -1446,8 +1470,8 @@ function AppContent() {
         ? (quality === 'high' ? 128000 : quality === 'standard' ? Math.max(64000, chosen.bits) : chosen.bits)
         : 0;
       mediaRecorderRef.current = chosen
-        ? new MediaRecorder(stream, { mimeType, audioBitsPerSecond: bits })
-        : new MediaRecorder(stream);
+        ? new MediaRecorder(recordedStream, { mimeType, audioBitsPerSecond: bits })
+        : new MediaRecorder(recordedStream);
       const chunks = [];
       recordingBackup.saveMeta({ type: mimeType || 'audio/webm', ext: recordingExtensionRef.current || 'webm' });
 
@@ -3181,7 +3205,7 @@ return (
                     <div role="status" style={{ marginTop: '18px', borderTop: '1px solid #eceef1', paddingTop: '16px', textAlign: 'left' }}>
                       <strong style={{ color: '#1a1b1f' }}>{recordingChoice ? 'Your recording is ready' : 'Your recording'}</strong>
                       {recPreviewUrl && (
-                        <audio controls src={recPreviewUrl} style={{ width: '100%', margin: '8px 0 10px' }} />
+                        <RecordingPlayer src={recPreviewUrl} durationHint={audioDuration} userId={currentUser?.uid} />
                       )}
                       <div className="tm-rec-warn" style={{ marginTop: 0 }}>
                         {takeSaved
@@ -3421,7 +3445,7 @@ return (
                 />
               )}
 
-              {transcription && status === 'completed' && ['info@typemywordz.ai', 'typemywordz@gmail.com', 'gracenyaitara@gmail.com'].includes((currentUser?.email || '').trim().toLowerCase()) && (
+              {transcription && status === 'completed' && ['info@typemywordz.ai', 'typemywordz@gmail.com', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com'].includes((currentUser?.email || '').trim().toLowerCase()) && (
                 <FormatWithGuidelines transcript={transcription} fileName={selectedFile ? selectedFile.name : ''} />
               )}
 
