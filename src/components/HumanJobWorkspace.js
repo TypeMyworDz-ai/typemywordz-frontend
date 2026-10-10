@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { isAdminEmail } from '../adminEmails';
 import { adminQueueLaneFor } from './adminQueueLanes';
 import { useAuth } from '../contexts/AuthContext';
 import FinalTranscriptView from './FinalTranscriptView';
@@ -161,11 +162,11 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const busyRef = useRef(false);
   busyRef.current = busy;
   const adminEmail = (currentUser?.email || '').trim().toLowerCase();
-  const isMainAdmin = adminEmail === 'typemywordz@gmail.com';
-  const isHumanSubadmin = mode === 'admin' && !isMainAdmin && restricted && ['info@typemywordz.ai', 'gracenyaitara@gmail.com'].includes(adminEmail);
-  const canManagePdfJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com'].includes(adminEmail);
-  const canManageLetterJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com'].includes(adminEmail);
-  const canAssignAiAgents = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com'].includes(adminEmail);
+  const isMainAdmin = isAdminEmail(adminEmail);
+  const isHumanSubadmin = mode === 'admin' && !isMainAdmin && restricted && ['gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com'].includes(adminEmail);
+  const canManagePdfJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com'].includes(adminEmail);
+  const canManageLetterJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com'].includes(adminEmail);
+  const canAssignAiAgents = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com'].includes(adminEmail);
   const adminAssignableWorkers = workers.filter((worker) => (
     worker.approved !== false && (
       adminScheduledNow === true || (worker.call_in_active === true && worker.clocked_in === true && worker.online === true)

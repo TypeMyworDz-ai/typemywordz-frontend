@@ -380,7 +380,7 @@ test('warns at ten deadline returns and blocks a second claim on the same whole 
 });
 
 test('Human Work sub-admin sees only their own payment tab and shift reminder', async () => {
-  setCurrentUserForTest({ uid: 'subadmin-1', email: 'info@typemywordz.ai', getIdToken: async () => 'test-token' });
+  setCurrentUserForTest({ uid: 'subadmin-1', email: 'gracenyaitara@gmail.com', getIdToken: async () => 'test-token' });
   global.fetch = jest.fn((url) => {
     const address = String(url);
     if (address.includes('/human-transcription/jobs?scope=admin')) return Promise.resolve(response({ jobs: [] }));

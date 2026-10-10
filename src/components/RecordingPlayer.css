@@ -1,0 +1,13 @@
+.tm-rp { margin: 10px 0 12px; padding: 14px; border: 1px solid #e5e6ea; border-radius: 10px; background: #fafafb; }
+.tm-rp-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tm-rp-main { background: #5b44cf; color: #fff; border: 0; border-radius: 8px; padding: 8px 18px; font: inherit; font-weight: 600; cursor: pointer; min-width: 78px; }
+.tm-rp-main:hover { background: #4b37b3; }
+.tm-rp-btn { background: #fff; color: #1a1b1f; border: 1px solid #d5d7dd; border-radius: 8px; padding: 7px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+.tm-rp-btn:hover { border-color: #5b44cf; color: #5b44cf; }
+.tm-rp-time { margin-left: auto; font-variant-numeric: tabular-nums; font-size: 13px; color: #3f434c; }
+.tm-rp-seek { width: 100%; margin: 12px 0 6px; accent-color: #28a745; }
+.tm-rp-sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.tm-rp-slider { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #3f434c; }
+.tm-rp-slider input { width: 100%; accent-color: #5b44cf; }
+.tm-rp-hint { margin: 10px 0 0; font-size: 12px; color: #858a95; }
+@media (max-width: 520px) { .tm-rp-sliders { grid-template-columns: 1fr; } .tm-rp-time { margin-left: 0; } }

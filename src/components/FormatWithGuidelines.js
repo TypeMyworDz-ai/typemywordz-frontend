@@ -8,6 +8,7 @@ export const FORMAT_ACCOUNT_EMAILS = new Set([
   'info@typemywordz.ai',
   'typemywordz@gmail.com',
   'gracenyaitara@gmail.com',
+  'donotgrowweary95@gmail.com',
 ]);
 
 export const canUseGuidelineFormatter = (email) => FORMAT_ACCOUNT_EMAILS.has(String(email || '').trim().toLowerCase());

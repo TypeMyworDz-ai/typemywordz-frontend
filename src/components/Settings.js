@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PlayerShortcutsSettings from './PlayerShortcutsSettings';
 import { useAuth } from '../contexts/AuthContext';
 import { useAsk } from './AskContext';
 import { isCompAccessEmail } from '../adminEmails';
@@ -343,6 +344,8 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
           The shortcut works only while the Recorder page is open and this TypeMyworDz browser tab is active. A website cannot hear keys from another tab or app. A single key such as Tab can interfere with normal page navigation; choose one you do not rely on elsewhere. Your choice is saved in this browser for your account.
         </p>
       </section>
+
+      <PlayerShortcutsSettings userId={currentUser?.uid} />
 
       <section className="tm-set-section">
         <h3 className="tm-set-h">Assistant model</h3>
