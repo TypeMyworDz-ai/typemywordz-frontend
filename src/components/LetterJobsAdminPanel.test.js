@@ -72,3 +72,8 @@ test('uses the last admin recording as the complete Letter Job source', async ()
   expect(options.body.get('audio').name).toBe('recording-456.webm');
   expect(options.body.get('seconds')).toBe('90');
 });
+
+test('uses the requested four-section instructions default', async () => {
+  render(<LetterJobsAdminPanel />);
+  expect(await screen.findByLabelText('Admin notes and special instructions')).toHaveValue('Client provided spellings: None\n\nClient Word List: None\n\nHint names from the Filename: None:\n\nOther instructions: None');
+});

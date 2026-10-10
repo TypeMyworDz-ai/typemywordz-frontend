@@ -6,7 +6,7 @@ import JobAudioRecorder from './JobAudioRecorder';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 const ADMIN_EMAILS = new Set(['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com']);
-const DEFAULT_ADMIN_NOTE = 'Client provided spellings and other instructions: None';
+const DEFAULT_ADMIN_NOTE = 'Client provided spellings: None\n\nClient Word List: None\n\nHint names from the Filename: None:\n\nOther instructions: None';
 const uploadedLabel = (file) => (file?.name ? `"${file.name}"` : 'your job');
 
 export default function AdminAudioJobsPanel({ category = 'general', showMessage, onOpenQueue, recordedAudioFile = null, onRecordedAudioReady }) {

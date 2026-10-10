@@ -128,8 +128,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [messageText, setMessageText] = useState('');
   const [messageFile, setMessageFile] = useState(null);
   const [finalAttachment, setFinalAttachment] = useState(null);
-  const [proofRatings, setProofRatings] = useState({});
-  const [adminPartRatings, setAdminPartRatings] = useState({});
   const [editorText, setEditorText] = useState('');
   const [editorHtml, setEditorHtml] = useState('');
   const [aiDraftBusy, setAiDraftBusy] = useState(false);
@@ -144,8 +142,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [templateAgentGuidelines, setTemplateAgentGuidelines] = useState('');
   const [templateAgentFiles, setTemplateAgentFiles] = useState([]);
   const editorRef = useRef(null);
-  const [feedback, setFeedback] = useState('');
-  const [rating, setRating] = useState('5');
   const [proofreaderWorker, setProofreaderWorker] = useState('');
   const [aiAgentSegment, setAiAgentSegment] = useState('');
   const [workerAvailable, setWorkerAvailable] = useState(false);
@@ -227,12 +223,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     || (selectedJob.segments || []).some((part) => part?.worker_uid)
   ));
   const splitJob = ['dual', 'multi'].includes(String(selectedJob?.split_mode || '').toLowerCase());
-  const canRateSubmittedWorker = mode === 'admin' && Boolean(selectedJob) && (
-    splitJob
-      ? (selectedJob.segments || []).some((part) => part.status === 'submitted' && part.worker_uid)
-      : Boolean(selectedJob.worker_uid || (selectedJob.proofreader_status === 'submitted' && selectedJob.proofreader_uid))
-        && ['submitted', 'client_review', 'client_approved', 'released'].includes(selectedJob.status)
-  );
   const aiWholeJobEligible = Boolean(splitJob && selectedJob && !jobHasAssignedWorker && !selectedJob.proofreader_status
     && (selectedJob.segments || []).length > 0
     && (selectedJob.segments || []).every((part) => ['available', 'approved'].includes(part.status) && !part.worker_uid));
@@ -418,7 +408,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       setStarterWorker('');
       setStarterSegment('');
       setFinalAttachment(null);
-      setProofRatings({});
     }
   }, [initialJobId, jobs, mode, selectedId, selectedJob, draftAssignmentKey, onInitialJobHandled]);
 
@@ -578,43 +567,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     } finally { setBusy(false); }
   };
 
-  const saveWorkerRatingAndNotes = async () => {
-    if (!selectedJob || mode !== 'admin' || busy) return;
-    const splitParts = splitJob
-      ? (selectedJob.segments || []).filter((part) => part.status === 'submitted' && part.worker_uid)
-      : [];
-    const targets = splitJob
-      ? splitParts.map((part) => ({
-        segment_id: part.id,
-        rating: Number(adminPartRatings[part.id]?.rating || selectedJob.part_ratings?.[part.id]?.rating || rating),
-        note: String(adminPartRatings[part.id]?.note ?? selectedJob.part_ratings?.[part.id]?.note ?? '').trim(),
-      }))
-      : selectedJob.worker_uid
-        ? [{ segment_id: '', rating: Number(rating), note: String(feedback || '').trim() }]
-        : selectedJob.proofreader_status === 'submitted' && selectedJob.proofreader_uid
-          ? [{ segment_id: 'proofreader', rating: Number(rating), note: String(feedback || '').trim() }]
-          : [];
-    if (!targets.length) {
-      showMessage?.('There is no submitted worker assignment to rate yet.', 'error');
-      return;
-    }
-    setBusy(true);
-    try {
-      for (const target of targets) {
-        await request(`/human-transcription/jobs/${selectedJob.id}/rate-part`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(target),
-        });
-      }
-      await loadJobs();
-      showMessage?.('Worker rating and comments saved. Job status was not changed.', 'success');
-    } catch (error) {
-      showMessage?.(error.message || 'The worker rating could not be saved.', 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const finishJob = async () => {
     if (!selectedJob || busy || !canFinishHumanJob(selectedJob)) return;
     const internal = finishIsInternal(selectedJob);
@@ -681,25 +633,10 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     if (!busy && (messageText.trim() || messageFile)) event.currentTarget.form?.requestSubmit();
   };
 
-  const saveProofreaderRatings = async () => {
-    const entries = Object.entries(proofRatings).filter(([, value]) => Number(value?.rating) >= 1);
-    if (!entries.length || workerAssignment?.role !== 'proofreader') return;
-    try {
-      await request(`/human-transcription/jobs/${selectedJob.id}/proofreader-ratings`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ratings: entries.map(([segment_id, value]) => ({ segment_id, rating: Number(value.rating), note: value.note || '' })) }),
-      });
-    } catch {
-      showMessage?.('Your ratings could not be saved, but your work will still be submitted.', 'error');
-    }
-  };
-
   const submitWorker = async () => {
-    await saveProofreaderRatings();
     const form = new FormData();
     form.append('transcript', editorText);
     form.append('transcript_html', editorHtml);
-    form.append('notes', feedback);
     // Some jobs only need the finished file handed back -- nothing to type
     // into the shared editor. The server accepts either real transcript
     // text or this attachment, as long as at least one is present.
@@ -1364,7 +1301,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             {mode === 'admin' && <AdminPartReview job={selectedJob} act={act} downloadProtectedFile={downloadProtectedFile} />}
 
 
-            {canRateSubmittedWorker && <div className="tm-human-review tm-human-rating-panel"><strong className="tm-human-rating-title">Worker rating and comments</strong>{splitJob ? <div className="tm-human-rating-parts">{(selectedJob.segments || []).filter((part) => part.status === 'submitted' && part.worker_uid).map((part) => { const current = adminPartRatings[part.id] || selectedJob.part_ratings?.[part.id] || {}; return <div key={part.id} className="tm-human-rating-part"><strong>{part.label || 'Submitted part'}</strong><select aria-label={`Worker rating for ${part.label || part.id}`} value={current.rating || '5'} onChange={(event) => setAdminPartRatings((previous) => ({ ...previous, [part.id]: { ...current, rating: event.target.value } }))}><option value="5">5 — excellent</option><option value="4">4 — strong</option><option value="3">3 — acceptable</option><option value="2">2 — needs work</option><option value="1">1 — poor</option></select><input aria-label={`Worker comments for ${part.label || part.id}`} value={current.note || ''} onChange={(event) => setAdminPartRatings((previous) => ({ ...previous, [part.id]: { ...current, note: event.target.value } }))} placeholder="Comments (optional)" /></div>; })}</div> : <><label>Worker rating<select value={rating} onChange={(event) => setRating(event.target.value)}><option value="5">5 — excellent</option><option value="4">4 — strong</option><option value="3">3 — acceptable</option><option value="2">2 — needs work</option><option value="1">1 — poor</option></select></label><textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder="Comments for this worker" /></>}<button type="button" disabled={busy} onClick={saveWorkerRatingAndNotes}>Save worker rating and comments</button><p>Saving feedback does not approve, finish, or change the job.</p></div>}
             {mode === 'admin' && selectedJob.status === 'submitted' && !selectedJob.admin_uploaded && <div className="tm-human-review tm-human-review-actions"><strong>Job completion</strong><p>Complete AI or human proofreading before sending this work to the client.</p><button type="button" disabled={busy || !adminReviewerComplete(selectedJob)} title={!adminReviewerComplete(selectedJob) ? 'Complete the selected AI or human proofreading before sending this work to the client.' : undefined} onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }, selectedJob.job_type === 'pdf_job' ? 'PDF transcription approved and completed.' : 'Sent to client for review.')}>{selectedJob.job_type === 'pdf_job' ? 'Approve PDF transcription' : 'Send to client'}</button></div>}
             {mode === 'admin' && canFinishHumanJob(selectedJob) && <div className="tm-human-review"><button type="button" className="tm-admin-btn" disabled={busy} onClick={() => setFinishJobConfirm(true)}>Finish Job</button><p className="tm-tat-hint">Finish complete work without assigning a proofreader. Active proofreading assignments must be completed or taken back first.</p></div>}
 
@@ -1430,27 +1366,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                       {!part.transcript?.trim() && !part.final_attachment && <small>No transcript text or attachment was saved for this part.</small>}
                     </div>
                   ))}
-                </div>
-              </div>
-            )}
-            {mode === 'worker' && workerAssignmentActive && workerAssignment?.role === 'proofreader' && (selectedJob.proofreader_parts || []).length > 0 && (
-              <div className="tm-human-reference-card tm-proofreader-ratings">
-                <strong>Rate the parts (optional)</strong>
-                <span>When you finish, you can suggest a rating for each part. It is not registered: an admin sees your suggestion and decides whether to apply it.</span>
-                <div style={{ display: 'grid', gap: 8 }}>
-                  {selectedJob.proofreader_parts.map((part) => {
-                    const mine = proofRatings[part.id] || selectedJob.my_suggested_ratings?.[part.id] || {};
-                    return (
-                      <div key={part.id} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                        <strong style={{ minWidth: 150 }}>{part.label}{part.author_label ? ` by ${part.author_label}` : ''}</strong>
-                        <select aria-label={`Rating for ${part.label}`} value={mine.rating || ''} onChange={(event) => setProofRatings((current) => ({ ...current, [part.id]: { ...mine, rating: event.target.value } }))}>
-                          <option value="">No rating</option>
-                          <option value="5">5 · excellent</option><option value="4">4 · strong</option><option value="3">3 · acceptable</option><option value="2">2 · needs work</option><option value="1">1 · poor</option>
-                        </select>
-                        <input aria-label={`Note for ${part.label}`} style={{ flex: '1 1 200px' }} placeholder="Short note (optional)" value={mine.note || ''} onChange={(event) => setProofRatings((current) => ({ ...current, [part.id]: { ...mine, note: event.target.value } }))} />
-                      </div>
-                    );
-                  })}
                 </div>
               </div>
             )}

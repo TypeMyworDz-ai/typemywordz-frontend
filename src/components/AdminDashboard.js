@@ -14,6 +14,8 @@ import HumanJobWorkspace from './HumanJobWorkspace';
 import TraineeReviewDialog from './TraineeReviewDialog';
 import AdminAskPanel from './AdminAskPanel';
 import AdminModelRoutingPanel from './AdminModelRoutingPanel';
+import AdminGeneralGuidelinesPanel from './AdminGeneralGuidelinesPanel';
+import AdminRatingAgentPanel from './AdminRatingAgentPanel';
 import './AdminDashboard.css';
 
 const BACKEND_URL =
@@ -483,7 +485,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
             ['trainees', `Trainees${trainees.length ? ` · ${trainees.length}` : ''}`],
             ['workers', `Workers${workers.length ? ` · ${workers.length}` : ''}`],
             ['ask', 'Ask TypeMyworDz'],
-            ...(isAdminEmail(currentUser?.email) ? [['models', 'Model routing']] : []),
+            ...(isAdminEmail(currentUser?.email) ? [['models', 'Model routing'], ['generalguidelines', 'General guidelines'], ['ratings', 'Rating Agent']] : []),
           ].map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={activeTab === id} className="tm-admin-tab" onClick={() => setActiveTab(id)}>{label}</button>
           ))}
@@ -535,6 +537,8 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
         {activeTab === 'ask' && <AdminAskPanel currentUser={currentUser} showMessage={showMessage} />}
 
         {activeTab === 'models' && isAdminEmail(currentUser?.email) && <AdminModelRoutingPanel currentUser={currentUser} showMessage={showMessage} />}
+        {activeTab === 'generalguidelines' && isAdminEmail(currentUser?.email) && <AdminGeneralGuidelinesPanel currentUser={currentUser} showMessage={showMessage} />}
+        {activeTab === 'ratings' && isAdminEmail(currentUser?.email) && <AdminRatingAgentPanel currentUser={currentUser} showMessage={showMessage} />}
 
         {activeTab === 'workers' && (
           <div className="tm-admin-panel">

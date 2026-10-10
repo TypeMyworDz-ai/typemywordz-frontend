@@ -423,7 +423,7 @@ test('main admin alone sees sub-admin payroll management and rate tabs', async (
   expect(screen.queryByRole('tab', { name: 'My payments · KES' })).not.toBeInTheDocument();
 });
 
-test('admin can save worker feedback without changing job completion', async () => {
+test('admin has no manual worker rating controls; ratings come only from the Rating Agent', async () => {
   setCurrentUserForTest({ uid: 'admin-1', email: 'typemywordz@gmail.com', getIdToken: async () => 'test-token' });
   const submittedJob = {
     id: 'submitted-job', status: 'submitted', job_type: 'human_transcription', job_name: 'Submitted audio',
@@ -441,18 +441,9 @@ test('admin can save worker feedback without changing job completion', async () 
   render(<HumanJobWorkspace mode="admin" />);
   fireEvent.click(await screen.findByRole('tab', { name: /Submitted/ }));
   fireEvent.click(await screen.findByRole('button', { name: /Submitted audio/ }));
-  expect(await screen.findByRole('button', { name: 'Save worker rating and comments' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Finish Job' })).toBeInTheDocument();
-
-  fireEvent.change(screen.getByLabelText('Worker rating'), { target: { value: '4' } });
-  fireEvent.change(screen.getByPlaceholderText('Comments for this worker'), { target: { value: 'Clear and accurate.' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save worker rating and comments' }));
-
-  await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
-    expect.stringContaining('/human-transcription/jobs/submitted-job/rate-part'),
-    expect.objectContaining({ method: 'POST', body: JSON.stringify({ segment_id: '', rating: 4, note: 'Clear and accurate.' }) }),
-  ));
-  expect(global.fetch.mock.calls.some(([url]) => String(url).includes('/review') || String(url).includes('/finish-job'))).toBe(false);
+  expect(await screen.findByRole('button', { name: 'Finish Job' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Save worker rating and comments' })).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Worker rating')).not.toBeInTheDocument();
 });
 
 test('admin Archived Jobs tab requests the retained archived job list', async () => {

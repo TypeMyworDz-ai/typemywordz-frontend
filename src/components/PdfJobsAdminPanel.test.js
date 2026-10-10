@@ -74,3 +74,8 @@ test('compression leaves non-images and small JPEGs unchanged', async () => {
   const png = new File(['not really an image'], 'a.png', { type: 'image/png' });
   expect(await compressImageFile(png)).toBe(png);
 });
+
+test('uses the requested four-section instructions default', async () => {
+  render(<PdfJobsAdminPanel category="pdf" />);
+  expect(await screen.findByLabelText('Admin notes and special instructions')).toHaveValue('Client provided spellings: None\n\nClient Word List: None\n\nHint names from the Filename: None:\n\nOther instructions: None');
+});

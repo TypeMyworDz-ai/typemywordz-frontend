@@ -4,7 +4,7 @@ import UploadResultBanner, { announceJobsChanged } from './UploadResultBanner';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 const PDF_ADMIN_EMAILS = new Set(['info@typemywordz.ai', 'typemywordz@gmail.com', 'gracenyaitara@gmail.com']);
-const DEFAULT_ADMIN_NOTE = 'Client provided spellings and other instructions: None';
+const DEFAULT_ADMIN_NOTE = 'Client provided spellings: None\n\nClient Word List: None\n\nHint names from the Filename: None:\n\nOther instructions: None';
 const MAX_LONG_EDGE = 2000;
 const JPEG_QUALITY = 0.82;
 const COMPRESS_OVER_BYTES = 350 * 1024;

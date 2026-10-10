@@ -133,3 +133,8 @@ test('Stop recording attaches the new audio to the General Job upload form', asy
     if (devices) Object.defineProperty(navigator, 'mediaDevices', devices); else delete navigator.mediaDevices;
   }
 });
+
+test('uses the requested four-section instructions default', async () => {
+  render(<AdminAudioJobsPanel category="general" />);
+  expect(await screen.findByLabelText('Admin notes and special instructions')).toHaveValue('Client provided spellings: None\n\nClient Word List: None\n\nHint names from the Filename: None:\n\nOther instructions: None');
+});
