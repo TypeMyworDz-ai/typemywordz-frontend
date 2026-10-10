@@ -698,6 +698,7 @@ function AppContent() {
     if (item?.route === 'human_worker') setCurrentView('human_worker');
     else if (item?.route === 'human_ops') setCurrentView('human_ops');
     else if (item?.route === 'human_job') setCurrentView('human_job');
+    else if (item?.route === 'trainee') setCurrentView('trainee');
     else setCurrentView('messages');
   }, [currentUser, refreshUnreadMessageCount]);
 
