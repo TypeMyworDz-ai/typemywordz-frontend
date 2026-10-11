@@ -10,6 +10,7 @@ export default function FinalTranscriptView({
   onSave,
   saving = false,
   editorRef,
+  placeholder = null,
 }) {
   const [note, setNote] = useState('');
   const submittedParts = (job.segments || []).filter((part) => part);
@@ -27,7 +28,7 @@ export default function FinalTranscriptView({
     : null;
   const text = hasFinal ? job.transcript : (parts || []).filter((part) => !part.pending).map((part) => part.transcript).join('\n\n');
   const html = hasFinal ? (job.transcript_html || '') : '';
-  const seedKey = `${job.id}-${hasFinal ? 'final' : 'parts'}`;
+  const seedKey = `${job.id}-${hasFinal ? 'final' : 'parts'}-${job.proofreading_agent_completedAt || ''}`;
   const [live, setLive] = useState({ text, html });
   const baseName = safeFileName(job.job_name || job.title || job.pdf_image?.name || job.audio?.name?.replace(/\.[^.]+$/, '') || 'transcript');
 
@@ -60,6 +61,7 @@ export default function FinalTranscriptView({
       showMessage?.('The Word file could not be created. Use Copy instead.', 'error');
     }
   };
+  if (placeholder) return placeholder;
   if (!live.text.trim() && !editable && !parts?.length) {
     return <div className="tm-human-empty">The transcript will appear here once it has been submitted.</div>;
   }

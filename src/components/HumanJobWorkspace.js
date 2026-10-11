@@ -11,6 +11,7 @@ import WordLikeEditor from './WordLikeEditor';
 import ConfirmDialog from './ConfirmDialog';
 import WorkerAudioPlayer from './WorkerAudioPlayer';
 import { AdminPartReview } from './AdminPartReview';
+import { ProofreadingAgentPanel, ProofreadingPartsNotice, proofreadingPartsHidden } from './ProofreadingAgentPanel';
 import { copyForWord } from '../utils/transcriptExport';
 import './HumanJobWorkspace.css';
 
@@ -1387,8 +1388,10 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 onChange={(text, html) => { setEditorText(text); setEditorHtml(html); }}
                 onSave={saveSharedTranscript}
                 saving={busy}
+                placeholder={mode === 'admin' && proofreadingPartsHidden(selectedJob) ? <ProofreadingPartsNotice job={selectedJob} /> : null}
               />
               )}
+              {mode === 'admin' && <ProofreadingAgentPanel job={selectedJob} act={act} busy={busy} />}
               {mode === 'worker' && workerAssignmentActive && <div className="tm-human-submit-row">
                 <span>{selectedJob.job_type === 'pdf_job' ? 'Finished? Submit your transcription.' : 'Finished? Check that your research notes are still at the end of the text, then submit.'}</span>
                 {renderSubmitButton('bottom')}

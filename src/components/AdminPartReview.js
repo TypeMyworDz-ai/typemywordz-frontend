@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import AIOutputWindow from './AIOutputWindow';
+import { proofreadingPartsHidden } from './ProofreadingAgentPanel';
 
 const box = { border: '1px solid #e1e6e2', borderRadius: 8, padding: '12px 14px', display: 'grid', gap: 10, background: '#fff' };
 const muted = { color: '#7b857d', fontSize: 12 };
@@ -16,7 +17,7 @@ export function AdminPartReview({ job, act, downloadProtectedFile }) {
     });
     if (job.proofreader_status === 'submitted') rows.push({ id: 'proofreader', label: 'Final proofreading', worker: job.proofreader_name || 'Proofreader', text: job.transcript || '', attachment: job.final_attachment, attachmentPath: `/human-transcription/jobs/${job.id}/final-attachment` });
   }
-  if (!rows.length) return null;
+  if (!rows.length || proofreadingPartsHidden(job)) return null;
 
   return (
     <div className="tm-human-assign" style={box}>
