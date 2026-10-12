@@ -283,7 +283,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     } finally {
       setLoading(false);
     }
-  }, [adminTab, mode, ownerScope, refreshUserProfile, request, showMessage, workerTab]);
+  }, [mode, ownerScope, refreshUserProfile, request, showMessage, workerTab]);
 
   // Upload panels announce new work so the queue refreshes at once instead of
   // waiting for the next background poll.
