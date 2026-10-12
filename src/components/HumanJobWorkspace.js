@@ -12,6 +12,7 @@ import ConfirmDialog from './ConfirmDialog';
 import WorkerAudioPlayer from './WorkerAudioPlayer';
 import { AdminPartReview } from './AdminPartReview';
 import { ProofreadingAgentPanel, ProofreadingPartsNotice, proofreadingPartsHidden } from './ProofreadingAgentPanel';
+import AdminWorkerRateOverrides from './AdminWorkerRateOverrides';
 import { copyForWord } from '../utils/transcriptExport';
 import './HumanJobWorkspace.css';
 
@@ -1683,6 +1684,7 @@ function AdminTranscriberRatePanel({ request, showMessage }) {
           </form>
         )}
       </div>
+      <AdminWorkerRateOverrides request={request} showMessage={showMessage} standardRate={policy?.transcriber_rate_kes_per_minute || 30} />
     </div>
   );
 }
