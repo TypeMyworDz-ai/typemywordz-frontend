@@ -50,8 +50,9 @@ export function ProofreadingPartsNotice({ job }) {
   );
 }
 
-export function ProofreadingAgentPanel({ job, act, busy }) {
+export function ProofreadingAgentPanel({ job, act, busy, onDownloadCombined }) {
   const [starting, setStarting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [note, setNote] = useState('');
   const run = job?.proofreading_run || {};
@@ -98,17 +99,28 @@ export function ProofreadingAgentPanel({ job, act, busy }) {
     }
   };
 
+  const downloadCombined = async () => {
+    if (downloading || !onDownloadCombined) return;
+    setDownloading(true);
+    try { await onDownloadCombined(job); } finally { setDownloading(false); }
+  };
+
   return (
     <div className="tm-human-assign" style={box} data-testid="proofreading-agent-panel">
       <div>
         <strong>Proofreading Agent</strong>
-        <div style={muted}>Combines every submitted part into one client-ready transcript, checked against a Deepgram transcript of the whole recording. It keeps dictated paragraphs, joins the parts smoothly, standardises names and adds one spellings and research section at the end.</div>
+        <div style={muted}>Combines every submitted part into one client-ready transcript, checked against an AssemblyAI transcript of the whole recording. It keeps dictated paragraphs, joins the parts smoothly, standardises names and adds one spellings and research section at the end.</div>
       </div>
       <style>{'@keyframes tmPaSpin{to{transform:rotate(360deg)}}.tm-pa-spin{display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid rgba(91,45,158,.25);border-top-color:#5b2d9e;border-radius:50%;animation:tmPaSpin .8s linear infinite}'}</style>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <button type="button" className="tm-admin-btn" disabled={busy || running || !ready} aria-busy={running} onClick={start}>
           {running ? <><span className="tm-pa-spin" aria-hidden="true" />Proofreading...</> : (done ? 'Run Proofreading Agent again' : 'Run Proofreading Agent')}
         </button>
+        {onDownloadCombined && (ready || done) && (
+          <button type="button" className="tm-admin-btn" disabled={downloading} aria-busy={downloading} onClick={downloadCombined} title="Backup copy of every submitted part, combined, before any proofreading">
+            {downloading ? 'Preparing Word file...' : 'Download all parts (Word)'}
+          </button>
+        )}
         {running && <span role="status" style={{ ...muted, color: '#4b2a8a' }}>{run.stage || 'Starting'} ({elapsed}s). It keeps running if you leave or reload this page.</span>}
       </div>
       {running && (

@@ -562,6 +562,28 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     } finally { setBusy(false); }
   };
 
+  const downloadCombinedParts = async (job) => {
+    try {
+      const idToken = await token();
+      const response = await fetch(`${BACKEND_URL}/human-transcription/jobs/${job.id}/combined-parts.docx`, { headers: { Authorization: `Bearer ${idToken}` } });
+      if (!response.ok) {
+        let detail = '';
+        try { detail = (await response.json()).detail || ''; } catch { /* use the fallback below */ }
+        throw new Error(detail || 'The combined Word file could not be created.');
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `combined-parts-${String(job.id).slice(0, 8)}.docx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+    }
+  };
+
   const finishJob = async () => {
     if (!selectedJob || busy || !canFinishHumanJob(selectedJob)) return;
     const internal = finishIsInternal(selectedJob);
@@ -1392,7 +1414,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 placeholder={mode === 'admin' && proofreadingPartsHidden(selectedJob) ? <ProofreadingPartsNotice job={selectedJob} /> : null}
               />
               )}
-              {mode === 'admin' && <ProofreadingAgentPanel job={selectedJob} act={act} busy={busy} />}
+              {mode === 'admin' && <ProofreadingAgentPanel job={selectedJob} act={act} busy={busy} onDownloadCombined={downloadCombinedParts} />}
               {mode === 'worker' && workerAssignmentActive && <div className="tm-human-submit-row">
                 <span>{selectedJob.job_type === 'pdf_job' ? 'Finished? Submit your transcription.' : 'Finished? Check that your research notes are still at the end of the text, then submit.'}</span>
                 {renderSubmitButton('bottom')}
