@@ -9,8 +9,10 @@ test('Needs action jobs move to Finished after 24 hours', () => {
   expect(adminQueueLaneFor({ status: 'approved', createdAt: hoursAgo(48), routingDecidedAt: hoursAgo(2) }, NOW)).toBe('needs_action');
 });
 
-test('Submitted jobs move to Finished 24 hours after submission', () => {
+test('Submitted jobs move to Finished 12 hours after submission', () => {
   expect(adminQueueLaneFor({ status: 'submitted', submittedAt: hoursAgo(5), createdAt: hoursAgo(90) }, NOW)).toBe('submitted');
+  expect(adminQueueLaneFor({ status: 'submitted', submittedAt: hoursAgo(11) }, NOW)).toBe('submitted');
+  expect(adminQueueLaneFor({ status: 'submitted', submittedAt: hoursAgo(13) }, NOW)).toBe('finished');
   expect(adminQueueLaneFor({ status: 'submitted', submittedAt: hoursAgo(30) }, NOW)).toBe('finished');
   expect(adminQueueLaneFor({ status: 'client_review', submittedAt: hoursAgo(30), reviewedAt: hoursAgo(1) }, NOW)).toBe('submitted');
 });
@@ -28,4 +30,15 @@ test('manually finished and released jobs stay Finished', () => {
 
 test('a job with no usable timestamp stays where it is', () => {
   expect(adminQueueLaneFor({ status: 'approved' }, NOW)).toBe('needs_action');
+});
+
+test('internal jobs that still need proofreading go back to Needs action', () => {
+  const base = { status: 'submitted', admin_uploaded: true, submittedAt: hoursAgo(1) };
+  expect(adminQueueLaneFor(base, NOW)).toBe('needs_action');
+  expect(adminQueueLaneFor({ ...base, reviewer_status: 'completed' }, NOW)).toBe('submitted');
+  expect(adminQueueLaneFor({ ...base, ai_review_applied: true }, NOW)).toBe('submitted');
+  expect(adminQueueLaneFor({ ...base, proofreader_status: 'submitted' }, NOW)).toBe('submitted');
+  expect(adminQueueLaneFor({ ...base, letter_ai_review_status: 'failed' }, NOW)).toBe('needs_action');
+  expect(adminQueueLaneFor({ ...base, admin_proofread_at: hoursAgo(1) }, NOW)).toBe('submitted');
+  expect(adminQueueLaneFor({ ...base, admin_proofread_at: hoursAgo(13), submittedAt: hoursAgo(13), reviewer_status: 'completed' }, NOW)).toBe('finished');
 });

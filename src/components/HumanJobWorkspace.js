@@ -158,7 +158,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [paymentHistory, setPaymentHistory] = useState(null);
   const [adminTab, setAdminTab] = useState('queue');
   // Jobs are stored per scope so switching tabs never shows another tab's list.
-  const jobsScope = mode === 'admin' ? (adminTab === 'archived' ? 'archived' : 'admin') : mode === 'worker' ? (workerTab === 'available' ? 'available' : workerTab === 'finished' ? 'finished' : 'assigned') : 'mine';
+  const jobsScope = mode === 'admin' ? 'admin' : mode === 'worker' ? (workerTab === 'available' ? 'available' : workerTab === 'finished' ? 'finished' : 'assigned') : 'mine';
   const jobs = jobsStore[jobsScope] || EMPTY_JOBS;
   const scopeLoading = jobsStore[jobsScope] === undefined;
   const jobsScopeRef = useRef(jobsScope);
@@ -250,7 +250,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const loadJobs = useCallback(async () => {
     const requestId = jobsRequestIdRef.current + 1;
     jobsRequestIdRef.current = requestId;
-    const scope = mode === 'admin' ? (adminTab === 'archived' ? 'archived' : 'admin') : mode === 'worker' ? (workerTab === 'available' ? 'available' : workerTab === 'finished' ? 'finished' : 'assigned') : 'mine';
+    const scope = mode === 'admin' ? 'admin' : mode === 'worker' ? (workerTab === 'available' ? 'available' : workerTab === 'finished' ? 'finished' : 'assigned') : 'mine';
     try {
       const payload = await request(`/human-transcription/jobs?scope=${scope}${mode === 'admin' && ownerScope === 'all' ? '&owner=all' : ''}`);
       // Only discard a response that is older than one already shown, or one
@@ -590,7 +590,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     if (!selectedJob || busy || !canFinishHumanJob(selectedJob)) return;
     const internal = finishIsInternal(selectedJob);
     const successMessage = internal
-      ? 'Job finished and moved to the Finished lane. No client charge or notification was issued.'
+      ? 'Marked as proofread. It is now under Submitted and will finish automatically after 12 hours.'
       : 'Admin proofreading is complete. The client has been notified; credits remain untouched until they approve.';
     const finished = await act(
       `/human-transcription/jobs/${selectedJob.id}/finish`,
@@ -599,7 +599,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     );
     if (finished) {
       setFinishJobConfirm(false);
-      setAdminQueueLane('finished');
+      setAdminQueueLane(internal ? 'submitted' : 'finished');
     }
   };
 
@@ -941,6 +941,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
       {mode === 'admin' && adminTab === 'queue' && isHumanSubadmin && <div className="tm-subadmin-shift-reminder" role="note"><strong>Shift reminder</strong><span>Keep all shift work inside the TypeMyworDz system unless the main admin requests or gives you other instructions. Regular shifts are Monday to Friday, 3:00 p.m.–8:00 p.m. Africa/Nairobi.</span></div>}
       {mode === 'admin' && adminScheduledNow === false && <p className="tm-tat-hint">Outside regular shift hours, worker assignment is limited to approved workers with an active admin call-in who are clocked in and currently online.</p>}
+      {mode === 'worker' && <div className="tm-subadmin-shift-reminder tm-worker-monday-note" role="note"><strong>Monday shifts</strong><span>Mondays are our slow shift days, so please do not expect much work on a Monday. This does not mean you can skip your shift: log in and clock in on time as usual, because attendance and tardiness are still tracked every day.</span></div>}
       {mode === 'worker' && workerBoardInfo.deadlineWarning && workerBoardInfo.deadlineReturns < 11 && <div className="tm-worker-board-notice tm-worker-deadline-warning" role="alert"><strong>Deadline reminder · {workerBoardInfo.deadlineReturns} returns</strong><span>One more missed deadline will pause Available Jobs access and send you to the Training Room for retraining. Claim only work you can complete on time.</span></div>}
 
       {mode === 'worker' && <WorkerShiftPanel showMessage={showMessage} onPresence={loadJobs} availableForWork={workerAvailable} />}
@@ -978,7 +979,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       {mode === 'admin' && (
         <div className="tm-human-thread-tabs tm-worker-room-tabs" role="tablist" aria-label="Admin dashboard sections">
           <button type="button" role="tab" aria-selected={adminTab === 'queue'} className={adminTab === 'queue' ? 'active' : ''} onClick={() => setAdminTab('queue')}>Job Queue</button>
-          <button type="button" role="tab" aria-selected={adminTab === 'archived'} className={adminTab === 'archived' ? 'active' : ''} onClick={() => setAdminTab('archived')}>Archived Jobs</button>
           {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'general_jobs'} className={adminTab === 'general_jobs' ? 'active' : ''} onClick={() => setAdminTab('general_jobs')}>General Jobs</button>}
           {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'letter_jobs'} className={adminTab === 'letter_jobs' ? 'active' : ''} onClick={() => setAdminTab('letter_jobs')}>Letter Jobs</button>}
           {canManagePdfJobs && <button type="button" role="tab" aria-selected={adminTab === 'text_messages'} className={adminTab === 'text_messages' ? 'active' : ''} onClick={() => setAdminTab('text_messages')}>Text Messages</button>}
@@ -1035,7 +1035,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <AdminJobCleanupPanel request={request} showMessage={showMessage} />
       ) : (
       <>
-      {mode === 'admin' && adminTab === 'archived' && <div className="tm-admin-archived-note" role="note"><strong>Archived after three days</strong><span>These older jobs are hidden from active queues, not deleted. Their files, payment history, and worker conversations remain available here.</span></div>}
       {mode === 'admin' && adminTab === 'queue' && (
         <div className="tm-admin-queue-controls" aria-label="Filter human-work jobs">
           <div className="tm-admin-queue-lanes" role="tablist" aria-label="Job status">
@@ -1083,7 +1082,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <small>{mode === 'worker' ? `${job.job_type === 'pdf_job' ? (job.pdf_review ? 'Whole-file proofread' : job.job_category === 'text_messages' ? 'Text Messages image · KES 50' : 'PDF image · KES 100') : jobTypeLabel(job)} · ${moneylessDate(job.createdAt)}` : `${job.quote_credits || 0} credits · ${moneylessDate(job.createdAt)}`}</small>
             </button>
           ))}
-          {!jobsForCurrentView.length && <div className="tm-human-empty">{mode === 'admin' && adminTab === 'archived' ? 'No jobs have reached the three-day archive yet.' : mode === 'admin' ? 'No jobs match this status and type.' : mode === 'worker' && workerTab === 'available' ? 'No new work is available right now. This board refreshes automatically.' : 'No human work is waiting here.'}</div>}
+          {!jobsForCurrentView.length && <div className="tm-human-empty">{mode === 'admin' ? 'No jobs match this status and type.' : mode === 'worker' && workerTab === 'available' ? 'No new work is available right now. This board refreshes automatically.' : 'No human work is waiting here.'}</div>}
         </aside>
 
         <div className="tm-human-job-detail">
@@ -1271,11 +1270,11 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             <ConfirmDialog open={aiWholeConfirm} title="Pause the parts and assign one whole-job draft?" body={`${aiWholeAgent === 'template-claude' ? 'The template-aware agent' : 'The general agent'} will prepare one private draft from the full recording. This is allowed only when no part has been claimed or submitted. If the AI run fails, the original parts are restored. An approved human proofreader must still check the draft before it can reach the client.`} confirmLabel="Pause parts and continue" busy={busy} onConfirm={confirmAiWholeJob} onCancel={() => { setAiWholeConfirm(false); setAiWholeAgent(''); }} />
             <ConfirmDialog
               open={finishJobConfirm}
-              title="Finish this job?"
+              title={finishIsInternal(selectedJob) ? 'Mark this job as proofread?' : 'Finish this job?'}
               body={finishIsInternal(selectedJob)
-                ? 'This moves the completed work to the Finished lane. It will not charge credits or send a client notification.'
+                ? 'This moves the job to Submitted. It finishes automatically after 12 hours, with no client charge or notification.'
                 : 'This completes admin proofreading and moves the job to Finished. The client will be notified to check the transcript; credits are not charged unless the client approves and the work is released.'}
-              confirmLabel="Finish Job"
+              confirmLabel={finishIsInternal(selectedJob) ? 'Mark as proofread' : 'Finish Job'}
               busy={busy}
               onConfirm={finishJob}
               onCancel={() => setFinishJobConfirm(false)}
@@ -1321,7 +1320,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
 
 
             {mode === 'admin' && selectedJob.status === 'submitted' && !selectedJob.admin_uploaded && <div className="tm-human-review tm-human-review-actions"><strong>Job completion</strong><p>Complete AI or human proofreading before sending this work to the client.</p><button type="button" disabled={busy || !adminReviewerComplete(selectedJob)} title={!adminReviewerComplete(selectedJob) ? 'Complete the selected AI or human proofreading before sending this work to the client.' : undefined} onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }, selectedJob.job_type === 'pdf_job' ? 'PDF transcription approved and completed.' : 'Sent to client for review.')}>{selectedJob.job_type === 'pdf_job' ? 'Approve PDF transcription' : 'Send to client'}</button></div>}
-            {mode === 'admin' && canFinishHumanJob(selectedJob) && <div className="tm-human-review"><button type="button" className="tm-admin-btn" disabled={busy} onClick={() => setFinishJobConfirm(true)}>Finish Job</button><p className="tm-tat-hint">Finish complete work without assigning a proofreader. Active proofreading assignments must be completed or taken back first.</p></div>}
+            {mode === 'admin' && canFinishHumanJob(selectedJob) && !(finishIsInternal(selectedJob) && adminQueueLaneFor(selectedJob) === 'submitted') && <div className="tm-human-review"><button type="button" className="tm-admin-btn" disabled={busy} onClick={() => setFinishJobConfirm(true)}>{finishIsInternal(selectedJob) ? 'Mark as proofread' : 'Finish Job'}</button><p className="tm-tat-hint">{finishIsInternal(selectedJob) ? 'Use this once you have proofread the job yourself. It moves to Submitted and finishes on its own after 12 hours.' : 'Finish complete work without assigning a proofreader. Active proofreading assignments must be completed or taken back first.'}</p></div>}
 
             {selectedJob.job_type === 'pdf_job' && !(mode === 'worker' && workerTab === 'available') && <div className="tm-human-pdf-image-card"><div><strong>{selectedJob.pdf_review ? 'Whole-file review: all pages' : 'Assigned image'}</strong><span>{selectedJob.pdf_image?.source_filename || selectedJob.pdf_image?.name}{selectedJob.pdf_image?.page_count > 1 && !selectedJob.pdf_review ? ` · Page ${selectedJob.pdf_image.page_number} of ${selectedJob.pdf_image.page_count}` : ''}</span></div>{pdfImageUrls.length > 1 ? pdfImageUrls.map((url, index) => <img key={url} src={url} alt={`Page ${index + 1} of ${pdfImageUrls.length}`} />) : pdfImageUrl ? <img src={pdfImageUrl} alt={`Transcribe ${selectedJob.pdf_image?.name || 'PDF Job'}`} /> : <p role={pdfImageError ? 'alert' : 'status'}>{pdfImageError || 'Loading the private image…'}</p>}</div>}
             {mode === 'worker' && audioLocked && hasAudio && !audioHidden && <div className="tm-human-reference-card" role="note" style={{ borderLeft: '4px solid #1f7a4d', display: 'grid', gap: 6 }}>

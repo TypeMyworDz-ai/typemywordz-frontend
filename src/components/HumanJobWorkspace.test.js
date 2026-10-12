@@ -217,7 +217,7 @@ test('shift attendance shows online presence separately from missed attendance a
   expect(within(workerRow).getByRole('button', { name: 'Call in' })).toBeEnabled();
 });
 
-test('admin can finish complete internal AI work after confirming no client delivery', async () => {
+test('admin can mark complete internal AI work as proofread without client delivery', async () => {
   setCurrentUserForTest({ uid: 'admin-1', email: 'typemywordz@gmail.com', getIdToken: async () => 'test-token' });
   const job = {
     id: 'draft-job', status: 'proofreading_available', job_type: 'human_transcription', admin_uploaded: true,
@@ -235,10 +235,10 @@ test('admin can finish complete internal AI work after confirming no client deli
   });
   render(<HumanJobWorkspace mode="admin" />);
 
-  fireEvent.click(await screen.findByRole('button', { name: 'Finish Job' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Mark as proofread' }));
   const dialog = await screen.findByRole('alertdialog');
-  expect(dialog).toHaveTextContent('will not charge credits or send a client notification');
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Finish Job' }));
+  expect(dialog).toHaveTextContent('no client charge or notification');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Mark as proofread' }));
   await waitFor(() => expect(global.fetch.mock.calls.some(([url, options]) => String(url).endsWith('/human-transcription/jobs/draft-job/finish') && options.method === 'POST')).toBe(true));
 });
 
@@ -446,17 +446,11 @@ test('admin has no manual worker rating controls; ratings come only from the Rat
   expect(screen.queryByLabelText('Worker rating')).not.toBeInTheDocument();
 });
 
-test('admin Archived Jobs tab requests the retained archived job list', async () => {
+test('admin queue no longer has an Archived Jobs tab', async () => {
   setCurrentUserForTest({ uid: 'admin-1', email: 'typemywordz@gmail.com', getIdToken: async () => 'test-token' });
   render(<HumanJobWorkspace mode="admin" />);
-  const archivedTab = await screen.findByRole('tab', { name: 'Archived Jobs' });
-  fireEvent.click(archivedTab);
-  expect(await screen.findByText('Archived after three days')).toBeInTheDocument();
-  await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
-    expect.stringContaining('/human-transcription/jobs?scope=archived'),
-    expect.any(Object),
-  ));
-  expect(screen.getByText('No jobs have reached the three-day archive yet.')).toBeInTheDocument();
+  await screen.findByRole('tab', { name: 'Job cleanup' });
+  expect(screen.queryByRole('tab', { name: 'Archived Jobs' })).not.toBeInTheDocument();
 });
 
 test('worker sees a clear locked-recording notice and no audio request until the draft exists', async () => {
