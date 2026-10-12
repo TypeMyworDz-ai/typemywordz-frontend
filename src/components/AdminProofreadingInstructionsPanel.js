@@ -5,7 +5,7 @@ const MAX_LENGTH = 20000;
 
 // Super admin only. These standing instructions are added to every
 // Proofreading Agent run (audio, Text Messages and PDF jobs), on top of the
-// agent's built-in rules. Instructions written inside a job still win.
+// agent's built-in rules. Instructions written inside a job still win; edit them whenever you like.
 export default function AdminProofreadingInstructionsPanel({ currentUser, showMessage }) {
   const [text, setText] = useState('');
   const [saved, setSaved] = useState('');
