@@ -42,3 +42,5 @@ test('internal jobs that still need proofreading go back to Needs action', () =>
   expect(adminQueueLaneFor({ ...base, admin_proofread_at: hoursAgo(1) }, NOW)).toBe('submitted');
   expect(adminQueueLaneFor({ ...base, admin_proofread_at: hoursAgo(13), submittedAt: hoursAgo(13), reviewer_status: 'completed' }, NOW)).toBe('finished');
 });
+
+// Queue lane rules: Submitted finishes after 12 hours.
