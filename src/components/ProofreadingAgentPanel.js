@@ -109,7 +109,7 @@ export function ProofreadingAgentPanel({ job, act, busy, onDownloadCombined }) {
     <div className="tm-human-assign" style={box} data-testid="proofreading-agent-panel">
       <div>
         <strong>Proofreading Agent</strong>
-        <div style={muted}>Combines every submitted part into one client-ready transcript, checked against an AssemblyAI transcript of the whole recording. It keeps dictated paragraphs, joins the parts smoothly, standardises names and adds one spellings and research section at the end.</div>
+        <div style={muted}>Combines every submitted part into one client-ready transcript, checked against an AssemblyAI transcript of the whole recording. It keeps dictated paragraphs, joins the parts smoothly, standardises names and adds one spellings and research section at the end. A successful run costs 3 credits; a failed run costs nothing.</div>
       </div>
       <style>{'@keyframes tmPaSpin{to{transform:rotate(360deg)}}.tm-pa-spin{display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid rgba(91,45,158,.25);border-top-color:#5b2d9e;border-radius:50%;animation:tmPaSpin .8s linear infinite}'}</style>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>

@@ -57,6 +57,8 @@ const formatCountdown = (totalSeconds) => {
   const pad = (n) => String(n).padStart(2, '0');
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 };
+// The formatted draft costs 1 credit per started audio minute plus 3 credits for formatting.
+const WORKER_DRAFT_FORMATTING_CREDITS = 3;
 const workerDraftCreditEstimate = (job, assignment) => {
   const finiteNonnegative = (value) => {
     const parsed = Number(value);
@@ -67,7 +69,7 @@ const workerDraftCreditEstimate = (job, assignment) => {
   const end = finiteNonnegative(assignment?.end_seconds ?? fallbackEnd);
   const seconds = Math.max(0, end - start);
   const audioMinutes = Math.max(1, Math.ceil(seconds / 60));
-  return { audioMinutes, totalCredits: audioMinutes + 1 };
+  return { audioMinutes, totalCredits: audioMinutes + WORKER_DRAFT_FORMATTING_CREDITS, formattingCredits: WORKER_DRAFT_FORMATTING_CREDITS };
 };
 
 const PAYOUT_STATUS_LABELS = { accruing: 'Accruing this half', invoiced: 'Pending payout', paid: 'Paid', all: 'All' };
@@ -960,7 +962,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       {mode === 'worker' && (
         <div className="tm-worker-policy-note" role="note">
           <strong>How hired work must be prepared:</strong>
-          <span>Once hired, generate an AI formatted draft for your assigned job; it uses credits equal to the assigned audio minutes plus 1 credit. Optional AI proofreading costs 5 credits. Edit the version you choose in Word, then paste it into the TypeMyworDz editor and submit. Keep the research notes and spellings section at the end of your work; the proofreader and admin need them to verify names. Do not attach documents unless a job is a TEMPLATE JOB or the admin requests one.</span>
+          <span>Once hired, generate an AI formatted draft for your assigned job; it costs 1 credit per started audio minute plus 3 credits for the formatting. Optional AI proofreading costs 5 credits. Edit the version you choose in Word, then paste it into the TypeMyworDz editor and submit. Keep the research notes and spellings section at the end of your work; the proofreader and admin need them to verify names. Do not attach documents unless a job is a TEMPLATE JOB or the admin requests one.</span>
         </div>
       )}
 
@@ -1337,7 +1339,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             {mode === 'worker' && workerAssignmentActive && selectedJob.job_type === 'letter_job' && <div className="tm-human-reference-card tm-letter-guidelines" role="note"><strong>Letter Job guidelines</strong><p>Use the standard Letter Standard Indentation template. Preserve the dictated wording and paragraph breaks, keep the required Date, Re:, and Dear : fields, remove undictated template content, and attach the finished .docx. Staff instructions must be bold in square brackets. The full job instructions and reference files remain available above.</p>{selectedJob.letter_guidelines && <details><summary>Read the complete Letter Agent guidelines</summary><pre>{selectedJob.letter_guidelines}</pre></details>}</div>}
             {mode === 'worker' && workerAssignmentActive && workerAssignment?.role !== 'proofreader' && selectedJob.job_type !== 'pdf_job' && selectedJob.job_type !== 'letter_job' && <div className="tm-human-reference-card" style={{ display: 'grid', gap: 8 }}>
               <strong>AI formatted draft for this audio</strong>
-              <span>Generate a formatted draft of {workerAssignment?.label ? workerAssignment.label.toLowerCase() : 'this audio'}, then copy it into Word or insert it into the editor. Your recording becomes available to play and download only after the draft is generated; if the draft fails, contact the admin. It costs {workerDraftEstimate.totalCredits} credits: {workerDraftEstimate.audioMinutes} per started audio minute (rounded up) plus 1 formatting credit. A successful proofreading costs 5 additional credits.</span>
+              <span>Generate a formatted draft of {workerAssignment?.label ? workerAssignment.label.toLowerCase() : 'this audio'}, then copy it into Word or insert it into the editor. Your recording becomes available to play and download only after the draft is generated; if the draft fails, contact the admin. It costs {workerDraftEstimate.totalCredits} credits: {workerDraftEstimate.audioMinutes} per started audio minute (rounded up) plus 3 formatting credits. The 3 formatting credits are charged on every formatted draft, whatever the length of the audio. A successful proofreading costs 5 additional credits.</span>
               {!(aiDraftLocal || selectedJob.ai_draft) && <div><button type="button" disabled={aiDraftBusy} onClick={requestAiDraft}>{aiDraftBusy ? 'Preparing your formatted draft…' : `Generate formatted draft · ${workerDraftEstimate.totalCredits} credits`}</button></div>}
               {(aiDraftLocal || selectedJob.ai_draft) && <>
                 <div className="tm-worker-ai-text-preview" style={{ whiteSpace: 'pre-wrap', tabSize: '0.5in', maxHeight: 280, overflow: 'auto', background: '#fafbfa', border: '1px solid #e5e9e5', borderRadius: 6, padding: 12, fontSize: 14, lineHeight: '100%' }}>{aiDraftLocal || selectedJob.ai_draft}</div>

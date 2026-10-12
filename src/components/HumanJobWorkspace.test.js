@@ -101,7 +101,7 @@ test('worker can proofread the draft for five credits and insert only the separa
   await screen.findByText('Part 2');
   fireEvent.click(screen.getByRole('button', { name: /Generate formatted draft/ }));
   expect(await screen.findByText(/First\.\s+Second\./)).toBeInTheDocument();
-  expect(screen.getByText(/costs 6 credits: 5 per started audio minute \(rounded up\) plus 1 formatting credit/)).toBeInTheDocument();
+  expect(screen.getByText(/costs 8 credits: 5 per started audio minute \(rounded up\) plus 3 formatting credits/)).toBeInTheDocument();
   expect(document.querySelector('.tm-worker-ai-text-preview')).toHaveStyle({ tabSize: '0.5in' });
   expect(screen.queryByText(/Claude Sonnet 5\.5|Claude Haiku 5\.5|Claude Haiku 4\.5|ChatGPT 5\.6 Terra|GPT-5\.6 Luna|Gemini 3\.5 Flash-Lite|Gemini 3\.8/)).not.toBeInTheDocument();
   expect(screen.getByText('Proofread this draft here before you start transcribing')).toBeInTheDocument();
