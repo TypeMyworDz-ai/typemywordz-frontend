@@ -14,6 +14,7 @@ import HumanJobWorkspace from './HumanJobWorkspace';
 import TraineeReviewDialog from './TraineeReviewDialog';
 import AdminAskPanel from './AdminAskPanel';
 import AdminModelRoutingPanel from './AdminModelRoutingPanel';
+import AdminHumanSttRoutingPanel from './AdminHumanSttRoutingPanel';
 import AdminGeneralGuidelinesPanel from './AdminGeneralGuidelinesPanel';
 import AdminProofreadingInstructionsPanel from './AdminProofreadingInstructionsPanel';
 import AdminRatingAgentPanel from './AdminRatingAgentPanel';
@@ -552,7 +553,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
 
         {activeTab === 'ask' && <AdminAskPanel currentUser={currentUser} showMessage={showMessage} />}
 
-        {activeTab === 'models' && isAdminEmail(currentUser?.email) && <AdminModelRoutingPanel currentUser={currentUser} showMessage={showMessage} />}
+        {activeTab === 'models' && isAdminEmail(currentUser?.email) && <><AdminModelRoutingPanel currentUser={currentUser} showMessage={showMessage} /><AdminHumanSttRoutingPanel currentUser={currentUser} showMessage={showMessage} /></>}
         {activeTab === 'generalguidelines' && isAdminEmail(currentUser?.email) && <AdminGeneralGuidelinesPanel currentUser={currentUser} showMessage={showMessage} />}
         {activeTab === 'proofreadinginstructions' && isAdminEmail(currentUser?.email) && <AdminProofreadingInstructionsPanel currentUser={currentUser} showMessage={showMessage} />}
         {activeTab === 'ratings' && isAdminEmail(currentUser?.email) && <AdminRatingAgentPanel currentUser={currentUser} showMessage={showMessage} />}

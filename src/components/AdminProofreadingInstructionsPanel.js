@@ -49,7 +49,7 @@ export default function AdminProofreadingInstructionsPanel({ currentUser, showMe
   };
 
   const clearAll = () => {
-    if (!window.confirm('Remove all of your added Proofreading Agent instructions? The agent keeps its built-in rules.')) return;
+    if (!window.confirm('Remove all saved Proofreading Agent instructions? The agent will then have no standing proofreading rules.')) return;
     save('', 'Added instructions removed. The agent uses its built-in rules only.');
   };
 
@@ -58,9 +58,7 @@ export default function AdminProofreadingInstructionsPanel({ currentUser, showMe
     <section className="tm-admin-panel" aria-labelledby="tm-proofreading-instructions-title">
       <h2 id="tm-proofreading-instructions-title" style={{ marginBottom: 4 }}>Proofreading Agent instructions</h2>
       <p style={{ color: '#5b665e', marginTop: 0, maxWidth: 700 }}>
-        The agent already follows a full set of built-in rules. Anything you write here is added to every Proofreading Agent run,
-        for audio, Text Messages and PDF jobs, and you can edit or add to it at any time. Instructions written inside a job win if they conflict.
-        Only the Super admin sees this page.
+        These are the Proofreading Agent's standing proofreading instructions for audio, Text Messages and PDF jobs. Other than the brief speech-transcript comparison note, it has no built-in proofreading rules. Instructions specific to a job are also supplied to the agent. Only the Super admin sees this page.
       </p>
       {loading ? <p role="status">Loading the instructions...</p> : loadError ? (
         <div role="alert" style={{ maxWidth: 700, padding: 16, border: '1px solid #e1c7b9', borderRadius: 10, background: '#fffaf6' }}>
