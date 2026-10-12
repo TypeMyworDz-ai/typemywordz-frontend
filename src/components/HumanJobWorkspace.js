@@ -962,7 +962,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       {mode === 'worker' && (
         <div className="tm-worker-policy-note" role="note">
           <strong>How hired work must be prepared:</strong>
-          <span>Once hired, generate an AI formatted draft for your assigned job; it costs 1 credit per started audio minute plus 3 credits for the formatting. Optional AI proofreading costs 5 credits. Edit the version you choose in Word, then paste it into the TypeMyworDz editor and submit. Keep the research notes and spellings section at the end of your work; the proofreader and admin need them to verify names. Do not attach documents unless a job is a TEMPLATE JOB or the admin requests one.</span>
+          <span>Once hired, generate an AI formatted draft for your assigned job; it costs 1 credit per started audio minute plus 3 credits for the formatting. Optional AI proofreading costs 5 credits. Edit the version you choose on the TypeMyworDz editor and play your audio with our 2-in-1 recorder/playback software, which can be downloaded here: <a href="/downloads/TypeMyworDz-Recorder.exe" download>TypeMyworDz Recorder (Windows, under 1 MB)</a>.</span>
         </div>
       )}
 
@@ -1393,7 +1393,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             {!(mode === 'worker' && workerTab === 'available') && (
             <div className="tm-human-editor-card">
               <div className="tm-human-editor-head"><div><strong>{selectedJob.job_type === 'pdf_job' ? 'Image transcription draft' : 'Shared proofreading editor'}</strong><span>{selectedJob.job_type === 'pdf_job' ? 'Enter your checked transcript here or attach your completed Word document.' : 'The same working area is used by the worker, admin and client.'}</span></div><div className="tm-human-editor-ad">Need a first draft or a quick answer? <button type="button" onClick={() => showMessage?.('Ask TypeMyworDz opens from the left navigation.', 'success')}>Use Ask TypeMyworDz</button></div></div>
-              {mode === 'worker' && workerAssignmentActive && selectedJob.job_type !== 'pdf_job' && <div className="tm-research-notes-warning" role="note"><strong>Keep your research notes.</strong> Do not delete the research notes at the end of your work when you submit. The proofreader and admin need them to check your spellings.</div>}
+              {mode === 'worker' && workerAssignmentActive && selectedJob.job_type !== 'pdf_job' && <div className="tm-research-notes-warning" role="note"><strong>Keep your research notes. Do not delete the research notes at the end of your work when you submit. The proofreader and admin need them to check your spellings. Also, ensure that tab indentation is applied to all paragraphs, unless requested otherwise, before submitting a job; failing to do so will affect your rating. The tab key is on top of your editor: click that and NEVER press the 'Tab' key on your keyboard. Do not attach documents unless a job is a TEMPLATE JOB or the admin requests one.</strong></div>}
               {mode === 'worker' && workerAssignmentActive ? (
                 <WordLikeEditor
                   key={draftAssignmentKey}
