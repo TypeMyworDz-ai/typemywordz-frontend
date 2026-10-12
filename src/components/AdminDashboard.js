@@ -279,6 +279,21 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
     } catch (error) { showMessage?.(error.message, 'error'); } finally { setTraineeLoading(false); }
   }, [currentUser, showMessage]);
 
+  const renameTrainee = async (trainee) => {
+    const next = window.prompt('Trainee full name', trainee.name || '');
+    if (next === null) return;
+    const name = next.trim();
+    if (name.length < 2 || name === trainee.name) return;
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${BACKEND_URL}/api/admin/trainees/${encodeURIComponent(trainee.uid || trainee.id)}/rename`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ name }) });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || 'The name could not be changed.');
+      showMessage?.(`Trainee renamed to ${payload.name || name}.`, 'success');
+      await loadTrainees();
+    } catch (error) { showMessage?.(error.message, 'error'); }
+  };
+
   const decideTrainee = async (uid, decision, extra = {}) => {
     setTraineeDecisionBusy(true);
     try {
@@ -552,7 +567,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
         {activeTab === 'trainees' && (
           <section className="tm-admin-panel tm-admin-table-panel">
             <div className="tm-admin-table-toolbar"><div><h2 className="tm-admin-panel-title">Trainees</h2><p className="tm-admin-panel-note">Trainees complete all six modules without per-level approval. Review their full answers and final audio transcript once the programme is submitted.</p></div><button type="button" className="tm-admin-btn" onClick={loadTrainees} disabled={traineeLoading}>{traineeLoading ? 'Refreshing…' : 'Refresh trainees'}</button></div>
-            <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Applicant</th><th>Application</th><th>Payment</th><th>Modules</th><th>Actions</th></tr></thead><tbody>{trainees.map((trainee) => <tr key={trainee.uid || trainee.id}><td><strong>{trainee.name || 'Unnamed applicant'}</strong><div className="tm-admin-name">{trainee.email || 'No email on file'}</div><div className="tm-admin-name">{trainee.country || 'Kenya'}{trainee.mpesaNumber ? ` · M-Pesa ${trainee.mpesaNumber}` : ''}</div></td><td>{String(trainee.traineeStatus || 'not started').replaceAll('_', ' ')}</td><td>{String(trainee.trainingPaymentStatus || 'not submitted').replaceAll('_', ' ')}<div className="tm-admin-name">{trainee.trainingPaymentReference || ''}</div></td><td>{trainee.trainingCompletedModules || 0} of 6 · {String(trainee.trainingStatus || 'not started').replaceAll('_', ' ')}</td><td>{trainee.trainingReviewReady || (trainee.trainingCompletedModules || 0) > 0 || trainee.traineeStatus === 'waitlisted' ? <button type="button" className="tm-admin-btn" onClick={() => setTraineeReview(trainee)}>{trainee.trainingReviewReady ? 'Review all modules' : 'View progress / invite redo'}</button> : <span className="tm-admin-small">In progress</span>}</td></tr>)}</tbody></table>{!trainees.length && <div className="tm-admin-empty">No trainee applications yet.</div>}</div>
+            <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Applicant</th><th>Application</th><th>Payment</th><th>Modules</th><th>Actions</th></tr></thead><tbody>{trainees.map((trainee) => <tr key={trainee.uid || trainee.id}><td><strong>{trainee.name || 'Unnamed applicant'}</strong><div className="tm-admin-name">{trainee.email || 'No email on file'}</div><div className="tm-admin-name">{trainee.country || 'Kenya'}{trainee.mpesaNumber ? ` · M-Pesa ${trainee.mpesaNumber}` : ''}</div></td><td>{String(trainee.traineeStatus || 'not started').replaceAll('_', ' ')}</td><td>{String(trainee.trainingPaymentStatus || 'not submitted').replaceAll('_', ' ')}<div className="tm-admin-name">{trainee.trainingPaymentReference || ''}</div></td><td>{trainee.trainingCompletedModules || 0} of 6 · {String(trainee.trainingStatus || 'not started').replaceAll('_', ' ')}</td><td>{trainee.trainingReviewReady || (trainee.trainingCompletedModules || 0) > 0 || trainee.traineeStatus === 'waitlisted' ? <button type="button" className="tm-admin-btn" onClick={() => setTraineeReview(trainee)}>{trainee.trainingReviewReady ? 'Review all modules' : 'View progress / invite redo'}</button> : <span className="tm-admin-small">In progress</span>}<div><button type="button" className="tm-admin-btn" onClick={() => renameTrainee(trainee)}>Edit name</button></div></td></tr>)}</tbody></table>{!trainees.length && <div className="tm-admin-empty">No trainee applications yet.</div>}</div>
           </section>
         )}
 
