@@ -61,7 +61,7 @@ export default function AdminModelRoutingPanel({ currentUser, showMessage }) {
     } catch (error) { showMessage?.(error.message, 'error'); } finally { setBusyKey(''); }
   };
 
-  const label = (id) => models.find((model) => model.id === id)?.label || id;
+  const label = (id, route) => (route?.available_models || models).find((model) => model.id === id)?.label || models.find((model) => model.id === id)?.label || id;
 
   return (
     <section className="tm-admin-panel" aria-labelledby="tm-model-routing-title">
@@ -80,13 +80,14 @@ export default function AdminModelRoutingPanel({ currentUser, showMessage }) {
         <div style={{ display: 'grid', gap: 14 }}>
           {routes.map((route) => {
             const current = draft[route.key] || [];
+            const availableModels = route.available_models || models;
             const dirty = !sameList(current, route.models);
             return (
               <article key={route.key} style={{ border: '1px solid #e1e6e2', borderRadius: 10, padding: 16, background: '#fff' }}>
                 <header style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
                   <strong>{route.label}</strong>
                   <span style={{ fontSize: 12, color: '#6b756e' }}>
-                    {route.customised ? 'Customised' : 'Default'} &middot; default: {route.default.map(label).join(' then ')}
+                    {route.customised ? 'Customised' : 'Default'} &middot; default: {route.default.map((id) => label(id, route)).join(' then ')}
                   </span>
                 </header>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
@@ -100,7 +101,7 @@ export default function AdminModelRoutingPanel({ currentUser, showMessage }) {
                         style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #cfd6d1' }}
                       >
                         {slot > 0 && <option value="">None</option>}
-                        {models.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
+                        {availableModels.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
                       </select>
                     </label>
                   ))}
