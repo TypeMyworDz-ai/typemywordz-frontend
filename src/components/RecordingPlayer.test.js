@@ -35,6 +35,8 @@ test('play, rewind and go-to-start buttons drive the audio element', () => {
   audio.currentTime = 30;
   fireEvent.click(screen.getByRole('button', { name: /Rewind 5s/ }));
   expect(audio.currentTime).toBe(25);
+  fireEvent.click(screen.getByRole('button', { name: /Forward 5s/ }));
+  expect(audio.currentTime).toBe(30);
   fireEvent.click(screen.getByRole('button', { name: /Go to 00:00:00/ }));
   expect(audio.currentTime).toBe(0);
 });
@@ -46,6 +48,18 @@ test('default keyboard shortcut toggles playback and custom ones are honoured', 
   expect(savePlayerShortcut('u1', 'playPause', { key: 'k', code: 'KeyK', ctrlKey: false, altKey: false, shiftKey: false, metaKey: false })).toBe(true);
   fireEvent.keyDown(window, { key: 'k', code: 'KeyK' });
   expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(2);
+});
+
+test('forward has a working default shortcut and can be customized', () => {
+  const { container } = render(<RecordingPlayer src="blob:x" durationHint={60} userId="u1" />);
+  const audio = container.querySelector('audio');
+  audio.currentTime = 10;
+  fireEvent.keyDown(window, { key: 'l', code: 'KeyL', altKey: true });
+  expect(audio.currentTime).toBe(15);
+  expect(savePlayerShortcut('u1', 'forward', { key: 'f', code: 'KeyF', ctrlKey: false, altKey: false, shiftKey: false, metaKey: false })).toBe(true);
+  audio.currentTime = 22;
+  fireEvent.keyDown(window, { key: 'f', code: 'KeyF' });
+  expect(audio.currentTime).toBe(27);
 });
 
 test('shortcut storage defaults and validation', () => {

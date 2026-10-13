@@ -6,11 +6,12 @@ import AdminModelRoutingPanel from './AdminModelRoutingPanel';
 const sharedModels = [
   { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', provider: 'gemini' },
   { id: 'gpt-5.6-terra', label: 'ChatGPT 5.6 Terra', provider: 'openai' },
+  { id: 'mistral-large-4', label: 'Mistral Large 4 (Preview)', provider: 'mistral' },
 ];
 const payload = {
   models: sharedModels,
   routes: [
-    { key: 'general', label: 'General Jobs agent (Super Admin)', default: ['gemini-3.8-flash', 'gpt-5.6-terra'], models: ['gemini-3.8-flash', 'gpt-5.6-terra'], customised: false, available_models: [...sharedModels, { id: 'mistral-large-4', label: 'Mistral Large 4 (Preview)', provider: 'mistral' }] },
+    { key: 'general', label: 'General Jobs agent (Super Admin)', default: ['gemini-3.8-flash', 'gpt-5.6-terra'], models: ['gemini-3.8-flash', 'gpt-5.6-terra'], customised: false, available_models: sharedModels },
     { key: 'general_subadmin', label: 'General Jobs agent (Sub-admins)', default: ['gpt-5.6-terra', 'gemini-3.8-flash'], models: ['gpt-5.6-terra', 'gemini-3.8-flash'], customised: false, available_models: sharedModels },
   ],
 };
@@ -29,7 +30,7 @@ test('shows each job type and saves a changed primary model', async () => {
   await waitFor(() => expect(calls.some(([method, body]) => method === 'PUT' && JSON.parse(body).key === 'general')).toBe(true));
 });
 
-test('offers Mistral Large 4 only for Super Admin General Jobs', async () => {
+test('offers Mistral Large 4 in both General Jobs routing cards', async () => {
   const calls = [];
   global.fetch = jest.fn((url, options = {}) => {
     calls.push([options.method || 'GET', options.body]);
@@ -38,11 +39,10 @@ test('offers Mistral Large 4 only for Super Admin General Jobs', async () => {
   render(<AdminModelRoutingPanel currentUser={{ getIdToken: () => Promise.resolve('t') }} showMessage={() => {}} />);
   await screen.findByText('General Jobs agent (Super Admin)');
   const selects = screen.getAllByRole('combobox');
-  const generalChoices = [...selects[0].options].map((option) => option.value);
-  const subAdminChoices = [...selects[3].options].map((option) => option.value);
-  expect(generalChoices).toContain('mistral-large-4');
-  expect(subAdminChoices).not.toContain('mistral-large-4');
-  expect(payload.models.some((model) => model.id === 'mistral-large-4')).toBe(false);
+  expect(selects).toHaveLength(6);
+  for (const select of selects) {
+    expect([...select.options].map((option) => option.value)).toContain('mistral-large-4');
+  }
   await userEvent.selectOptions(selects[0], 'mistral-large-4');
   await userEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]);
   await waitFor(() => {

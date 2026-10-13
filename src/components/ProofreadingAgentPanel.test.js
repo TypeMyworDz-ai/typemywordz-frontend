@@ -1,5 +1,6 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import * as transcriptExport from '../utils/transcriptExport';
 import FinalTranscriptView from './FinalTranscriptView';
 import { ProofreadingAgentPanel, ProofreadingPartsNotice, proofreadingPartsHidden, proofreadingAgentReady } from './ProofreadingAgentPanel';
 
@@ -24,6 +25,18 @@ test('button appears only once every part is submitted and starts the agent', ()
   rerender(<ProofreadingAgentPanel job={{ ...base, segments: parts(['submitted', 'submitted']) }} act={act} busy={false} />);
   fireEvent.click(screen.getByRole('button', { name: /Run Proofreading Agent/ }));
   expect(act).toHaveBeenCalledWith('/human-transcription/jobs/j1/proofreading-agent', expect.objectContaining({ method: 'POST' }), expect.any(String));
+});
+
+test('Copy to Word copies the submitted parts for a pre-proofreading backup', async () => {
+  const copy = jest.spyOn(transcriptExport, 'copyForWord').mockResolvedValue();
+  try {
+    render(<ProofreadingAgentPanel job={{ ...base, segments: parts(['submitted', 'submitted']) }} act={jest.fn()} busy={false} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copy to Word' }));
+    await waitFor(() => expect(copy).toHaveBeenCalledWith('secret text 0\n\nsecret text 1'));
+    expect(await screen.findByText('Copied to Word. Paste it into your document.')).toBeInTheDocument();
+  } finally {
+    copy.mockRestore();
+  }
 });
 
 test('progress bar shows while running and the text is shown once finished', () => {

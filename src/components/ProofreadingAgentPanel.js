@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { copyForWord, copyRich, nodeToWordHtml } from '../utils/transcriptExport';
 
 const box = { border: '1px solid #e1e6e2', borderRadius: 8, padding: '12px 14px', display: 'grid', gap: 10, background: '#fff' };
 const muted = { color: '#7b857d', fontSize: 12 };
@@ -53,6 +54,8 @@ export function ProofreadingPartsNotice({ job }) {
 export function ProofreadingAgentPanel({ job, act, busy, onDownloadCombined }) {
   const [starting, setStarting] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [copyingToWord, setCopyingToWord] = useState(false);
+  const [copyNotice, setCopyNotice] = useState('');
   const [now, setNow] = useState(Date.now());
   const [note, setNote] = useState('');
   const run = job?.proofreading_run || {};
@@ -62,8 +65,20 @@ export function ProofreadingAgentPanel({ job, act, busy, onDownloadCombined }) {
   const failed = !running && run.status === 'failed' ? (run.error || 'The Proofreading Agent could not finish.') : '';
   const percent = Math.max(2, Math.min(100, Number(run.progress) || 2));
   const elapsed = startedMs ? Math.max(0, Math.round((now - startedMs) / 1000)) : 0;
+  const scope = proofreadingAgentScope(job);
   const ready = proofreadingAgentReady(job);
   const done = Boolean(job?.proofreading_agent_completedAt);
+  const segments = Array.isArray(job?.segments) ? job.segments : [];
+  const imagePages = Array.isArray(job?.pdf_review?.page_texts) ? job.pdf_review.page_texts : [];
+  const pageText = (page) => typeof page === 'string' ? page : String(page?.text || page?.plain_text || '');
+  const submittedPartsText = scope === 'image'
+    ? imagePages.map(pageText).filter((text) => text.trim()).join('\n\n')
+    : segments.length
+      ? segments.filter((part) => part?.status === 'submitted' && String(part?.transcript || '').trim()).map((part) => String(part.transcript)).join('\n\n')
+      : String(job?.transcript || '');
+  const copyText = done
+    ? String(job?.ai_review?.combined_text || job?.transcript || '')
+    : (submittedPartsText || String(job?.transcript || ''));
   const review = job?.ai_review?.agent === 'proofreading_agent' ? job.ai_review : null;
   const wasRunning = useRef(false);
 
@@ -105,6 +120,27 @@ export function ProofreadingAgentPanel({ job, act, busy, onDownloadCombined }) {
     try { await onDownloadCombined(job); } finally { setDownloading(false); }
   };
 
+  const copyToWord = async () => {
+    if (copyingToWord || !copyText.trim()) return;
+    setCopyingToWord(true);
+    setCopyNotice('');
+    try {
+      const html = done ? String(job?.ai_review?.combined_html || '') : '';
+      if (html.trim()) {
+        const holder = document.createElement('div');
+        holder.innerHTML = html;
+        await copyRich(nodeToWordHtml(holder), copyText);
+      } else {
+        await copyForWord(copyText);
+      }
+      setCopyNotice('Copied to Word. Paste it into your document.');
+    } catch {
+      setCopyNotice('Copying was blocked by your browser. Use Download all parts (Word) instead.');
+    } finally {
+      setCopyingToWord(false);
+    }
+  };
+
   return (
     <div className="tm-human-assign" style={box} data-testid="proofreading-agent-panel">
       <div>
@@ -121,6 +157,11 @@ export function ProofreadingAgentPanel({ job, act, busy, onDownloadCombined }) {
             {downloading ? 'Preparing Word file...' : 'Download all parts (Word)'}
           </button>
         )}
+        {(ready || done) && (
+          <button type="button" className="tm-admin-btn" disabled={copyingToWord || !copyText.trim()} aria-busy={copyingToWord} onClick={copyToWord} title={done ? 'Copy the client-ready transcript with Word formatting' : 'Copy the submitted parts with Word formatting'}>
+            {copyingToWord ? 'Copying...' : 'Copy to Word'}
+          </button>
+        )}
         {running && <span role="status" style={{ ...muted, color: '#4b2a8a' }}>{run.stage || 'Starting'} ({elapsed}s). It keeps running if you leave or reload this page.</span>}
       </div>
       {running && (
@@ -130,6 +171,7 @@ export function ProofreadingAgentPanel({ job, act, busy, onDownloadCombined }) {
       )}
       {failed && <div role="alert" style={{ color: '#9a2b2b', fontSize: 13 }}>{failed} Nothing was changed. You can try again.</div>}
       {note && !running && <span role="status" style={{ ...muted, color: '#267b40' }}>{note}</span>}
+      {copyNotice && <span role="status" style={{ ...muted, color: copyNotice.startsWith('Copied') ? '#267b40' : '#9a2b2b' }}>{copyNotice}</span>}
       {review && !running && (review.changes || []).length > 0 && (
         <details>
           <summary style={{ cursor: 'pointer', fontSize: 13 }}>What the agent corrected ({review.changes.length})</summary>
