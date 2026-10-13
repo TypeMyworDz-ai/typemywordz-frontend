@@ -5,12 +5,14 @@ import { formatRecorderShortcut, isReservedRecorderShortcut, isModifierOnlyKey }
 export const PLAYER_ACTIONS = Object.freeze([
   { id: 'playPause', label: 'Play / pause' },
   { id: 'rewind', label: 'Rewind 5 seconds' },
+  { id: 'forward', label: 'Forward 5 seconds' },
   { id: 'restart', label: 'Go to the start (00:00:00)' },
 ]);
 
 export const DEFAULT_PLAYER_SHORTCUTS = Object.freeze({
   playPause: Object.freeze({ key: 'p', code: 'KeyP', ctrlKey: false, altKey: true, shiftKey: false, metaKey: false }),
   rewind: Object.freeze({ key: 'j', code: 'KeyJ', ctrlKey: false, altKey: true, shiftKey: false, metaKey: false }),
+  forward: Object.freeze({ key: 'l', code: 'KeyL', ctrlKey: false, altKey: true, shiftKey: false, metaKey: false }),
   restart: Object.freeze({ key: '0', code: 'Digit0', ctrlKey: false, altKey: true, shiftKey: false, metaKey: false }),
 });
 

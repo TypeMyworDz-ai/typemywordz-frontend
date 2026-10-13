@@ -266,6 +266,7 @@ function AppContent() {
   };
   // State declarations
   const [selectedFile, setSelectedFile] = useState(null);
+  const [isAudioDragOver, setIsAudioDragOver] = useState(false);
   // Keep the last valid admin microphone recording available to compatible
   // Human Work upload panels while the app stays open. It is owned by the
   // admin UID and never exposed to another signed-in account.
@@ -3269,13 +3270,50 @@ return (
                     Or upload a file
                   </h3>
                   
-                  <div style={{
-                    border: '1px dashed #ccced4',
-                    borderRadius: '10px',
-                    padding: '22px',
-                    marginBottom: '20px',
-                    backgroundColor: '#fafafb'
-                  }}>
+                  <div
+                    role="group"
+                    aria-label="Audio or video file upload"
+                    onDragEnter={(event) => {
+                      if (!Array.from(event.dataTransfer?.types || []).includes('Files')) return;
+                      event.preventDefault();
+                      setIsAudioDragOver(true);
+                    }}
+                    onDragOver={(event) => {
+                      if (!Array.from(event.dataTransfer?.types || []).includes('Files')) return;
+                      event.preventDefault();
+                      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+                      setIsAudioDragOver(true);
+                    }}
+                    onDragLeave={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget)) setIsAudioDragOver(false);
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      setIsAudioDragOver(false);
+                      const file = event.dataTransfer?.files?.[0];
+                      if (!file) return;
+                      if (isRecording) {
+                        showMessage('Stop the current recording before loading another file.', 'error');
+                        return;
+                      }
+                      if (isUploading) {
+                        showMessage('Wait for the current transcription to finish before loading another file.', 'error');
+                        return;
+                      }
+                      handleFileSelect({ target: { files: [file] } });
+                    }}
+                    style={{
+                      border: isAudioDragOver ? '2px dashed #43835d' : '1px dashed #ccced4',
+                      borderRadius: '10px',
+                      padding: '22px',
+                      marginBottom: '20px',
+                      backgroundColor: isAudioDragOver ? '#eff7f1' : '#fafafb',
+                      transition: 'background-color 140ms ease, border-color 140ms ease'
+                    }}
+                  >
+                    <p aria-live="polite" style={{ margin: '0 0 10px', color: isAudioDragOver ? '#264d37' : '#6b6d76', fontSize: '13px' }}>
+                      {isAudioDragOver ? 'Release to load your audio or video file' : 'Drag an audio or video file here, or choose one below.'}
+                    </p>
                     <input
                       className="tm-file"
                       type="file"
