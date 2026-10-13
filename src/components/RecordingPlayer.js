@@ -3,7 +3,6 @@ import { matchesPlayerShortcut, readPlayerShortcuts, formatPlayerShortcut } from
 import './RecordingPlayer.css';
 
 export const REWIND_SECONDS = 5;
-export const FORWARD_SECONDS = 5;
 export const MIN_SPEED = 0.5;
 export const MAX_SPEED = 3;
 
@@ -60,20 +59,8 @@ export default function RecordingPlayer({ src, durationHint = 0, userId = '' }) 
 
   const rewind = useCallback(() => {
     const audio = audioRef.current;
-    if (audio) {
-      audio.currentTime = Math.max(0, (audio.currentTime || 0) - REWIND_SECONDS);
-      setCurrent(audio.currentTime);
-    }
+    if (audio) audio.currentTime = Math.max(0, (audio.currentTime || 0) - REWIND_SECONDS);
   }, []);
-
-  const forward = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const target = (audio.currentTime || 0) + FORWARD_SECONDS;
-    const knownDuration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : duration;
-    audio.currentTime = knownDuration > 0 ? Math.min(knownDuration, target) : target;
-    setCurrent(audio.currentTime);
-  }, [duration]);
 
   const restart = useCallback(() => {
     const audio = audioRef.current;
@@ -86,7 +73,7 @@ export default function RecordingPlayer({ src, durationHint = 0, userId = '' }) 
     const onKey = (event) => {
       if (inTextField(event.target)) return;
       const keys = readPlayerShortcuts(userId);
-      const handlers = { playPause: togglePlay, rewind, forward, restart };
+      const handlers = { playPause: togglePlay, rewind, restart };
       const action = Object.keys(handlers).find((id) => matchesPlayerShortcut(event, keys[id]));
       if (!action) return;
       event.preventDefault();
@@ -94,7 +81,7 @@ export default function RecordingPlayer({ src, durationHint = 0, userId = '' }) 
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [userId, togglePlay, rewind, forward, restart]);
+  }, [userId, togglePlay, rewind, restart]);
 
   const onMeta = () => {
     const audio = audioRef.current;
@@ -130,9 +117,6 @@ export default function RecordingPlayer({ src, durationHint = 0, userId = '' }) 
         <button type="button" className="tm-rp-btn" onClick={rewind} title={`Rewind ${REWIND_SECONDS} seconds (${formatPlayerShortcut(shortcuts.rewind)})`}>
           Rewind {REWIND_SECONDS}s
         </button>
-        <button type="button" className="tm-rp-btn" onClick={forward} title={`Forward ${FORWARD_SECONDS} seconds (${formatPlayerShortcut(shortcuts.forward)})`}>
-          Forward {FORWARD_SECONDS}s
-        </button>
         <button type="button" className="tm-rp-btn" onClick={restart} title={`Go to the start (${formatPlayerShortcut(shortcuts.restart)})`}>
           Go to 00:00:00
         </button>
@@ -159,7 +143,7 @@ export default function RecordingPlayer({ src, durationHint = 0, userId = '' }) 
         </label>
       </div>
       <p className="tm-rp-hint">
-        Shortcuts: {formatPlayerShortcut(shortcuts.playPause)} play or pause, {formatPlayerShortcut(shortcuts.rewind)} rewind, {formatPlayerShortcut(shortcuts.forward)} forward, {formatPlayerShortcut(shortcuts.restart)} back to the start. You can change them in Settings.
+        Shortcuts: {formatPlayerShortcut(shortcuts.playPause)} play or pause, {formatPlayerShortcut(shortcuts.rewind)} rewind, {formatPlayerShortcut(shortcuts.restart)} back to the start. You can change them in Settings.
       </p>
     </div>
   );
