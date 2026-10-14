@@ -7,6 +7,7 @@ import JobAudioRecorder from './JobAudioRecorder';
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 const ADMIN_EMAILS = new Set(['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com']);
 const DEFAULT_ADMIN_NOTE = 'Client provided spellings: None\n\nClient Word List: None\n\nHint names from the Filename: None:\n\nOther instructions: None';
+const MAX_JOB_INSTRUCTION_CHARACTERS = 30000;
 const uploadedLabel = (file) => (file?.name ? `"${file.name}"` : 'your job');
 
 export default function AdminAudioJobsPanel({ category = 'general', showMessage, onOpenQueue, recordedAudioFile = null, onRecordedAudioReady }) {
@@ -59,11 +60,12 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
 
   const maxReferences = templateJob ? 5 : 6;
   const referencesValid = references.length <= maxReferences;
+  const instructionsWithinLimit = instructions.length <= MAX_JOB_INSTRUCTION_CHARACTERS;
   const templateFilePresent = !templateJob || Boolean(templateFile && /\.docx$/i.test(templateFile.name));
 
   const createJob = async (event) => {
     event.preventDefault();
-    if (!workingFile || uploading || !Number(minutes) || !templateFilePresent || !referencesValid) return;
+    if (!workingFile || uploading || !Number(minutes) || !templateFilePresent || !referencesValid || !instructionsWithinLimit) return;
     setUploading(true);
     setResult(null);
     const uploadedName = title.trim() || workingFile.name;
@@ -131,7 +133,7 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
           <label><span>Job name</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Optional · defaults to the filename" maxLength={180} /></label>
           <label><span>Recording length (minutes)</span><input type="number" min="0.01" step="0.01" value={minutes} onChange={(event) => setMinutes(event.target.value)} required /></label>
           <p className="tm-admin-audio-duration" role="status">{durationNote}</p>
-          <label className="tm-admin-audio-wide"><span>Admin notes and special instructions</span><textarea rows={4} maxLength={12000} value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder="Optional instructions that apply to this recording. The job type's hardcoded rules remain in force." /></label>
+          <label className="tm-admin-audio-wide"><span>Admin notes and special instructions</span><textarea aria-label="Admin notes and special instructions" rows={4} maxLength={MAX_JOB_INSTRUCTION_CHARACTERS} value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder="Optional instructions that apply to this recording. The job type's hardcoded rules remain in force." /><small role="status" aria-live="polite">{instructions.length.toLocaleString()} / {MAX_JOB_INSTRUCTION_CHARACTERS.toLocaleString()} characters. Attach longer reference material below.</small></label>
           {templateJob && <label className="tm-admin-audio-wide"><span>Job-specific Word template (.docx)</span><input key={templateFileKey} type="file" aria-label="Job-specific Word template" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required onChange={(event) => setTemplateFile(event.target.files?.[0] || null)} />
             <small>Choose the one paragraph-based template the Template Agent must format into.</small>
             {templateFile && <ul className="tm-admin-audio-file-list"><li><span>{templateFile.name}</span><button type="button" aria-label={`Remove ${templateFile.name}`} onClick={() => { setTemplateFile(null); setTemplateFileKey((value) => value + 1); }}>Remove</button></li></ul>}
@@ -143,7 +145,7 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
             {!referencesValid && <small className="tm-admin-audio-error" role="alert">Attach no more than {maxReferences} supporting files.</small>}
           </label>
         </div>
-        <footer className="tm-admin-audio-form-footer"><span>{templateJob ? 'Template Agent: GPT-5.6 Sol, with Claude Opus 5.5 fallback.' : 'General Agent: GPT-5.6 Luna, with DeepSeek V4 Flash fallback.'}</span><button type="submit" disabled={uploading || !workingFile || !Number(minutes) || !templateFilePresent || !referencesValid}>{uploading ? 'Uploading securely…' : `Create ${templateJob ? 'Template' : 'General'} Job`}</button></footer>
+        <footer className="tm-admin-audio-form-footer"><span>{templateJob ? 'Template Agent: GPT-5.6 Sol, with Claude Opus 5.5 fallback.' : 'General Agent: GPT-5.6 Luna, with DeepSeek V4 Flash fallback.'}</span><button type="submit" disabled={uploading || !workingFile || !Number(minutes) || !templateFilePresent || !referencesValid || !instructionsWithinLimit}>{uploading ? 'Uploading securely…' : `Create ${templateJob ? 'Template' : 'General'} Job`}</button></footer>
       </form>
     </section>
   );
