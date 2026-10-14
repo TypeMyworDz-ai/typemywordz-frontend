@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import WorkerTermsGate from './components/WorkerTermsGate';
 import './App.css';
 import './styles/theme.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -2494,6 +2495,12 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         <Route path="*" element={<Landing />} />
       </Routes>
     );
+  }
+
+  // A newly promoted (or reinstated) worker must accept the worker terms
+  // before the Work Room opens.
+  if (['pending', 'declined'].includes(userProfile?.workerTermsStatus) && !isAdmin) {
+    return <WorkerTermsGate userProfile={userProfile} currentUser={currentUser} refreshUserProfile={refreshUserProfile} showMessage={showMessage} onLogout={logout} />;
   }
 
   // A failed trainee checkout must never fall through to the ordinary client
