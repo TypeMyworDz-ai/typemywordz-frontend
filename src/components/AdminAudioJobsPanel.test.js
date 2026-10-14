@@ -134,6 +134,15 @@ test('Stop recording attaches the new audio to the General Job upload form', asy
   }
 });
 
+test('allows very long Human Work instructions with an informational counter only', async () => {
+  render(<AdminAudioJobsPanel category="general" />);
+  const instructions = await screen.findByRole('textbox', { name: 'Admin notes and special instructions' });
+  expect(instructions).not.toHaveAttribute('maxLength');
+  fireEvent.change(instructions, { target: { value: 'x'.repeat(100000) } });
+  expect(instructions).toHaveValue('x'.repeat(100000));
+  expect(screen.getByText('100,000 characters. No character limit.')).toBeInTheDocument();
+});
+
 test('uses the requested four-section instructions default', async () => {
   render(<AdminAudioJobsPanel category="general" />);
   expect(await screen.findByLabelText('Admin notes and special instructions')).toHaveValue('Client provided spellings: None\n\nClient Word List: None\n\nHint names from the Filename: None:\n\nOther instructions: None');
