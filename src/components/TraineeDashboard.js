@@ -258,6 +258,7 @@ export default function TraineeDashboard({ onBack, onOpenWork, showMessage }) {
   };
 
   if (!data) return <section className="tm-human-page"><p>Loading Training Room…</p></section>;
+  if (data.terms_declined) return <section className="tm-human-page"><div className="tm-human-card" role="status"><h1>You declined the worker terms</h1><p>Your account stays at trainee status and is scheduled for deletion{data.deletion_scheduled_at ? ` on ${new Date(data.deletion_scheduled_at).toLocaleDateString()}` : ' within 3 days'}. Contact an admin if this was a mistake.</p></div></section>;
   if (waitlisted) return <section className="tm-human-page tm-training-room"><button type="button" className="tm-human-back" onClick={onBack}>Back to workspace</button><div className="tm-human-card tm-training-review-pending" role="status"><p className="tm-human-eyebrow">Training complete</p><h1>You completed the training successfully</h1><p>Thank you for the effort you put in. There is no open position right now, so we have kept you on our waitlist. When work opens up, we will contact you first by email and in your notifications.</p></div></section>;
   if (!enrolled && !worker) return <section className="tm-human-page"><button type="button" className="tm-human-back" onClick={onBack}>Back to workspace</button><div className="tm-human-card"><h1>Training Room is locked</h1><p>Complete the training enrollment first. Your registration can remain pending until checkout is completed.</p></div></section>;
 
