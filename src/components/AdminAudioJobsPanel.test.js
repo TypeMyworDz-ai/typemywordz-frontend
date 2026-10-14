@@ -134,12 +134,13 @@ test('Stop recording attaches the new audio to the General Job upload form', asy
   }
 });
 
-test('shows the Human Work instruction limit and a live character counter', async () => {
+test('allows very long Human Work instructions with an informational counter only', async () => {
   render(<AdminAudioJobsPanel category="general" />);
   const instructions = await screen.findByRole('textbox', { name: 'Admin notes and special instructions' });
-  expect(instructions).toHaveAttribute('maxLength', '30000');
-  fireEvent.change(instructions, { target: { value: 'x'.repeat(12345) } });
-  expect(screen.getByText('12,345 / 30,000 characters. Attach longer reference material below.')).toBeInTheDocument();
+  expect(instructions).not.toHaveAttribute('maxLength');
+  fireEvent.change(instructions, { target: { value: 'x'.repeat(100000) } });
+  expect(instructions).toHaveValue('x'.repeat(100000));
+  expect(screen.getByText('100,000 characters. No character limit.')).toBeInTheDocument();
 });
 
 test('uses the requested four-section instructions default', async () => {
