@@ -396,7 +396,7 @@ test('Human Work sub-admin sees only their own payment tab and shift reminder', 
   expect(await screen.findByRole('heading', { name: 'Human Work Queue' })).toBeInTheDocument();
   expect(screen.getByText(/Keep all shift work inside the TypeMyworDz system/)).toBeInTheDocument();
   const paymentsTab = screen.getByRole('tab', { name: 'My payments · KES' });
-  expect(screen.queryByRole('tab', { name: 'Shift attendance' })).not.toBeInTheDocument();
+  expect(screen.getByRole('tab', { name: 'Shift attendance' })).toBeInTheDocument();
   expect(screen.queryByRole('tab', { name: 'Sub-admin payments' })).not.toBeInTheDocument();
   expect(screen.queryByRole('tab', { name: 'Worker payments · KES' })).not.toBeInTheDocument();
   fireEvent.click(paymentsTab);

@@ -121,6 +121,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [adminScheduledNow, setAdminScheduledNow] = useState(null);
   const [selectedId, setSelectedId] = useState('');
   const [messages, setMessages] = useState([]);
+  const [conversationClosed, setConversationClosed] = useState(false);
   const [messageText, setMessageText] = useState('');
   const [messageFile, setMessageFile] = useState(null);
   const [finalAttachment, setFinalAttachment] = useState(null);
@@ -167,7 +168,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   busyRef.current = busy;
   const adminEmail = (currentUser?.email || '').trim().toLowerCase();
   const isMainAdmin = isAdminEmail(adminEmail);
-  const isHumanSubadmin = mode === 'admin' && !isMainAdmin && restricted && ['gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com'].includes(adminEmail);
+  const isHumanSubadmin = mode === 'admin' && !isMainAdmin && restricted && ['info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com'].includes(adminEmail);
   const canManagePdfJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com'].includes(adminEmail);
   const canManageLetterJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com'].includes(adminEmail);
   const canAssignAiAgents = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com'].includes(adminEmail);
@@ -355,6 +356,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       const query = mode === 'admin' ? '?thread=worker' : '';
       const payload = await request(`/human-transcription/jobs/${selectedJob.id}/messages${query}`);
       setMessages(payload.messages || []);
+      setConversationClosed(payload.closed === true);
     } catch (error) {
       // A quiet refresh failure should not interrupt editing.
       console.warn('Human chat refresh failed:', error);
@@ -955,7 +957,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           </div>
           <div className="tm-worker-rating-copy">
             <span>{workerRatingSummary.count ? `${workerRatingSummary.count} rating${workerRatingSummary.count === 1 ? '' : 's'} submitted` : 'No ratings submitted yet'}</span>
-            <small>{workerRatingSummary.count ? 'Ratings reflect completed jobs or periodic reviews. A 3.5/5 average is required to see Available Jobs.' : 'An admin must assign your supervised starter assessment. A 3.5/5 average is required before the public job board opens.'}</small>
+            <small>{workerRatingSummary.count ? 'Ratings reflect completed jobs or periodic reviews. A 3.5/5 average is required to see Available Jobs.' : 'Complete 3 starter jobs assigned by an admin. You are rated after the third, and a 3.5/5 average opens the public job board.'}</small>
           </div>
         </div>
       )}
@@ -984,7 +986,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           {canManagePdfJobs && <button type="button" role="tab" aria-selected={adminTab === 'text_messages'} className={adminTab === 'text_messages' ? 'active' : ''} onClick={() => setAdminTab('text_messages')}>Text Messages</button>}
           {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'template_jobs'} className={adminTab === 'template_jobs' ? 'active' : ''} onClick={() => setAdminTab('template_jobs')}>Template Jobs</button>}
           {canManagePdfJobs && <button type="button" role="tab" aria-selected={adminTab === 'pdf_jobs'} className={adminTab === 'pdf_jobs' ? 'active' : ''} onClick={() => setAdminTab('pdf_jobs')}>PDF Jobs</button>}
-          {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'shifts'} className={adminTab === 'shifts' ? 'active' : ''} onClick={() => setAdminTab('shifts')}>Shift attendance</button>}
+          {(isMainAdmin || isHumanSubadmin) && <button type="button" role="tab" aria-selected={adminTab === 'shifts'} className={adminTab === 'shifts' ? 'active' : ''} onClick={() => setAdminTab('shifts')}>Shift attendance</button>}
           {isHumanSubadmin && <button type="button" role="tab" aria-selected={adminTab === 'my_subadmin_payments'} className={adminTab === 'my_subadmin_payments' ? 'active' : ''} onClick={() => setAdminTab('my_subadmin_payments')}>My payments · KES</button>}
           {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'worker_payments'} className={adminTab === 'worker_payments' ? 'active' : ''} onClick={() => setAdminTab('worker_payments')}>Worker payments · KES</button>}
           {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'rates'} className={adminTab === 'rates' ? 'active' : ''} onClick={() => setAdminTab('rates')}>Worker rates</button>}
@@ -1004,7 +1006,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <AdminAudioJobsPanel category="template" onRecordedAudioReady={onRecordedAudioReady} recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={(job) => { setAdminQueueType('template_job'); setAdminQueueLane(adminQueueLaneFor(job)); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'letter_jobs' && canManageLetterJobs ? (
         <LetterJobsAdminPanel onRecordedAudioReady={onRecordedAudioReady} recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('letter_job'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
-      ) : mode === 'admin' && adminTab === 'shifts' && isMainAdmin ? (
+      ) : mode === 'admin' && adminTab === 'shifts' && (isMainAdmin || isHumanSubadmin) ? (
         <AdminShiftAttendancePanel showMessage={showMessage} />
       ) : mode === 'admin' && adminTab === 'my_subadmin_payments' && isHumanSubadmin ? (
         <SubadminSelfPaymentPanel request={request} showMessage={showMessage} />
@@ -1286,11 +1288,11 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <label>Supervised starter assessment
                 <select value={starterWorker} onChange={(event) => setStarterWorker(event.target.value)}>
                   <option value="">Choose an unrated or below-threshold worker</option>
-                  {adminAssignableWorkers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}
+                  {adminAssignableWorkers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.rating == null ? `starter jobs ${Math.min(worker.submitted_jobs || 0, worker.starter_jobs_required || 3)}/${worker.starter_jobs_required || 3}` : `${Number(worker.rating).toFixed(1)}/5`} · {worker.email}</option>)}
                 </select>
               </label>
               <button type="button" disabled={busy || !starterWorker} onClick={assignSupervisedStarter}>Assign supervised starter</button>
-              <p className="tm-tat-hint">Use this admin-supervised exception to assess a new hire or review a worker below 3.5. The public claim board remains restricted.</p>
+              <p className="tm-tat-hint">A new worker completes 3 supervised starter jobs. Assign them one at a time; the Rating Agent rates them after the third, and a 3.5/5 rating opens the public claim board.</p>
             </div>}
 
             {mode === 'admin' && splitJob && (selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status)) && (
@@ -1306,11 +1308,11 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 <label>Worker
                   <select value={starterWorker} onChange={(event) => setStarterWorker(event.target.value)}>
                     <option value="">Choose an unrated or below-threshold worker</option>
-                    {adminAssignableWorkers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}
+                    {adminAssignableWorkers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.rating == null ? `starter jobs ${Math.min(worker.submitted_jobs || 0, worker.starter_jobs_required || 3)}/${worker.starter_jobs_required || 3}` : `${Number(worker.rating).toFixed(1)}/5`} · {worker.email}</option>)}
                   </select>
                 </label>
                 <button type="button" disabled={busy || !starterWorker || !starterSegment} onClick={assignSupervisedStarter}>Assign supervised starter part</button>
-                <p className="tm-tat-hint">Use this admin-supervised exception to assess a new hire or review a worker below 3.5. Rated workers should use the public claim board.</p>
+                <p className="tm-tat-hint">A new worker completes 3 supervised starter jobs. Assign them one at a time; the Rating Agent rates them after the third. Rated workers should use the public claim board.</p>
               </div>
             )}
 
@@ -1438,14 +1440,14 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               ) : <>
                 <div className="tm-human-messages">{messages.map((item) => {
                   const isMine = item.sender_uid === currentUser?.uid;
-                  const label = item.sender_role === 'admin' ? 'TypeMyworDz admin' : isMine ? 'You' : 'Assigned worker';
+                  const label = item.sender_role === 'admin' ? 'TypeMyworDz admin' : isMine ? 'You' : (item.sender_name || 'Assigned worker');
                   return <article key={item.id} className="tm-human-message"><div><strong>{label}</strong><time>{moneylessDate(item.createdAt)}</time></div>{isMine && <span className={`tm-human-message-receipt${item.read_by_role ? ' is-read' : ''}`}>{item.read_by_role ? `Read by ${item.read_by_role}` : 'Not read yet'}</span>}{item.message && <p>{item.message}</p>}{item.attachment && <button type="button" className="tm-human-attachment-link" onClick={() => downloadAttachment(item)}>Download: {item.attachment.name}</button>}</article>;
                 })}{!messages.length && <div className="tm-human-empty">No messages yet. Use this thread for job details between admins and assigned workers.</div>}</div>
-                <form className="tm-human-message-form" onSubmit={sendMessage}>
+                {conversationClosed ? <div className="tm-human-empty" role="status">This job has moved to Submitted, so the conversation is closed. Earlier messages stay visible above.</div> : <form className="tm-human-message-form" onSubmit={sendMessage}>
                   <textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} onKeyDown={handleMessageKeyDown} placeholder={mode === 'admin' ? 'Write to the assigned worker or workers' : 'Write to the TypeMyworDz admin team'} rows={2} aria-label="Job conversation message" />
                   {messageFile && <div className="tm-human-attachment-preview" role="status" aria-live="polite"><span><strong>Attached:</strong> {messageFile.name}{formatAttachmentSize(messageFile.size) ? ` · ${formatAttachmentSize(messageFile.size)}` : ''}</span><button type="button" onClick={() => setMessageFile(null)} aria-label={`Remove ${messageFile.name}`}>Remove</button></div>}
                   <div className="tm-human-message-actions"><label className="tm-human-attach" title="Attach any file" aria-label="Attach any file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 3.5h8l3 3V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M15 3.5V7h3M9 11h6M9 15h6"/></svg><input type="file" onChange={(event) => setMessageFile(event.target.files?.[0] || null)} /></label><span className="tm-human-message-hint">Enter to send · Shift+Enter for a new line</span><button type="submit" disabled={busy || (!messageText.trim() && !messageFile)}>Send</button></div>
-                </form>
+                </form>}
               </>}
             </div>}
           </>}
