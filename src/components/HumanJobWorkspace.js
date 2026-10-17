@@ -868,6 +868,33 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     } catch (error) { showMessage?.(error.message, 'error'); } finally { setAiProofreadBusy(false); }
   };
 
+  const workerExtendOwnDeadline = async () => {
+    const minutes = Number(workerAssignment?.worker_extension_minutes_available || 0);
+    if (!minutes || !window.confirm(`Extend this part's deadline by ${minutes} minutes? You can only do this once for this part.`)) return;
+    await act(`/human-transcription/jobs/${selectedJob.id}/worker-extend-tat`, { method: 'POST' }, `Deadline extended by ${minutes} minutes.`);
+  };
+  const [finishedSelection, setFinishedSelection] = useState(() => new Set());
+  const finishedBulkVisible = mode === 'admin' && isMainAdmin && adminTab === 'queue' && adminQueueLane === 'finished';
+  const toggleFinishedJob = (jobId) => setFinishedSelection((previous) => {
+    const next = new Set(previous);
+    if (next.has(jobId)) next.delete(jobId); else next.add(jobId);
+    return next;
+  });
+  const deleteFinishedJobs = async (ids) => {
+    if (!ids.length) return;
+    if (!window.confirm(`Permanently delete ${ids.length} finished job${ids.length === 1 ? '' : 's'} with their files and messages? Worker earnings and payment history are kept. This cannot be undone.`)) return;
+    setBusy(true);
+    try {
+      const payload = await request('/api/admin/human-jobs/delete-finished', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_ids: ids }),
+      });
+      setFinishedSelection(new Set());
+      await loadJobs();
+      showMessage?.(`${payload.deleted_count || 0} finished job${payload.deleted_count === 1 ? '' : 's'} deleted.${payload.failure_count ? ` ${payload.failure_count} could not be deleted.` : ''}`, payload.failure_count ? 'error' : 'success');
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+    } finally { setBusy(false); }
+  };
   const extendTat = (segmentId = '', target = '') => act(`/human-transcription/jobs/${selectedJob.id}/extend-tat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minutes: Number(extensionMinutes), segment_id: segmentId, target }) });
 
   const takeBackAssignment = async (role = 'transcriber', segmentId = '') => {
@@ -1069,8 +1096,19 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       <div className="tm-human-workspace-grid">
         <aside className="tm-human-job-list">
           <div className="tm-human-list-head"><strong>{jobsForCurrentView.length} job{jobsForCurrentView.length === 1 ? '' : 's'}</strong><span>Live updates</span></div>
+          {finishedBulkVisible && jobsForCurrentView.length > 0 && (
+            <div className="tm-finished-bulk" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '8px 4px' }}>
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input type="checkbox" checked={jobsForCurrentView.every((job) => finishedSelection.has(job.id))} onChange={(event) => setFinishedSelection(event.target.checked ? new Set(jobsForCurrentView.map((job) => job.id)) : new Set())} /> Select all
+              </label>
+              <button type="button" disabled={busy || !finishedSelection.size} onClick={() => deleteFinishedJobs([...finishedSelection])}>Delete selected ({finishedSelection.size})</button>
+              <button type="button" disabled={busy} onClick={() => deleteFinishedJobs(jobsForCurrentView.map((job) => job.id))}>Delete all ({jobsForCurrentView.length})</button>
+            </div>
+          )}
           {jobsForCurrentView.map((job) => (
-            <button type="button" key={job.id} className={`tm-human-job-row ${selectedJob?.id === job.id ? 'selected' : ''}`} onClick={() => setSelectedId(job.id)}>
+            <div key={job.id} style={finishedBulkVisible ? { display: 'flex', alignItems: 'flex-start', gap: 6 } : undefined}>
+            {finishedBulkVisible && <input type="checkbox" aria-label="Select job" style={{ marginTop: 14 }} checked={finishedSelection.has(job.id)} onChange={() => toggleFinishedJob(job.id)} />}
+            <button type="button" style={finishedBulkVisible ? { flex: 1 } : undefined} className={`tm-human-job-row ${selectedJob?.id === job.id ? 'selected' : ''}`} onClick={() => setSelectedId(job.id)}>
               <strong>{job.job_name || job.pdf_image?.name || job.audio?.name || `Human job ${job.id.slice(0, 6)}`}</strong>
               <span>{mode === 'worker' && workerTab === 'available' ? (job.claimable_full_job ? 'Entire job · available to claim' : `${(job.claimable_parts || []).length} part${(job.claimable_parts || []).length === 1 ? '' : 's'} available`) : mode === 'worker' && job.worker_assignment?.role === 'proofreader' ? 'Proofreading · In progress' : (STATUS_LABELS[job.status] || job.status)}{typeof job.time_remaining_seconds === 'number' && ['assigned', 'in_progress'].includes(job.worker_assignment?.status || job.status) ? ` · ${formatCountdown(remainingSecondsFor(job))} left` : ''}</span>
               {mode === 'admin' && (() => {
@@ -1083,6 +1121,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               })()}
               <small>{mode === 'worker' ? `${job.job_type === 'pdf_job' ? (job.pdf_review ? 'Whole-file proofread' : job.job_category === 'text_messages' ? 'Text Messages image · KES 50' : 'PDF image · KES 100') : jobTypeLabel(job)} · ${moneylessDate(job.createdAt)}` : `${job.quote_credits || 0} credits · ${moneylessDate(job.createdAt)}`}</small>
             </button>
+            </div>
           ))}
           {!jobsForCurrentView.length && <div className="tm-human-empty">{mode === 'admin' ? 'No jobs match this status and type.' : mode === 'worker' && workerTab === 'available' ? 'No new work is available right now. This board refreshes automatically.' : 'No human work is waiting here.'}</div>}
         </aside>
@@ -1241,6 +1280,12 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               return (
                 <div className={`tm-tat-timer${urgent ? ' tm-tat-timer-urgent' : ''}`}>
                   <div><strong>{remaining <= 0 ? 'Time is up' : formatCountdown(remaining)}</strong><span>{workerAssignment.role === 'proofreader' ? 'left to finish proofreading' : selectedJob.job_type === 'pdf_job' ? 'left to submit this image transcription' : 'left to submit your part'}</span></div>
+                  {workerAssignment.role === 'transcriber' && Number(workerAssignment.worker_extension_minutes_available) > 0 && remaining > 0 && (
+                    <div className="tm-tat-extend">
+                      <button type="button" className="tm-admin-btn" disabled={busy} onClick={workerExtendOwnDeadline}>Extend my deadline by {workerAssignment.worker_extension_minutes_available} minutes</button>
+                      <span className="tm-tat-hint"> You can do this once for this part, before time runs out.</span>
+                    </div>
+                  )}
                   <p className="tm-tat-hint">Tip: a quicker typing pace means faster turnarounds and more jobs you can take on. <a href="/typing-practice" target="_blank" rel="noopener noreferrer">Practice touch typing</a></p>
                 </div>
               );
@@ -1542,6 +1587,11 @@ function WorkerShiftPanel({ showMessage, onPresence, availableForWork }) {
         <div className="tm-worker-shift-heading"><strong>{statusLabel}</strong>{shift?.misses_consecutive > 0 && <span className="tm-worker-shift-count">{shift.misses_consecutive}/6 missed</span>}</div>
         <p>{shift?.message || 'Loading today’s shift details…'}</p>
         <small>The Available for work switch only shows admins whether you are online. It does not record attendance or allow claims. During a scheduled shift, clock in; outside shift hours, an admin call-in and clock-in are required.</small>
+        <div className={`tm-worker-shift-weekly${shift && shift.weekly_requirement_met === false ? ' at-risk' : ''}`} role="note" style={{ margin: '8px 0', padding: '8px 10px', borderRadius: 8, background: shift?.weekly_requirement_met ? '#e8f6ec' : '#fff4e0', border: `1px solid ${shift?.weekly_requirement_met ? '#9fd3ac' : '#f0c36d'}`, fontSize: 13 }}>
+          <strong>You must clock in to at least {shift?.weekly_required || 4} shifts every week (Mon–Fri) to keep your account active.</strong>
+          {typeof shift?.shifts_this_week === 'number' && <span> This week: {shift.shifts_this_week}/{shift?.weekly_required || 4} shifts{shift.weekly_requirement_met ? ' ✓' : ''}.</span>}
+          <span> Fewer than {shift?.weekly_required || 4} shifts in a week automatically moves you back to the Training Room. No admin involved. Keep <em>Available for work</em> switched ON while you work so admins see you online.</span>
+        </div>
         {shift?.warning && <small className="tm-worker-shift-warning">Five missed shifts in a row. Attend your next scheduled shift to keep your work access.</small>}
         {onShift && shift?.has_active_assignment && <small className="tm-worker-shift-warning">Finish your active job before clocking out.</small>}
         {error && <small className="tm-worker-shift-error" role="alert">{error}</small>}
@@ -1621,12 +1671,13 @@ function AdminShiftAttendancePanel({ showMessage }) {
     </div>
     <div className="tm-human-shift-summary"><span><strong>{onlineCount}</strong> online</span><span><strong>{notArrivedCount}</strong> not arrived</span><span><strong>{trainingCount}</strong> in retraining</span><small>Warning at 5 consecutive missed shifts · Training Room at 6</small></div>
     {error && <p className="tm-letter-job-error" role="alert">{error}</p>}
-    {loading && !workers.length ? <div className="tm-admin-empty">Loading shift attendance…</div> : !workers.length ? <div className="tm-admin-empty">No approved workers are on the shift roster yet.</div> : <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Worker</th><th>Attendance</th><th>Recent presence</th><th>Missed shifts</th><th>Admin action</th></tr></thead><tbody>
+    {loading && !workers.length ? <div className="tm-admin-empty">Loading shift attendance…</div> : !workers.length ? <div className="tm-admin-empty">No approved workers are on the shift roster yet.</div> : <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Worker</th><th>Attendance</th><th>Recent presence</th><th>Missed shifts</th><th>Shifts this week</th><th>Admin action</th></tr></thead><tbody>
       {workers.map((worker) => <tr key={worker.uid}>
         <td><strong>{worker.name}</strong><div className="tm-admin-name">{worker.email}{worker.rating != null ? ` · ${Number(worker.rating).toFixed(2)}/5` : ''}</div></td>
         <td><span className={`tm-human-shift-status ${worker.online ? 'is-online' : 'is-offline'}`}>{worker.online ? 'Online' : 'Offline'}</span><div className="tm-admin-name">{statusText(worker.status)}</div>{worker.message && <div className="tm-admin-name">{worker.message}</div>}</td>
         <td>{worker.last_presence_at ? moneylessDate(worker.last_presence_at) : 'Not recorded'}{worker.call_in_expires_at && worker.call_in_active && <div className="tm-admin-name">Call-in ends {moneylessDate(worker.call_in_expires_at)}</div>}</td>
         <td>{worker.misses_consecutive || 0} / 6{worker.warning && <div className="tm-worker-shift-warning">Warning issued</div>}</td>
+        <td>{typeof worker.shifts_this_week === 'number' ? `${worker.shifts_this_week} / ${worker.weekly_required || 4}` : '—'}</td>
         <td>{worker.status === 'retraining' ? 'No call-in while retraining' : <button type="button" className="tm-admin-btn" disabled={workingUid === worker.uid || (worker.call_in_active && worker.clocked_in)} onClick={() => callIn(worker)}>{workingUid === worker.uid ? 'Calling in…' : worker.call_in_active ? 'Extend call-in' : 'Call in'}</button>}</td>
       </tr>)}
     </tbody></table></div>}
