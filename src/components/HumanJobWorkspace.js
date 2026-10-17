@@ -882,17 +882,26 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   });
   const deleteFinishedJobs = async (ids) => {
     if (!ids.length) return;
-    if (!window.confirm(`Permanently delete ${ids.length} finished job${ids.length === 1 ? '' : 's'} with their files and messages? Worker earnings and payment history are kept. This cannot be undone.`)) return;
+    if (!window.confirm(`Permanently delete ${ids.length} job${ids.length === 1 ? '' : 's'} currently shown in Finished, regardless of workflow status? Their files and messages will be removed; worker earnings and payment history are kept. This cannot be undone.`)) return;
     setBusy(true);
+    let deletedCount = 0;
+    let failureCount = 0;
     try {
-      const payload = await request('/api/admin/human-jobs/delete-finished', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_ids: ids }),
-      });
+      // Keep each request small while allowing Delete all to handle any number
+      // of jobs in the Finished lane.
+      for (let index = 0; index < ids.length; index += 100) {
+        const payload = await request('/api/admin/human-jobs/delete-finished', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_ids: ids.slice(index, index + 100) }),
+        });
+        deletedCount += Number(payload.deleted_count || 0);
+        failureCount += Number(payload.failure_count || 0);
+      }
       setFinishedSelection(new Set());
       await loadJobs();
-      showMessage?.(`${payload.deleted_count || 0} finished job${payload.deleted_count === 1 ? '' : 's'} deleted.${payload.failure_count ? ` ${payload.failure_count} could not be deleted.` : ''}`, payload.failure_count ? 'error' : 'success');
+      showMessage?.(`${deletedCount} finished job${deletedCount === 1 ? '' : 's'} deleted.${failureCount ? ` ${failureCount} could not be deleted because they were no longer in Finished.` : ''}`, failureCount ? 'error' : 'success');
     } catch (error) {
-      showMessage?.(error.message, 'error');
+      await loadJobs();
+      showMessage?.(`${deletedCount} job${deletedCount === 1 ? '' : 's'} deleted before the request stopped. ${error.message}`, 'error');
     } finally { setBusy(false); }
   };
   const extendTat = (segmentId = '', target = '') => act(`/human-transcription/jobs/${selectedJob.id}/extend-tat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minutes: Number(extensionMinutes), segment_id: segmentId, target }) });
@@ -992,7 +1001,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       {mode === 'worker' && (
         <div className="tm-worker-policy-note" role="note">
           <strong>How hired work must be prepared:</strong>
-          <span>Once hired, generate an AI formatted draft for your assigned job; it costs 1 credit per started audio minute plus 3 credits for the formatting. Optional AI proofreading costs 5 credits. Edit the version you choose on the TypeMyworDz editor and play your audio with our 2-in-1 recorder/playback software, which can be downloaded here: <a href="/downloads/TypeMyworDz-Recorder.exe" download>TypeMyworDz Recorder (Windows, under 1 MB)</a>.</span>
+          <span>Once hired, generate an AI formatted draft for your assigned job; it costs 1 credit per started audio minute plus 3 credits for the formatting. Optional AI proofreading costs 5 credits. Edit the version you choose on the TypeMyworDz editor and play your audio with our 2-in-1 recorder/playback software, which can be downloaded here: <a href="/tools/audio-recorder.html" target="_blank" rel="noopener noreferrer">Recorder/playback software download page (latest version)</a>.</span>
         </div>
       )}
 
@@ -1291,9 +1300,9 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               );
             })()}
 
-            {mode === 'admin' && splitJob && <div className="tm-human-assign" style={{ display: 'grid', gap: 10 }}><strong>Parts and deadlines</strong>{(selectedJob.segments || []).map((part) => <div key={part.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><span style={{ minWidth: 170 }}><strong>{part.label}</strong><small style={{ display: 'block', color: '#858a95' }}>{part.worker_name || 'Waiting for reassignment'} · {STATUS_LABELS[part.status] || part.status}{typeof part.time_remaining_seconds === 'number' ? ` · ${formatCountdown(part.time_remaining_seconds)} left` : ''}</small></span>{['assigned', 'in_progress'].includes(part.status) && <><select value={extensionMinutes} onChange={(event) => setExtensionMinutes(event.target.value)} aria-label={`Extra time for ${part.label}`}><option value="5">+5 minutes</option><option value="10">+10 minutes</option><option value="15">+15 minutes</option><option value="20">+20 minutes</option></select><button type="button" disabled={busy} onClick={() => extendTat(part.id)}>Add time</button><button type="button" disabled={busy} onClick={() => takeBackAssignment('transcriber', part.id)}>Take back</button></>}{['available', 'approved'].includes(part.status) && <span style={{ color: '#7a5f1b', fontSize: 12 }}>This part is available for a worker to claim.</span>}</div>)}{['assigned', 'in_progress'].includes(selectedJob.proofreader_status) && <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><span style={{ minWidth: 170 }}><strong>Final proofreader</strong><small style={{ display: 'block', color: '#858a95' }}>{selectedJob.proofreader_name || 'Assigned worker'} · {formatCountdown(selectedJob.proofreader_time_remaining_seconds || 0)} left</small></span><select value={extensionMinutes} onChange={(event) => setExtensionMinutes(event.target.value)} aria-label="Extra time for proofreader"><option value="5">+5 minutes</option><option value="10">+10 minutes</option><option value="15">+15 minutes</option><option value="20">+20 minutes</option></select><button type="button" disabled={busy} onClick={() => extendTat('', 'proofreader')}>Add time</button><button type="button" disabled={busy} onClick={() => takeBackAssignment('proofreader')}>Take back</button></div>}</div>}
+            {mode === 'admin' && splitJob && <div className="tm-human-assign" style={{ display: 'grid', gap: 10 }}><strong>Parts and deadlines</strong>{(selectedJob.segments || []).map((part) => <div key={part.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><span style={{ minWidth: 170 }}><strong>{part.label}</strong><small style={{ display: 'block', color: '#858a95' }}>{part.worker_name || 'Waiting for reassignment'} · {STATUS_LABELS[part.status] || part.status}{typeof part.time_remaining_seconds === 'number' ? ` · ${formatCountdown(part.time_remaining_seconds)} left` : ''}</small></span>{['assigned', 'in_progress'].includes(part.status) && <button type="button" disabled={busy} onClick={() => takeBackAssignment('transcriber', part.id)}>Take back</button>}{['available', 'approved'].includes(part.status) && <span style={{ color: '#7a5f1b', fontSize: 12 }}>This part is available for a worker to claim.</span>}</div>)}{['assigned', 'in_progress'].includes(selectedJob.proofreader_status) && <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><span style={{ minWidth: 170 }}><strong>Final proofreader</strong><small style={{ display: 'block', color: '#858a95' }}>{selectedJob.proofreader_name || 'Assigned worker'} · {formatCountdown(selectedJob.proofreader_time_remaining_seconds || 0)} left</small></span><button type="button" disabled={busy} onClick={() => takeBackAssignment('proofreader')}>Take back</button></div>}</div>}
 
-            {mode === 'admin' && !splitJob && ['assigned', 'in_progress'].includes(selectedJob.status) && typeof selectedJob.time_remaining_seconds === 'number' && <div className="tm-human-assign"><label>Add time before the deadline<select value={extensionMinutes} onChange={(event) => setExtensionMinutes(event.target.value)}><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20">20 minutes</option></select></label><button type="button" disabled={busy} onClick={() => extendTat()}>Extend deadline</button><p className="tm-tat-hint">The job will remain with the worker while the added time is still active.</p></div>}
+            {mode === 'admin' && selectedJob.whole_job_assignment === true && !splitJob && ['assigned', 'in_progress'].includes(selectedJob.status) && typeof selectedJob.time_remaining_seconds === 'number' && <div className="tm-human-assign"><label>Add time before the deadline<select value={extensionMinutes} onChange={(event) => setExtensionMinutes(event.target.value)}><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20">20 minutes</option></select></label><button type="button" disabled={busy} onClick={() => extendTat()}>Extend deadline</button><p className="tm-tat-hint">Admin extensions are available only for whole jobs assigned directly to a worker.</p></div>}
 
 
             {selectedJob.last_auto_reassigned_worker_name && selectedJob.status === 'approved' && (
