@@ -385,3 +385,13 @@ select:focus {
 .ts-embed-signin .ts-embed-note{ margin-top: 16px; font-size: 13px; }
 .typescribe-embed body{ min-width: 0; }
 .typescribe-embed .tm-whatsapp-float, .typescribe-embed [class*="floating-whatsapp"]{ display: none !important; }
+
+/* ---- TypeScribe panel: scrolling, credits strip, audio card ---- */
+html.typescribe-embed, .typescribe-embed body { overflow-y: auto; height: auto; }
+.typescribe-embed .tm-side { position: sticky; top: 0; z-index: 5; }
+.ts-credit-bar { position: sticky; top: 0; z-index: 6; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 18px; background: #f6f4fd; border-bottom: 1px solid #e6e2f7; font-size: 13px; color: #4a4f5d; }
+.ts-credit-bar strong { font-size: 16px; color: #5b44cf; font-variant-numeric: tabular-nums; }
+.ts-audio-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; border: 1px solid #e0dcf6; background: #f8f7fe; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; text-align: left; }
+.ts-audio-name { font-size: 13px; color: #4a4f5d; word-break: break-word; flex: 1 1 200px; }
+.ts-audio-btn { border: 0; border-radius: 999px; background: #5b44cf; color: #fff; font: inherit; font-size: 13px; font-weight: 600; padding: 8px 16px; cursor: pointer; }
+.ts-audio-btn:disabled { opacity: .6; cursor: default; }

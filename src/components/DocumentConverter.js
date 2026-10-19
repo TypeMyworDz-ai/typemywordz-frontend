@@ -18,7 +18,7 @@ const MORE_TOOLS = [
   { href: '/tools/split-pdf.html', label: 'Split PDF', text: 'Pull out pages or cut a PDF apart.' },
   { href: '/tools/compress-pdf.html', label: 'Compress PDF', text: 'Make a PDF small enough to email.' },
   { href: '/tools/audio-converter.html', label: 'Audio converter', text: 'MP3, WAV, M4A and more. Shrink recordings.' },
-  { href: '/tools/audio-recorder.html', label: 'Audio recorder', text: 'A tiny recorder you can download.' },
+  { href: '/tools/audio-recorder.html', label: 'TypeScribe', text: 'The free recorder and player for Windows.' },
   { href: '/typing-practice', label: 'Typing practice', text: 'Free lessons and a speed test.' },
 ];
 

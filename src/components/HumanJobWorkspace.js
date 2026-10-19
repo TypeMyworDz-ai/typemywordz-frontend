@@ -1001,7 +1001,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       {mode === 'worker' && (
         <div className="tm-worker-policy-note" role="note">
           <strong>How hired work must be prepared:</strong>
-          <span>Once hired, generate an AI formatted draft for your assigned job; it costs 1 credit per started audio minute plus 3 credits for the formatting. Optional AI proofreading costs 5 credits. Edit the version you choose on the TypeMyworDz editor and play your audio with our 2-in-1 recorder/playback software, which can be downloaded here: <a href="/tools/audio-recorder.html" target="_blank" rel="noopener noreferrer">Recorder/playback software download page (latest version)</a>.</span>
+          <span>Once hired, generate an AI formatted draft for your assigned job; it costs 1 credit per started audio minute plus 3 credits for the formatting. Optional AI proofreading costs 5 credits. Edit the version you choose on the TypeMyworDz editor and play your audio with TypeScribe, our 2-in-1 recorder and player, which can be downloaded here: <a href="/tools/audio-recorder.html" target="_blank" rel="noopener noreferrer">TypeScribe download page (latest version)</a>.</span>
         </div>
       )}
 
