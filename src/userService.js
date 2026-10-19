@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { isAdminEmail, isCompAccessEmail } from './adminEmails';
+import { isCompAccessEmail } from './adminEmails';
 import { usableTopUpCredits, spendableFor, fetchCreditBalance } from './creditsService';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc, addDoc, runTransaction } from 'firebase/firestore'; // Keep serverTimestamp just in case for other uses, but we'll manually set for this fix
 
@@ -343,11 +343,9 @@ export const canUserTranscribe = async (uid, estimatedDurationSeconds, userEmail
     }
     const spendable = spendableFor(balance, null);
 
-    // The admin account is never limited by plan or free-trial rules.
-    if (isAdminEmail(userEmail)) {
-      console.log("canUserTranscribe: admin account, bypassing plan checks.");
-      return { canTranscribe: true, reason: 'admin' };
-    }
+    // Admins are NOT exempt: audio transcription costs credits for every
+    // account, the admin included, so they fall through to the same plan and
+    // credit checks as everyone else.
     // Complimentary accounts also transcribe without paying. They are not
     // admins, so they are checked separately and get their own reason code.
     if (isCompAccessEmail(userEmail)) {
