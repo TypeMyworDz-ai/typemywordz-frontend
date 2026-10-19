@@ -143,7 +143,7 @@ const Landing = () => {
                 <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/split-pdf.html"><span className="menu-text">Split PDF</span></a>
                 <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/compress-pdf.html"><span className="menu-text">Compress PDF</span></a>
                 <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/audio-converter.html"><span className="menu-text">Audio converter</span></a>
-                <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/audio-recorder.html"><span className="menu-text">Audio recorder</span></a>
+                <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/audio-recorder.html"><span className="menu-text">TypeScribe</span></a>
                 <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/"><span className="menu-text">All free tools</span></a>
               </div>
             )}
