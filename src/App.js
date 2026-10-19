@@ -34,6 +34,7 @@ import Faq from './components/Faq';
 import TermsOfService from './components/TermsOfService';
 import RefundPolicy from './components/RefundPolicy';
 import Landing from './components/Landing';
+import Login from './components/Login';
 import AnimatedBroadcastBoard from './components/AnimatedBroadcastBoard';
 import AskTypeMyworDz from './components/AskTypeMyworDz';
 import { AskProvider } from './components/AskContext';
@@ -65,6 +66,21 @@ import { formatRecorderShortcut, matchesRecorderShortcut, readRecorderShortcut }
 // MODIFIED: Use the new Railway Backend URL
 const RAILWAY_BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 const PADDLE_CONFIG_URL = `${RAILWAY_BACKEND_URL}/paddle-config`;
+
+// TypeScribe (the Windows recorder/player) shows this app in its right-hand panel.
+// It opens the page with ?app=typescribe; remember that for the whole session so
+// sign-in redirects and navigation keep the compact, panel-friendly behaviour.
+const IS_TYPESCRIBE = (() => {
+  try {
+    if (new URLSearchParams(window.location.search).get('app') === 'typescribe') {
+      window.sessionStorage.setItem('tmwd_typescribe', '1');
+    }
+    const on = window.sessionStorage.getItem('tmwd_typescribe') === '1' || !!(window.chrome && window.chrome.webview);
+    if (on) document.documentElement.classList.add('typescribe-embed');
+    return on;
+  } catch (e) { return false; }
+})();
+const SCRIBE_MIME = { mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', wma: 'audio/x-ms-wma' };
 const AFRICA_PAYMENT_COUNTRIES = new Set(['KE', 'NG', 'GH', 'ZA', 'OTHER_AFRICA']);
 const NOTIFICATION_SOUND_PREFERENCE_KEY = 'tmwd_notification_sounds';
 const NOTIFICATION_SOUND_URL = `${(process.env.PUBLIC_URL || '').replace(/\/$/, '')}/notification.mp3`;
@@ -1664,6 +1680,42 @@ function AppContent() {
     })();
   }, [currentUser, adoptTake, showMessage]);
 
+  // TypeScribe hands over the audio it has loaded or just recorded. The panel
+  // keeps it until the person is signed in, then loads it exactly as if they had
+  // chosen the file themselves.
+  const [scribeAudio, setScribeAudio] = useState(null);
+  const scribeDoneRef = useRef(0);
+  useEffect(() => {
+    const wv = window.chrome && window.chrome.webview;
+    if (!wv) return undefined;
+    const onMsg = (e) => {
+      const d = e && e.data;
+      if (d && d.type === 'typescribe-audio' && d.url) setScribeAudio({ url: d.url, name: d.name || 'TypeScribe audio.mp3', at: Date.now() });
+    };
+    wv.addEventListener('message', onMsg);
+    wv.postMessage('typescribe-ready');
+    return () => wv.removeEventListener('message', onMsg);
+  }, []);
+  useEffect(() => {
+    if (!scribeAudio || !currentUser || scribeDoneRef.current === scribeAudio.at) return;
+    scribeDoneRef.current = scribeAudio.at;
+    (async () => {
+      try {
+        const res = await fetch(scribeAudio.url);
+        if (!res.ok) throw new Error('fetch failed');
+        const blob = await res.blob();
+        const ext = (scribeAudio.name.split('.').pop() || 'mp3').toLowerCase();
+        const file = new File([blob], scribeAudio.name, { type: SCRIBE_MIME[ext] || blob.type || 'audio/mpeg' });
+        setCurrentView('transcribe');
+        await handleFileSelect({ target: { files: [file] } });
+        showMessage('Your audio from TypeScribe is ready. Choose your options below to transcribe it.', 'success');
+      } catch (err) {
+        console.warn('TypeScribe hand-off failed', err);
+        showMessage('TypeScribe could not pass this audio over. Use "Choose file" to pick it instead.', 'error');
+      }
+    })();
+  }, [scribeAudio, currentUser, handleFileSelect, showMessage]);
+
   // Recorder shortcuts work only while the recorder view is open and this
   // browser tab is active. A normal web page cannot capture keys in the
   // background or when another tab/app has focus.
@@ -2483,6 +2535,26 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
   // reviewer, and any prospective client all need to read them before signing up.
   // Returning <Landing /> for every address meant the links changed the address
   // bar and then showed the landing page again, which is the bug this fixes.
+  if (!currentUser && IS_TYPESCRIBE) {
+    // Inside TypeScribe there is no marketing page: go straight to sign in.
+    return (
+      <Routes>
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/refund-policy" element={<RefundPolicy />} />
+        <Route path="*" element={
+          <div className="ts-embed-signin">
+            <img src="/brand-mark.png" alt="TypeMyworDz" width="72" height="72" />
+            <h1>Transcribe in TypeScribe</h1>
+            <p>Sign in or create your free account. Your audio is waiting; it will load as soon as you are in.</p>
+            <div className="tm-lp-hero-card"><Login /></div>
+            <p className="ts-embed-note"><strong>30 free credits</strong> on sign up. No card needed.</p>
+          </div>
+        } />
+      </Routes>
+    );
+  }
+
   if (!currentUser) {
     return (
       <Routes>
@@ -3453,7 +3525,7 @@ return (
                 />
               )}
 
-              {transcription && status === 'completed' && ['info@typemywordz.ai', 'typemywordz@gmail.com', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com'].includes((currentUser?.email || '').trim().toLowerCase()) && (
+              {transcription && status === 'completed' && ['info@typemywordz.ai', 'typemywordz@gmail.com', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com', 'priscillamuthoni010@gmail.com'].includes((currentUser?.email || '').trim().toLowerCase()) && (
                 <FormatWithGuidelines transcript={transcription} fileName={selectedFile ? selectedFile.name : ''} />
               )}
 
