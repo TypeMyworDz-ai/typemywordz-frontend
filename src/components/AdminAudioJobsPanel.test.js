@@ -145,5 +145,5 @@ test('allows very long Human Work instructions with an informational counter onl
 
 test('uses the requested four-section instructions default', async () => {
   render(<AdminAudioJobsPanel category="general" />);
-  expect(await screen.findByLabelText('Admin notes and special instructions')).toHaveValue('Client provided spellings: None\n\nClient Word List: None\n\nHint names from the Filename: None:\n\nOther instructions: None');
+  expect(await screen.findByLabelText('Admin notes and special instructions')).toHaveValue('Hint names from the Filename: None\n\nOther instructions: None\n\nClient provided spellings: None');
 });

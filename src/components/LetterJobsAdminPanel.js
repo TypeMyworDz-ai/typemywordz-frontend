@@ -5,8 +5,8 @@ import UploadResultBanner, { announceJobsChanged } from './UploadResultBanner';
 import JobAudioRecorder from './JobAudioRecorder';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
-const LETTER_ADMIN_EMAILS = new Set(['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com']);
-const DEFAULT_ADMIN_NOTE = 'Client provided spellings: None\n\nClient Word List: None\n\nHint names from the Filename: None:\n\nOther instructions: None';
+const LETTER_ADMIN_EMAILS = new Set(['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com', 'priscillamuthoni010@gmail.com']);
+const DEFAULT_ADMIN_NOTE = 'Hint names from the Filename: None\n\nOther instructions: None\n\nClient provided spellings: None';
 
 const formatBytes = (bytes) => {
   const size = Number(bytes || 0);
