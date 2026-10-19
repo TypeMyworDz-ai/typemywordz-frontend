@@ -77,5 +77,5 @@ test('compression leaves non-images and small JPEGs unchanged', async () => {
 
 test('uses the requested four-section instructions default', async () => {
   render(<PdfJobsAdminPanel category="pdf" />);
-  expect(await screen.findByLabelText('Admin notes and special instructions')).toHaveValue('Client provided spellings: None\n\nClient Word List: None\n\nHint names from the Filename: None:\n\nOther instructions: None');
+  expect(await screen.findByLabelText('Admin notes and special instructions')).toHaveValue('Hint names from the Filename: None\n\nOther instructions: None\n\nClient provided spellings: None');
 });

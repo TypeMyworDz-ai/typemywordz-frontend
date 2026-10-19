@@ -121,7 +121,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [adminScheduledNow, setAdminScheduledNow] = useState(null);
   const [selectedId, setSelectedId] = useState('');
   const [messages, setMessages] = useState([]);
-  const [conversationClosed, setConversationClosed] = useState(false);
   const [messageText, setMessageText] = useState('');
   const [messageFile, setMessageFile] = useState(null);
   const [finalAttachment, setFinalAttachment] = useState(null);
@@ -168,10 +167,10 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   busyRef.current = busy;
   const adminEmail = (currentUser?.email || '').trim().toLowerCase();
   const isMainAdmin = isAdminEmail(adminEmail);
-  const isHumanSubadmin = mode === 'admin' && !isMainAdmin && restricted && ['info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com'].includes(adminEmail);
-  const canManagePdfJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com'].includes(adminEmail);
-  const canManageLetterJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com'].includes(adminEmail);
-  const canAssignAiAgents = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com'].includes(adminEmail);
+  const isHumanSubadmin = mode === 'admin' && !isMainAdmin && restricted && ['gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com', 'priscillamuthoni010@gmail.com'].includes(adminEmail);
+  const canManagePdfJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com', 'priscillamuthoni010@gmail.com'].includes(adminEmail);
+  const canManageLetterJobs = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com', 'priscillamuthoni010@gmail.com'].includes(adminEmail);
+  const canAssignAiAgents = ['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com', 'priscillamuthoni010@gmail.com'].includes(adminEmail);
   const adminAssignableWorkers = workers.filter((worker) => (
     worker.approved !== false && (
       adminScheduledNow === true || (worker.call_in_active === true && worker.clocked_in === true && worker.online === true)
@@ -356,7 +355,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       const query = mode === 'admin' ? '?thread=worker' : '';
       const payload = await request(`/human-transcription/jobs/${selectedJob.id}/messages${query}`);
       setMessages(payload.messages || []);
-      setConversationClosed(payload.closed === true);
     } catch (error) {
       // A quiet refresh failure should not interrupt editing.
       console.warn('Human chat refresh failed:', error);
@@ -868,42 +866,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     } catch (error) { showMessage?.(error.message, 'error'); } finally { setAiProofreadBusy(false); }
   };
 
-  const workerExtendOwnDeadline = async () => {
-    const minutes = Number(workerAssignment?.worker_extension_minutes_available || 0);
-    if (!minutes || !window.confirm(`Extend this part's deadline by ${minutes} minutes? You can only do this once for this part.`)) return;
-    await act(`/human-transcription/jobs/${selectedJob.id}/worker-extend-tat`, { method: 'POST' }, `Deadline extended by ${minutes} minutes.`);
-  };
-  const [finishedSelection, setFinishedSelection] = useState(() => new Set());
-  const finishedBulkVisible = mode === 'admin' && isMainAdmin && adminTab === 'queue' && adminQueueLane === 'finished';
-  const toggleFinishedJob = (jobId) => setFinishedSelection((previous) => {
-    const next = new Set(previous);
-    if (next.has(jobId)) next.delete(jobId); else next.add(jobId);
-    return next;
-  });
-  const deleteFinishedJobs = async (ids) => {
-    if (!ids.length) return;
-    if (!window.confirm(`Permanently delete ${ids.length} job${ids.length === 1 ? '' : 's'} currently shown in Finished, regardless of workflow status? Their files and messages will be removed; worker earnings and payment history are kept. This cannot be undone.`)) return;
-    setBusy(true);
-    let deletedCount = 0;
-    let failureCount = 0;
-    try {
-      // Keep each request small while allowing Delete all to handle any number
-      // of jobs in the Finished lane.
-      for (let index = 0; index < ids.length; index += 100) {
-        const payload = await request('/api/admin/human-jobs/delete-finished', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_ids: ids.slice(index, index + 100) }),
-        });
-        deletedCount += Number(payload.deleted_count || 0);
-        failureCount += Number(payload.failure_count || 0);
-      }
-      setFinishedSelection(new Set());
-      await loadJobs();
-      showMessage?.(`${deletedCount} finished job${deletedCount === 1 ? '' : 's'} deleted.${failureCount ? ` ${failureCount} could not be deleted because they were no longer in Finished.` : ''}`, failureCount ? 'error' : 'success');
-    } catch (error) {
-      await loadJobs();
-      showMessage?.(`${deletedCount} job${deletedCount === 1 ? '' : 's'} deleted before the request stopped. ${error.message}`, 'error');
-    } finally { setBusy(false); }
-  };
   const extendTat = (segmentId = '', target = '') => act(`/human-transcription/jobs/${selectedJob.id}/extend-tat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minutes: Number(extensionMinutes), segment_id: segmentId, target }) });
 
   const takeBackAssignment = async (role = 'transcriber', segmentId = '') => {
@@ -977,7 +939,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <button className="tm-human-refresh" type="button" onClick={() => { loadJobs(); loadWorkers(); loadPayments(); loadAvailability(); }}>Refresh</button>
       </div>
 
-      {mode === 'admin' && adminTab === 'queue' && isHumanSubadmin && <div className="tm-subadmin-shift-reminder" role="note"><strong>Shift reminder</strong><span>Keep all shift work inside the TypeMyworDz system unless the main admin requests or gives you other instructions. Regular shifts are Monday to Friday, 3:00 p.m.–8:00 p.m. Africa/Nairobi.</span></div>}
+      {mode === 'admin' && adminTab === 'queue' && isHumanSubadmin && <div className="tm-subadmin-shift-reminder" role="note"><strong>Shift reminder</strong><span>Keep all shift work inside the TypeMyworDz system unless the main admin requests or gives you other instructions. Regular paid shifts run Monday to Friday, Africa/Nairobi time: 3:00 p.m.–8:00 p.m. for donotgrowweary95 and info@typemywordz.ai, and 10:00 p.m.–1:00 a.m. for priscillamuthoni010. Only work done inside your own shift counts toward payment.</span></div>}
       {mode === 'admin' && adminScheduledNow === false && <p className="tm-tat-hint">Outside regular shift hours, worker assignment is limited to approved workers with an active admin call-in who are clocked in and currently online.</p>}
       {mode === 'worker' && <div className="tm-subadmin-shift-reminder tm-worker-monday-note" role="note"><strong>Monday shifts</strong><span>Mondays are our slow shift days, so please do not expect much work on a Monday. This does not mean you can skip your shift: log in and clock in on time as usual, because attendance and tardiness are still tracked every day.</span></div>}
       {mode === 'worker' && workerBoardInfo.deadlineWarning && workerBoardInfo.deadlineReturns < 11 && <div className="tm-worker-board-notice tm-worker-deadline-warning" role="alert"><strong>Deadline reminder · {workerBoardInfo.deadlineReturns} returns</strong><span>One more missed deadline will pause Available Jobs access and send you to the Training Room for retraining. Claim only work you can complete on time.</span></div>}
@@ -993,7 +955,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           </div>
           <div className="tm-worker-rating-copy">
             <span>{workerRatingSummary.count ? `${workerRatingSummary.count} rating${workerRatingSummary.count === 1 ? '' : 's'} submitted` : 'No ratings submitted yet'}</span>
-            <small>{workerRatingSummary.count ? 'Ratings reflect completed jobs or periodic reviews. A 3.5/5 average is required to see Available Jobs.' : 'Complete 3 starter jobs assigned by an admin. You are rated after the third, and a 3.5/5 average opens the public job board.'}</small>
+            <small>{workerRatingSummary.count ? 'Ratings reflect completed jobs or periodic reviews. A 3.5/5 average is required to see Available Jobs.' : 'An admin must assign your supervised starter assessment. A 3.5/5 average is required before the public job board opens.'}</small>
           </div>
         </div>
       )}
@@ -1001,7 +963,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       {mode === 'worker' && (
         <div className="tm-worker-policy-note" role="note">
           <strong>How hired work must be prepared:</strong>
-          <span>Once hired, generate an AI formatted draft for your assigned job; it costs 1 credit per started audio minute plus 3 credits for the formatting. Optional AI proofreading costs 5 credits. Edit the version you choose on the TypeMyworDz editor and play your audio with our 2-in-1 recorder/playback software, which can be downloaded here: <a href="/tools/audio-recorder.html" target="_blank" rel="noopener noreferrer">Recorder/playback software download page (latest version)</a>.</span>
+          <span>Once hired, generate an AI formatted draft for your assigned job; it costs 1 credit per started audio minute plus 3 credits for the formatting. Optional AI proofreading costs 5 credits. Edit the version you choose on the TypeMyworDz editor and play your audio with our 2-in-1 recorder/playback software, which can be downloaded here: <a href="/downloads/TypeMyworDz-Recorder.exe" download>TypeMyworDz Recorder (Windows, under 1 MB)</a>.</span>
         </div>
       )}
 
@@ -1022,7 +984,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           {canManagePdfJobs && <button type="button" role="tab" aria-selected={adminTab === 'text_messages'} className={adminTab === 'text_messages' ? 'active' : ''} onClick={() => setAdminTab('text_messages')}>Text Messages</button>}
           {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'template_jobs'} className={adminTab === 'template_jobs' ? 'active' : ''} onClick={() => setAdminTab('template_jobs')}>Template Jobs</button>}
           {canManagePdfJobs && <button type="button" role="tab" aria-selected={adminTab === 'pdf_jobs'} className={adminTab === 'pdf_jobs' ? 'active' : ''} onClick={() => setAdminTab('pdf_jobs')}>PDF Jobs</button>}
-          {(isMainAdmin || isHumanSubadmin) && <button type="button" role="tab" aria-selected={adminTab === 'shifts'} className={adminTab === 'shifts' ? 'active' : ''} onClick={() => setAdminTab('shifts')}>Shift attendance</button>}
+          {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'shifts'} className={adminTab === 'shifts' ? 'active' : ''} onClick={() => setAdminTab('shifts')}>Shift attendance</button>}
           {isHumanSubadmin && <button type="button" role="tab" aria-selected={adminTab === 'my_subadmin_payments'} className={adminTab === 'my_subadmin_payments' ? 'active' : ''} onClick={() => setAdminTab('my_subadmin_payments')}>My payments · KES</button>}
           {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'worker_payments'} className={adminTab === 'worker_payments' ? 'active' : ''} onClick={() => setAdminTab('worker_payments')}>Worker payments · KES</button>}
           {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'rates'} className={adminTab === 'rates' ? 'active' : ''} onClick={() => setAdminTab('rates')}>Worker rates</button>}
@@ -1042,7 +1004,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <AdminAudioJobsPanel category="template" onRecordedAudioReady={onRecordedAudioReady} recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={(job) => { setAdminQueueType('template_job'); setAdminQueueLane(adminQueueLaneFor(job)); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'letter_jobs' && canManageLetterJobs ? (
         <LetterJobsAdminPanel onRecordedAudioReady={onRecordedAudioReady} recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('letter_job'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
-      ) : mode === 'admin' && adminTab === 'shifts' && (isMainAdmin || isHumanSubadmin) ? (
+      ) : mode === 'admin' && adminTab === 'shifts' && isMainAdmin ? (
         <AdminShiftAttendancePanel showMessage={showMessage} />
       ) : mode === 'admin' && adminTab === 'my_subadmin_payments' && isHumanSubadmin ? (
         <SubadminSelfPaymentPanel request={request} showMessage={showMessage} />
@@ -1057,11 +1019,11 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             <div className="tm-worker-payment-totals">
               <div><small>Paid</small><strong>KES {paymentHistory.totals?.paid_kes || 0}</strong><span className="tm-worker-payment-breakdown">Transcription KES {paymentHistory.totals?.paid_transcription_kes || 0} · Proofreading KES {paymentHistory.totals?.paid_proofreading_kes || 0} · PDF KES {paymentHistory.totals?.paid_pdf_kes || 0}</span></div>
               <div><small>Pending payout</small><strong>KES {(paymentHistory.pending_payouts || []).reduce((sum, item) => sum + (item.total_amount_kes || 0), 0)}</strong></div>
-              <div><small>Accruing this half ({paymentHistory.current_period?.label})</small><strong>KES {paymentHistory.current_period?.accrued_kes || 0}</strong><span className="tm-worker-payment-breakdown">Transcription KES {paymentHistory.current_period?.transcription_kes || 0} · Proofreading KES {paymentHistory.current_period?.proofreading_kes || 0} · PDF KES {paymentHistory.current_period?.pdf_kes || 0}</span></div>
+              <div><small>Accruing now ({paymentHistory.current_period?.period_range || paymentHistory.current_period?.label})</small><strong>KES {paymentHistory.current_period?.accrued_kes || 0}</strong><span className="tm-worker-payment-breakdown">Transcription KES {paymentHistory.current_period?.transcription_kes || 0} · Proofreading KES {paymentHistory.current_period?.proofreading_kes || 0} · PDF KES {paymentHistory.current_period?.pdf_kes || 0}</span></div>
             </div>
             <h3>Pending payouts (already invoiced, awaiting admin payment)</h3>
             {!(paymentHistory.pending_payouts || []).length && <p className="tm-human-empty">No half-month invoice is waiting on admin payment right now.</p>}
-            {(paymentHistory.pending_payouts || []).map((item) => <div className="tm-worker-payment-row" key={item.payout_id}><span>Period {item.period_label}</span><strong>KES {item.total_amount_kes}</strong><small>{item.total_minutes} min · pays out on {item.period_label?.endsWith('-A') ? 'the 15th' : 'month end'} · Transcription KES {item.transcription_amount_kes || 0} · Proofreading KES {item.proofreading_amount_kes || 0} · PDF KES {item.pdf_amount_kes || 0}{item.total_deduction_kes > 0 ? ` · KES ${item.total_deduction_kes} in deductions` : ''}</small></div>)}
+            {(paymentHistory.pending_payouts || []).map((item) => <div className="tm-worker-payment-row" key={item.payout_id}><span>{item.period_title || `Pending payout for ${item.period_label}`}</span><strong>KES {item.total_amount_kes}</strong><small>{item.total_minutes} min · pays out on {item.period_label?.endsWith('-A') ? 'the 15th' : 'month end'} · Transcription KES {item.transcription_amount_kes || 0} · Proofreading KES {item.proofreading_amount_kes || 0} · PDF KES {item.pdf_amount_kes || 0}{item.total_deduction_kes > 0 ? ` · KES ${item.total_deduction_kes} in deductions` : ''}</small></div>)}
             <h3>Paid</h3>{!(paymentHistory.paid || []).length && <p className="tm-human-empty">No payments have been marked paid yet.</p>}{(paymentHistory.paid || []).map((item) => <div className="tm-worker-payment-row" key={`${item.job_id}-${item.role}-${item.payout_period_id || ''}`}><span>{item.role} · Job {item.job_id.slice(0, 8)}</span><strong>KES {item.amount_kes}</strong><small>{item.minutes} min · {moneylessDate(item.paid_at)}{item.deduction_kes > 0 ? ` · KES ${item.deduction_kes} deducted: ${item.deduction_reason}` : ''}</small></div>)}
           </>}
         </div>
@@ -1105,19 +1067,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       <div className="tm-human-workspace-grid">
         <aside className="tm-human-job-list">
           <div className="tm-human-list-head"><strong>{jobsForCurrentView.length} job{jobsForCurrentView.length === 1 ? '' : 's'}</strong><span>Live updates</span></div>
-          {finishedBulkVisible && jobsForCurrentView.length > 0 && (
-            <div className="tm-finished-bulk" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '8px 4px' }}>
-              <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <input type="checkbox" checked={jobsForCurrentView.every((job) => finishedSelection.has(job.id))} onChange={(event) => setFinishedSelection(event.target.checked ? new Set(jobsForCurrentView.map((job) => job.id)) : new Set())} /> Select all
-              </label>
-              <button type="button" disabled={busy || !finishedSelection.size} onClick={() => deleteFinishedJobs([...finishedSelection])}>Delete selected ({finishedSelection.size})</button>
-              <button type="button" disabled={busy} onClick={() => deleteFinishedJobs(jobsForCurrentView.map((job) => job.id))}>Delete all ({jobsForCurrentView.length})</button>
-            </div>
-          )}
           {jobsForCurrentView.map((job) => (
-            <div key={job.id} style={finishedBulkVisible ? { display: 'flex', alignItems: 'flex-start', gap: 6 } : undefined}>
-            {finishedBulkVisible && <input type="checkbox" aria-label="Select job" style={{ marginTop: 14 }} checked={finishedSelection.has(job.id)} onChange={() => toggleFinishedJob(job.id)} />}
-            <button type="button" style={finishedBulkVisible ? { flex: 1 } : undefined} className={`tm-human-job-row ${selectedJob?.id === job.id ? 'selected' : ''}`} onClick={() => setSelectedId(job.id)}>
+            <button type="button" key={job.id} className={`tm-human-job-row ${selectedJob?.id === job.id ? 'selected' : ''}`} onClick={() => setSelectedId(job.id)}>
               <strong>{job.job_name || job.pdf_image?.name || job.audio?.name || `Human job ${job.id.slice(0, 6)}`}</strong>
               <span>{mode === 'worker' && workerTab === 'available' ? (job.claimable_full_job ? 'Entire job · available to claim' : `${(job.claimable_parts || []).length} part${(job.claimable_parts || []).length === 1 ? '' : 's'} available`) : mode === 'worker' && job.worker_assignment?.role === 'proofreader' ? 'Proofreading · In progress' : (STATUS_LABELS[job.status] || job.status)}{typeof job.time_remaining_seconds === 'number' && ['assigned', 'in_progress'].includes(job.worker_assignment?.status || job.status) ? ` · ${formatCountdown(remainingSecondsFor(job))} left` : ''}</span>
               {mode === 'admin' && (() => {
@@ -1130,7 +1081,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               })()}
               <small>{mode === 'worker' ? `${job.job_type === 'pdf_job' ? (job.pdf_review ? 'Whole-file proofread' : job.job_category === 'text_messages' ? 'Text Messages image · KES 50' : 'PDF image · KES 100') : jobTypeLabel(job)} · ${moneylessDate(job.createdAt)}` : `${job.quote_credits || 0} credits · ${moneylessDate(job.createdAt)}`}</small>
             </button>
-            </div>
           ))}
           {!jobsForCurrentView.length && <div className="tm-human-empty">{mode === 'admin' ? 'No jobs match this status and type.' : mode === 'worker' && workerTab === 'available' ? 'No new work is available right now. This board refreshes automatically.' : 'No human work is waiting here.'}</div>}
         </aside>
@@ -1289,20 +1239,14 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               return (
                 <div className={`tm-tat-timer${urgent ? ' tm-tat-timer-urgent' : ''}`}>
                   <div><strong>{remaining <= 0 ? 'Time is up' : formatCountdown(remaining)}</strong><span>{workerAssignment.role === 'proofreader' ? 'left to finish proofreading' : selectedJob.job_type === 'pdf_job' ? 'left to submit this image transcription' : 'left to submit your part'}</span></div>
-                  {workerAssignment.role === 'transcriber' && Number(workerAssignment.worker_extension_minutes_available) > 0 && remaining > 0 && (
-                    <div className="tm-tat-extend">
-                      <button type="button" className="tm-admin-btn" disabled={busy} onClick={workerExtendOwnDeadline}>Extend my deadline by {workerAssignment.worker_extension_minutes_available} minutes</button>
-                      <span className="tm-tat-hint"> You can do this once for this part, before time runs out.</span>
-                    </div>
-                  )}
                   <p className="tm-tat-hint">Tip: a quicker typing pace means faster turnarounds and more jobs you can take on. <a href="/typing-practice" target="_blank" rel="noopener noreferrer">Practice touch typing</a></p>
                 </div>
               );
             })()}
 
-            {mode === 'admin' && splitJob && <div className="tm-human-assign" style={{ display: 'grid', gap: 10 }}><strong>Parts and deadlines</strong>{(selectedJob.segments || []).map((part) => <div key={part.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><span style={{ minWidth: 170 }}><strong>{part.label}</strong><small style={{ display: 'block', color: '#858a95' }}>{part.worker_name || 'Waiting for reassignment'} · {STATUS_LABELS[part.status] || part.status}{typeof part.time_remaining_seconds === 'number' ? ` · ${formatCountdown(part.time_remaining_seconds)} left` : ''}</small></span>{['assigned', 'in_progress'].includes(part.status) && <button type="button" disabled={busy} onClick={() => takeBackAssignment('transcriber', part.id)}>Take back</button>}{['available', 'approved'].includes(part.status) && <span style={{ color: '#7a5f1b', fontSize: 12 }}>This part is available for a worker to claim.</span>}</div>)}{['assigned', 'in_progress'].includes(selectedJob.proofreader_status) && <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><span style={{ minWidth: 170 }}><strong>Final proofreader</strong><small style={{ display: 'block', color: '#858a95' }}>{selectedJob.proofreader_name || 'Assigned worker'} · {formatCountdown(selectedJob.proofreader_time_remaining_seconds || 0)} left</small></span><button type="button" disabled={busy} onClick={() => takeBackAssignment('proofreader')}>Take back</button></div>}</div>}
+            {mode === 'admin' && splitJob && <div className="tm-human-assign" style={{ display: 'grid', gap: 10 }}><strong>Parts and deadlines</strong>{(selectedJob.segments || []).map((part) => <div key={part.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><span style={{ minWidth: 170 }}><strong>{part.label}</strong><small style={{ display: 'block', color: '#858a95' }}>{part.worker_name || 'Waiting for reassignment'} · {STATUS_LABELS[part.status] || part.status}{typeof part.time_remaining_seconds === 'number' ? ` · ${formatCountdown(part.time_remaining_seconds)} left` : ''}</small></span>{['assigned', 'in_progress'].includes(part.status) && <><select value={extensionMinutes} onChange={(event) => setExtensionMinutes(event.target.value)} aria-label={`Extra time for ${part.label}`}><option value="5">+5 minutes</option><option value="10">+10 minutes</option><option value="15">+15 minutes</option><option value="20">+20 minutes</option></select><button type="button" disabled={busy} onClick={() => extendTat(part.id)}>Add time</button><button type="button" disabled={busy} onClick={() => takeBackAssignment('transcriber', part.id)}>Take back</button></>}{['available', 'approved'].includes(part.status) && <span style={{ color: '#7a5f1b', fontSize: 12 }}>This part is available for a worker to claim.</span>}</div>)}{['assigned', 'in_progress'].includes(selectedJob.proofreader_status) && <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><span style={{ minWidth: 170 }}><strong>Final proofreader</strong><small style={{ display: 'block', color: '#858a95' }}>{selectedJob.proofreader_name || 'Assigned worker'} · {formatCountdown(selectedJob.proofreader_time_remaining_seconds || 0)} left</small></span><select value={extensionMinutes} onChange={(event) => setExtensionMinutes(event.target.value)} aria-label="Extra time for proofreader"><option value="5">+5 minutes</option><option value="10">+10 minutes</option><option value="15">+15 minutes</option><option value="20">+20 minutes</option></select><button type="button" disabled={busy} onClick={() => extendTat('', 'proofreader')}>Add time</button><button type="button" disabled={busy} onClick={() => takeBackAssignment('proofreader')}>Take back</button></div>}</div>}
 
-            {mode === 'admin' && selectedJob.whole_job_assignment === true && !splitJob && ['assigned', 'in_progress'].includes(selectedJob.status) && typeof selectedJob.time_remaining_seconds === 'number' && <div className="tm-human-assign"><label>Add time before the deadline<select value={extensionMinutes} onChange={(event) => setExtensionMinutes(event.target.value)}><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20">20 minutes</option></select></label><button type="button" disabled={busy} onClick={() => extendTat()}>Extend deadline</button><p className="tm-tat-hint">Admin extensions are available only for whole jobs assigned directly to a worker.</p></div>}
+            {mode === 'admin' && !splitJob && ['assigned', 'in_progress'].includes(selectedJob.status) && typeof selectedJob.time_remaining_seconds === 'number' && <div className="tm-human-assign"><label>Add time before the deadline<select value={extensionMinutes} onChange={(event) => setExtensionMinutes(event.target.value)}><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20">20 minutes</option></select></label><button type="button" disabled={busy} onClick={() => extendTat()}>Extend deadline</button><p className="tm-tat-hint">The job will remain with the worker while the added time is still active.</p></div>}
 
 
             {selectedJob.last_auto_reassigned_worker_name && selectedJob.status === 'approved' && (
@@ -1342,11 +1286,11 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               <label>Supervised starter assessment
                 <select value={starterWorker} onChange={(event) => setStarterWorker(event.target.value)}>
                   <option value="">Choose an unrated or below-threshold worker</option>
-                  {adminAssignableWorkers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.rating == null ? `starter jobs ${Math.min(worker.submitted_jobs || 0, worker.starter_jobs_required || 3)}/${worker.starter_jobs_required || 3}` : `${Number(worker.rating).toFixed(1)}/5`} · {worker.email}</option>)}
+                  {adminAssignableWorkers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}
                 </select>
               </label>
               <button type="button" disabled={busy || !starterWorker} onClick={assignSupervisedStarter}>Assign supervised starter</button>
-              <p className="tm-tat-hint">A new worker completes 3 supervised starter jobs. Assign them one at a time; the Rating Agent rates them after the third, and a 3.5/5 rating opens the public claim board.</p>
+              <p className="tm-tat-hint">Use this admin-supervised exception to assess a new hire or review a worker below 3.5. The public claim board remains restricted.</p>
             </div>}
 
             {mode === 'admin' && splitJob && (selectedJob.segments || []).some((part) => ['available', 'approved'].includes(part.status)) && (
@@ -1362,11 +1306,11 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 <label>Worker
                   <select value={starterWorker} onChange={(event) => setStarterWorker(event.target.value)}>
                     <option value="">Choose an unrated or below-threshold worker</option>
-                    {adminAssignableWorkers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.rating == null ? `starter jobs ${Math.min(worker.submitted_jobs || 0, worker.starter_jobs_required || 3)}/${worker.starter_jobs_required || 3}` : `${Number(worker.rating).toFixed(1)}/5`} · {worker.email}</option>)}
+                    {adminAssignableWorkers.map((worker) => <option key={worker.uid} value={worker.uid}>{worker.name} · {worker.email}</option>)}
                   </select>
                 </label>
                 <button type="button" disabled={busy || !starterWorker || !starterSegment} onClick={assignSupervisedStarter}>Assign supervised starter part</button>
-                <p className="tm-tat-hint">A new worker completes 3 supervised starter jobs. Assign them one at a time; the Rating Agent rates them after the third. Rated workers should use the public claim board.</p>
+                <p className="tm-tat-hint">Use this admin-supervised exception to assess a new hire or review a worker below 3.5. Rated workers should use the public claim board.</p>
               </div>
             )}
 
@@ -1494,14 +1438,14 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               ) : <>
                 <div className="tm-human-messages">{messages.map((item) => {
                   const isMine = item.sender_uid === currentUser?.uid;
-                  const label = item.sender_role === 'admin' ? 'TypeMyworDz admin' : isMine ? 'You' : (item.sender_name || 'Assigned worker');
+                  const label = item.sender_role === 'admin' ? 'TypeMyworDz admin' : isMine ? 'You' : 'Assigned worker';
                   return <article key={item.id} className="tm-human-message"><div><strong>{label}</strong><time>{moneylessDate(item.createdAt)}</time></div>{isMine && <span className={`tm-human-message-receipt${item.read_by_role ? ' is-read' : ''}`}>{item.read_by_role ? `Read by ${item.read_by_role}` : 'Not read yet'}</span>}{item.message && <p>{item.message}</p>}{item.attachment && <button type="button" className="tm-human-attachment-link" onClick={() => downloadAttachment(item)}>Download: {item.attachment.name}</button>}</article>;
                 })}{!messages.length && <div className="tm-human-empty">No messages yet. Use this thread for job details between admins and assigned workers.</div>}</div>
-                {conversationClosed ? <div className="tm-human-empty" role="status">This job has moved to Submitted, so the conversation is closed. Earlier messages stay visible above.</div> : <form className="tm-human-message-form" onSubmit={sendMessage}>
+                <form className="tm-human-message-form" onSubmit={sendMessage}>
                   <textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} onKeyDown={handleMessageKeyDown} placeholder={mode === 'admin' ? 'Write to the assigned worker or workers' : 'Write to the TypeMyworDz admin team'} rows={2} aria-label="Job conversation message" />
                   {messageFile && <div className="tm-human-attachment-preview" role="status" aria-live="polite"><span><strong>Attached:</strong> {messageFile.name}{formatAttachmentSize(messageFile.size) ? ` · ${formatAttachmentSize(messageFile.size)}` : ''}</span><button type="button" onClick={() => setMessageFile(null)} aria-label={`Remove ${messageFile.name}`}>Remove</button></div>}
                   <div className="tm-human-message-actions"><label className="tm-human-attach" title="Attach any file" aria-label="Attach any file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 3.5h8l3 3V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M15 3.5V7h3M9 11h6M9 15h6"/></svg><input type="file" onChange={(event) => setMessageFile(event.target.files?.[0] || null)} /></label><span className="tm-human-message-hint">Enter to send · Shift+Enter for a new line</span><button type="submit" disabled={busy || (!messageText.trim() && !messageFile)}>Send</button></div>
-                </form>}
+                </form>
               </>}
             </div>}
           </>}
@@ -1596,11 +1540,6 @@ function WorkerShiftPanel({ showMessage, onPresence, availableForWork }) {
         <div className="tm-worker-shift-heading"><strong>{statusLabel}</strong>{shift?.misses_consecutive > 0 && <span className="tm-worker-shift-count">{shift.misses_consecutive}/6 missed</span>}</div>
         <p>{shift?.message || 'Loading today’s shift details…'}</p>
         <small>The Available for work switch only shows admins whether you are online. It does not record attendance or allow claims. During a scheduled shift, clock in; outside shift hours, an admin call-in and clock-in are required.</small>
-        <div className={`tm-worker-shift-weekly${shift && shift.weekly_requirement_met === false ? ' at-risk' : ''}`} role="note" style={{ margin: '8px 0', padding: '8px 10px', borderRadius: 8, background: shift?.weekly_requirement_met ? '#e8f6ec' : '#fff4e0', border: `1px solid ${shift?.weekly_requirement_met ? '#9fd3ac' : '#f0c36d'}`, fontSize: 13 }}>
-          <strong>You must clock in to at least {shift?.weekly_required || 4} shifts every week (Mon–Fri) to keep your account active.</strong>
-          {typeof shift?.shifts_this_week === 'number' && <span> This week: {shift.shifts_this_week}/{shift?.weekly_required || 4} shifts{shift.weekly_requirement_met ? ' ✓' : ''}.</span>}
-          <span> Fewer than {shift?.weekly_required || 4} shifts in a week automatically moves you back to the Training Room. No admin involved. Keep <em>Available for work</em> switched ON while you work so admins see you online.</span>
-        </div>
         {shift?.warning && <small className="tm-worker-shift-warning">Five missed shifts in a row. Attend your next scheduled shift to keep your work access.</small>}
         {onShift && shift?.has_active_assignment && <small className="tm-worker-shift-warning">Finish your active job before clocking out.</small>}
         {error && <small className="tm-worker-shift-error" role="alert">{error}</small>}
@@ -1680,13 +1619,12 @@ function AdminShiftAttendancePanel({ showMessage }) {
     </div>
     <div className="tm-human-shift-summary"><span><strong>{onlineCount}</strong> online</span><span><strong>{notArrivedCount}</strong> not arrived</span><span><strong>{trainingCount}</strong> in retraining</span><small>Warning at 5 consecutive missed shifts · Training Room at 6</small></div>
     {error && <p className="tm-letter-job-error" role="alert">{error}</p>}
-    {loading && !workers.length ? <div className="tm-admin-empty">Loading shift attendance…</div> : !workers.length ? <div className="tm-admin-empty">No approved workers are on the shift roster yet.</div> : <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Worker</th><th>Attendance</th><th>Recent presence</th><th>Missed shifts</th><th>Shifts this week</th><th>Admin action</th></tr></thead><tbody>
+    {loading && !workers.length ? <div className="tm-admin-empty">Loading shift attendance…</div> : !workers.length ? <div className="tm-admin-empty">No approved workers are on the shift roster yet.</div> : <div className="tm-admin-table-scroll"><table className="tm-admin-table"><thead><tr><th>Worker</th><th>Attendance</th><th>Recent presence</th><th>Missed shifts</th><th>Admin action</th></tr></thead><tbody>
       {workers.map((worker) => <tr key={worker.uid}>
         <td><strong>{worker.name}</strong><div className="tm-admin-name">{worker.email}{worker.rating != null ? ` · ${Number(worker.rating).toFixed(2)}/5` : ''}</div></td>
         <td><span className={`tm-human-shift-status ${worker.online ? 'is-online' : 'is-offline'}`}>{worker.online ? 'Online' : 'Offline'}</span><div className="tm-admin-name">{statusText(worker.status)}</div>{worker.message && <div className="tm-admin-name">{worker.message}</div>}</td>
         <td>{worker.last_presence_at ? moneylessDate(worker.last_presence_at) : 'Not recorded'}{worker.call_in_expires_at && worker.call_in_active && <div className="tm-admin-name">Call-in ends {moneylessDate(worker.call_in_expires_at)}</div>}</td>
         <td>{worker.misses_consecutive || 0} / 6{worker.warning && <div className="tm-worker-shift-warning">Warning issued</div>}</td>
-        <td>{typeof worker.shifts_this_week === 'number' ? `${worker.shifts_this_week} / ${worker.weekly_required || 4}` : '—'}</td>
         <td>{worker.status === 'retraining' ? 'No call-in while retraining' : <button type="button" className="tm-admin-btn" disabled={workingUid === worker.uid || (worker.call_in_active && worker.clocked_in)} onClick={() => callIn(worker)}>{workingUid === worker.uid ? 'Calling in…' : worker.call_in_active ? 'Extend call-in' : 'Call in'}</button>}</td>
       </tr>)}
     </tbody></table></div>}
@@ -2083,7 +2021,7 @@ function AdminPayoutsPanel({ request, showMessage, workers }) {
               {invoices.payouts.map((payout) => (
                 <tr key={payout.payout_id}>
                   <td>{payout.worker_name || payout.worker_email}</td>
-                  <td>{payout.period_label} <small>({payout.period_label?.endsWith('-A') ? 'pays on the 15th' : 'pays at month end'})</small></td>
+                  <td>{payout.period_range || payout.period_label} <small>({payout.period_label?.endsWith('-A') ? 'pays on the 15th' : 'pays at month end'})</small></td>
                   <td>{payout.total_minutes}</td>
                   <td>KES {payout.transcription_amount_kes || 0}<small>{payout.transcription_minutes || 0} min</small></td>
                   <td>KES {payout.proofreading_amount_kes || 0}<small>{payout.proofreading_minutes || 0} min</small></td>
@@ -2139,7 +2077,7 @@ function SubadminSelfPaymentPanel({ request, showMessage }) {
       </div>
       <div className="tm-human-chat-card tm-subadmin-section">
         <div className="tm-human-chat-head"><div><strong>Half-month invoices</strong><span>1st–15th and 16th–month end</span></div></div>
-        {loading && !history ? <p className="tm-human-empty">Loading your payment record…</p> : payouts.length ? <div className="tm-subadmin-table-wrap"><table className="tm-admin-payout-table"><thead><tr><th>Period</th><th>Amount</th><th>Status</th><th>Payment recorded</th></tr></thead><tbody>{payouts.map((item) => <tr key={item.payout_id}><td>{item.period_label}</td><td>{kesThree(item.total_amount_kes)}</td><td>{item.status === 'paid' ? 'Paid' : 'Pending'}</td><td>{item.paid_at ? moneylessDate(item.paid_at) : 'Not recorded'}</td></tr>)}</tbody></table></div> : <p className="tm-human-empty">No half-month invoices yet. Your eligible work will appear here after approval.</p>}
+        {loading && !history ? <p className="tm-human-empty">Loading your payment record…</p> : payouts.length ? <div className="tm-subadmin-table-wrap"><table className="tm-admin-payout-table"><thead><tr><th>Period</th><th>Amount</th><th>Status</th><th>Payment recorded</th></tr></thead><tbody>{payouts.map((item) => <tr key={item.payout_id}><td>{item.period_range || item.period_label}</td><td>{kesThree(item.total_amount_kes)}</td><td>{item.status === 'paid' ? 'Paid' : 'Pending'}</td><td>{item.paid_at ? moneylessDate(item.paid_at) : 'Not recorded'}</td></tr>)}</tbody></table></div> : <p className="tm-human-empty">No half-month invoices yet. Your eligible work will appear here after approval.</p>}
       </div>
       <div className="tm-human-chat-card tm-subadmin-section">
         <div className="tm-human-chat-head"><div><strong>Approved work</strong><span>Each item keeps the rate that applied when it was approved.</span></div></div>
@@ -2197,7 +2135,7 @@ function AdminSubadminPaymentsPanel({ request, showMessage }) {
   const search = () => loadData(filters, invoiceStatus);
   const markPaid = async (payout) => {
     const amount = kesThree(payout.total_amount_kes);
-    if (!window.confirm(`Mark the ${payout.period_label} invoice for ${payout.subadmin_email} (${amount}) as paid? Only continue after the money has actually been sent.`)) return;
+    if (!window.confirm(`Mark the ${payout.period_range || payout.period_label} invoice for ${payout.subadmin_email} (${amount}) as paid? Only continue after the money has actually been sent.`)) return;
     setBusyId(payout.payout_id);
     try {
       await request(`/api/admin/subadmin-payouts/${encodeURIComponent(payout.payout_id)}/mark-paid`, { method: 'POST' });
@@ -2243,7 +2181,7 @@ function AdminSubadminPaymentsPanel({ request, showMessage }) {
       <div className="tm-human-chat-card tm-subadmin-section">
         <div className="tm-human-chat-head"><div><strong>Half-month invoices</strong><span>Each completed period is invoiced once the half ends; the next half accrues independently.</span></div><label className="tm-subadmin-invoice-filter">Status<select value={invoiceStatus} onChange={(event) => { const status = event.target.value; setInvoiceStatus(status); loadData(filters, status); }}><option value="pending">Pending payout</option><option value="paid">Paid</option><option value="all">All invoices</option></select></label></div>
         {invoiceData && <div className="tm-subadmin-invoice-totals"><span>Pending <strong>{kesThree(invoiceData.totals?.pending_kes)}</strong></span><span>Paid <strong>{kesThree(invoiceData.totals?.paid_kes)}</strong></span></div>}
-        {invoices.length ? <div className="tm-subadmin-table-wrap"><table className="tm-admin-payout-table"><thead><tr><th>Sub-admin</th><th>Period</th><th>Human audio</th><th>AI audio</th><th>Human images</th><th>AI images</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>{invoices.map((item) => <tr key={item.payout_id}><td>{item.subadmin_email}</td><td>{item.period_label}</td><td>{kesThree(item.category_totals_kes?.audio_human)}</td><td>{kesThree(item.category_totals_kes?.audio_ai)}</td><td>{kesThree(item.category_totals_kes?.image_human)}</td><td>{kesThree(item.category_totals_kes?.image_ai)}</td><td><strong>{kesThree(item.total_amount_kes)}</strong></td><td>{item.status === 'paid' ? `Paid ${moneylessDate(item.paid_at)}` : 'Pending'}</td><td>{item.status !== 'paid' && <button type="button" onClick={() => markPaid(item)} disabled={busyId === item.payout_id}>{busyId === item.payout_id ? 'Saving…' : 'Mark paid'}</button>}</td></tr>)}</tbody></table></div> : !loading && <p className="tm-human-empty">No invoices in this view yet.</p>}
+        {invoices.length ? <div className="tm-subadmin-table-wrap"><table className="tm-admin-payout-table"><thead><tr><th>Sub-admin</th><th>Period</th><th>Human audio</th><th>AI audio</th><th>Human images</th><th>AI images</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>{invoices.map((item) => <tr key={item.payout_id}><td>{item.subadmin_email}</td><td>{item.period_range || item.period_label}</td><td>{kesThree(item.category_totals_kes?.audio_human)}</td><td>{kesThree(item.category_totals_kes?.audio_ai)}</td><td>{kesThree(item.category_totals_kes?.image_human)}</td><td>{kesThree(item.category_totals_kes?.image_ai)}</td><td><strong>{kesThree(item.total_amount_kes)}</strong></td><td>{item.status === 'paid' ? `Paid ${moneylessDate(item.paid_at)}` : 'Pending'}</td><td>{item.status !== 'paid' && <button type="button" onClick={() => markPaid(item)} disabled={busyId === item.payout_id}>{busyId === item.payout_id ? 'Saving…' : 'Mark paid'}</button>}</td></tr>)}</tbody></table></div> : !loading && <p className="tm-human-empty">No invoices in this view yet.</p>}
       </div>
     </section>
   );

@@ -5,8 +5,8 @@ import UploadResultBanner, { announceJobsChanged } from './UploadResultBanner';
 import JobAudioRecorder from './JobAudioRecorder';
 
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
-const ADMIN_EMAILS = new Set(['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com']);
-const DEFAULT_ADMIN_NOTE = 'Client provided spellings: None\n\nClient Word List: None\n\nHint names from the Filename: None:\n\nOther instructions: None';
+const ADMIN_EMAILS = new Set(['typemywordz@gmail.com', 'info@typemywordz.ai', 'gracenyaitara@gmail.com', 'donotgrowweary95@gmail.com', 'priscillamuthoni010@gmail.com']);
+const DEFAULT_ADMIN_NOTE = 'Hint names from the Filename: None\n\nOther instructions: None\n\nClient provided spellings: None';
 const uploadedLabel = (file) => (file?.name ? `"${file.name}"` : 'your job');
 
 export default function AdminAudioJobsPanel({ category = 'general', showMessage, onOpenQueue, recordedAudioFile = null, onRecordedAudioReady }) {
@@ -143,7 +143,7 @@ export default function AdminAudioJobsPanel({ category = 'general', showMessage,
             {!referencesValid && <small className="tm-admin-audio-error" role="alert">Attach no more than {maxReferences} supporting files.</small>}
           </label>
         </div>
-        <footer className="tm-admin-audio-form-footer"><span>{templateJob ? 'Template Agent: GPT-6.1 Sol, with Claude Opus 5.5 fallback.' : 'General Agent: GPT-5.6 Luna, with DeepSeek V4 Flash fallback.'}</span><button type="submit" disabled={uploading || !workingFile || !Number(minutes) || !templateFilePresent || !referencesValid}>{uploading ? 'Uploading securely…' : `Create ${templateJob ? 'Template' : 'General'} Job`}</button></footer>
+        <footer className="tm-admin-audio-form-footer"><span>{templateJob ? 'Template Agent: GPT-5.6 Sol, with Claude Opus 5.5 fallback.' : 'General Agent: GPT-5.6 Luna, with DeepSeek V4 Flash fallback.'}</span><button type="submit" disabled={uploading || !workingFile || !Number(minutes) || !templateFilePresent || !referencesValid}>{uploading ? 'Uploading securely…' : `Create ${templateJob ? 'Template' : 'General'} Job`}</button></footer>
       </form>
     </section>
   );
