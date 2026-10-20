@@ -1722,14 +1722,41 @@ function AppContent() {
     const wv = window.chrome && window.chrome.webview;
     if (wv) wv.postMessage('typescribe-request-audio');
   }, []);
+  const scribeWantRef = useRef(false);
+  const scribeWantTimerRef = useRef(null);
+  const [scribeNote, setScribeNote] = useState('');
+  // The button is always available. It throws away whatever is on screen and
+  // brings in the audio TypeScribe has loaded right now.
+  const useTypeScribeAudio = useCallback(() => {
+    scribeWantRef.current = true;
+    setScribeNote('Asking TypeScribe\u2026');
+    askScribeForAudio();
+    clearTimeout(scribeWantTimerRef.current);
+    scribeWantTimerRef.current = setTimeout(() => {
+      if (scribeWantRef.current) {
+        scribeWantRef.current = false;
+        setScribeNote('Nothing is loaded in TypeScribe yet. Record or open an audio file there first.');
+      }
+    }, 6000);
+  }, [askScribeForAudio]);
   useEffect(() => {
     if (!scribeAudio || !currentUser || scribeDoneRef.current === scribeAudio.at) return;
     scribeDoneRef.current = scribeAudio.at;
-    // Never replace a transcript the person is working on. In that case the
-    // banner offers the new audio and they choose when to switch.
+    if (scribeWantRef.current) {
+      // The person asked for it: start fresh, then load it.
+      scribeWantRef.current = false;
+      clearTimeout(scribeWantTimerRef.current);
+      setScribeNote('');
+      resetTranscriptionProcessUI();
+      setSelectedFile(null);
+      setCurrentView('transcribe');
+      loadScribeAudio(scribeAudio);
+      return;
+    }
+    // Audio pushed by TypeScribe on its own never replaces a transcript.
     if (transcription) return;
     loadScribeAudio(scribeAudio);
-  }, [scribeAudio, currentUser, transcription, loadScribeAudio]);
+  }, [scribeAudio, currentUser, transcription, loadScribeAudio, resetTranscriptionProcessUI]);
 
   // Recorder shortcuts work only while the recorder view is open and this
   // browser tab is active. A normal web page cannot capture keys in the
@@ -2967,10 +2994,15 @@ return (
           </aside>
 
           <main className="tm-main">
-            {IS_TYPESCRIBE && creditBalance && !creditBalance.exempt && (
-              <div className="ts-credit-bar" role="status">
-                <span>Credits remaining</span>
-                <strong>{spendableCredits(creditBalance) === null ? '' : spendableCredits(creditBalance)}</strong>
+            {IS_TYPESCRIBE && (
+              <div className="ts-audio-bar" role="region" aria-label="Audio from TypeScribe">
+                <div className="ts-audio-info">
+                  <span className="ts-audio-label">TypeScribe audio</span>
+                  <span className="ts-audio-name">{scribeNote || (scribeAudio ? scribeAudio.name : 'Record or open audio in TypeScribe, then bring it here.')}</span>
+                </div>
+                <button type="button" className="ts-audio-btn" disabled={scribeLoading || isUploading} onClick={useTypeScribeAudio}>
+                  {scribeLoading ? 'Loading\u2026' : 'Use the audio in TypeScribe'}
+                </button>
               </div>
             )}
 
@@ -3370,24 +3402,6 @@ return (
                   }}>
                     {IS_TYPESCRIBE ? 'Choose a file' : 'Or upload a file'}
                   </h3>
-                  {IS_TYPESCRIBE && (
-                    <div className="ts-audio-card">
-                      {scribeAudio ? (
-                        <>
-                          <div className="ts-audio-name">TypeScribe audio: <strong>{scribeAudio.name}</strong></div>
-                          <button type="button" className="ts-audio-btn" disabled={scribeLoading || isUploading} onClick={() => loadScribeAudio(scribeAudio)}>
-                            {scribeLoading ? 'Loading...' : 'Use this audio'}
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <div className="ts-audio-name">Record or open audio in TypeScribe, then use it here.</div>
-                          <button type="button" className="ts-audio-btn" onClick={askScribeForAudio}>Use the audio in TypeScribe</button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                  
                   <div style={{
                     border: '1px dashed #ccced4',
                     borderRadius: '10px',
