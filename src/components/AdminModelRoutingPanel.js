@@ -90,6 +90,7 @@ export default function AdminModelRoutingPanel({ currentUser, showMessage }) {
                     {route.customised ? 'Customised' : 'Default'} &middot; default: {route.default.map((id) => label(id, route)).join(' then ')}
                   </span>
                 </header>
+                {route.key === 'general_grace' && <p style={{ margin: '0 0 10px', fontSize: 13, color: '#2f6b3f' }}>Used only when Grace Nyaitara (gracenyaitara@gmail.com) assigns the General Jobs agent. No other sub-admin gets this route.</p>}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
                   {SLOTS.map((slotName, slot) => (
                     <label key={slotName} style={{ display: 'grid', gap: 4, fontSize: 13 }}>
