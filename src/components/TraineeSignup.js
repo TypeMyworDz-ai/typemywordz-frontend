@@ -243,7 +243,7 @@ export default function TraineeSignup() {
         <p className="tm-trainee-lede">Enrollment is currently open to Kenyan applicants. Use your official ID name so your training and work records match.</p>
         {!typingPassed && !paymentConfirmed && (
           <div className="tm-trainee-test-gate">
-            <p><strong>First, check your typing speed.</strong> Pass a 30-second test at 40 WPM or faster to continue to the application and checkout.</p>
+            <p><strong>First, check your typing speed.</strong> Pass a 30-second test at 50 WPM or faster to continue to the application and checkout.</p>
             <TypingSpeedTest compact onPass={({ correctCharacters, seconds, wpm }) => { const result = { correct_chars: correctCharacters, elapsed_ms: seconds * 1000, wpm }; setTypingPassed(true); setTypingTestResult(result); writeSession(TEST_PASSED_KEY, { passed: true, result, recordedAt: Date.now() }); setNotice('Typing requirement met. Your enrollment details are now available below.'); }} />
             <p className="tm-trainee-practice-link">Want to warm up first? <Link to="/typing-practice" target="_blank" rel="noopener noreferrer">Try the free typing lessons</Link>.</p>
           </div>
@@ -251,7 +251,7 @@ export default function TraineeSignup() {
         {typingPassed && !paymentConfirmed && (
           <>
             <img className="tm-trainee-illustration" src="/trainee-african-headphones.png" alt="Transcription trainee working with headphones" />
-            <div className="tm-trainee-price"><strong>$1 USD</strong><span>One-time enrollment fee, converted to local checkout currency. Kora is the primary checkout; Paystack appears if Kora cannot complete payment.</span></div>
+            <div className="tm-trainee-price"><strong>$10 USD</strong><span>One-time enrollment fee, converted to local checkout currency. Kora is the primary checkout; Paystack appears if Kora cannot complete payment.</span></div>
             {error && <p className="tm-auth-error" role="alert">{error}</p>}
             {notice && <p className="tm-auth-notice" role="status">{notice}</p>}
             <label className="tm-auth-label" htmlFor="trainee-official-name">Full official ID name</label>
@@ -260,7 +260,7 @@ export default function TraineeSignup() {
             <label className="tm-trainee-check"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} disabled={busy} /> <span>I confirm that this is my official ID name.</span></label>
             <div className="tm-trainee-fee-disclosure">
               <strong>About the one-time fee</strong>
-              <p>The $1 fee covers collecting and confirming the M-Pesa payout details you provide for future payments if you are hired. The fee is non-refundable once Training Room access is provided, subject to applicable law and our <Link to="/refund-policy" target="_blank" rel="noopener noreferrer">Refund Policy</Link> for service failures.</p>
+              <p>The $10 fee covers collecting and confirming the M-Pesa payout details you provide for future payments if you are hired. The fee is non-refundable once Training Room access is provided, subject to applicable law and our <Link to="/refund-policy" target="_blank" rel="noopener noreferrer">Refund Policy</Link> for service failures.</p>
               <p>We check the Kenyan phone-number format only; we do not verify details through Safaricom. Make sure the name and number you provide after payment are registered to your M-Pesa account.</p>
             </div>
             <label className="tm-trainee-check"><input type="checkbox" checked={feeAcknowledged} onChange={(e) => setFeeAcknowledged(e.target.checked)} disabled={busy} /> <span>I understand the one-time fee and M-Pesa details requirements.</span></label>
@@ -272,7 +272,7 @@ export default function TraineeSignup() {
           <>
             {error && <p className="tm-auth-error" role="alert">{error}</p>}
             {notice && <p className="tm-auth-notice" role="status">{notice}</p>}
-            <div className="tm-trainee-price"><strong>Payment confirmed</strong><span>Your one-time $1 enrollment fee is recorded. Add and confirm your payout details before the Training Room opens.</span></div>
+            <div className="tm-trainee-price"><strong>Payment confirmed</strong><span>Your one-time $10 enrollment fee is recorded. Add and confirm your payout details before the Training Room opens.</span></div>
             <label className="tm-auth-label" htmlFor="trainee-mpesa-name">M-Pesa registered name</label>
             <input id="trainee-mpesa-name" className="tm-auth-input" value={mpesaRegisteredName} onChange={(e) => setMpesaRegisteredName(e.target.value)} placeholder="Name registered to your M-Pesa account" disabled={busy} autoComplete="name" />
             <label className="tm-auth-label" htmlFor="trainee-mpesa-number">M-Pesa phone number</label>

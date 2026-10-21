@@ -1693,6 +1693,88 @@ function AdminShiftAttendancePanel({ showMessage }) {
   </section>;
 }
 
+function AdminImageRatesPanel({ request, showMessage }) {
+  const fields = [
+    ['pdf_job_rate_kes', 'PDF job', 'per PDF or image job'],
+    ['text_messages_rate_kes', 'Text Messages job', 'per Text Messages job'],
+    ['pdf_review_rate_kes_per_page', 'Image proofreading', 'per page reviewed'],
+  ];
+  const [saved, setSaved] = useState(null);
+  const [draft, setDraft] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await request('/human-transcription/admin/image-rates');
+      setSaved(data);
+      setDraft(Object.fromEntries(fields.map(([key]) => [key, String(data[key])])));
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request, showMessage]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const save = async (event) => {
+    event.preventDefault();
+    const maximum = Number(saved?.maximum_rate_kes || 5000);
+    for (const [key, label] of fields) {
+      const value = Number(draft[key]);
+      if (!Number.isInteger(value) || value < 1 || value > maximum) {
+        showMessage?.(`${label}: enter a whole number from KES 1 to KES ${maximum}.`, 'error');
+        return;
+      }
+    }
+    if (fields.every(([key]) => Number(draft[key]) === Number(saved?.[key]))) return;
+    if (!window.confirm('Save these image job rates? They apply to image work completed from now on; work already paid out is not changed.')) return;
+    setSaving(true);
+    try {
+      const data = await request('/human-transcription/admin/image-rates', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.fromEntries(fields.map(([key]) => [key, Number(draft[key])]))),
+      });
+      setSaved(data);
+      setDraft(Object.fromEntries(fields.map(([key]) => [key, String(data[key])])));
+      showMessage?.('Image job rates saved.', 'success');
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="tm-human-chat-card">
+      <div className="tm-human-chat-head"><div><strong>Image job rates</strong><span>Fixed worker pay for PDF, image and Text Messages jobs.</span></div><span className="tm-human-live-dot">KES</span></div>
+      {loading ? <div className="tm-human-empty">Loading current rates…</div> : (
+        <form className="tm-admin-rate-form" onSubmit={save}>
+          {fields.map(([key, label, unit]) => (
+            <div className="tm-admin-rate-main" key={key}>
+              <label htmlFor={`tm-image-rate-${key}`}>{label}</label>
+              <div className="tm-admin-rate-input-row">
+                <span>KES</span>
+                <input id={`tm-image-rate-${key}`} type="number" min="1" max={saved?.maximum_rate_kes || 5000} step="1" value={draft[key] ?? ''} disabled={!saved} onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.value }))} />
+                <span>{unit}</span>
+              </div>
+            </div>
+          ))}
+          <small>Applies to image work completed after you save. Work already paid out keeps its amount.</small>
+          <div className="tm-admin-rate-actions">
+            <button type="submit" disabled={saving || loading || !saved}>{saving ? 'Saving…' : 'Save image rates'}</button>
+            <button type="button" onClick={load} disabled={saving || loading}>Reload</button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
 function AdminTranscriberRatePanel({ request, showMessage }) {
   const [rate, setRate] = useState('30');
   const [policy, setPolicy] = useState(null);
@@ -1769,6 +1851,7 @@ function AdminTranscriberRatePanel({ request, showMessage }) {
           </form>
         )}
       </div>
+      <AdminImageRatesPanel request={request} showMessage={showMessage} />
       <AdminWorkerRateOverrides request={request} showMessage={showMessage} standardRate={policy?.transcriber_rate_kes_per_minute || 30} />
     </div>
   );
