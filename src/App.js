@@ -1697,6 +1697,12 @@ function AppContent() {
     wv.postMessage('typescribe-ready');
     return () => wv.removeEventListener('message', onMsg);
   }, []);
+  // Tell TypeScribe whether someone is signed in, so its panel button can say the right thing.
+  useEffect(() => {
+    const wv = window.chrome && window.chrome.webview;
+    if (!wv || authLoading) return;
+    wv.postMessage(currentUser ? 'typescribe-signed-in' : 'typescribe-signed-out');
+  }, [currentUser, authLoading]);
   // Put the audio from TypeScribe into the file slot, exactly as if the person
   // had chosen it. This never starts a transcription or spends a credit.
   const loadScribeAudio = useCallback(async (audio) => {
