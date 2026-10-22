@@ -16,6 +16,7 @@ import AdminWorkerRateOverrides from './AdminWorkerRateOverrides';
 import { copyForWord } from '../utils/transcriptExport';
 import './HumanJobWorkspace.css';
 
+import BroadcastBar from './BroadcastBar';
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 const STATUS_LABELS = {
   pending_admin: 'Waiting for admin', approved: 'Approved', assigned: 'Assigned', in_progress: 'In progress',
@@ -977,9 +978,10 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <button className="tm-human-refresh" type="button" onClick={() => { loadJobs(); loadWorkers(); loadPayments(); loadAvailability(); }}>Refresh</button>
       </div>
 
+      {mode === 'admin' && isHumanSubadmin && <BroadcastBar currentUser={currentUser} audience="subadmin" />}
       {mode === 'admin' && adminTab === 'queue' && isHumanSubadmin && <div className="tm-subadmin-shift-reminder" role="note"><strong>Shift reminder</strong><span>Keep all shift work inside the TypeMyworDz system unless the main admin requests or gives you other instructions. Regular paid shifts run Monday to Friday, Africa/Nairobi time: 3:00 p.m.–8:00 p.m. for info@typemywordz.ai; 3:00 p.m.–8:00 p.m. and 9:00 p.m.–1:00 a.m. for donotgrowweary95 and priscillamuthoni010. Only work done inside your own shift counts toward payment.</span></div>}
       {mode === 'admin' && adminScheduledNow === false && <p className="tm-tat-hint">Outside regular shift hours, worker assignment is limited to approved workers with an active admin call-in who are clocked in and currently online.</p>}
-      {mode === 'worker' && <div className="tm-subadmin-shift-reminder tm-worker-monday-note" role="note"><strong>Monday shifts</strong><span>Mondays are our slow shift days, so please do not expect much work on a Monday. This does not mean you can skip your shift: log in and clock in on time as usual, because attendance and tardiness are still tracked every day.</span></div>}
+      {mode === 'worker' && <BroadcastBar currentUser={currentUser} audience="worker" />}
       {mode === 'worker' && workerBoardInfo.deadlineWarning && workerBoardInfo.deadlineReturns < 11 && <div className="tm-worker-board-notice tm-worker-deadline-warning" role="alert"><strong>Deadline reminder · {workerBoardInfo.deadlineReturns} returns</strong><span>One more missed deadline will pause Available Jobs access and send you to the Training Room for retraining. Claim only work you can complete on time.</span></div>}
 
       {mode === 'worker' && <WorkerShiftPanel showMessage={showMessage} onPresence={loadJobs} availableForWork={workerAvailable} />}

@@ -87,3 +87,4 @@
 .tm-routing-actions button { padding: 9px 16px; border-radius: 6px; border: 1px solid #5b3a9e; background: #fff; color: #5b3a9e; font-weight: 600; cursor: pointer; }
 .tm-routing-actions button.tm-routing-primary { background: #2f9e5b; border-color: #2f9e5b; color: #fff; }
 .tm-routing-actions button:disabled { opacity: 0.55; cursor: not-allowed; }
+.tm-broadcast-stack{display:grid;gap:8px;margin:0 0 16px}.tm-broadcast-stack .tm-broadcast-item{margin:0;white-space:pre-line}.tm-broadcast-item a{color:#216d39;font-weight:700;text-decoration:underline;text-underline-offset:2px;white-space:normal}

@@ -14,6 +14,7 @@ import HumanJobWorkspace from './HumanJobWorkspace';
 import TraineeReviewDialog from './TraineeReviewDialog';
 import AdminAskPanel from './AdminAskPanel';
 import AdminModelRoutingPanel from './AdminModelRoutingPanel';
+import AdminBroadcastsPanel from './AdminBroadcastsPanel';
 import AdminHumanSttRoutingPanel from './AdminHumanSttRoutingPanel';
 import AdminGeneralGuidelinesPanel from './AdminGeneralGuidelinesPanel';
 import AdminClientWordListsPanel from './AdminClientWordListsPanel';
@@ -534,7 +535,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
             ['trainees', `Trainees${trainees.length ? ` · ${trainees.length}` : ''}`],
             ['workers', `Workers${workers.length ? ` · ${workers.length}` : ''}`],
             ['ask', 'Ask TypeMyworDz'],
-            ...(isAdminEmail(currentUser?.email) ? [['models', 'Model routing'], ['generalguidelines', 'General guidelines'], ['proofreadinginstructions', 'Proofreader instructions'], ['ratings', 'Rating Agent'], ['clientwordlists', 'Client Word Lists']] : []),
+            ...(isAdminEmail(currentUser?.email) ? [['models', 'Model routing'], ['broadcasts', 'Broadcasts'], ['generalguidelines', 'General guidelines'], ['proofreadinginstructions', 'Proofreader instructions'], ['ratings', 'Rating Agent'], ['clientwordlists', 'Client Word Lists']] : []),
           ].map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={activeTab === id} className="tm-admin-tab" onClick={() => setActiveTab(id)}>{label}</button>
           ))}
@@ -586,6 +587,7 @@ const AdminDashboard = ({ showMessage, latestTranscription }) => {
         {activeTab === 'ask' && <AdminAskPanel currentUser={currentUser} showMessage={showMessage} />}
 
         {activeTab === 'models' && isAdminEmail(currentUser?.email) && <><AdminModelRoutingPanel currentUser={currentUser} showMessage={showMessage} /><AdminHumanSttRoutingPanel currentUser={currentUser} showMessage={showMessage} /></>}
+        {activeTab === 'broadcasts' && isAdminEmail(currentUser?.email) && <AdminBroadcastsPanel currentUser={currentUser} showMessage={showMessage} />}
         {activeTab === 'clientwordlists' && isAdminEmail(currentUser?.email) && <AdminClientWordListsPanel currentUser={currentUser} showMessage={showMessage} />}
         {activeTab === 'generalguidelines' && isAdminEmail(currentUser?.email) && <AdminGeneralGuidelinesPanel currentUser={currentUser} showMessage={showMessage} />}
         {activeTab === 'proofreadinginstructions' && isAdminEmail(currentUser?.email) && <AdminProofreadingInstructionsPanel currentUser={currentUser} showMessage={showMessage} />}
