@@ -5,14 +5,14 @@ import AdminModelRoutingPanel from './AdminModelRoutingPanel';
 
 const sharedModels = [
   { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', provider: 'gemini' },
-  { id: 'gpt-5.6-terra', label: 'ChatGPT 5.6 Terra', provider: 'openai' },
+  { id: 'gpt-6.1-sol', label: 'ChatGPT 6.1 Sol', provider: 'openai' },
   { id: 'mistral-large-4', label: 'Mistral Large 4 (Preview)', provider: 'mistral' },
 ];
 const payload = {
   models: sharedModels,
   routes: [
-    { key: 'general', label: 'General Jobs agent (Super Admin)', default: ['gemini-3.8-flash', 'gpt-5.6-terra'], models: ['gemini-3.8-flash', 'gpt-5.6-terra'], customised: false, available_models: sharedModels },
-    { key: 'general_subadmin', label: 'General Jobs agent (Sub-admins)', default: ['gpt-5.6-terra', 'gemini-3.8-flash'], models: ['gpt-5.6-terra', 'gemini-3.8-flash'], customised: false, available_models: sharedModels },
+    { key: 'general', label: 'General Jobs agent (Super Admin)', default: ['gemini-3.8-flash', 'gpt-6.1-sol'], models: ['gemini-3.8-flash', 'gpt-6.1-sol'], customised: false, available_models: sharedModels },
+    { key: 'general_subadmin', label: 'General Jobs agent (Sub-admins)', default: ['gpt-6.1-sol', 'gemini-3.8-flash'], models: ['gpt-6.1-sol', 'gemini-3.8-flash'], customised: false, available_models: sharedModels },
   ],
 };
 
@@ -25,7 +25,7 @@ test('shows each job type and saves a changed primary model', async () => {
   render(<AdminModelRoutingPanel currentUser={{ getIdToken: () => Promise.resolve('t') }} showMessage={() => {}} />);
   expect(await screen.findByText('General Jobs agent (Super Admin)')).toBeInTheDocument();
   expect(screen.getByText('General Jobs agent (Sub-admins)')).toBeInTheDocument();
-  await userEvent.selectOptions(screen.getAllByRole('combobox')[0], 'gpt-5.6-terra');
+  await userEvent.selectOptions(screen.getAllByRole('combobox')[0], 'gpt-6.1-sol');
   await userEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]);
   await waitFor(() => expect(calls.some(([method, body]) => method === 'PUT' && JSON.parse(body).key === 'general')).toBe(true));
 });
@@ -48,7 +48,7 @@ test('offers Mistral Large 4 in both General Jobs routing cards', async () => {
   await waitFor(() => {
     const saved = calls.find(([method]) => method === 'PUT');
     expect(saved).toBeDefined();
-    expect(JSON.parse(saved[1])).toMatchObject({ key: 'general', models: ['mistral-large-4', 'gpt-5.6-terra'] });
+    expect(JSON.parse(saved[1])).toMatchObject({ key: 'general', models: ['mistral-large-4', 'gpt-6.1-sol'] });
   });
 });
 
