@@ -10,6 +10,8 @@ import { ImageJobQueueActions, LetterJobQueueActions } from './ImageAndLetterQue
 import WordLikeEditor from './WordLikeEditor';
 import ConfirmDialog from './ConfirmDialog';
 import WorkerAudioPlayer from './WorkerAudioPlayer';
+import WorkerSpeedTestGate from './WorkerSpeedTestGate';
+import WorkerRatingsPanel from './WorkerRatingsPanel';
 import { AdminPartReview } from './AdminPartReview';
 import { ProofreadingAgentPanel, ProofreadingPartsNotice, proofreadingPartsHidden } from './ProofreadingAgentPanel';
 import AdminWorkerRateOverrides from './AdminWorkerRateOverrides';
@@ -154,7 +156,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   // Job-specific conversation access is admin/worker only. Client questions
   // use the separate direct-message channel.
   const [workerTab, setWorkerTab] = useState('available');
-  const [workerBoardInfo, setWorkerBoardInfo] = useState({ canView: true, canClaim: true, activeAssignment: false, blockReason: '', deadlineReturns: 0, deadlineWarning: false });
+  const [workerBoardInfo, setWorkerBoardInfo] = useState({ canView: true, canClaim: true, activeAssignment: false, blockReason: '', deadlineReturns: 0, deadlineWarning: false, speedTest: false, speedTestMinWpm: 60 });
   const [starterWorker, setStarterWorker] = useState('');
   const [starterSegment, setStarterSegment] = useState('');
   const [paymentHistory, setPaymentHistory] = useState(null);
@@ -270,6 +272,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           blockReason: payload.worker_claim_block_reason || '',
           deadlineReturns: Number(payload.worker_deadline_return_count || 0),
           deadlineWarning: payload.worker_deadline_warning === true,
+          speedTest: payload.speed_test_required === true,
+          speedTestMinWpm: Number(payload.speed_test_min_wpm || 60),
         });
       }
       setJobsFetchedAt(Date.now());
@@ -964,6 +968,10 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     </section>
   );
 
+  if (mode === 'worker' && workerBoardInfo.speedTest) return (
+    <WorkerSpeedTestGate request={request} minWpm={workerBoardInfo.speedTestMinWpm} onPassed={() => { setWorkerBoardInfo((previous) => ({ ...previous, speedTest: false })); loadJobs(); }} />
+  );
+
   return (
     <section className={`tm-human-workspace${busy ? ' is-busy' : ''}`} onClickCapture={markButtonPending}>
       {(busy || scopeLoading) && <div className="tm-human-progress" role="progressbar" aria-label={busy ? 'Working' : 'Loading jobs'}><span /></div>}
@@ -999,6 +1007,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           </div>
         </div>
       )}
+
+      {mode === 'worker' && <WorkerRatingsPanel request={request} showMessage={showMessage} />}
 
       {mode === 'worker' && (
         <div className="tm-worker-policy-note" role="note">
@@ -1474,6 +1484,13 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               />
               )}
               {mode === 'admin' && <ProofreadingAgentPanel job={selectedJob} act={act} busy={busy} onDownloadCombined={downloadCombinedParts} />}
+              {mode === 'worker' && workerAssignmentActive && workerAssignment?.role === 'transcriber' && Number(workerAssignment.worker_extension_minutes_available) > 0 && typeof selectedJob.time_remaining_seconds === 'number' && remainingSecondsFor(selectedJob) > 0 && (
+                <div className="tm-tat-extend tm-tat-extend-editor">
+                  <span>{formatCountdown(remainingSecondsFor(selectedJob))} left</span>
+                  <button type="button" className="tm-admin-btn" disabled={busy} onClick={workerExtendOwnDeadline}>Extend my deadline by {workerAssignment.worker_extension_minutes_available} minutes</button>
+                  <span className="tm-tat-hint"> One time only, before time runs out.</span>
+                </div>
+              )}
               {mode === 'worker' && workerAssignmentActive && <div className="tm-human-submit-row">
                 <span>{selectedJob.job_type === 'pdf_job' ? 'Finished? Submit your transcription.' : 'Finished? Check that your research notes are still at the end of the text, then submit.'}</span>
                 {renderSubmitButton('bottom')}
