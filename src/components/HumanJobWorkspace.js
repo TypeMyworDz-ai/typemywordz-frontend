@@ -675,6 +675,31 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     if (saved) setWorkerTab('available');
   };
 
+  const renderCountdownChip = () => {
+    if (!(mode === 'worker' && workerAssignmentActive) || typeof selectedJob.time_remaining_seconds !== 'number') return null;
+    const left = remainingSecondsFor(selectedJob);
+    const urgent = left <= 300;
+    return (
+      <span role="timer" aria-label="Time left to submit" style={{ padding: '9px 14px', borderRadius: 8, border: `1px solid ${urgent ? '#b94141' : '#cfd6d1'}`, background: urgent ? '#fdf0f0' : '#f6f8f6', color: urgent ? '#9a2b2b' : '#2b332d', fontWeight: 700, fontVariantNumeric: 'tabular-nums', minWidth: 96, textAlign: 'center' }}>
+        {left <= 0 ? 'Time is up' : formatCountdown(left)}
+      </span>
+    );
+  };
+
+  const renderExtendButton = () => {
+    if (!(mode === 'worker' && workerAssignmentActive && workerAssignment?.role === 'transcriber')) return null;
+    const minutes = Number(workerAssignment.worker_extension_minutes_available || 0);
+    const timeLeft = typeof selectedJob.time_remaining_seconds === 'number' ? remainingSecondsFor(selectedJob) : null;
+    const canExtend = minutes > 0 && (timeLeft === null || timeLeft > 0);
+    const why = canExtend ? '' : workerAssignment.worker_tat_extended_at ? 'You already used your one extension for this part.' : (timeLeft !== null && timeLeft <= 0) ? 'Time is up, so it can no longer be extended.' : 'This assignment cannot be self-extended.';
+    return (
+      <button type="button" className="tm-human-extend-button" disabled={busy || !canExtend} onClick={workerExtendOwnDeadline} title={why || 'One time only, before time runs out.'}
+        style={{ marginRight: 10, padding: '10px 16px', borderRadius: 8, border: '1px solid #6b3fa0', background: '#fff', color: '#4a2a75', font: 'inherit', fontWeight: 600, textAlign: 'center', cursor: canExtend ? 'pointer' : 'not-allowed', opacity: canExtend ? 1 : 0.6 }}>
+        {canExtend ? `Extend my deadline by ${minutes} minutes` : 'Extend deadline unavailable'}
+      </button>
+    );
+  };
+
   const renderSubmitButton = (place) => {
     if (!(mode === 'worker' && workerAssignmentActive)) return null;
     const letterJob = selectedJob.job_type === 'letter_job';
@@ -1484,16 +1509,9 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
               />
               )}
               {mode === 'admin' && <ProofreadingAgentPanel job={selectedJob} act={act} busy={busy} onDownloadCombined={downloadCombinedParts} />}
-              {mode === 'worker' && workerAssignmentActive && workerAssignment?.role === 'transcriber' && Number(workerAssignment.worker_extension_minutes_available) > 0 && typeof selectedJob.time_remaining_seconds === 'number' && remainingSecondsFor(selectedJob) > 0 && (
-                <div className="tm-tat-extend tm-tat-extend-editor">
-                  <span>{formatCountdown(remainingSecondsFor(selectedJob))} left</span>
-                  <button type="button" className="tm-admin-btn" disabled={busy} onClick={workerExtendOwnDeadline}>Extend my deadline by {workerAssignment.worker_extension_minutes_available} minutes</button>
-                  <span className="tm-tat-hint"> One time only, before time runs out.</span>
-                </div>
-              )}
               {mode === 'worker' && workerAssignmentActive && <div className="tm-human-submit-row">
                 <span>{selectedJob.job_type === 'pdf_job' ? 'Finished? Submit your transcription.' : 'Finished? Check that your research notes are still at the end of the text, then submit.'}</span>
-                {renderSubmitButton('bottom')}
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>{renderCountdownChip()}{renderExtendButton()}{renderSubmitButton('bottom')}</div>
               </div>}
               <p className="tm-human-editor-note">{selectedJob.job_type === 'pdf_job' ? (selectedJob.job_category === 'text_messages' ? 'Follow the job instructions and the Text Messages guidelines, check your transcript against the screenshot, then complete and attach your Word document.' : 'Always use Gemini for image transcription, check the draft against the image, then complete and attach your Word document.') : 'AI tools can help with first drafts and questions, but the final human release stays under admin review.'}</p>
             </div>
