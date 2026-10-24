@@ -22,9 +22,19 @@ test('button appears only once every part is submitted and starts the agent', ()
   expect(proofreadingAgentReady(waiting)).toBe(false);
   const { rerender } = render(<ProofreadingAgentPanel job={waiting} act={act} busy={false} />);
   expect(screen.queryByRole('button', { name: /Run Proofreading Agent/ })).toBeNull();
-  rerender(<ProofreadingAgentPanel job={{ ...base, segments: parts(['submitted', 'submitted']) }} act={act} busy={false} />);
+  rerender(<ProofreadingAgentPanel job={{ id: 'j1', job_type: 'pdf_job', status: 'approved', pdf_review: { page_texts: ['page one'] } }} act={act} busy={false} />);
   fireEvent.click(screen.getByRole('button', { name: /Run Proofreading Agent/ }));
   expect(act).toHaveBeenCalledWith('/human-transcription/jobs/j1/proofreading-agent', expect.objectContaining({ method: 'POST' }), expect.any(String));
+});
+
+test('the Proofreading Agent button is inactive for General Jobs while paused', () => {
+  const act = jest.fn().mockResolvedValue();
+  render(<ProofreadingAgentPanel job={{ ...base, segments: parts(['submitted', 'submitted']) }} act={act} busy={false} />);
+  const button = screen.getByRole('button', { name: /Run Proofreading Agent/ });
+  expect(button).toBeDisabled();
+  fireEvent.click(button);
+  expect(act).not.toHaveBeenCalled();
+  expect(screen.getByRole('note')).toHaveTextContent(/paused for General Jobs/);
 });
 
 test('Copy to Word copies the submitted parts for a pre-proofreading backup', async () => {

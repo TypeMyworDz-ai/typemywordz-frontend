@@ -7,6 +7,8 @@ const OPEN_STATES = ['split_assigned', 'split_in_progress', 'proofreading_availa
 const ACTIVE_PROOFREADER = ['assigned', 'in_progress'];
 
 // General Jobs (audio) and whole-file Text Messages / PDF jobs go through the Proofreading Agent.
+const PAUSED_NOTE = 'The Proofreading Agent is paused for General Jobs while it is being tested.';
+
 export const proofreadingAgentScope = (job) => {
   if (job?.job_type === 'general_job') return 'audio';
   if (job?.job_type === 'pdf_job' && job?.pdf_review) return 'image';
@@ -68,6 +70,7 @@ export function ProofreadingAgentPanel({ job, act, busy, onDownloadCombined }) {
   const scope = proofreadingAgentScope(job);
   const ready = proofreadingAgentReady(job);
   const done = Boolean(job?.proofreading_agent_completedAt);
+  const paused = job?.job_type === 'general_job';
   const segments = Array.isArray(job?.segments) ? job.segments : [];
   const imagePages = Array.isArray(job?.pdf_review?.page_texts) ? job.pdf_review.page_texts : [];
   const pageText = (page) => typeof page === 'string' ? page : String(page?.text || page?.plain_text || '');
@@ -149,9 +152,10 @@ export function ProofreadingAgentPanel({ job, act, busy, onDownloadCombined }) {
       </div>
       <style>{'@keyframes tmPaSpin{to{transform:rotate(360deg)}}.tm-pa-spin{display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid rgba(91,45,158,.25);border-top-color:#5b2d9e;border-radius:50%;animation:tmPaSpin .8s linear infinite}'}</style>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-        <button type="button" className="tm-admin-btn" disabled={busy || running || !ready} aria-busy={running} onClick={start}>
+        <button type="button" className="tm-admin-btn" disabled={busy || running || !ready || paused} aria-busy={running} onClick={start} title={paused ? PAUSED_NOTE : undefined}>
           {running ? <><span className="tm-pa-spin" aria-hidden="true" />Proofreading...</> : (done ? 'Run Proofreading Agent again' : 'Run Proofreading Agent')}
         </button>
+        {paused && <span role="note" style={{ ...muted, color: '#8a5a00' }}>{PAUSED_NOTE}</span>}
         {onDownloadCombined && (ready || done) && (
           <button type="button" className="tm-admin-btn" disabled={downloading} aria-busy={downloading} onClick={downloadCombined} title="Backup copy of every submitted part, combined, before any proofreading">
             {downloading ? 'Preparing Word file...' : 'Download all parts (Word)'}

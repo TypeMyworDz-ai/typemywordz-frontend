@@ -39,7 +39,7 @@ const nairobiDateIso = (date = new Date()) => {
 };
 const kesThree = (value) => `KES ${Number(value || 0).toFixed(3)}`;
 const subadminCategoryLabel = (category) => ({
-  audio_human: 'Human audio', audio_ai: 'AI audio', image_human: 'Human image', image_ai: 'AI image',
+  audio_human: 'Human audio', audio_ai: 'AI audio', image_human: 'Human image', image_ai: 'AI image', words_entry: 'Words Payment',
 }[category] || category || 'Human Work');
 
 const formatAttachmentSize = (bytes) => {
@@ -1012,7 +1012,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       </div>
 
       {mode === 'admin' && isHumanSubadmin && <BroadcastBar currentUser={currentUser} audience="subadmin" />}
-      {mode === 'admin' && adminTab === 'queue' && isHumanSubadmin && <div className="tm-subadmin-shift-reminder" role="note"><strong>Shift reminder</strong><span>Keep all shift work inside the TypeMyworDz system unless the main admin requests or gives you other instructions. Regular paid shifts run Monday to Friday, Africa/Nairobi time: 3:00 p.m.–8:00 p.m. for info@typemywordz.ai; 3:00 p.m.–8:00 p.m. and 9:00 p.m.–1:00 a.m. for donotgrowweary95 and priscillamuthoni010. Only work done inside your own shift counts toward payment.</span></div>}
+      {mode === 'admin' && adminTab === 'queue' && isHumanSubadmin && <div className="tm-subadmin-shift-reminder" role="note"><strong>Shift reminder</strong><span>Keep all shift work inside the TypeMyworDz system unless the main admin requests or gives you other instructions. Regular paid shifts run Monday to Friday, Africa/Nairobi time: 3:00 p.m.–8:00 p.m. for info@typemywordz.ai; 3:00 p.m.–8:00 p.m. and 10:00 p.m.–1:00 a.m. for donotgrowweary95 and priscillamuthoni010. Only work done inside your own shift counts toward payment.</span></div>}
       {mode === 'admin' && adminScheduledNow === false && <p className="tm-tat-hint">Outside regular shift hours, worker assignment is limited to approved workers with an active admin call-in who are clocked in and currently online.</p>}
       {mode === 'worker' && <BroadcastBar currentUser={currentUser} audience="worker" />}
       {mode === 'worker' && workerBoardInfo.deadlineWarning && workerBoardInfo.deadlineReturns < 11 && <div className="tm-worker-board-notice tm-worker-deadline-warning" role="alert"><strong>Deadline reminder · {workerBoardInfo.deadlineReturns} returns</strong><span>One more missed deadline will pause Available Jobs access and send you to the Training Room for retraining. Claim only work you can complete on time.</span></div>}
@@ -1060,6 +1060,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'template_jobs'} className={adminTab === 'template_jobs' ? 'active' : ''} onClick={() => setAdminTab('template_jobs')}>Template Jobs</button>}
           {canManagePdfJobs && <button type="button" role="tab" aria-selected={adminTab === 'pdf_jobs'} className={adminTab === 'pdf_jobs' ? 'active' : ''} onClick={() => setAdminTab('pdf_jobs')}>PDF Jobs</button>}
           {(isMainAdmin || isHumanSubadmin) && <button type="button" role="tab" aria-selected={adminTab === 'shifts'} className={adminTab === 'shifts' ? 'active' : ''} onClick={() => setAdminTab('shifts')}>Shift attendance</button>}
+          {isHumanSubadmin && <button type="button" role="tab" aria-selected={adminTab === 'my_words'} className={adminTab === 'my_words' ? 'active' : ''} onClick={() => setAdminTab('my_words')}>My words</button>}
           {isHumanSubadmin && <button type="button" role="tab" aria-selected={adminTab === 'my_subadmin_payments'} className={adminTab === 'my_subadmin_payments' ? 'active' : ''} onClick={() => setAdminTab('my_subadmin_payments')}>My payments · KES</button>}
           {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'worker_payments'} className={adminTab === 'worker_payments' ? 'active' : ''} onClick={() => setAdminTab('worker_payments')}>Worker payments · KES</button>}
           {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'rates'} className={adminTab === 'rates' ? 'active' : ''} onClick={() => setAdminTab('rates')}>Worker rates</button>}
@@ -1081,6 +1082,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <LetterJobsAdminPanel onRecordedAudioReady={onRecordedAudioReady} recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('letter_job'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'shifts' && (isMainAdmin || isHumanSubadmin) ? (
         <AdminShiftAttendancePanel showMessage={showMessage} />
+      ) : mode === 'admin' && adminTab === 'my_words' && isHumanSubadmin ? (
+        <SubadminWordsPanel request={request} showMessage={showMessage} />
       ) : mode === 'admin' && adminTab === 'my_subadmin_payments' && isHumanSubadmin ? (
         <SubadminSelfPaymentPanel request={request} showMessage={showMessage} />
       ) : mode === 'admin' && adminTab === 'subadmin_payments' && isMainAdmin ? (
@@ -1644,7 +1647,7 @@ function WorkerShiftPanel({ showMessage, onPresence, availableForWork }) {
       </div>
     </div>
     <div className="tm-worker-shift-actions">
-      <span>Mon–Fri · 3:00 p.m.–8:00 p.m. Kenya time</span>
+      <span>Mon–Fri · 4:00–8:00 p.m. and 10:00 p.m.–1:00 a.m. Kenya time · 4 shifts a week</span>
       {shift?.can_clock_in && <button type="button" onClick={() => act('/human-transcription/worker/shift/clock-in')} disabled={busy}>{busy ? 'Saving…' : 'Clock in'}</button>}
       {onShift && <button type="button" onClick={() => act('/human-transcription/worker/shift/clock-out')} disabled={busy || shift?.has_active_assignment} title={shift?.has_active_assignment ? 'Finish your active job before clocking out.' : undefined}>{busy ? 'Saving…' : 'Clock out'}</button>}
     </div>
@@ -1712,7 +1715,7 @@ function AdminShiftAttendancePanel({ showMessage }) {
 
   return <section className="tm-admin-panel tm-human-shift-admin">
     <div className="tm-admin-panel-head">
-      <div><p className="tm-admin-kicker">Africa/Nairobi · {date || 'today'}</p><h2 className="tm-admin-panel-title">Shift attendance</h2><p className="tm-admin-panel-note">Regular shifts run Monday to Friday, 3:00 p.m. to 8:00 p.m. Kenya time. Online requires the toggle to be on and a fresh Work Room heartbeat; shift attendance and call-in remain separate.</p></div>
+      <div><p className="tm-admin-kicker">Africa/Nairobi · {date || 'today'}</p><h2 className="tm-admin-panel-title">Shift attendance</h2><p className="tm-admin-panel-note">Regular shifts run Monday to Friday, 4:00 p.m. to 8:00 p.m. and 10:00 p.m. to 1:00 a.m. Kenya time. Online requires the toggle to be on and a fresh Work Room heartbeat; shift attendance and call-in remain separate.</p></div>
       <button type="button" className="tm-admin-btn" onClick={() => loadAttendance()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
     </div>
     <div className="tm-human-shift-summary"><span><strong>{onlineCount}</strong> online</span><span><strong>{notArrivedCount}</strong> not arrived</span><span><strong>{trainingCount}</strong> in retraining</span><small>Warning at 5 consecutive missed shifts · Training Room at 6</small></div>
@@ -2229,6 +2232,131 @@ function AdminPayoutsPanel({ request, showMessage, workers }) {
   );
 }
 
+const wordsDateLabel = (iso) => {
+  if (!iso) return '';
+  const date = new Date(`${iso}T12:00:00+03:00`);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Nairobi' });
+};
+
+function SubadminWordsPanel({ request, showMessage }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [jobId, setJobId] = useState('');
+  const [words, setWords] = useState('');
+  const load = useCallback(async () => {
+    try {
+      setData(await request('/human-transcription/subadmin/words-log'));
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [request, showMessage]);
+  useEffect(() => { load(); }, [load]);
+  const rate = Number(data?.rate_kes_per_word || 0);
+  const wordsNumber = Number(String(words).replace(/,/g, ''));
+  const validWords = Number.isInteger(wordsNumber) && wordsNumber > 0;
+  const add = async (event) => {
+    event.preventDefault();
+    if (saving || !jobId.trim() || !validWords) return;
+    setSaving(true);
+    try {
+      const result = await request('/human-transcription/subadmin/words-log', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId.trim(), total_words: wordsNumber }),
+      });
+      setData(result);
+      setJobId('');
+      setWords('');
+      showMessage?.(result.added?.counted ? 'Entry added and counted toward your pay.' : 'Entry saved, but it was made outside your paid shift so it does not count toward pay.', result.added?.counted ? 'success' : 'info');
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+  const remove = async (entry) => {
+    if (!window.confirm(`Remove the entry for ${entry.job_id} (${entry.total_words.toLocaleString()} words)?`)) return;
+    try {
+      setData(await request(`/human-transcription/subadmin/words-log/${encodeURIComponent(entry.entry_id)}`, { method: 'DELETE' }));
+    } catch (error) {
+      showMessage?.(error.message, 'error');
+    }
+  };
+  const today = data?.today || '';
+  const todayEntries = (data?.entries || []).filter((entry) => entry.date === today);
+  const previousDays = (data?.daily_totals || []).filter((day) => day.date !== today);
+  const half = data?.half_month || {};
+  const preview = validWords ? wordsNumber * rate : 0;
+  const cell = { padding: '9px 12px', borderBottom: '1px solid #eef0ee', textAlign: 'left' };
+  const num = { ...cell, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
+  return (
+    <section className="tm-subadmin-panel" aria-label="My words">
+      <div className="tm-subadmin-panel-head">
+        <div><p className="tm-human-eyebrow">Human Work · Words table</p><h2>{data?.month || 'This month'}</h2><p>Enter the words you finish as you work. Your pay for each entry is added to the current half-month straight away, at KES {rate.toFixed(2)} per word.</p></div>
+        <button type="button" className="tm-admin-payout-search-btn" onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
+      </div>
+      <div className="tm-subadmin-metrics tm-subadmin-metrics-four" aria-live="polite">
+        <div><span>Words today</span><strong>{Number(data?.today_totals?.words || 0).toLocaleString()}</strong><small>{kesThree(data?.today_totals?.amount_kes)} earned today</small></div>
+        <div><span>Half-month words</span><strong>{Number(half.words || 0).toLocaleString()}</strong><small>{half.start ? `${wordsDateLabel(half.start)} to ${wordsDateLabel(half.end)}` : ''}</small></div>
+        <div><span>Half-month Words Payment</span><strong style={{ color: '#1f7a3a', fontSize: 26 }}>{kesThree(half.amount_kes)}</strong><small>Added to your other payments for this half</small></div>
+        <div><span>Rate</span><strong>KES {rate.toFixed(2)}</strong><small>per word</small></div>
+      </div>
+      {data?.shift_gated && (
+        <p className="tm-subadmin-rate-note" role="note" style={{ margin: 0, borderLeftColor: data.in_paid_shift_now ? '#2da653' : '#b94141', background: data.in_paid_shift_now ? '#f3faf4' : '#fdf0f0' }}>
+          {data.in_paid_shift_now ? 'You are inside a paid shift, so entries made now count toward your pay.' : 'You are outside your paid shifts (3:00-8:00 p.m. and 10:00 p.m.-1:00 a.m., Monday to Friday). Entries made now are saved but do not count toward pay.'}
+        </p>
+      )}
+      <div className="tm-human-chat-card tm-subadmin-section">
+        <div className="tm-human-chat-head"><div><strong>Today's entries</strong><span>{wordsDateLabel(today)}. Add a row each time you finish a job.</span></div></div>
+        <div className="tm-subadmin-table-wrap">
+          <table className="tm-admin-payout-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr><th style={cell}>Month/Date</th><th style={cell}>Job ID</th><th style={{ ...cell, textAlign: 'right' }}>Total Words</th><th style={{ ...cell, textAlign: 'right' }}>Pay</th><th style={cell}></th></tr></thead>
+            <tbody>
+              {todayEntries.map((entry) => (
+                <tr key={entry.entry_id} style={entry.counted ? undefined : { color: '#8a6d6d', background: '#fbf4f4' }}>
+                  <td style={cell}>{wordsDateLabel(entry.date)}</td>
+                  <td style={cell}>{entry.job_id}{!entry.counted && <small> · outside paid shift, not counted</small>}</td>
+                  <td style={num}>{entry.total_words.toLocaleString()}</td>
+                  <td style={num}>{kesThree(entry.amount_kes)}</td>
+                  <td style={cell}><button type="button" onClick={() => remove(entry)} aria-label={`Remove entry ${entry.job_id}`}>Remove</button></td>
+                </tr>
+              ))}
+              <tr style={{ background: '#f6f8f6' }}>
+                <td style={cell}>{wordsDateLabel(today)}</td>
+                <td style={cell}><input aria-label="Job ID" value={jobId} onChange={(event) => setJobId(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') add(event); }} placeholder="Job ID" maxLength={80} style={{ width: '100%', boxSizing: 'border-box', padding: 8, border: '1px solid #d9dfe0', borderRadius: 6, font: 'inherit' }} /></td>
+                <td style={num}><input aria-label="Total Words" inputMode="numeric" value={words} onChange={(event) => setWords(event.target.value.replace(/[^\d,]/g, ''))} onKeyDown={(event) => { if (event.key === 'Enter') add(event); }} placeholder="Total words" style={{ width: 130, boxSizing: 'border-box', padding: 8, border: '1px solid #d9dfe0', borderRadius: 6, font: 'inherit', textAlign: 'right' }} /></td>
+                <td style={num}>{kesThree(preview)}</td>
+                <td style={cell}><button type="submit" form="tm-words-form" disabled={saving || !jobId.trim() || !validWords}>{saving ? 'Adding…' : 'Add entry'}</button></td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr style={{ fontWeight: 700 }}>
+                <td style={cell} colSpan={2}>Today's total</td>
+                <td style={num}>{Number(data?.today_totals?.words || 0).toLocaleString()}</td>
+                <td style={num}>{kesThree(data?.today_totals?.amount_kes)}</td>
+                <td style={cell}></td>
+              </tr>
+              <tr style={{ fontWeight: 700, background: '#f3faf4', color: '#1f6a37' }}>
+                <td style={cell} colSpan={2}>Half-month total ({half.start ? `${wordsDateLabel(half.start)} to ${wordsDateLabel(half.end)}` : ''})</td>
+                <td style={num}>{Number(half.words || 0).toLocaleString()}</td>
+                <td style={num}>{kesThree(half.amount_kes)}</td>
+                <td style={cell}></td>
+              </tr>
+            </tfoot>
+          </table>
+          <form id="tm-words-form" onSubmit={add} />
+        </div>
+      </div>
+      <div className="tm-human-chat-card tm-subadmin-section">
+        <div className="tm-human-chat-head"><div><strong>Earlier this month</strong><span>Each day's total words and pay.</span></div></div>
+        {previousDays.length ? <div className="tm-subadmin-table-wrap"><table className="tm-admin-payout-table"><thead><tr><th>Month/Date</th><th>Entries</th><th>Total Words</th><th>Words Payment</th></tr></thead><tbody>{previousDays.map((day) => <tr key={day.date}><td>{wordsDateLabel(day.date)}</td><td>{day.entries}</td><td>{day.words.toLocaleString()}</td><td>{kesThree(day.amount_kes)}</td></tr>)}</tbody></table></div> : <p className="tm-human-empty">No earlier days this month.</p>}
+      </div>
+    </section>
+  );
+}
+
 function SubadminSelfPaymentPanel({ request, showMessage }) {
   const [history, setHistory] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2252,10 +2380,11 @@ function SubadminSelfPaymentPanel({ request, showMessage }) {
         <div><p className="tm-human-eyebrow">Human Work · Payroll</p><h2>Your payment record</h2><p>Approved work is recorded here. Earnings build across each half-month; payment is recorded only after it has actually been sent.</p></div>
         <button type="button" className="tm-admin-payout-search-btn" onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
       </div>
-      <div className="tm-subadmin-metrics">
+      <div className="tm-subadmin-metrics tm-subadmin-metrics-four">
         <div><span>Still accruing</span><strong>{kesThree(totals.accruing_kes)}</strong><small>Current half-month</small></div>
         <div><span>Pending payout</span><strong>{kesThree(totals.pending_kes)}</strong><small>Invoiced; not marked paid</small></div>
         <div><span>Paid and recorded</span><strong>{kesThree(totals.paid_kes)}</strong><small>Past invoices</small></div>
+        <div><span>Words Payment</span><strong>{kesThree(earnings.filter((item) => item.category === 'words_entry' && item.payout_status === 'accruing').reduce((sum, item) => sum + Number(item.amount_kes || 0), 0))}</strong><small>From your Words table, included in the accruing total</small></div>
       </div>
       <div className="tm-human-chat-card tm-subadmin-section">
         <div className="tm-human-chat-head"><div><strong>Half-month invoices</strong><span>1st–15th and 16th–month end</span></div></div>
@@ -2351,10 +2480,11 @@ function AdminSubadminPaymentsPanel({ request, showMessage }) {
         <div><span>Human audio</span><strong>{kesThree(totals.audio_human)}</strong><small>Approved by a human</small></div>
         <div><span>AI audio</span><strong>{kesThree(totals.audio_ai)}</strong><small>AI-assisted</small></div>
         <div><span>Image work</span><strong>{kesThree((totals.image_human || 0) + (totals.image_ai || 0))}</strong><small>Human {kesThree(totals.image_human)} · AI {kesThree(totals.image_ai)}</small></div>
+        <div><span>Words Payment</span><strong>{kesThree(totals.words_entry)}</strong><small>Logged in the Words table</small></div>
       </div>
       <div className="tm-human-chat-card tm-subadmin-section">
         <div className="tm-human-chat-head"><div><strong>Daily accumulation</strong><span>Grouped by the sub-admin’s eligible shift date.</span></div></div>
-        {loading && !earningsData ? <p className="tm-human-empty">Loading daily totals…</p> : daily.length ? <div className="tm-subadmin-table-wrap"><table className="tm-admin-payout-table"><thead><tr><th>Date</th><th>Human audio</th><th>AI audio</th><th>Human images</th><th>AI images</th><th>Total</th></tr></thead><tbody>{daily.map((day) => <tr key={day.date}><td>{day.date}</td><td>{kesThree(day.audio_human)}</td><td>{kesThree(day.audio_ai)}</td><td>{kesThree(day.image_human)}</td><td>{kesThree(day.image_ai)}</td><td><strong>{kesThree(day.total_kes)}</strong></td></tr>)}</tbody></table></div> : <p className="tm-human-empty">No eligible earnings in this date range.</p>}
+        {loading && !earningsData ? <p className="tm-human-empty">Loading daily totals…</p> : daily.length ? <div className="tm-subadmin-table-wrap"><table className="tm-admin-payout-table"><thead><tr><th>Date</th><th>Human audio</th><th>AI audio</th><th>Human images</th><th>AI images</th><th>Words Payment</th><th>Total</th></tr></thead><tbody>{daily.map((day) => <tr key={day.date}><td>{day.date}</td><td>{kesThree(day.audio_human)}</td><td>{kesThree(day.audio_ai)}</td><td>{kesThree(day.image_human)}</td><td>{kesThree(day.image_ai)}</td><td>{kesThree(day.words_entry)}</td><td><strong>{kesThree(day.total_kes)}</strong></td></tr>)}</tbody></table></div> : <p className="tm-human-empty">No eligible earnings in this date range.</p>}
       </div>
       <div className="tm-human-chat-card tm-subadmin-section">
         <div className="tm-human-chat-head"><div><strong>Approved work details</strong><span>Rates are snapshotted on each earning; later changes do not alter this history.</span></div></div>
@@ -2363,7 +2493,7 @@ function AdminSubadminPaymentsPanel({ request, showMessage }) {
       <div className="tm-human-chat-card tm-subadmin-section">
         <div className="tm-human-chat-head"><div><strong>Half-month invoices</strong><span>Each completed period is invoiced once the half ends; the next half accrues independently.</span></div><label className="tm-subadmin-invoice-filter">Status<select value={invoiceStatus} onChange={(event) => { const status = event.target.value; setInvoiceStatus(status); loadData(filters, status); }}><option value="pending">Pending payout</option><option value="paid">Paid</option><option value="all">All invoices</option></select></label></div>
         {invoiceData && <div className="tm-subadmin-invoice-totals"><span>Pending <strong>{kesThree(invoiceData.totals?.pending_kes)}</strong></span><span>Paid <strong>{kesThree(invoiceData.totals?.paid_kes)}</strong></span></div>}
-        {invoices.length ? <div className="tm-subadmin-table-wrap"><table className="tm-admin-payout-table"><thead><tr><th>Sub-admin</th><th>Period</th><th>Human audio</th><th>AI audio</th><th>Human images</th><th>AI images</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>{invoices.map((item) => <tr key={item.payout_id}><td>{item.subadmin_email}</td><td>{item.period_range || item.period_label}</td><td>{kesThree(item.category_totals_kes?.audio_human)}</td><td>{kesThree(item.category_totals_kes?.audio_ai)}</td><td>{kesThree(item.category_totals_kes?.image_human)}</td><td>{kesThree(item.category_totals_kes?.image_ai)}</td><td><strong>{kesThree(item.total_amount_kes)}</strong></td><td>{item.status === 'paid' ? `Paid ${moneylessDate(item.paid_at)}` : 'Pending'}</td><td>{item.status !== 'paid' && <button type="button" onClick={() => markPaid(item)} disabled={busyId === item.payout_id}>{busyId === item.payout_id ? 'Saving…' : 'Mark paid'}</button>}</td></tr>)}</tbody></table></div> : !loading && <p className="tm-human-empty">No invoices in this view yet.</p>}
+        {invoices.length ? <div className="tm-subadmin-table-wrap"><table className="tm-admin-payout-table"><thead><tr><th>Sub-admin</th><th>Period</th><th>Human audio</th><th>AI audio</th><th>Human images</th><th>AI images</th><th>Words Payment</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>{invoices.map((item) => <tr key={item.payout_id}><td>{item.subadmin_email}</td><td>{item.period_range || item.period_label}</td><td>{kesThree(item.category_totals_kes?.audio_human)}</td><td>{kesThree(item.category_totals_kes?.audio_ai)}</td><td>{kesThree(item.category_totals_kes?.image_human)}</td><td>{kesThree(item.category_totals_kes?.image_ai)}</td><td>{kesThree(item.category_totals_kes?.words_entry)}</td><td><strong>{kesThree(item.total_amount_kes)}</strong></td><td>{item.status === 'paid' ? `Paid ${moneylessDate(item.paid_at)}` : 'Pending'}</td><td>{item.status !== 'paid' && <button type="button" onClick={() => markPaid(item)} disabled={busyId === item.payout_id}>{busyId === item.payout_id ? 'Saving…' : 'Mark paid'}</button>}</td></tr>)}</tbody></table></div> : !loading && <p className="tm-human-empty">No invoices in this view yet.</p>}
       </div>
     </section>
   );
