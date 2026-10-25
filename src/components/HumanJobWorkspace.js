@@ -1012,7 +1012,6 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       </div>
 
       {mode === 'admin' && isHumanSubadmin && <BroadcastBar currentUser={currentUser} audience="subadmin" />}
-      {mode === 'admin' && adminTab === 'queue' && isHumanSubadmin && <div className="tm-subadmin-shift-reminder" role="note"><strong>Shift reminder</strong><span>Keep all shift work inside the TypeMyworDz system unless the main admin requests or gives you other instructions. Regular paid shifts run Monday to Friday, Africa/Nairobi time: 3:00 p.m.–8:00 p.m. for info@typemywordz.ai; 3:00 p.m.–8:00 p.m. and 10:00 p.m.–1:00 a.m. for donotgrowweary95 and priscillamuthoni010. Only work done inside your own shift counts toward payment.</span></div>}
       {mode === 'admin' && adminScheduledNow === false && <p className="tm-tat-hint">Outside regular shift hours, worker assignment is limited to approved workers with an active admin call-in who are clocked in and currently online.</p>}
       {mode === 'worker' && <BroadcastBar currentUser={currentUser} audience="worker" />}
       {mode === 'worker' && workerBoardInfo.deadlineWarning && workerBoardInfo.deadlineReturns < 11 && <div className="tm-worker-board-notice tm-worker-deadline-warning" role="alert"><strong>Deadline reminder · {workerBoardInfo.deadlineReturns} returns</strong><span>One more missed deadline will pause Available Jobs access and send you to the Training Room for retraining. Claim only work you can complete on time.</span></div>}
@@ -2254,6 +2253,10 @@ function SubadminWordsPanel({ request, showMessage }) {
     }
   }, [request, showMessage]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setInterval(() => { if (!document.hidden) load(); }, 10000);
+    return () => window.clearInterval(timer);
+  }, [load]);
   const rate = Number(data?.rate_kes_per_word || 0);
   const wordsNumber = Number(String(words).replace(/,/g, ''));
   const validWords = Number.isInteger(wordsNumber) && wordsNumber > 0;
@@ -2267,6 +2270,7 @@ function SubadminWordsPanel({ request, showMessage }) {
         body: JSON.stringify({ job_id: jobId.trim(), total_words: wordsNumber }),
       });
       setData(result);
+      window.dispatchEvent(new Event('tm-subadmin-earnings-changed'));
       setJobId('');
       setWords('');
       showMessage?.('Entry added and counted toward your pay.', 'success');
@@ -2280,6 +2284,7 @@ function SubadminWordsPanel({ request, showMessage }) {
     if (!window.confirm(`Remove the entry for ${entry.job_id} (${entry.total_words.toLocaleString()} words)?`)) return;
     try {
       setData(await request(`/human-transcription/subadmin/words-log/${encodeURIComponent(entry.entry_id)}`, { method: 'DELETE' }));
+      window.dispatchEvent(new Event('tm-subadmin-earnings-changed'));
     } catch (error) {
       showMessage?.(error.message, 'error');
     }
@@ -2360,17 +2365,23 @@ function SubadminWordsPanel({ request, showMessage }) {
 function SubadminSelfPaymentPanel({ request, showMessage }) {
   const [history, setHistory] = useState(null);
   const [loading, setLoading] = useState(true);
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (silent !== true) setLoading(true);
     try {
       setHistory(await request('/human-transcription/subadmin/payment-history'));
     } catch (error) {
-      showMessage?.(error.message, 'error');
+      if (silent !== true) showMessage?.(error.message, 'error');
     } finally {
       setLoading(false);
     }
   }, [request, showMessage]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const quick = () => load(true);
+    const timer = window.setInterval(() => { if (!document.hidden) load(true); }, 10000);
+    window.addEventListener('tm-subadmin-earnings-changed', quick);
+    return () => { window.clearInterval(timer); window.removeEventListener('tm-subadmin-earnings-changed', quick); };
+  }, [load]);
   const totals = history?.totals || {};
   const earnings = history?.earnings || [];
   const payouts = history?.payouts || [];
@@ -2413,8 +2424,8 @@ function AdminSubadminPaymentsPanel({ request, showMessage }) {
       setOptions(payload.subadmins || []);
     } catch (error) { showMessage?.(error.message, 'error'); }
   }, [request, showMessage]);
-  const loadData = useCallback(async (range = {}, status = 'pending') => {
-    setLoading(true);
+  const loadData = useCallback(async (range = {}, status = 'pending', silent = false) => {
+    if (!silent) setLoading(true);
     const selected = { start_date: nairobiDateIso(), end_date: nairobiDateIso(), ...range };
     try {
       const params = new URLSearchParams();
@@ -2429,9 +2440,17 @@ function AdminSubadminPaymentsPanel({ request, showMessage }) {
       ]);
       setEarningsData(earnings);
       setInvoiceData(invoices);
-    } catch (error) { showMessage?.(error.message, 'error'); }
+    } catch (error) { if (!silent) showMessage?.(error.message, 'error'); }
     finally { setLoading(false); }
   }, [request, showMessage]);
+  const liveRef = useRef({ filters: {}, status: 'pending' });
+  liveRef.current = { filters, status: invoiceStatus };
+  useEffect(() => {
+    const tick = () => { if (!document.hidden) loadData(liveRef.current.filters, liveRef.current.status, true); };
+    const timer = window.setInterval(tick, 10000);
+    window.addEventListener('tm-subadmin-earnings-changed', tick);
+    return () => { window.clearInterval(timer); window.removeEventListener('tm-subadmin-earnings-changed', tick); };
+  }, [loadData]);
   useEffect(() => { loadOptions(); loadData({ start_date: nairobiDateIso(), end_date: nairobiDateIso() }, 'pending'); }, [loadOptions, loadData]);
 
   const chooseRange = (kind) => {
