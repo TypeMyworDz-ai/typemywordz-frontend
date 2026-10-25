@@ -1060,7 +1060,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'template_jobs'} className={adminTab === 'template_jobs' ? 'active' : ''} onClick={() => setAdminTab('template_jobs')}>Template Jobs</button>}
           {canManagePdfJobs && <button type="button" role="tab" aria-selected={adminTab === 'pdf_jobs'} className={adminTab === 'pdf_jobs' ? 'active' : ''} onClick={() => setAdminTab('pdf_jobs')}>PDF Jobs</button>}
           {(isMainAdmin || isHumanSubadmin) && <button type="button" role="tab" aria-selected={adminTab === 'shifts'} className={adminTab === 'shifts' ? 'active' : ''} onClick={() => setAdminTab('shifts')}>Shift attendance</button>}
-          {isHumanSubadmin && <button type="button" role="tab" aria-selected={adminTab === 'my_words'} className={adminTab === 'my_words' ? 'active' : ''} onClick={() => setAdminTab('my_words')}>My words</button>}
+          {isHumanSubadmin && <button type="button" role="tab" aria-selected={adminTab === 'my_words'} className={adminTab === 'my_words' ? 'active' : ''} onClick={() => setAdminTab('my_words')}>Words Table</button>}
           {isHumanSubadmin && <button type="button" role="tab" aria-selected={adminTab === 'my_subadmin_payments'} className={adminTab === 'my_subadmin_payments' ? 'active' : ''} onClick={() => setAdminTab('my_subadmin_payments')}>My payments · KES</button>}
           {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'worker_payments'} className={adminTab === 'worker_payments' ? 'active' : ''} onClick={() => setAdminTab('worker_payments')}>Worker payments · KES</button>}
           {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'rates'} className={adminTab === 'rates' ? 'active' : ''} onClick={() => setAdminTab('rates')}>Worker rates</button>}
@@ -2269,7 +2269,7 @@ function SubadminWordsPanel({ request, showMessage }) {
       setData(result);
       setJobId('');
       setWords('');
-      showMessage?.(result.added?.counted ? 'Entry added and counted toward your pay.' : 'Entry saved, but it was made outside your paid shift so it does not count toward pay.', result.added?.counted ? 'success' : 'info');
+      showMessage?.('Entry added and counted toward your pay.', 'success');
     } catch (error) {
       showMessage?.(error.message, 'error');
     } finally {
@@ -2292,7 +2292,7 @@ function SubadminWordsPanel({ request, showMessage }) {
   const cell = { padding: '9px 12px', borderBottom: '1px solid #eef0ee', textAlign: 'left' };
   const num = { ...cell, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
   return (
-    <section className="tm-subadmin-panel" aria-label="My words">
+    <section className="tm-subadmin-panel" aria-label="Words Table">
       <div className="tm-subadmin-panel-head">
         <div><p className="tm-human-eyebrow">Human Work · Words table</p><h2>{data?.month || 'This month'}</h2><p>Enter the words you finish as you work. Your pay for each entry is added to the current half-month straight away, at KES {rate.toFixed(2)} per word.</p></div>
         <button type="button" className="tm-admin-payout-search-btn" onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
@@ -2303,7 +2303,7 @@ function SubadminWordsPanel({ request, showMessage }) {
         <div><span>Half-month Words Payment</span><strong style={{ color: '#1f7a3a', fontSize: 26 }}>{kesThree(half.amount_kes)}</strong><small>Added to your other payments for this half</small></div>
         <div><span>Rate</span><strong>KES {rate.toFixed(2)}</strong><small>per word</small></div>
       </div>
-      {data?.shift_gated && (
+      {false && (
         <p className="tm-subadmin-rate-note" role="note" style={{ margin: 0, borderLeftColor: data.in_paid_shift_now ? '#2da653' : '#b94141', background: data.in_paid_shift_now ? '#f3faf4' : '#fdf0f0' }}>
           {data.in_paid_shift_now ? 'You are inside a paid shift, so entries made now count toward your pay.' : 'You are outside your paid shifts (3:00-8:00 p.m. and 10:00 p.m.-1:00 a.m., Monday to Friday). Entries made now are saved but do not count toward pay.'}
         </p>
