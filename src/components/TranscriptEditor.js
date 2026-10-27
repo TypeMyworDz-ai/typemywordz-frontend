@@ -56,7 +56,7 @@ const writeLS = (key, value) => {
 
 const Segment = memo(function Segment({
   seg, index, isActive, isEditing, showTimes, approximate, speakerNames,
-  onSeek, onEdit, onCommit, onEditKeyDown, onRenameSpeaker, onTabSpeaker,
+  onSeek, onPlayFrom, liveTime, onEdit, onCommit, onEditKeyDown, onRenameSpeaker, onTabSpeaker,
   readOnly, highlight, activeHit, caretAtStart
 }) {
   const areaRef = useRef(null);
@@ -105,6 +105,30 @@ const Segment = memo(function Segment({
     if (at < text.length) parts.push(text.slice(at));
     return parts;
   }, [seg.text, highlight, activeHit]);
+
+  // Word-by-word proofreading: when the service gave us a start time for every
+  // word, each word is clickable and plays the audio from that word. After the
+  // line is edited the word count can change, so times are spread by position.
+  const wordTimes = Array.isArray(seg.wt) && seg.wt.length > 0 ? seg.wt : null;
+  const wordMode = !!wordTimes && showTimes && !approximate && !highlight && !!onPlayFrom;
+  const wordParts = useMemo(() => {
+    if (!wordMode) return null;
+    const pieces = String(seg.text || '').split(/(\s+)/);
+    const total = pieces.filter((x) => x && !/^\s+$/.test(x)).length;
+    let n = 0;
+    return pieces.map((piece) => {
+      if (!piece || /^\s+$/.test(piece)) return { piece, time: null };
+      const at = total === wordTimes.length ? n : Math.round((n * (wordTimes.length - 1)) / Math.max(1, total - 1));
+      n += 1;
+      return { piece, time: Number(wordTimes[Math.min(at, wordTimes.length - 1)]) || 0, n: n - 1 };
+    });
+  }, [wordMode, seg.text, wordTimes]);
+  const activeWord = useMemo(() => {
+    if (!wordParts || liveTime < 0) return -1;
+    let found = -1;
+    wordParts.forEach((w) => { if (w.time !== null && liveTime >= w.time - 0.03) found = w.n; });
+    return found;
+  }, [wordParts, liveTime]);
 
   return (
     <div
@@ -185,7 +209,8 @@ const Segment = memo(function Segment({
           className="tm-seg-text"
           role="button"
           tabIndex={0}
-          onClick={() => !readOnly && onEdit(index)}
+          onClick={() => !wordMode && !readOnly && onEdit(index)}
+          onDoubleClick={() => wordMode && !readOnly && onEdit(index)}
           onKeyDown={(e) => {
             if (e.key === 'Tab') {
               e.preventDefault();
@@ -194,9 +219,15 @@ const Segment = memo(function Segment({
             }
             if (!readOnly && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onEdit(index); }
           }}
-          title={readOnly ? 'Transcript line' : 'Click to correct this line'}
+          title={readOnly ? 'Transcript line' : wordMode ? 'Click a word to hear it. Double-click to correct this line.' : 'Click to correct this line'}
         >
-          {uncertain ? <span className="tm-low-mark">{body}</span> : body}
+          {wordMode ? wordParts.map((w, k) => (w.time === null ? w.piece : (
+            <span
+              key={k}
+              className={'tm-word' + (w.n === activeWord ? ' tm-word-on' : '')}
+              onClick={(ev) => { ev.stopPropagation(); onPlayFrom(w.time); }}
+            >{w.piece}</span>
+          ))) : (uncertain ? <span className="tm-low-mark">{body}</span> : body)}
           {uncertain && (
             <span className="tm-low-flag" title="The service was unsure about this line">
               check
@@ -372,6 +403,16 @@ const TranscriptEditor = ({
     a.currentTime = Math.max(0, Math.min(seconds, a.duration || seconds));
     setCurrent(a.currentTime);
     followRef.current = true;
+  }, [audioUrl]);
+
+  const playFrom = useCallback((seconds) => {
+    const a = audioRef.current;
+    if (!a || !audioUrl) return;
+    a.currentTime = Math.max(0, Math.min(seconds, a.duration || seconds));
+    setCurrent(a.currentTime);
+    followRef.current = true;
+    const started = a.play();
+    if (started && typeof started.catch === 'function') started.catch(() => {});
   }, [audioUrl]);
 
   const togglePlay = useCallback(() => {
@@ -1176,6 +1217,8 @@ const TranscriptEditor = ({
                 : -1
             }
             onSeek={seek}
+            onPlayFrom={audioUrl ? playFrom : null}
+            liveTime={i === activeIndex ? current : -1}
             onEdit={(index) => { setFreshSplit(null); setEditingIndex(index); }}
             onCommit={commit}
             onEditKeyDown={onEditKeyDown}
