@@ -131,7 +131,9 @@ export const buildSegments = (rawText, segments, duration) => {
         end: Number(s.end) || 0,
         speaker: s.speaker || null,
         text: String(s.text || '').trim(),
-        confidence: typeof s.confidence === 'number' ? s.confidence : null
+        confidence: typeof s.confidence === 'number' ? s.confidence : null,
+        // Start time of every word in the line, when the service gave them.
+        wt: Array.isArray(s.wt) && s.wt.length ? s.wt : undefined
       })).filter((s) => s.text)
     };
   }
