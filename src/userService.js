@@ -571,7 +571,8 @@ export const saveTranscription = async (uid, fileName, transcriptionText, durati
       end: Number(seg.end) || 0,
       speaker: seg.speaker || null,
       text: String(seg.text || ''),
-      confidence: typeof seg.confidence === 'number' ? seg.confidence : null
+      confidence: typeof seg.confidence === 'number' ? seg.confidence : null,
+      ...(Array.isArray(seg.wt) && seg.wt.length ? { wt: seg.wt } : {})
     }));
     const bytes = JSON.stringify(lean).length;
     if (bytes < 700000) {
