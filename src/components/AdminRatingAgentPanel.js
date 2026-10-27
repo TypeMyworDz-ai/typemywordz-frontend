@@ -49,7 +49,7 @@ function InstructionsEditor({ currentUser, showMessage }) {
   );
 }
 
-// Super admin only. The Rating Agent assesses every third submitted job and applies its rating at once.
+// Super admin only. The Rating Agent assesses every tenth submitted job and applies its rating at once.
 // This page is where a rating can be reviewed, changed, or a worker's dispute settled.
 export default function AdminRatingAgentPanel({ currentUser, showMessage }) {
   const [filter, setFilter] = useState('applied');
@@ -109,7 +109,7 @@ export default function AdminRatingAgentPanel({ currentUser, showMessage }) {
     <section className="tm-admin-panel" aria-labelledby="tm-rating-agent-title">
       <h2 id="tm-rating-agent-title" style={{ marginBottom: 4 }}>Rating Agent</h2>
       <p style={{ color: '#5b665e', marginTop: 0, maxWidth: 760 }}>
-        The Rating Agent rates every third job a worker submits on guideline adherence, research, accuracy and double spaces after sentences,
+        The Rating Agent rates every tenth job a worker submits on guideline adherence, research, accuracy and double spaces after sentences,
         and applies the rating immediately. Review any rating here and change it if you disagree. Workers can dispute a rating, and disputes appear under Disputes.
       </p>
       <div role="tablist" style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>

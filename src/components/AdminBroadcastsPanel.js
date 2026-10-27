@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 const AUDIENCES = [
   { key: 'worker', title: 'Workers', note: 'Shown at the top of the worker room (Available Jobs and My Jobs).' },
+  { key: 'home', title: 'Homepage tips', note: 'Shown in the Tips strip on the home page, for every visitor. The link text is clickable and sits before the message.' },
   { key: 'subadmin', title: 'Sub-admins', note: 'Shown at the top of the sub-admin Human Work dashboard. Workers never see these.' },
 ];
 const blank = () => ({ id: `new-${Math.random().toString(36).slice(2, 10)}`, title: '', text: '', link_label: '', link_url: '', active: true });
@@ -11,7 +12,7 @@ const field = { padding: '8px 10px', borderRadius: 8, border: '1px solid #cfd6d1
 // Super admin only. Write the messages workers and sub-admins see in the bar
 // at the top of their pages. Saved changes show within a few minutes, or on refresh.
 export default function AdminBroadcastsPanel({ currentUser, showMessage }) {
-  const [draft, setDraft] = useState({ worker: [], subadmin: [] });
+  const [draft, setDraft] = useState({ worker: [], subadmin: [], home: [] });
   const [saved, setSaved] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -33,8 +34,8 @@ export default function AdminBroadcastsPanel({ currentUser, showMessage }) {
     setLoading(true); setLoadError('');
     try {
       const payload = await request('GET');
-      setDraft({ worker: payload.worker?.items || [], subadmin: payload.subadmin?.items || [] });
-      setSaved({ worker: payload.worker, subadmin: payload.subadmin });
+      setDraft({ worker: payload.worker?.items || [], subadmin: payload.subadmin?.items || [], home: payload.home?.items || [] });
+      setSaved({ worker: payload.worker, subadmin: payload.subadmin, home: payload.home });
     } catch (error) {
       setLoadError(error.message || 'Broadcasts are temporarily unavailable.');
     } finally { setLoading(false); }

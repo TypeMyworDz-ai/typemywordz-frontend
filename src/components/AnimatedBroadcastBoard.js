@@ -17,59 +17,15 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 //      system's "reduce motion" setting.
 // ---------------------------------------------------------------------------
 
-const MESSAGES = [
-  {
-    kind: 'tip',
-    text: 'Ask the Assistant to summarise any transcript for you.',
-    action: { label: 'Open Assistant', view: 'ai_assistant' }
-  },
-  {
-    kind: 'tip',
-    text: 'English and No speaker tags are the defaults. Change them before you transcribe.'
-  },
-  {
-    kind: 'new',
-    text: 'Subscribers in Africa can now pay with Mobile Money.',
-    action: { label: 'See plans', view: 'pricing' }
-  },
-  {
-    kind: 'tip',
-    text: 'The Assistant can separate speakers in a transcript that has none.',
-    action: { label: 'Open Assistant', view: 'ai_assistant' }
-  },
-  {
-    kind: 'feature',
-    text: 'Work with your transcripts using Gemini.',
-    image: '/gemini_logo.png',
-    imageAlt: 'Google Gemini',
-    action: { label: 'Open Assistant', view: 'ai_assistant' }
-  },
-  {
-    kind: 'feature',
-    text: 'Work with your transcripts using Claude Haiku 5.5.',
-    image: '/claude_logo.png',
-    imageAlt: 'Claude',
-    action: { label: 'Open Assistant', view: 'ai_assistant' }
-  },
-  {
-    kind: 'feature',
-    text: 'Translate a transcript into Spanish and other languages.',
-    action: { label: 'Open Assistant', view: 'ai_assistant' }
-  },
-  {
-    kind: 'tip',
-    text: 'Record on your phone, transcribe, then pick it up on your computer.'
-  },
-  {
-    kind: 'feature',
-    text: 'Type up audio yourself, free, in the Transcription Editor.',
-    action: { label: 'Open Editor', view: 'editor' }
-  },
-  {
-    kind: 'tip',
-    text: 'We never store your audio or video files. Your recordings stay yours.'
-  }
-];
+const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
+
+// The messages are managed by the admin (Broadcasts tab, "Homepage tips").
+// This single message is shown until they load, or if they cannot be reached.
+const FALLBACK = [{
+  id: 'typescribe', kind: 'tip', title: '', link_label: 'Download our main tool, TypeScribe',
+  link_url: 'https://typemywordz.ai/tools/audio-recorder.html',
+  text: ', and enjoy all-in-one transcription platform with Playback/Recording features.'
+}];
 
 const KIND_LABEL = { tip: 'Tip', new: 'New', feature: 'Feature' };
 
@@ -80,6 +36,21 @@ const AnimatedBroadcastBoard = ({ onNavigate }) => {
   const [paused, setPaused] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const touchX = useRef(null);
+  const [messages, setMessages] = useState(FALLBACK);
+  const MESSAGES = messages;
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${BACKEND_URL}/api/public/home-tips`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((payload) => {
+        if (cancelled || !payload || !Array.isArray(payload.items)) return;
+        setMessages(payload.items.map((item) => ({ ...item, kind: 'tip' })));
+        setIndex(0);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -92,8 +63,8 @@ const AnimatedBroadcastBoard = ({ onNavigate }) => {
   }, []);
 
   const go = useCallback((next) => {
-    setIndex((i) => (next + MESSAGES.length) % MESSAGES.length);
-  }, []);
+    setIndex(() => (next + MESSAGES.length) % MESSAGES.length);
+  }, [MESSAGES.length]);
 
   useEffect(() => {
     if (paused) return undefined;
@@ -106,7 +77,11 @@ const AnimatedBroadcastBoard = ({ onNavigate }) => {
     if (e.key === 'ArrowRight') { e.preventDefault(); go(index + 1); }
   };
 
-  const message = MESSAGES[index];
+  if (!MESSAGES.length) return null;
+  const message = MESSAGES[index % MESSAGES.length];
+  const many = MESSAGES.length > 1;
+  const text = message.text || '';
+  const gap = /^[,.;:!?]/.test(text) ? '' : ' ';
 
   const handleAction = () => {
     if (message.action && typeof onNavigate === 'function') {
@@ -145,7 +120,11 @@ const AnimatedBroadcastBoard = ({ onNavigate }) => {
         {message.image && (
           <img src={message.image} alt={message.imageAlt || ''} className="tm-ann-logo" />
         )}
-        <span className="tm-ann-text">{message.text}</span>
+        <span className="tm-ann-text">
+          {message.title ? <strong>{message.title}{' '}</strong> : null}
+          {message.link_url ? <a href={message.link_url} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 600, textDecoration: 'underline' }}>{message.link_label || 'Open link'}</a> : null}
+          {message.link_url && text ? gap : ''}{text}
+        </span>
         {message.action && (
           <button type="button" className="tm-ann-action" onClick={handleAction}>
             {message.action.label}
@@ -157,7 +136,7 @@ const AnimatedBroadcastBoard = ({ onNavigate }) => {
         )}
       </div>
 
-      <div className="tm-ann-nav">
+      {many && <div className="tm-ann-nav">
         <button type="button" className="tm-ann-arrow" onClick={() => go(index - 1)} aria-label="Previous announcement">
           <svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor"
                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7.5 2.5L4 6l3.5 3.5" /></svg>
@@ -180,7 +159,7 @@ const AnimatedBroadcastBoard = ({ onNavigate }) => {
           <svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor"
                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 2.5L8 6l-3.5 3.5" /></svg>
         </button>
-      </div>
+      </div>}
     </div>
   );
 };

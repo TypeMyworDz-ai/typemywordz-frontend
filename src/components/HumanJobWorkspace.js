@@ -19,6 +19,7 @@ import { copyForWord } from '../utils/transcriptExport';
 import './HumanJobWorkspace.css';
 
 import BroadcastBar from './BroadcastBar';
+import { WordsInvoice, WorkerGtWorkPanel, AdminGtInvoicePanel, GT_WORK_EMAILS } from './HumanInvoices';
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 const STATUS_LABELS = {
   pending_admin: 'Waiting for admin', approved: 'Approved', assigned: 'Assigned', in_progress: 'In progress',
@@ -1046,6 +1047,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           <button type="button" role="tab" aria-selected={workerTab === 'available'} className={workerTab === 'available' ? 'active' : ''} onClick={() => setWorkerTab('available')}>Available Jobs</button>
           <button type="button" role="tab" aria-selected={workerTab === 'in_progress'} className={workerTab === 'in_progress' ? 'active' : ''} onClick={() => setWorkerTab('in_progress')}>In Progress</button>
           <button type="button" role="tab" aria-selected={workerTab === 'finished'} className={workerTab === 'finished' ? 'active' : ''} onClick={() => setWorkerTab('finished')}>Finished Jobs</button>
+          {GT_WORK_EMAILS.includes(adminEmail) && <button type="button" role="tab" aria-selected={workerTab === 'gt_work'} className={workerTab === 'gt_work' ? 'active' : ''} onClick={() => setWorkerTab('gt_work')}>GT Work</button>}
           <button type="button" role="tab" aria-selected={workerTab === 'payments'} className={workerTab === 'payments' ? 'active' : ''} onClick={() => { setWorkerTab('payments'); loadPayments(); }}>Payment History · KES</button>
         </div>
       )}
@@ -1063,6 +1065,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           {isHumanSubadmin && <button type="button" role="tab" aria-selected={adminTab === 'my_subadmin_payments'} className={adminTab === 'my_subadmin_payments' ? 'active' : ''} onClick={() => setAdminTab('my_subadmin_payments')}>My payments · KES</button>}
           {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'worker_payments'} className={adminTab === 'worker_payments' ? 'active' : ''} onClick={() => setAdminTab('worker_payments')}>Worker payments · KES</button>}
           {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'rates'} className={adminTab === 'rates' ? 'active' : ''} onClick={() => setAdminTab('rates')}>Worker rates</button>}
+          {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'words_invoices'} className={adminTab === 'words_invoices' ? 'active' : ''} onClick={() => setAdminTab('words_invoices')}>Words invoices</button>}
+          {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'gt_invoices'} className={adminTab === 'gt_invoices' ? 'active' : ''} onClick={() => setAdminTab('gt_invoices')}>GT Work invoices</button>}
           {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'subadmin_payments'} className={adminTab === 'subadmin_payments' ? 'active' : ''} onClick={() => setAdminTab('subadmin_payments')}>Sub-admin payments</button>}
           {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'subadmin_rates'} className={adminTab === 'subadmin_rates' ? 'active' : ''} onClick={() => setAdminTab('subadmin_rates')}>Sub-admin rates</button>}
           {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'cleanup'} className={adminTab === 'cleanup' ? 'active' : ''} onClick={() => setAdminTab('cleanup')}>Job cleanup</button>}
@@ -1082,25 +1086,31 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
       ) : mode === 'admin' && adminTab === 'shifts' && (isMainAdmin || isHumanSubadmin) ? (
         <AdminShiftAttendancePanel showMessage={showMessage} />
       ) : mode === 'admin' && adminTab === 'my_words' && isHumanSubadmin ? (
-        <SubadminWordsPanel request={request} showMessage={showMessage} />
+        <SubadminWordsPanel request={request} getToken={token} showMessage={showMessage} />
       ) : mode === 'admin' && adminTab === 'my_subadmin_payments' && isHumanSubadmin ? (
         <SubadminSelfPaymentPanel request={request} showMessage={showMessage} />
+      ) : mode === 'admin' && adminTab === 'words_invoices' && isMainAdmin ? (
+        <section className="tm-subadmin-panel" aria-label="Words Table invoices"><WordsInvoice request={request} getToken={token} showMessage={showMessage} adminView /></section>
+      ) : mode === 'admin' && adminTab === 'gt_invoices' && isMainAdmin ? (
+        <section className="tm-subadmin-panel" aria-label="GT Work invoices"><AdminGtInvoicePanel request={request} getToken={token} showMessage={showMessage} /></section>
       ) : mode === 'admin' && adminTab === 'subadmin_payments' && isMainAdmin ? (
         <AdminSubadminPaymentsPanel request={request} showMessage={showMessage} />
       ) : mode === 'admin' && adminTab === 'subadmin_rates' && isMainAdmin ? (
         <AdminSubadminRatesPanel request={request} showMessage={showMessage} />
+      ) : mode === 'worker' && workerTab === 'gt_work' && GT_WORK_EMAILS.includes(adminEmail) ? (
+        <WorkerGtWorkPanel request={request} showMessage={showMessage} />
       ) : mode === 'worker' && workerTab === 'payments' ? (
         <div className="tm-human-chat-card tm-worker-payment-panel">
           <div className="tm-human-chat-head"><div><strong>Payment history</strong><span>Pay accrues in two halves of each month: the 1st-15th and the 16th to month end.</span></div><span className="tm-human-live-dot">KES</span></div>
           {!paymentHistory ? <div className="tm-human-empty">Loading payment history…</div> : <>
             <div className="tm-worker-payment-totals">
-              <div><small>Paid</small><strong>KES {paymentHistory.totals?.paid_kes || 0}</strong><span className="tm-worker-payment-breakdown">Transcription KES {paymentHistory.totals?.paid_transcription_kes || 0} · Proofreading KES {paymentHistory.totals?.paid_proofreading_kes || 0} · PDF KES {paymentHistory.totals?.paid_pdf_kes || 0}</span></div>
+              <div><small>Paid</small><strong>KES {paymentHistory.totals?.paid_kes || 0}</strong><span className="tm-worker-payment-breakdown">Transcription KES {paymentHistory.totals?.paid_transcription_kes || 0} · Proofreading KES {paymentHistory.totals?.paid_proofreading_kes || 0} · PDF KES {paymentHistory.totals?.paid_pdf_kes || 0}{paymentHistory.totals?.paid_gt_kes ? ` · GT Work KES ${paymentHistory.totals.paid_gt_kes}` : ''}</span></div>
               <div><small>Pending payout</small><strong>KES {(paymentHistory.pending_payouts || []).reduce((sum, item) => sum + (item.total_amount_kes || 0), 0)}</strong></div>
-              <div><small>Accruing now ({paymentHistory.current_period?.period_range || paymentHistory.current_period?.label})</small><strong>KES {paymentHistory.current_period?.accrued_kes || 0}</strong><span className="tm-worker-payment-breakdown">Transcription KES {paymentHistory.current_period?.transcription_kes || 0} · Proofreading KES {paymentHistory.current_period?.proofreading_kes || 0} · PDF KES {paymentHistory.current_period?.pdf_kes || 0}</span></div>
+              <div><small>Accruing now ({paymentHistory.current_period?.period_range || paymentHistory.current_period?.label})</small><strong>KES {paymentHistory.current_period?.accrued_kes || 0}</strong><span className="tm-worker-payment-breakdown">Transcription KES {paymentHistory.current_period?.transcription_kes || 0} · Proofreading KES {paymentHistory.current_period?.proofreading_kes || 0} · PDF KES {paymentHistory.current_period?.pdf_kes || 0}{paymentHistory.current_period?.gt_kes ? ` · GT Work KES ${paymentHistory.current_period.gt_kes}` : ''}</span></div>
             </div>
             <h3>Pending payouts (already invoiced, awaiting admin payment)</h3>
             {!(paymentHistory.pending_payouts || []).length && <p className="tm-human-empty">No half-month invoice is waiting on admin payment right now.</p>}
-            {(paymentHistory.pending_payouts || []).map((item) => <div className="tm-worker-payment-row" key={item.payout_id}><span>{item.period_title || `Pending payout for ${item.period_label}`}</span><strong>KES {item.total_amount_kes}</strong><small>{item.total_minutes} min · pays out on {item.period_label?.endsWith('-A') ? 'the 15th' : 'month end'} · Transcription KES {item.transcription_amount_kes || 0} · Proofreading KES {item.proofreading_amount_kes || 0} · PDF KES {item.pdf_amount_kes || 0}{item.total_deduction_kes > 0 ? ` · KES ${item.total_deduction_kes} in deductions` : ''}</small></div>)}
+            {(paymentHistory.pending_payouts || []).map((item) => <div className="tm-worker-payment-row" key={item.payout_id}><span>{item.period_title || `Pending payout for ${item.period_label}`}</span><strong>KES {item.total_amount_kes}</strong><small>{item.total_minutes} min · pays out on {item.period_label?.endsWith('-A') ? 'the 15th' : 'month end'} · Transcription KES {item.transcription_amount_kes || 0} · Proofreading KES {item.proofreading_amount_kes || 0} · PDF KES {item.pdf_amount_kes || 0}{item.gt_amount_kes ? ` · GT Work KES ${item.gt_amount_kes}` : ''}{item.total_deduction_kes > 0 ? ` · KES ${item.total_deduction_kes} in deductions` : ''}</small></div>)}
             <h3>Paid</h3>{!(paymentHistory.paid || []).length && <p className="tm-human-empty">No payments have been marked paid yet.</p>}{(paymentHistory.paid || []).map((item) => <div className="tm-worker-payment-row" key={`${item.job_id}-${item.role}-${item.payout_period_id || ''}`}><span>{item.role} · Job {item.job_id.slice(0, 8)}</span><strong>KES {item.amount_kes}</strong><small>{item.minutes} min · {moneylessDate(item.paid_at)}{item.deduction_kes > 0 ? ` · KES ${item.deduction_kes} deducted: ${item.deduction_reason}` : ''}</small></div>)}
           </>}
         </div>
@@ -2209,7 +2219,7 @@ function AdminPayoutsPanel({ request, showMessage, workers }) {
                   <td>{payout.total_minutes}</td>
                   <td>KES {payout.transcription_amount_kes || 0}<small>{payout.transcription_minutes || 0} min</small></td>
                   <td>KES {payout.proofreading_amount_kes || 0}<small>{payout.proofreading_minutes || 0} min</small></td>
-                  <td>KES {payout.pdf_amount_kes || 0}<small>PDF jobs</small></td>
+                  <td>KES {payout.pdf_amount_kes || 0}<small>PDF jobs</small>{payout.gt_amount_kes ? <small>GT Work KES {payout.gt_amount_kes}</small> : null}</td>
                   <td>KES {payout.total_amount_kes}{payout.total_deduction_kes > 0 && <small>KES {payout.total_deduction_kes} deducted</small>}</td>
                   <td>{payout.status === 'paid' ? `Paid ${moneylessDate(payout.paid_at)}` : 'Pending'}</td>
                   <td><button type="button" onClick={() => viewWorkerPaymentProfile(payout.worker_uid)} disabled={loadingWorkerProfile}>View M-Pesa details</button></td>
@@ -2237,7 +2247,7 @@ const wordsDateLabel = (iso) => {
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Nairobi' });
 };
 
-function SubadminWordsPanel({ request, showMessage }) {
+function SubadminWordsPanel({ request, getToken, showMessage }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -2358,6 +2368,7 @@ function SubadminWordsPanel({ request, showMessage }) {
         <div className="tm-human-chat-head"><div><strong>Earlier this month</strong><span>Each day's total words and pay.</span></div></div>
         {previousDays.length ? <div className="tm-subadmin-table-wrap"><table className="tm-admin-payout-table"><thead><tr><th>Month/Date</th><th>Entries</th><th>Total Words</th><th>Words Payment</th></tr></thead><tbody>{previousDays.map((day) => <tr key={day.date}><td>{wordsDateLabel(day.date)}</td><td>{day.entries}</td><td>{day.words.toLocaleString()}</td><td>{kesThree(day.amount_kes)}</td></tr>)}</tbody></table></div> : <p className="tm-human-empty">No earlier days this month.</p>}
       </div>
+      <WordsInvoice request={request} getToken={getToken} showMessage={showMessage} />
     </section>
   );
 }
