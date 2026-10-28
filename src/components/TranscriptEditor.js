@@ -681,69 +681,6 @@ const TranscriptEditor = ({
     setExportOpen(false);
   }, [segments, speakerNames, fileName]);
 
-  // ---- find and replace ----
-  const [findOpen, setFindOpen] = useState(false);
-  const [find, setFind] = useState('');
-  const [replace, setReplace] = useState('');
-  const findRef = useRef(null);
-
-  // Every match in reading order, so that Enter can walk through them one at
-  // a time instead of only telling the client how many there are.
-  const matches = useMemo(() => {
-    if (!find) return [];
-    const needle = find.toLowerCase();
-    const out = [];
-    segments.forEach((s, line) => {
-      const hay = s.text.toLowerCase();
-      let at = hay.indexOf(needle);
-      let occ = 0;
-      while (at !== -1) {
-        out.push({ line, occ });
-        occ += 1;
-        at = hay.indexOf(needle, at + needle.length);
-      }
-    });
-    return out;
-  }, [find, segments]);
-
-  const matchCount = matches.length;
-
-  // Which match is currently under the cursor. Kept as a number rather than a
-  // reference to a match so that editing the transcript cannot leave it
-  // pointing at something that no longer exists.
-  const [matchAt, setMatchAt] = useState(0);
-
-  // A new search term always starts again from the first match.
-  useEffect(() => { setMatchAt(0); }, [find]);
-
-  const goToMatch = useCallback((step) => {
-    if (matches.length === 0) return;
-    // Wrap around in both directions, so the end of the list rolls back to
-    // the start rather than dead-ending.
-    const next = ((matchAt + step) % matches.length + matches.length) % matches.length;
-    setMatchAt(next);
-    const target = matches[next].line;
-    const el = listRef.current && listRef.current.querySelector(`[data-index="${target}"]`);
-    if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    // Follow-the-audio would immediately drag the view back, so stop it.
-    followRef.current = false;
-    if (showTimes && segments[target]) seek(segments[target].start);
-  }, [matches, matchAt, segments, seek, showTimes]);
-
-  const onFindKeyDown = useCallback((e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      goToMatch(e.shiftKey ? -1 : 1);
-    }
-  }, [goToMatch]);
-
-  const replaceAll = useCallback(() => {
-    if (!find) return;
-    const rx = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-    const next = segments.map((s) => ({ ...s, text: s.text.replace(rx, replace) }));
-    publishEdit(next, speakerNames);
-  }, [find, publishEdit, replace, segments, speakerNames]);
-
   // ---- speakers ----
   const speakers = useMemo(() => speakersIn(segments), [segments]);
   const [renaming, setRenaming] = useState(null);
@@ -789,12 +726,6 @@ const TranscriptEditor = ({
       if (mod && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
         e.preventDefault(); doCopy(copyMode); return;
       }
-      if (mod && (e.key === 'f' || e.key === 'F')) {
-        e.preventDefault();
-        setFindOpen(true);
-        setTimeout(() => findRef.current && findRef.current.focus(), 30);
-        return;
-      }
       if (!editableTarget && mod && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
         applyHistory(e.shiftKey ? 1 : -1);
@@ -812,7 +743,7 @@ const TranscriptEditor = ({
       if (mod && e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
       if (mod && e.key === 'ArrowLeft') { e.preventDefault(); nudge(-SKIP_SECONDS); return; }
       if (mod && e.key === 'ArrowRight') { e.preventDefault(); nudge(SKIP_SECONDS); return; }
-      if (e.key === 'Escape') { setCopyOpen(false); setExportOpen(false); setFindOpen(false); }
+      if (e.key === 'Escape') { setCopyOpen(false); setExportOpen(false); }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -1131,40 +1062,7 @@ const TranscriptEditor = ({
                 onClick={newSpeakerHere}>
           New speaker here
         </button>
-
-        <button type="button" className="tm-ed-tool" onClick={() => {
-          setFindOpen((o) => !o);
-          setTimeout(() => findRef.current && findRef.current.focus(), 30);
-        }}>
-          Find and replace
-        </button>
       </div>
-
-      {findOpen && (
-        <div className="tm-find">
-          <input ref={findRef} className="tm-find-in" placeholder="Find" value={find}
-                 onChange={(e) => setFind(e.target.value)}
-                 onKeyDown={onFindKeyDown} />
-          <input className="tm-find-in" placeholder="Replace with" value={replace}
-                 onChange={(e) => setReplace(e.target.value)} />
-          <span className="tm-find-count">
-            {!find
-              ? 'Not case sensitive'
-              : matchCount === 0
-                ? 'No matches'
-                : `${matchAt + 1} of ${matchCount}`}
-          </span>
-          <button type="button" className="tm-ed-tool" disabled={matchCount === 0}
-                  title="Previous match (Shift and Enter)"
-                  onClick={() => goToMatch(-1)}>Previous</button>
-          <button type="button" className="tm-ed-tool" disabled={matchCount === 0}
-                  title="Next match (Enter)"
-                  onClick={() => goToMatch(1)}>Next</button>
-          <button type="button" className="tm-find-go" disabled={!find || matchCount === 0}
-                  onClick={replaceAll}>Replace all</button>
-          <button type="button" className="tm-ed-tool" onClick={() => { setFindOpen(false); setFind(''); }}>Close</button>
-        </div>
-      )}
 
       {approximate && (
         <p className="tm-ed-warn">
@@ -1210,12 +1108,8 @@ const TranscriptEditor = ({
             showTimes={showTimes}
             approximate={approximate}
             speakerNames={speakerNames}
-            highlight={findOpen ? find : ''}
-            activeHit={
-              findOpen && matches[matchAt] && matches[matchAt].line === i
-                ? matches[matchAt].occ
-                : -1
-            }
+            highlight=""
+            activeHit={-1}
             onSeek={seek}
             onPlayFrom={audioUrl ? playFrom : null}
             liveTime={i === activeIndex ? current : -1}
