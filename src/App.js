@@ -55,7 +55,7 @@ import GuidelinesPage from './components/GuidelinesPage';
 import NotificationsCenter, { NotificationAlert } from './components/NotificationsCenter';
 import { isPaidAIUser } from './aiAccess';
 import { db } from './firebase';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from './lib/ownstore';
 import { isAdminEmail, isHumanJobAdminEmail, hasFreeAccess } from './adminEmails';
 import { recordPageView } from './analyticsService';
 import * as recordingBackup from './utils/recordingBackup';

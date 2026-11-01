@@ -1,7 +1,7 @@
 import { db } from './firebase';
 import { isCompAccessEmail } from './adminEmails';
 import { usableTopUpCredits, spendableFor, fetchCreditBalance } from './creditsService';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc, addDoc, runTransaction } from 'firebase/firestore'; // Keep serverTimestamp just in case for other uses, but we'll manually set for this fix
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, deleteDoc, addDoc, runTransaction } from './lib/ownstore'; // Keep serverTimestamp just in case for other uses, but we'll manually set for this fix
 
 // Length of the free trial, in minutes. Matches the server's
 // FREE_TRIAL_CREDITS (one credit is one minute), so this is only a fallback
