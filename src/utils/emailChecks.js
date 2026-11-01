@@ -75,6 +75,14 @@ export const friendlyAuthError = (error) => {
       return 'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.';
     case 'auth/operation-not-allowed':
       return 'That sign-in method is not switched on for this app yet.';
+    case 'auth/disposable-email':
+      return 'Please use a permanent email address. Temporary inboxes are not accepted.';
+    case 'auth/no-password':
+      return 'This account was created with Google. Use "Forgotten your password?" to set a password, or continue with Google.';
+    case 'auth/user-disabled':
+      return 'This account has been disabled. Please contact support.';
+    case 'auth/invalid-action-code':
+      return 'This link has expired or was already used. Please request a new one.';
     case 'auth/requires-recent-login':
       return 'Please sign in again before making this change.';
     default:
