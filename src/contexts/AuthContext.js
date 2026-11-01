@@ -11,7 +11,7 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   updateProfile,
-} from 'firebase/auth';
+} from '../lib/ownauth';
 import { createUserProfile, getUserProfile } from '../userService';
 import Toaster, { durationForType } from '../components/Toaster';
 
