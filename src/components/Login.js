@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { completePasswordReset, confirmEmailVerification } from '../lib/ownauth';
 import {
   looksLikeAnEmail,
   usesPlusAlias,
@@ -40,6 +41,59 @@ const Login = () => {
 
   const { signInWithGoogle, signInWithEmail, signUpWithEmail, sendPasswordReset, showMessage } = useAuth();
   const navigate = useNavigate();
+  const [resetToken, setResetToken] = useState('');
+
+  // Links from our emails: ?reset=TOKEN opens the new-password form,
+  // ?verify=TOKEN confirms an email address.
+  useEffect(() => {
+    let params;
+    try {
+      params = new URLSearchParams(window.location.search);
+    } catch (e) {
+      return;
+    }
+    const reset = params.get('reset');
+    const verify = params.get('verify');
+    if (!reset && !verify) return;
+    const clean = () => {
+      try {
+        window.history.replaceState({}, '', window.location.pathname);
+      } catch (e) { /* ignore */ }
+    };
+    if (reset) {
+      setResetToken(reset);
+      setMode('newpassword');
+      clean();
+    } else if (verify) {
+      confirmEmailVerification(verify)
+        .then(() => {
+          showMessage('Your email address is confirmed.', 'success');
+          navigate('/');
+        })
+        .catch((err) => setError(friendlyAuthError(err)))
+        .finally(clean);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleNewPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Please choose a password of at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+    setBusy('newpassword');
+    try {
+      await completePasswordReset(resetToken, password);
+      showMessage('Your password is set. Welcome back.', 'success');
+      navigate('/');
+    } catch (err) {
+      setError(friendlyAuthError(err));
+    } finally {
+      setBusy('');
+    }
+  };
 
   const switchTo = (next) => {
     setMode(next);
@@ -156,11 +210,13 @@ const Login = () => {
 
   const title = mode === 'signup' ? 'Create your account'
     : mode === 'reset' ? 'Reset your password'
-      : 'Sign in';
+      : mode === 'newpassword' ? 'Choose a new password'
+        : 'Sign in';
 
   const blurb = mode === 'signup' ? '30 free credits, worth up to 30 transcription minutes. No card needed.'
-    : mode === 'reset' ? 'We will email you a link to set a new password.'
-      : 'Welcome back.';
+    : mode === 'reset' ? 'We will email you a link to set a new password. If you signed up with Google, this is also how you add a password.'
+      : mode === 'newpassword' ? 'Pick a password you have not used elsewhere.'
+        : 'Welcome back.';
 
   return (
     <div className="tm-auth">
@@ -170,7 +226,39 @@ const Login = () => {
       {error && <p className="tm-auth-error" role="alert">{error}</p>}
       {notice && <p className="tm-auth-notice" role="status">{notice}</p>}
 
-      {mode === 'reset' ? (
+      {mode === 'newpassword' ? (
+        <form onSubmit={handleNewPassword}>
+          <label className="tm-auth-label" htmlFor="tm-new-password">New password</label>
+          <div className="tm-auth-pwwrap">
+            <input
+              id="tm-new-password"
+              className="tm-auth-input"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="new-password"
+              value={password}
+              onChange={(ev) => setPassword(ev.target.value)}
+              disabled={working}
+            />
+            <button
+              type="button"
+              className="tm-auth-peek"
+              onClick={() => setShowPassword((v) => !v)}
+              disabled={working}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              title={showPassword ? 'Hide password' : 'Show password'}
+            >
+              <PasswordEye hidden={!showPassword} />
+            </button>
+          </div>
+          <p className="tm-auth-hint">At least {MIN_PASSWORD_LENGTH} characters.</p>
+          <button type="submit" className="tm-auth-submit" disabled={working}>
+            {busy === 'newpassword' ? 'Saving...' : 'Save password and sign in'}
+          </button>
+          <button type="button" className="tm-auth-link" onClick={() => switchTo('signin')}>
+            Back to sign in
+          </button>
+        </form>
+      ) : mode === 'reset' ? (
         <form onSubmit={handleReset}>
           <label className="tm-auth-label" htmlFor="tm-reset-email">Email</label>
           <input
