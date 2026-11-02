@@ -140,7 +140,7 @@ export default function DirectMessages({ showMessage, compact = false, onMessage
     if (selectedThread?.id) loadMessages();
   }, [loadMessages, selectedThread?.id]);
   useEffect(() => {
-    const interval = window.setInterval(() => { loadInbox(true); loadMessages(true); }, 5000);
+    const interval = window.setInterval(() => { if (!document.hidden) { loadInbox(true); loadMessages(true); } }, 8000);
     return () => window.clearInterval(interval);
   }, [loadInbox, loadMessages]);
 

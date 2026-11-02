@@ -492,7 +492,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
     if (!selectedJob?.id) return undefined;
     const refreshWhenVisible = () => { if (document.visibilityState === 'visible') loadMessages(); };
     loadMessages();
-    const interval = window.setInterval(refreshWhenVisible, 3000);
+    const interval = window.setInterval(refreshWhenVisible, 6000);
     window.addEventListener('focus', refreshWhenVisible);
     document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => {

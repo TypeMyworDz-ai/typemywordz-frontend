@@ -184,7 +184,7 @@ const UserChatDialog = ({ currentUser, target, onClose, showMessage }) => {
 
   useEffect(() => {
     load();
-    const interval = window.setInterval(load, 5000);
+    const interval = window.setInterval(() => { if (!document.hidden) load(); }, 20000);
     return () => window.clearInterval(interval);
   }, [load]);
 
