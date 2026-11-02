@@ -455,10 +455,10 @@ function AppContent() {
   useEffect(() => {
     refreshUnreadMessageCount();
     const refresh = () => refreshUnreadMessageCount();
-    const interval = window.setInterval(refresh, 5000);
+    const interval = window.setInterval(() => { if (!document.hidden) refresh(); }, 12000);
     // While a sound is playing, check more often so a cancel made in another
     // browser silences this one within a couple of seconds.
-    const fastInterval = window.setInterval(() => { if (notificationSources.length) refresh(); }, 1500);
+    const fastInterval = window.setInterval(() => { if (notificationSources.length && !document.hidden) refresh(); }, 2500);
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
     return () => {
