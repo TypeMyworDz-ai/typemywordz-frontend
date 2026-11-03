@@ -40,7 +40,7 @@ const nairobiDateIso = (date = new Date()) => {
 };
 const kesThree = (value) => `KES ${Number(value || 0).toFixed(3)}`;
 const subadminCategoryLabel = (category) => ({
-  audio_human: 'Human audio', audio_ai: 'AI audio', image_human: 'Human image', image_ai: 'AI image', words_entry: 'Words Payment',
+  audio_human: 'Human audio', audio_ai: 'AI audio', image_human: 'Human image', image_ai: 'AI image', words_entry: 'Words Payment', worker_jobs: 'Worker jobs',
 }[category] || category || 'Human Work');
 
 const formatAttachmentSize = (bytes) => {
@@ -118,6 +118,11 @@ const ADMIN_QUEUE_LANES = [
 ];
 const EMPTY_JOBS = [];
 
+// Accounts that are both sub-admin and approved worker pick their hat per request.
+let ACTIVE_WORK_MODE = 'admin';
+// eslint-disable-next-line no-shadow
+const fetch = (url, options = {}) => window.fetch(url, { ...options, headers: { ...(options.headers || {}), 'X-Work-Mode': ACTIVE_WORK_MODE } });
+
 export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage, initialJobId = '', onInitialJobHandled, restricted = false, ownerScope = 'mine', recordedAudioFile = null, onRecordedAudioReady }) {
   const { currentUser, refreshUserProfile } = useAuth();
   const [jobsStore, setJobsStore] = useState({});
@@ -163,6 +168,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
   const [paymentHistory, setPaymentHistory] = useState(null);
   const [adminTab, setAdminTab] = useState('queue');
   // Jobs are stored per scope so switching tabs never shows another tab's list.
+  ACTIVE_WORK_MODE = mode === 'worker' ? 'worker' : 'admin';
   const jobsScope = mode === 'admin' ? 'admin' : mode === 'worker' ? (workerTab === 'available' ? 'available' : workerTab === 'finished' ? 'finished' : 'assigned') : 'mine';
   const jobs = jobsStore[jobsScope] || EMPTY_JOBS;
   const scopeLoading = jobsStore[jobsScope] === undefined;
@@ -1656,7 +1662,7 @@ function WorkerShiftPanel({ showMessage, onPresence, availableForWork }) {
       </div>
     </div>
     <div className="tm-worker-shift-actions">
-      <span>Mon–Fri · 4:00–8:00 p.m. and 10:00 p.m.–1:00 a.m. Kenya time · 4 shifts a week</span>
+      <span>Mon–Fri · 4:00 p.m.–5:00 a.m. Kenya time · 4 shifts a week</span>
       {shift?.can_clock_in && <button type="button" onClick={() => act('/human-transcription/worker/shift/clock-in')} disabled={busy}>{busy ? 'Saving…' : 'Clock in'}</button>}
       {onShift && <button type="button" onClick={() => act('/human-transcription/worker/shift/clock-out')} disabled={busy || shift?.has_active_assignment} title={shift?.has_active_assignment ? 'Finish your active job before clocking out.' : undefined}>{busy ? 'Saving…' : 'Clock out'}</button>}
     </div>
@@ -2523,7 +2529,7 @@ function AdminSubadminPaymentsPanel({ request, showMessage }) {
       <div className="tm-human-chat-card tm-subadmin-section">
         <div className="tm-human-chat-head"><div><strong>Half-month invoices</strong><span>Each completed period is invoiced once the half ends; the next half accrues independently.</span></div><label className="tm-subadmin-invoice-filter">Status<select value={invoiceStatus} onChange={(event) => { const status = event.target.value; setInvoiceStatus(status); loadData(filters, status); }}><option value="pending">Pending payout</option><option value="paid">Paid</option><option value="all">All invoices</option></select></label></div>
         {invoiceData && <div className="tm-subadmin-invoice-totals"><span>Pending <strong>{kesThree(invoiceData.totals?.pending_kes)}</strong></span><span>Paid <strong>{kesThree(invoiceData.totals?.paid_kes)}</strong></span></div>}
-        {invoices.length ? <div className="tm-subadmin-table-wrap"><table className="tm-admin-payout-table"><thead><tr><th>Sub-admin</th><th>Period</th><th>Human audio</th><th>AI audio</th><th>Human images</th><th>AI images</th><th>Words Payment</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>{invoices.map((item) => <tr key={item.payout_id}><td>{item.subadmin_email}</td><td>{item.period_range || item.period_label}</td><td>{kesThree(item.category_totals_kes?.audio_human)}</td><td>{kesThree(item.category_totals_kes?.audio_ai)}</td><td>{kesThree(item.category_totals_kes?.image_human)}</td><td>{kesThree(item.category_totals_kes?.image_ai)}</td><td>{kesThree(item.category_totals_kes?.words_entry)}</td><td><strong>{kesThree(item.total_amount_kes)}</strong></td><td>{item.status === 'paid' ? `Paid ${moneylessDate(item.paid_at)}` : 'Pending'}</td><td>{item.status !== 'paid' && <button type="button" onClick={() => markPaid(item)} disabled={busyId === item.payout_id}>{busyId === item.payout_id ? 'Saving…' : 'Mark paid'}</button>}</td></tr>)}</tbody></table></div> : !loading && <p className="tm-human-empty">No invoices in this view yet.</p>}
+        {invoices.length ? <div className="tm-subadmin-table-wrap"><table className="tm-admin-payout-table"><thead><tr><th>Sub-admin</th><th>Period</th><th>Human audio</th><th>AI audio</th><th>Human images</th><th>AI images</th><th>Words Payment</th><th>Worker jobs</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>{invoices.map((item) => <tr key={item.payout_id}><td>{item.subadmin_email}</td><td>{item.period_range || item.period_label}</td><td>{kesThree(item.category_totals_kes?.audio_human)}</td><td>{kesThree(item.category_totals_kes?.audio_ai)}</td><td>{kesThree(item.category_totals_kes?.image_human)}</td><td>{kesThree(item.category_totals_kes?.image_ai)}</td><td>{kesThree(item.category_totals_kes?.words_entry)}</td><td>{kesThree(item.category_totals_kes?.worker_jobs)}</td><td><strong>{kesThree(item.total_amount_kes)}</strong></td><td>{item.status === 'paid' ? `Paid ${moneylessDate(item.paid_at)}` : 'Pending'}</td><td>{item.status !== 'paid' && <button type="button" onClick={() => markPaid(item)} disabled={busyId === item.payout_id}>{busyId === item.payout_id ? 'Saving…' : 'Mark paid'}</button>}</td></tr>)}</tbody></table></div> : !loading && <p className="tm-human-empty">No invoices in this view yet.</p>}
       </div>
     </section>
   );
