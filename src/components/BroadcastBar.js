@@ -17,7 +17,7 @@ export default function BroadcastBar({ currentUser, audience }) {
     if (!currentUser) return;
     try {
       const token = await currentUser.getIdToken();
-      const response = await fetch(`${BACKEND_URL}/human-transcription/broadcast`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+      const response = await fetch(`${BACKEND_URL}/human-transcription/broadcast`, { headers: { Authorization: `Bearer ${token}`, 'X-Work-Mode': audience === 'worker' ? 'worker' : 'admin' }, cache: 'no-store' });
       if (!response.ok) throw new Error('unavailable');
       const payload = await response.json();
       setItems(Array.isArray(payload.items) ? payload.items : []);

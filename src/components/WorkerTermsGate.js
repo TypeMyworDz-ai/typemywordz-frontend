@@ -20,7 +20,7 @@ export default function WorkerTermsGate({ userProfile, currentUser, refreshUserP
     setBusy(true);
     try {
       const token = await currentUser.getIdToken();
-      const response = await fetch(`${BACKEND_URL}/human-transcription/worker/terms`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ accept }) });
+      const response = await fetch(`${BACKEND_URL}/human-transcription/worker/terms`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-Work-Mode': 'worker' }, body: JSON.stringify({ accept }) });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.detail || 'Your response could not be saved.');
       if (accept) {

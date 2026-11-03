@@ -143,7 +143,7 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
       setWorkerProfileLoading(true);
       try {
         const idToken = await currentUser.getIdToken();
-        const response = await fetch(`${RAILWAY_BACKEND_URL}/human-transcription/worker/payment-profile`, { headers: { Authorization: `Bearer ${idToken}` } });
+        const response = await fetch(`${RAILWAY_BACKEND_URL}/human-transcription/worker/payment-profile`, { headers: { Authorization: `Bearer ${idToken}`, 'X-Work-Mode': 'worker' } });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.detail || 'Worker profile could not be loaded.');
         if (!alive) return;
@@ -168,7 +168,7 @@ const Settings = ({ userPlan = 'free', userEmail = '', canUseAI = false, onUpgra
       const idToken = await currentUser.getIdToken();
       const response = await fetch(`${RAILWAY_BACKEND_URL}/human-transcription/worker/payment-profile`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}`, 'X-Work-Mode': 'worker' },
         body: JSON.stringify({ mpesa_registered_name: mpesaRegisteredName, mpesa_number: mpesaNumber }),
       });
       const data = await response.json().catch(() => ({}));
