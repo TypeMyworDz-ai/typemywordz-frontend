@@ -19,6 +19,7 @@ import { copyForWord } from '../utils/transcriptExport';
 import './HumanJobWorkspace.css';
 
 import BroadcastBar from './BroadcastBar';
+import AdminClientWordListsPanel from './AdminClientWordListsPanel';
 import { WordsInvoice, WorkerGtWorkPanel, AdminGtInvoicePanel, GT_WORK_EMAILS } from './HumanInvoices';
 const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backendforrailway-production-7128.up.railway.app';
 const STATUS_LABELS = {
@@ -1067,6 +1068,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
           {canManageLetterJobs && <button type="button" role="tab" aria-selected={adminTab === 'template_jobs'} className={adminTab === 'template_jobs' ? 'active' : ''} onClick={() => setAdminTab('template_jobs')}>Template Jobs</button>}
           {canManagePdfJobs && <button type="button" role="tab" aria-selected={adminTab === 'pdf_jobs'} className={adminTab === 'pdf_jobs' ? 'active' : ''} onClick={() => setAdminTab('pdf_jobs')}>PDF Jobs</button>}
           {(isMainAdmin || isHumanSubadmin) && <button type="button" role="tab" aria-selected={adminTab === 'shifts'} className={adminTab === 'shifts' ? 'active' : ''} onClick={() => setAdminTab('shifts')}>Shift attendance</button>}
+          {isHumanSubadmin && adminEmail === 'gracenyaitara@gmail.com' && <button type="button" role="tab" aria-selected={adminTab === 'client_words'} className={adminTab === 'client_words' ? 'active' : ''} onClick={() => setAdminTab('client_words')}>Client Word List</button>}
           {isHumanSubadmin && <button type="button" role="tab" aria-selected={adminTab === 'my_words'} className={adminTab === 'my_words' ? 'active' : ''} onClick={() => setAdminTab('my_words')}>Words Table</button>}
           {isHumanSubadmin && <button type="button" role="tab" aria-selected={adminTab === 'my_subadmin_payments'} className={adminTab === 'my_subadmin_payments' ? 'active' : ''} onClick={() => setAdminTab('my_subadmin_payments')}>My payments · KES</button>}
           {isMainAdmin && <button type="button" role="tab" aria-selected={adminTab === 'worker_payments'} className={adminTab === 'worker_payments' ? 'active' : ''} onClick={() => setAdminTab('worker_payments')}>Worker payments · KES</button>}
@@ -1091,6 +1093,8 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
         <LetterJobsAdminPanel onRecordedAudioReady={onRecordedAudioReady} recordedAudioFile={recordedAudioFile} showMessage={showMessage} onOpenQueue={() => { setAdminQueueType('letter_job'); setAdminQueueLane('needs_action'); setAdminTab('queue'); }} />
       ) : mode === 'admin' && adminTab === 'shifts' && (isMainAdmin || isHumanSubadmin) ? (
         <AdminShiftAttendancePanel showMessage={showMessage} />
+      ) : mode === 'admin' && adminTab === 'client_words' && isHumanSubadmin && adminEmail === 'gracenyaitara@gmail.com' ? (
+        <AdminClientWordListsPanel currentUser={currentUser} showMessage={showMessage} />
       ) : mode === 'admin' && adminTab === 'my_words' && isHumanSubadmin ? (
         <SubadminWordsPanel request={request} getToken={token} showMessage={showMessage} />
       ) : mode === 'admin' && adminTab === 'my_subadmin_payments' && isHumanSubadmin ? (
