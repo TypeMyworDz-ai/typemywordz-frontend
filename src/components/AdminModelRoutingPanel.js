@@ -15,6 +15,7 @@ export default function AdminModelRoutingPanel({ currentUser, showMessage }) {
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState('');
   const [loadError, setLoadError] = useState('');
+  const [tests, setTests] = useState({});
 
   const request = useCallback(async (method, body) => {
     const token = await currentUser.getIdToken();
@@ -61,6 +62,22 @@ export default function AdminModelRoutingPanel({ currentUser, showMessage }) {
     } catch (error) { showMessage?.(error.message, 'error'); } finally { setBusyKey(''); }
   };
 
+  const testModel = async (id) => {
+    if (!id) return;
+    setTests((c) => ({ ...c, [id]: { state: 'running' } }));
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${BACKEND_URL}/api/admin/model-routing/test`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: id }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.detail || 'The test could not run.');
+      setTests((c) => ({ ...c, [id]: result.ok ? { state: 'ok', text: `Works (${result.seconds}s)` } : { state: 'fail', text: result.error || 'No answer' } }));
+    } catch (error) { setTests((c) => ({ ...c, [id]: { state: 'fail', text: error.message } })); }
+  };
+
   const label = (id, route) => (route?.available_models || models).find((model) => model.id === id)?.label || models.find((model) => model.id === id)?.label || id;
 
   return (
@@ -105,6 +122,16 @@ export default function AdminModelRoutingPanel({ currentUser, showMessage }) {
                         {availableModels.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
                       </select>
                     </label>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10, fontSize: 13 }}>
+                  {current.map((id) => (
+                    <span key={id} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                      <button type="button" className="tm-admin-refresh" disabled={tests[id]?.state === 'running'} onClick={() => testModel(id)}>
+                        {tests[id]?.state === 'running' ? 'Testing...' : `Test ${label(id, route)}`}
+                      </button>
+                      {tests[id]?.text && <span style={{ color: tests[id].state === 'ok' ? '#2f6b3f' : '#a33' }}>{tests[id].text}</span>}
+                    </span>
                   ))}
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
