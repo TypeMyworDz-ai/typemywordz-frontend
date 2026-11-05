@@ -4412,3 +4412,9 @@ a.tm-nav { text-decoration: none; }
 .tm-word { cursor: pointer; border-radius: 3px; transition: background-color 0.12s ease; }
 .tm-word:hover { background: rgba(124, 92, 219, 0.14); }
 .tm-word-on { background: rgba(46, 160, 90, 0.26); }
+
+/* Light / dark switch in the top bar */
+.tm-theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin-right: 6px; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; }
+.tm-theme-toggle:hover { background: rgba(127, 127, 127, 0.15); }
+html[data-theme="dark"] { filter: invert(0.92) hue-rotate(180deg); background: #fff; }
+html[data-theme="dark"] img, html[data-theme="dark"] video, html[data-theme="dark"] canvas, html[data-theme="dark"] svg image, html[data-theme="dark"] iframe { filter: invert(1) hue-rotate(180deg); }
