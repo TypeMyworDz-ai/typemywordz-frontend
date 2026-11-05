@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import WorkerTermsGate from './components/WorkerTermsGate';
+import ThemeToggle from './components/ThemeToggle';
 import './App.css';
 import './styles/theme.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -2688,6 +2689,7 @@ return (
             className="tm-menu" 
             onMouseLeave={() => setOpenSubmenu(null)}
           >
+            <ThemeToggle />
             {/* Tools Parent Menu */}
             <div className="menu-item" onClick={() => handleToggleSubmenu('productsSubmenu')}>
                 <span className="menu-text">Tools</span>
