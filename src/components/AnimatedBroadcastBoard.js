@@ -22,9 +22,9 @@ const BACKEND_URL = process.env.REACT_APP_RAILWAY_BACKEND_URL || 'https://backen
 // The messages are managed by the admin (Broadcasts tab, "Homepage tips").
 // This single message is shown until they load, or if they cannot be reached.
 const FALLBACK = [{
-  id: 'typescribe', kind: 'tip', title: '', link_label: 'Download our main tool, TypeScribe',
+  id: 'typescribe', kind: 'tip', title: '', link_label: 'TypeMyworDz App',
   link_url: 'https://typemywordz.ai/tools/audio-recorder.html',
-  text: ', and enjoy all-in-one transcription platform with Playback/Recording features.'
+  text: 'Download our main all-in-one transcription tool with Playback/Recording features on Windows'
 }];
 
 const KIND_LABEL = { tip: 'Tip', new: 'New', feature: 'Feature' };
@@ -122,7 +122,7 @@ const AnimatedBroadcastBoard = ({ onNavigate }) => {
         )}
         <span className="tm-ann-text">
           {message.title ? <strong>{message.title}{' '}</strong> : null}
-          {message.link_url ? <a href={message.link_url} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 600, textDecoration: 'underline' }}>{message.link_label || 'Open link'}</a> : null}
+          {message.link_url ? <a href={message.link_url} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 700, color: '#e8590c', textDecoration: 'none' }}>{message.link_label || 'Open link'}</a> : null}
           {message.link_url && text ? gap : ''}{text}
         </span>
         {message.action && (
