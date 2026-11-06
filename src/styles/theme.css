@@ -4418,3 +4418,40 @@ a.tm-nav { text-decoration: none; }
 .tm-theme-toggle:hover { background: rgba(127, 127, 127, 0.15); }
 html[data-theme="dark"] { filter: invert(0.92) hue-rotate(180deg); background: #fff; }
 html[data-theme="dark"] img, html[data-theme="dark"] video, html[data-theme="dark"] canvas, html[data-theme="dark"] svg image, html[data-theme="dark"] iframe { filter: invert(1) hue-rotate(180deg); }
+
+
+/* ---- Quiet, professional controls and surfaces (Nov 2026) -------------
+   Soft tints are almost white now, so no block reads as a coloured panel.
+   Buttons are outlined, with colour only in the label and on hover. */
+:root {
+  --tm-green-soft: #fafbfa;
+  --tm-green-line: #e5e6ea;
+  --tm-purple-soft: #fafafc;
+  --tm-purple-line: #e5e6ea;
+  --tm-warn-soft: #fcfbf8;
+  --tm-danger-soft: #fdfafa;
+}
+.tm-ed-actions { width: 100%; justify-content: space-between; flex-wrap: nowrap; }
+.tm-split-main, .tm-split-caret, .tm-export-btn, .tm-ed-ai, .tm-human-request-button, .tm-human-request-top {
+  background: #fff;
+  color: var(--tm-ink);
+  border: 1px solid #d6d9df;
+  box-shadow: none;
+  font-weight: 550;
+  height: 36px;
+  min-height: 36px;
+  transform: none;
+}
+.tm-split-main { border-radius: 8px 0 0 8px; border-right: 0; }
+.tm-split-caret { border-radius: 0 8px 8px 0; border-left: 1px solid #e5e6ea; color: var(--tm-body); }
+.tm-export-btn, .tm-ed-ai, .tm-human-request-button, .tm-human-request-top { border-radius: 8px; }
+.tm-split-main:hover, .tm-split-caret:hover, .tm-export-btn:hover, .tm-ed-ai:hover,
+.tm-human-request-button:hover { background: #f6f7f9; border-color: #b9bec8; color: var(--tm-ink); }
+.tm-split-main svg, .tm-ed-ai svg { color: var(--tm-green-dark); }
+.tm-copybelow-btn { border-radius: 8px; border-right: 1px solid #d6d9df; }
+.tm-ed-ai { color: var(--tm-purple); }
+.tm-human-request-button { color: var(--tm-purple); }
+.tm-ed-shortcuts { background: transparent; border: 0; border-left: 2px solid var(--tm-line); border-radius: 0; padding: 4px 12px; }
+.tm-ed-shortcuts strong { color: var(--tm-muted); }
+.tm-ed-shortcuts kbd, .tm-ed-audio-shortcuts b { background: #fff; border: 1px solid #d6d9df; border-bottom-width: 1px; color: var(--tm-body); font-weight: 600; }
+.tm-ed-foot { background: transparent; }
