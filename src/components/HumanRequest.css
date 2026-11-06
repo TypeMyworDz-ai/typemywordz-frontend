@@ -385,3 +385,5 @@
   .tm-human-modal-foot { align-items: stretch; flex-direction: column; }
   .tm-human-modal-primary { width: 100%; }
 }
+
+.tm-human-request-button, .tm-human-request-button:hover { transform: none; }

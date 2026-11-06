@@ -841,6 +841,15 @@ const TranscriptEditor = ({
             )}
           </div>
 
+          {onAskAI && (
+            <button type="button" className={'tm-ed-ai' + (canUseAI ? '' : ' tm-ed-ai-off')}
+                    onClick={() => onAskAI(copyFromSegments(segments, 'full', { speakerNames }))}>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.7">
+                <path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/>
+              </svg>
+              Ask AI
+            </button>
+          )}
           {/* Export */}
           <div className="tm-split" ref={exportRef}>
             <button type="button" className="tm-export-btn" onClick={() => setExportOpen((o) => !o)}
@@ -898,28 +907,6 @@ const TranscriptEditor = ({
             )}
           </div>
 
-          {showHumanRequest && (
-            <div className="tm-ed-human-top">
-              <HumanRequest
-                fileName={fileName}
-                durationSeconds={shownLength}
-                placement="top"
-                onTopUp={onHumanTopUp}
-                transcriptText={copyFromSegments(segments, 'full', { speakerNames })}
-                audioFile={localFile}
-              />
-            </div>
-          )}
-
-          {onAskAI && (
-            <button type="button" className={'tm-ed-ai' + (canUseAI ? '' : ' tm-ed-ai-off')}
-                    onClick={() => onAskAI(copyFromSegments(segments, 'full', { speakerNames }))}>
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.7">
-                <path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/>
-              </svg>
-              Ask AI
-            </button>
-          )}
         </div>
       </div>
 
