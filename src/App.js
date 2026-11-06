@@ -3048,7 +3048,7 @@ return (
         )}
 
         {/* UPDATED: AnimatedBroadcastBoard - moved to occupy the space where "Logged in as..." was, made larger and more beautiful */}
-        {currentView === 'transcribe' && (
+        {currentView === 'transcribe' && !IS_TYPESCRIBE && (
           <div style={{
             display: 'flex',
             justifyContent: 'center',
