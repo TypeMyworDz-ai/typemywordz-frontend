@@ -1692,7 +1692,7 @@ function AppContent() {
     if (!wv) return undefined;
     const onMsg = (e) => {
       const d = e && e.data;
-      if (d && d.type === 'typescribe-audio' && d.url) setScribeAudio({ url: d.url, name: d.name || 'TypeScribe audio.mp3', at: Date.now() });
+      if (d && d.type === 'typescribe-audio' && d.url) setScribeAudio({ url: d.url, name: d.name || 'TypeMyworDz App audio.mp3', at: Date.now() });
     };
     wv.addEventListener('message', onMsg);
     wv.postMessage('typescribe-ready');
@@ -1717,10 +1717,10 @@ function AppContent() {
       const file = new File([blob], audio.name, { type: SCRIBE_MIME[ext] || blob.type || 'audio/mpeg' });
       setCurrentView('transcribe');
       await handleFileSelect({ target: { files: [file] } });
-      showMessage('Your audio from TypeScribe is ready. Choose your options below to transcribe it.', 'success');
+      showMessage('Your audio from TypeMyworDz App is ready. Choose your options below to transcribe it.', 'success');
     } catch (err) {
       console.warn('TypeScribe hand-off failed', err);
-      showMessage('TypeScribe could not pass this audio over. Use "Choose file" to pick it instead.', 'error');
+      showMessage('TypeMyworDz App could not pass this audio over. Use "Choose file" to pick it instead.', 'error');
     } finally {
       setScribeLoading(false);
     }
@@ -1736,13 +1736,13 @@ function AppContent() {
   // brings in the audio TypeScribe has loaded right now.
   const useTypeScribeAudio = useCallback(() => {
     scribeWantRef.current = true;
-    setScribeNote('Asking TypeScribe\u2026');
+    setScribeNote('Asking TypeMyworDz App\u2026');
     askScribeForAudio();
     clearTimeout(scribeWantTimerRef.current);
     scribeWantTimerRef.current = setTimeout(() => {
       if (scribeWantRef.current) {
         scribeWantRef.current = false;
-        setScribeNote('Nothing is loaded in TypeScribe yet. Record or open an audio file there first.');
+        setScribeNote('Nothing is loaded in TypeMyworDz App yet. Record or open an audio file there first.');
       }
     }, 6000);
   }, [askScribeForAudio]);
@@ -2594,7 +2594,7 @@ const handleTranscriptionComplete = useCallback(async (transcriptionText, comple
         <Route path="*" element={
           <div className="ts-embed-signin">
             <img src="/brand-mark.png" alt="TypeMyworDz" width="72" height="72" />
-            <h1>Transcribe in TypeScribe</h1>
+            <h1>Transcribe in TypeMyworDz App</h1>
             <p>Sign in or create your free account. Your audio is waiting; it will load as soon as you are in.</p>
             <div className="tm-lp-hero-card"><Login /></div>
             <p className="ts-embed-note"><strong>30 free credits</strong> on sign up. No card needed.</p>
@@ -2716,7 +2716,7 @@ return (
                             <span className="menu-text">Audio converter</span>
                         </a>
                         <a className="submenu-item" style={{ textDecoration: 'none' }} href="/tools/audio-recorder.html" target="_blank" rel="noopener noreferrer">
-                            <span className="menu-text">TypeScribe</span>
+                            <span className="menu-text">TypeMyworDz App</span>
                         </a>
                         <div className="submenu-item" onClick={() => window.showComingSoon('Text-to-Speech')}>
                             <span className="menu-text">Text-to-Speech</span>
@@ -3003,13 +3003,13 @@ return (
 
           <main className="tm-main">
             {IS_TYPESCRIBE && (
-              <div className="ts-audio-bar" role="region" aria-label="Audio from TypeScribe">
+              <div className="ts-audio-bar" role="region" aria-label="Audio from TypeMyworDz App">
                 <div className="ts-audio-info">
-                  <span className="ts-audio-label">TypeScribe audio</span>
-                  <span className="ts-audio-name">{scribeNote || (scribeAudio ? scribeAudio.name : 'Record or open audio in TypeScribe, then bring it here.')}</span>
+                  <span className="ts-audio-label">TypeMyworDz App audio</span>
+                  <span className="ts-audio-name">{scribeNote || (scribeAudio ? scribeAudio.name : 'Record or open audio in TypeMyworDz App, then bring it here.')}</span>
                 </div>
                 <button type="button" className="ts-audio-btn" disabled={scribeLoading || isUploading} onClick={useTypeScribeAudio}>
-                  {scribeLoading ? 'Loading\u2026' : 'Use the audio in TypeScribe'}
+                  {scribeLoading ? 'Loading\u2026' : 'Use the audio in TypeMyworDz App'}
                 </button>
               </div>
             )}
