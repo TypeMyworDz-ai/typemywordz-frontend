@@ -13,7 +13,7 @@ import WorkerAudioPlayer from './WorkerAudioPlayer';
 import WorkerSpeedTestGate from './WorkerSpeedTestGate';
 import WorkerRatingsPanel from './WorkerRatingsPanel';
 import { AdminPartReview } from './AdminPartReview';
-import { ProofreadingAgentPanel, ProofreadingPartsNotice, proofreadingPartsHidden } from './ProofreadingAgentPanel';
+import { ProofreadingAgentPanel, ProofreadingPartsNotice, proofreadingPartsHidden, CopyToWordButton } from './ProofreadingAgentPanel';
 import AdminWorkerRateOverrides from './AdminWorkerRateOverrides';
 import { copyForWord } from '../utils/transcriptExport';
 import './HumanJobWorkspace.css';
@@ -1204,6 +1204,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
                 {mode === 'admin' && selectedJob.status === 'client_review' && <button type="button" title="Some clients are fully hands-off and trust an admin's review instead of logging in to approve it themselves." onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/client-approve`, { method: 'POST' })}>Approve on client's behalf</button>}
                 {mode === 'admin' && selectedJob.status === 'client_approved' && <button type="button" onClick={() => act(`/human-transcription/jobs/${selectedJob.id}/release`, { method: 'POST' })}>Release completed work</button>}
                 {mode === 'admin' && !splitJob && ['assigned', 'in_progress'].includes(selectedJob.status) && <button type="button" disabled={busy} onClick={() => takeBackAssignment('transcriber')}>Take back from worker</button>}
+                {mode === 'admin' && <CopyToWordButton job={selectedJob} />}
                 {mode === 'admin' && <button type="button" onClick={deleteJob}>Delete job</button>}
                 {mode === 'client' && selectedJob.status === 'released' && selectedJob.transcript && <button type="button" onClick={async () => { const idToken = await token(); const response = await fetch(`${BACKEND_URL}/human-transcription/jobs/${selectedJob.id}/download`, { headers: { Authorization: `Bearer ${idToken}` } }); if (!response.ok) { showMessage?.('The completed transcript is not ready to download.', 'error'); return; } const url = URL.createObjectURL(await response.blob()); const link = document.createElement('a'); link.href = url; link.download = `human-${selectedJob.id}.txt`; link.click(); URL.revokeObjectURL(url); }}>Download transcript</button>}
               </div>

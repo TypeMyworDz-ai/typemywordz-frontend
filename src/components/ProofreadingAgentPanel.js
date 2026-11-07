@@ -7,7 +7,7 @@ const OPEN_STATES = ['split_assigned', 'split_in_progress', 'proofreading_availa
 const ACTIVE_PROOFREADER = ['assigned', 'in_progress'];
 
 // General Jobs (audio) and whole-file Text Messages / PDF jobs go through the Proofreading Agent.
-const PAUSED_NOTE = 'The Proofreading Agent is paused for General Jobs while it is being tested.';
+const PAUSED_NOTE = '';
 
 export const proofreadingAgentScope = (job) => {
   if (job?.job_type === 'general_job') return 'audio';
@@ -70,7 +70,7 @@ export function ProofreadingAgentPanel({ job, act, busy, onDownloadCombined }) {
   const scope = proofreadingAgentScope(job);
   const ready = proofreadingAgentReady(job);
   const done = Boolean(job?.proofreading_agent_completedAt);
-  const paused = job?.job_type === 'general_job';
+  const paused = false;
   const segments = Array.isArray(job?.segments) ? job.segments : [];
   const imagePages = Array.isArray(job?.pdf_review?.page_texts) ? job.pdf_review.page_texts : [];
   const pageText = (page) => typeof page === 'string' ? page : String(page?.text || page?.plain_text || '');
@@ -185,5 +185,50 @@ export function ProofreadingAgentPanel({ job, act, busy, onDownloadCombined }) {
         </details>
       )}
     </div>
+  );
+}
+
+// A second "Copy to Word" for the top of the job, so admins need not scroll to the bottom.
+export function CopyToWordButton({ job }) {
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState('');
+  const scope = proofreadingAgentScope(job);
+  const done = Boolean(job?.proofreading_agent_completedAt);
+  if (!scope || !(proofreadingAgentReady(job) || done)) return null;
+  const segments = Array.isArray(job?.segments) ? job.segments : [];
+  const imagePages = Array.isArray(job?.pdf_review?.page_texts) ? job.pdf_review.page_texts : [];
+  const pageText = (page) => typeof page === 'string' ? page : String(page?.text || page?.plain_text || '');
+  const parts = scope === 'image'
+    ? imagePages.map(pageText).filter((text) => text.trim()).join('\n\n')
+    : segments.length
+      ? segments.filter((part) => part?.status === 'submitted' && String(part?.transcript || '').trim()).map((part) => String(part.transcript)).join('\n\n')
+      : String(job?.transcript || '');
+  const text = done ? String(job?.ai_review?.combined_text || job?.transcript || '') : (parts || String(job?.transcript || ''));
+  const copy = async () => {
+    if (busy || !text.trim()) return;
+    setBusy(true);
+    setNotice('');
+    try {
+      const html = done ? String(job?.ai_review?.combined_html || '') : '';
+      if (html.trim()) {
+        const holder = document.createElement('div');
+        holder.innerHTML = html;
+        await copyRich(nodeToWordHtml(holder), text);
+      } else {
+        await copyForWord(text);
+      }
+      setNotice('Copied to Word.');
+    } catch {
+      setNotice('Copying was blocked by your browser.');
+    } finally {
+      setBusy(false);
+      window.setTimeout(() => setNotice(''), 4000);
+    }
+  };
+  return (
+    <>
+      <button type="button" disabled={busy || !text.trim()} aria-busy={busy} onClick={copy} title={done ? 'Copy the client-ready transcript with Word formatting' : 'Copy the submitted parts with Word formatting'}>{busy ? 'Copying...' : 'Copy to Word'}</button>
+      {notice && <span role="status" style={{ fontSize: 12, color: notice.startsWith('Copied') ? '#267b40' : '#9a2b2b' }}>{notice}</span>}
+    </>
   );
 }
