@@ -3425,7 +3425,7 @@ return (
                     />
                     {selectedFile && (
                       <div style={{
-                        backgroundColor: '#eaf7ee',
+                        backgroundColor: '#fff',
                         color: '#1e7e34',
                         padding: '10px',
                         borderRadius: '5px',
