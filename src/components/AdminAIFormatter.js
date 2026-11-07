@@ -177,7 +177,7 @@ const AdminAIFormatter = React.memo(({ showMessage, latestTranscription }) => { 
   
   const isButtonDisabled = profileLoading || !userProfile || !transcriptInput || !formattingInstructions || aiLoading;
   return (
-    <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto', backgroundColor: '#f8f9fa', borderRadius: '15px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', marginTop: '20px' }}>
+    <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto', backgroundColor: '#fff', borderRadius: '15px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', marginTop: '20px' }}>
       <h2 style={{ color:'#dc3545', textAlign:'center', marginBottom:'30px'}}> Admin AI Formatter</h2>
       <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
         Provide a raw transcript and detailed instructions for the AI to format and polish it.

@@ -160,7 +160,7 @@ export function WordsInvoice({ request, getToken, showMessage, adminView = false
               {data && !data.rows.length && <tr><td style={cell} colSpan={adminView ? 4 : 5}>No entries for this selection.</td></tr>}
             </tbody>
             <tfoot>
-              <tr style={{ fontWeight: 700, background: '#f3faf4', color: '#1f6a37' }}>
+              <tr style={{ fontWeight: 700, background: '#fff', color: '#1f6a37' }}>
                 <td style={cell} colSpan={2}>Accruing total</td>
                 <td style={num}>{Number(data?.total_words || 0).toLocaleString()}</td>
                 <td style={num}>{money(data?.total_kes)}</td>
@@ -245,7 +245,7 @@ export function WorkerGtWorkPanel({ request, showMessage }) {
             </tr>
           </tbody>
           <tfoot>
-            <tr style={{ fontWeight: 700, background: '#f3faf4', color: '#1f6a37' }}>
+            <tr style={{ fontWeight: 700, background: '#fff', color: '#1f6a37' }}>
               <td style={cell} colSpan={3}>Accumulated total</td>
               <td style={num}>{kesWhole(data?.total_kes)}</td>
               <td style={cell}></td>
@@ -293,7 +293,7 @@ export function AdminGtInvoicePanel({ request, getToken, showMessage }) {
               {(data?.rows || []).map((row) => <tr key={row.entry_id}><td style={cell}>{row.date_label}</td><td style={cell}>{row.job_id}</td><td style={num}>{row.audio_length}</td><td style={num}>{kesWhole(row.total_kes)}</td></tr>)}
               {data && !data.rows.length && <tr><td style={cell} colSpan={4}>No entries for this selection.</td></tr>}
             </tbody>
-            <tfoot><tr style={{ fontWeight: 700, background: '#f3faf4', color: '#1f6a37' }}><td style={cell} colSpan={2}>Accruing total</td><td style={num}>{data?.total_length || '0:00'}</td><td style={num}>{kesWhole(data?.total_kes)}</td></tr></tfoot>
+            <tfoot><tr style={{ fontWeight: 700, background: '#fff', color: '#1f6a37' }}><td style={cell} colSpan={2}>Accruing total</td><td style={num}>{data?.total_length || '0:00'}</td><td style={num}>{kesWhole(data?.total_kes)}</td></tr></tfoot>
           </table>
         </div>
       )}

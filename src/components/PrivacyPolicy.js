@@ -138,7 +138,6 @@ const PrivacyPolicy = () => (
         <tr><td>Railway</td><td>Runs our main transcription service</td></tr>
         <tr><td>Render</td><td>Runs two supporting transcription services</td></tr>
         <tr><td>AssemblyAI</td><td>Speech-to-text</td></tr>
-        <tr><td>OpenAI</td><td>Speech-to-text, and part of the assistant</td></tr>
         <tr><td>Deepgram</td><td>Speech-to-text, used as a backup</td></tr>
         <tr><td>Anthropic, Google, OpenAI and DeepSeek</td><td>Power the assistant's answers</td></tr>
         <tr><td>Paystack</td><td>Takes payments</td></tr>

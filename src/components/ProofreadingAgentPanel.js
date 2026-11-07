@@ -169,7 +169,7 @@ export function ProofreadingAgentPanel({ job, act, busy, onDownloadCombined }) {
         {running && <span role="status" style={{ ...muted, color: '#4b2a8a' }}>{run.stage || 'Starting'} ({elapsed}s). It keeps running if you leave or reload this page.</span>}
       </div>
       {running && (
-        <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-label="Proofreading Agent progress" style={{ height: 8, background: '#e9e4f5', borderRadius: 999, overflow: 'hidden' }}>
+        <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-label="Proofreading Agent progress" style={{ height: 8, background: '#fff', borderRadius: 999, overflow: 'hidden' }}>
           <div style={{ width: `${percent}%`, height: '100%', background: '#5b2d9e', transition: 'width .6s ease' }} />
         </div>
       )}

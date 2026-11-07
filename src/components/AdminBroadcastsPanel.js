@@ -70,7 +70,7 @@ export default function AdminBroadcastsPanel({ currentUser, showMessage }) {
         Add a link if people need to open something. Untick Show to hide a message without deleting it. No code needed.
       </p>
       {loading ? <p role="status">Loading the current messages...</p> : loadError ? (
-        <div role="alert" style={{ maxWidth: 680, padding: 16, border: '1px solid #e1c7b9', borderRadius: 10, background: '#fffaf6' }}>
+        <div role="alert" style={{ maxWidth: 680, padding: 16, border: '1px solid #e1c7b9', borderRadius: 10, background: '#fff' }}>
           <strong>Broadcasts are not available right now.</strong>
           <p style={{ margin: '6px 0 12px' }}>{loadError}</p>
           <button type="button" className="tm-admin-refresh" onClick={load}>Try again</button>
@@ -86,7 +86,7 @@ export default function AdminBroadcastsPanel({ currentUser, showMessage }) {
               {draft[key].length === 0 && <p style={{ color: '#6b756e', fontSize: 13 }}>No messages. The bar is hidden for {title.toLowerCase()}.</p>}
               <div style={{ display: 'grid', gap: 12 }}>
                 {draft[key].map((item, index) => (
-                  <div key={item.id} style={{ border: '1px solid #e5e9e5', borderRadius: 9, padding: 12, background: '#fafcfa', display: 'grid', gap: 8 }}>
+                  <div key={item.id} style={{ border: '1px solid #e5e9e5', borderRadius: 9, padding: 12, background: '#fff', display: 'grid', gap: 8 }}>
                     <label style={{ display: 'grid', gap: 4, fontSize: 13 }}>Heading (bold label)
                       <input style={field} maxLength={80} value={item.title} placeholder="e.g. Payment update" onChange={(e) => update(key, index, { title: e.target.value })} />
                     </label>

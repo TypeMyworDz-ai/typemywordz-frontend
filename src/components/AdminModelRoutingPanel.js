@@ -88,7 +88,7 @@ export default function AdminModelRoutingPanel({ currentUser, showMessage }) {
         Changes apply to the next job within about 30 seconds. Only the Super admin sees this section.
       </p>
       {loading ? <p role="status">Loading the current settings...</p> : loadError ? (
-        <div role="alert" style={{ maxWidth: 680, padding: 16, border: '1px solid #e1c7b9', borderRadius: 10, background: '#fffaf6' }}>
+        <div role="alert" style={{ maxWidth: 680, padding: 16, border: '1px solid #e1c7b9', borderRadius: 10, background: '#fff' }}>
           <strong>Model settings are not available right now.</strong>
           <p style={{ margin: '6px 0 12px' }}>{loadError}</p>
           <button type="button" className="tm-admin-refresh" onClick={load}>Try again</button>

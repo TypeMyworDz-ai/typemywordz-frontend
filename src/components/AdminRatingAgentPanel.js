@@ -120,7 +120,7 @@ export default function AdminRatingAgentPanel({ currentUser, showMessage }) {
         ))}
       </div>
       {filter === 'instructions' ? <InstructionsEditor currentUser={currentUser} showMessage={showMessage} /> : loading ? <p role="status">Loading ratings...</p> : loadError ? (
-        <div role="alert" style={{ maxWidth: 700, padding: 16, border: '1px solid #e1c7b9', borderRadius: 10, background: '#fffaf6' }}>
+        <div role="alert" style={{ maxWidth: 700, padding: 16, border: '1px solid #e1c7b9', borderRadius: 10, background: '#fff' }}>
           <strong>Ratings are not available right now.</strong>
           <p style={{ margin: '6px 0 12px' }}>{loadError}</p>
           <button type="button" className="tm-admin-refresh" onClick={() => load()}>Try again</button>
@@ -144,7 +144,7 @@ export default function AdminRatingAgentPanel({ currentUser, showMessage }) {
                   </span>
                 </header>
                 {disputed && (
-                  <div role="note" style={{ background: '#fff8e6', border: '1px solid #ecd9a5', borderRadius: 8, padding: 10 }}>
+                  <div role="note" style={{ background: '#fff', border: '1px solid #ecd9a5', borderRadius: 8, padding: 10 }}>
                     <strong>The worker disputes this rating</strong>
                     <p style={{ margin: '4px 0 0', whiteSpace: 'pre-wrap' }}>{row.dispute_reason}</p>
                   </div>

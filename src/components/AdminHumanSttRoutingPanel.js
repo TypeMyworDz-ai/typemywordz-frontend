@@ -82,7 +82,7 @@ export default function AdminHumanSttRoutingPanel({ currentUser, showMessage }) 
         Choose the speech service order for each stage. Optional comparison runs a second speech service alongside the primary route; it adds a separate transcript for the stage to compare. Changes apply to new runs.
       </p>
       {loading ? <p role="status">Loading speech settings...</p> : loadError ? (
-        <div role="alert" style={{ maxWidth: 720, padding: 16, border: '1px solid #e1c7b9', borderRadius: 10, background: '#fffaf6' }}>
+        <div role="alert" style={{ maxWidth: 720, padding: 16, border: '1px solid #e1c7b9', borderRadius: 10, background: '#fff' }}>
           <strong>Speech settings are not available right now.</strong>
           <p style={{ margin: '6px 0 12px' }}>{loadError}</p>
           <button type="button" className="tm-admin-refresh" onClick={load}>Try again</button>

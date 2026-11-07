@@ -7,9 +7,9 @@ export function announceJobsChanged() {
 
 const base = { borderRadius: 10, padding: '14px 16px', margin: '0 0 14px', display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', lineHeight: 1.45 };
 const palette = {
-  working: { background: '#fff8e1', border: '1px solid #f0c24b', color: '#5a4300' },
-  success: { background: '#e8f6ec', border: '1px solid #3aa55d', color: '#14532d' },
-  error: { background: '#fdecec', border: '1px solid #d64545', color: '#7a1212' },
+  working: { background: '#fff', border: '1px solid #f0c24b', color: '#5a4300' },
+  success: { background: '#fff', border: '1px solid #3aa55d', color: '#14532d' },
+  error: { background: '#fff', border: '1px solid #d64545', color: '#7a1212' },
 };
 const btn = { border: '1px solid currentColor', background: 'transparent', color: 'inherit', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', font: 'inherit', fontWeight: 600 };
 

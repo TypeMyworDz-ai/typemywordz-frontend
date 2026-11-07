@@ -1439,7 +1439,7 @@ export default function HumanJobWorkspace({ mode = 'client', onBack, showMessage
             {mode === 'admin' && canFinishHumanJob(selectedJob) && !(finishIsInternal(selectedJob) && adminQueueLaneFor(selectedJob) === 'submitted') && <div className="tm-human-review"><button type="button" className="tm-admin-btn" disabled={busy} onClick={() => setFinishJobConfirm(true)}>{finishIsInternal(selectedJob) ? 'Mark as proofread' : 'Finish Job'}</button><p className="tm-tat-hint">{finishIsInternal(selectedJob) ? 'Use this once you have proofread the job yourself. It moves to Submitted and finishes on its own after 12 hours.' : 'Finish complete work without assigning a proofreader. Active proofreading assignments must be completed or taken back first.'}</p></div>}
 
             {selectedJob.job_type === 'pdf_job' && !(mode === 'worker' && workerTab === 'available') && <div className="tm-human-pdf-image-card"><div><strong>{selectedJob.pdf_review ? 'Whole-file review: all pages' : 'Assigned image'}</strong><span>{selectedJob.pdf_image?.source_filename || selectedJob.pdf_image?.name}{selectedJob.pdf_image?.page_count > 1 && !selectedJob.pdf_review ? ` · Page ${selectedJob.pdf_image.page_number} of ${selectedJob.pdf_image.page_count}` : ''}</span></div>{pdfImageUrls.length > 1 ? pdfImageUrls.map((url, index) => <img key={url} src={url} alt={`Page ${index + 1} of ${pdfImageUrls.length}`} />) : pdfImageUrl ? <img src={pdfImageUrl} alt={`Transcribe ${selectedJob.pdf_image?.name || 'PDF Job'}`} /> : <p role={pdfImageError ? 'alert' : 'status'}>{pdfImageError || 'Loading the private image…'}</p>}</div>}
-            {mode === 'worker' && audioLocked && hasAudio && !audioHidden && <div className="tm-human-reference-card" role="note" style={{ borderLeft: '4px solid #1f7a4d', display: 'grid', gap: 6 }}>
+            {mode === 'worker' && audioLocked && hasAudio && !audioHidden && <div className="tm-human-reference-card" role="note" style={{ borderLeft: '1px solid #dfe3e8', display: 'grid', gap: 6 }}>
               <strong>Your recording is locked for now</strong>
               <span>You will be able to play and download the audio once you generate the formatted draft. Click Generate formatted draft below. If the draft fails, contact the admin and they will open the recording for you.</span>
             </div>}
@@ -2341,7 +2341,7 @@ function SubadminWordsPanel({ request, getToken, showMessage }) {
             <thead><tr><th style={cell}>Month/Date</th><th style={cell}>Job ID</th><th style={{ ...cell, textAlign: 'right' }}>Total Words</th><th style={{ ...cell, textAlign: 'right' }}>Pay</th><th style={cell}></th></tr></thead>
             <tbody>
               {todayEntries.map((entry) => (
-                <tr key={entry.entry_id} style={entry.counted ? undefined : { color: '#8a6d6d', background: '#fbf4f4' }}>
+                <tr key={entry.entry_id} style={entry.counted ? undefined : { color: '#8a6d6d', background: '#fff' }}>
                   <td style={cell}>{wordsDateLabel(entry.date)}</td>
                   <td style={cell}>{entry.job_id}{!entry.counted && <small> · outside paid shift, not counted</small>}</td>
                   <td style={num}>{entry.total_words.toLocaleString()}</td>
@@ -2364,7 +2364,7 @@ function SubadminWordsPanel({ request, getToken, showMessage }) {
                 <td style={num}>{kesThree(data?.today_totals?.amount_kes)}</td>
                 <td style={cell}></td>
               </tr>
-              <tr style={{ fontWeight: 700, background: '#f3faf4', color: '#1f6a37' }}>
+              <tr style={{ fontWeight: 700, background: '#fff', color: '#1f6a37' }}>
                 <td style={cell} colSpan={2}>Half-month total ({half.start ? `${wordsDateLabel(half.start)} to ${wordsDateLabel(half.end)}` : ''})</td>
                 <td style={num}>{Number(half.words || 0).toLocaleString()}</td>
                 <td style={num}>{kesThree(half.amount_kes)}</td>

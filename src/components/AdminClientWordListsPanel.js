@@ -78,7 +78,7 @@ export default function AdminClientWordListsPanel({ currentUser, showMessage }) 
         Human Work agents use these lists to confirm spelling. A word that is dictated in a job and found here appears once on the <em>Client Word List</em> line, and is not repeated under Client spellings, My spellings, I researched or Research Notes.
       </p>
       {loading ? <p role="status">Loading the word lists...</p> : loadError ? (
-        <div role="alert" style={{ maxWidth: 700, padding: 16, border: '1px solid #e1c7b9', borderRadius: 10, background: '#fffaf6' }}>
+        <div role="alert" style={{ maxWidth: 700, padding: 16, border: '1px solid #e1c7b9', borderRadius: 10, background: '#fff' }}>
           <strong>The word lists are not available right now.</strong>
           <p style={{ margin: '6px 0 12px' }}>{loadError}</p>
           <button type="button" className="tm-admin-refresh" onClick={load}>Try again</button>
