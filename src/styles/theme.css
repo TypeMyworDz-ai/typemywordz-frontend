@@ -4481,3 +4481,6 @@ html[data-theme="dark"] img, html[data-theme="dark"] video, html[data-theme="dar
 .tm-broadcast-item span{display:block;min-width:0;max-width:100%;overflow-wrap:anywhere}
 /* Labels that used to refuse to wrap now wrap instead of running into neighbours. */
 .tm-subadmin-shift-reminder strong,.tm-admin-audio-policy strong,.tm-admin-usage-cell strong,.tm-admin-usage-cell small,.tm-human-shift-summary span,.tm-human-final-attach .tm-human-attach span,.tm-human-files-row b,.tm-trainee-price strong{white-space:normal;overflow-wrap:anywhere;min-width:0}
+
+/* Beats the older green heading rule that loaded later in the bundle. */
+.tm-subadmin-shift-reminder.tm-broadcast-item strong,.tm-broadcast-stack .tm-broadcast-item strong{color:#e01b1b !important}
