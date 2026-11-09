@@ -4469,3 +4469,8 @@ html[data-theme="dark"] img, html[data-theme="dark"] video, html[data-theme="dar
 .tm-human-status,
 .tm-inbox-job-status,
 .tm-training-badge{border:1px solid #d5d9e0;color:#3d434d}
+
+/* Long names and text always wrap inside their block instead of spilling out. */
+.tm-human-workspace h1,.tm-human-workspace h2,.tm-human-workspace h3,.tm-human-workspace p,.tm-human-workspace strong,.tm-human-workspace span,.tm-human-workspace small,.tm-human-workspace label,.tm-human-job-row,.tm-human-job-detail,.tm-routing-card,.tm-ai-agent-panel,.tm-ai-agent-panel p{overflow-wrap:anywhere;word-break:break-word;min-width:0}
+.tm-human-job-detail,.tm-human-job-detail>div,.tm-human-workspace-head>div,.tm-routing-card>div,.tm-ai-agent-copy,.tm-human-job-list,.tm-human-job-row{min-width:0;max-width:100%}
+.tm-human-job-row strong{overflow-wrap:anywhere}
