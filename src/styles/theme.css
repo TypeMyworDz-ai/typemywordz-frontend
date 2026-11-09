@@ -4474,3 +4474,10 @@ html[data-theme="dark"] img, html[data-theme="dark"] video, html[data-theme="dar
 .tm-human-workspace h1,.tm-human-workspace h2,.tm-human-workspace h3,.tm-human-workspace p,.tm-human-workspace strong,.tm-human-workspace span,.tm-human-workspace small,.tm-human-workspace label,.tm-human-job-row,.tm-human-job-detail,.tm-routing-card,.tm-ai-agent-panel,.tm-ai-agent-panel p{overflow-wrap:anywhere;word-break:break-word;min-width:0}
 .tm-human-job-detail,.tm-human-job-detail>div,.tm-human-workspace-head>div,.tm-routing-card>div,.tm-ai-agent-copy,.tm-human-job-list,.tm-human-job-row{min-width:0;max-width:100%}
 .tm-human-job-row strong{overflow-wrap:anywhere}
+
+/* Announcements: heading on its own line, bold red, never overlapping the text. */
+.tm-broadcast-item{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.tm-broadcast-item strong{display:block;color:#e01b1b;font-weight:800;white-space:normal;overflow-wrap:anywhere}
+.tm-broadcast-item span{display:block;min-width:0;max-width:100%;overflow-wrap:anywhere}
+/* Labels that used to refuse to wrap now wrap instead of running into neighbours. */
+.tm-subadmin-shift-reminder strong,.tm-admin-audio-policy strong,.tm-admin-usage-cell strong,.tm-admin-usage-cell small,.tm-human-shift-summary span,.tm-human-final-attach .tm-human-attach span,.tm-human-files-row b,.tm-trainee-price strong{white-space:normal;overflow-wrap:anywhere;min-width:0}
